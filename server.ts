@@ -26,8 +26,9 @@ async function startServer() {
   });
 
   app.get("/api/feed", async (req, res) => {
+    const feedUrl = req.query.url as string;
+    console.log(`[API] Fetching feed: ${feedUrl}`);
     try {
-      const feedUrl = req.query.url as string;
       if (!feedUrl) {
         return res.status(400).json({ error: "Missing feed URL" });
       }
@@ -41,10 +42,12 @@ async function startServer() {
       });
       
       if (!response.ok) {
+        console.warn(`[API] Source returned ${response.status} for ${feedUrl}`);
         return res.status(response.status).json({ error: `Source returned ${response.status}` });
       }
       
       let xml = await response.text();
+      console.log(`[API] Received XML for ${feedUrl}, length: ${xml.length}`);
       
       // Basic XML cleaning to handle common malformed feed issues
       // 1. Remove control characters that are invalid in XML
@@ -100,6 +103,15 @@ async function startServer() {
         }
       }
       
+      feed = {
+        title: feed.title || "Untitled Feed",
+        description: feed.description || "",
+        link: feed.link || feedUrl,
+        items: feed.items || []
+      };
+
+      console.log(`[API] Successfully parsed ${feedUrl}, items: ${feed.items.length}`);
+      
       // Decode HTML entities in feed items
       if (feed.items) {
         feed.items = feed.items.map(item => ({
@@ -110,7 +122,15 @@ async function startServer() {
         }));
       }
       
-      res.json(feed);
+      try {
+        const jsonResponse = JSON.stringify(feed);
+        console.log(`[API] Sending JSON response for ${feedUrl}, length: ${jsonResponse.length}, items: ${feed.items?.length || 0}`);
+        res.setHeader('Content-Type', 'application/json');
+        res.send(jsonResponse);
+      } catch (jsonError) {
+        console.error(`[API] Error serializing JSON for ${feedUrl}:`, jsonError);
+        res.status(500).json({ error: "Failed to serialize JSON response", details: jsonError instanceof Error ? jsonError.message : String(jsonError) });
+      }
     } catch (error) {
       console.error(`Error parsing feed ${req.query.url}:`, error);
       res.status(500).json({ error: "Failed to parse feed", details: error instanceof Error ? error.message : String(error) });

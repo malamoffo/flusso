@@ -61,18 +61,31 @@ export const storage = {
   async fetchFeedData(feedUrl: string, sinceDate?: number): Promise<{ feed: Feed; articles: Article[] }> {
     const response = await fetch(`/api/feed?url=${encodeURIComponent(feedUrl)}`);
     const text = await response.text();
+    const contentType = response.headers.get('content-type');
     
+    if (!response.ok) {
+      let errorData;
+      try {
+        errorData = JSON.parse(text);
+      } catch (e) {
+        errorData = { error: text || `HTTP error ${response.status}` };
+      }
+      const errorMsg = errorData.error || errorData.details || `Failed to fetch feed: ${response.status}`;
+      throw new Error(errorMsg);
+    }
+
+    if (contentType && !contentType.includes('application/json')) {
+      const errorMsg = `Expected JSON response from server but got ${contentType}. Response start: ${text.substring(0, 500)}`;
+      console.error(errorMsg);
+      throw new Error(errorMsg);
+    }
+
     let data;
     try {
       data = JSON.parse(text);
     } catch (e) {
-      const errorMsg = `Failed to parse JSON response from server for ${feedUrl}. Status: ${response.status}. Response start: ${text.substring(0, 100)}`;
+      const errorMsg = `Failed to parse JSON response from server for ${feedUrl}. Status: ${response.status}. Content-Type: ${contentType}. Response start: ${text.substring(0, 500)}`;
       console.error(errorMsg, e);
-      throw new Error(errorMsg);
-    }
-
-    if (!response.ok) {
-      const errorMsg = data.error || data.details || `Failed to fetch feed: ${response.status}`;
       throw new Error(errorMsg);
     }
     
