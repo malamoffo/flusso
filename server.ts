@@ -44,8 +44,61 @@ async function startServer() {
         return res.status(response.status).json({ error: `Source returned ${response.status}` });
       }
       
-      const xml = await response.text();
-      const feed = await parser.parseString(xml);
+      let xml = await response.text();
+      
+      // Basic XML cleaning to handle common malformed feed issues
+      // 1. Remove control characters that are invalid in XML
+      xml = xml.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "");
+      
+      // 2. Fix unescaped ampersands (common in many feeds)
+      // This regex looks for & not followed by a valid entity
+      xml = xml.replace(/&(?!(?:amp|lt|gt|quot|apos|#\d+|#x[a-f\d]+);)/gi, "&amp;");
+
+      let feed;
+      try {
+        feed = await parser.parseString(xml);
+      } catch (parseError) {
+        console.warn(`Standard parsing failed for ${feedUrl}, attempting JSDOM fallback...`);
+        try {
+          const dom = new JSDOM(xml, { contentType: "text/xml" });
+          const doc = dom.window.document;
+          
+          const channel = doc.querySelector("channel");
+          const feedTitle = channel?.querySelector("title")?.textContent || doc.querySelector("feed > title")?.textContent || "Untitled Feed";
+          const feedDescription = channel?.querySelector("description")?.textContent || doc.querySelector("feed > subtitle")?.textContent || "";
+          const feedLink = channel?.querySelector("link")?.textContent || doc.querySelector("feed > link[rel='alternate']")?.getAttribute("href") || doc.querySelector("feed > link")?.textContent || "";
+          
+          const items = Array.from(doc.querySelectorAll("item, entry")).map(item => {
+            const title = item.querySelector("title")?.textContent || "";
+            const link = item.querySelector("link")?.getAttribute("href") || item.querySelector("link")?.textContent || "";
+            const content = item.querySelector("content\\:encoded, content, description, summary")?.textContent || "";
+            const pubDate = item.querySelector("pubDate, published, updated")?.textContent || "";
+            const guid = item.querySelector("guid, id")?.textContent || "";
+            const creator = item.querySelector("dc\\:creator, author > name")?.textContent || "";
+            
+            return {
+              title,
+              link,
+              content,
+              contentSnippet: content.replace(/<[^>]*>/g, "").substring(0, 200),
+              pubDate,
+              isoDate: pubDate ? new Date(pubDate).toISOString() : undefined,
+              guid,
+              creator
+            };
+          });
+          
+          feed = {
+            title: feedTitle,
+            description: feedDescription,
+            link: feedLink,
+            items
+          };
+        } catch (fallbackError) {
+          console.error(`JSDOM fallback also failed for ${feedUrl}:`, fallbackError);
+          throw parseError; // Re-throw original error if fallback also fails
+        }
+      }
       
       // Decode HTML entities in feed items
       if (feed.items) {
