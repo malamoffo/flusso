@@ -11,8 +11,18 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
+  console.log(`[SERVER] Starting in ${process.env.NODE_ENV || 'development'} mode`);
+
   app.use(cors());
   app.use(express.json());
+
+  // Request Logger
+  app.use((req, res, next) => {
+    if (req.url.startsWith('/api/')) {
+      console.log(`[SERVER] ${req.method} ${req.url}`);
+    }
+    next();
+  });
 
   const parser = new Parser({
     customFields: {
@@ -166,6 +176,15 @@ async function startServer() {
     }
   });
 
+  // Catch-all for API routes to prevent falling through to SPA fallback
+  app.all("/api/*", (req, res) => {
+    console.warn(`[SERVER] 404 Not Found: ${req.method} ${req.url}`);
+    res.status(404).json({ 
+      error: `API route not found: ${req.method} ${req.url}`,
+      suggestion: "Check if the route is defined correctly in server.ts"
+    });
+  });
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
@@ -175,6 +194,12 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), "dist");
+    const fs = await import("fs");
+    if (!fs.existsSync(distPath)) {
+      console.error(`[SERVER] ERROR: dist directory not found at ${distPath}. Did you run 'npm run build'?`);
+    } else {
+      console.log(`[SERVER] Serving static files from ${distPath}`);
+    }
     app.use(express.static(distPath));
     app.get("*", (req, res) => {
       res.sendFile(path.join(distPath, "index.html"));

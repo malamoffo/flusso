@@ -75,7 +75,7 @@ export const storage = {
     }
 
     if (contentType && !contentType.includes('application/json')) {
-      const errorMsg = `Expected JSON response from server but got ${contentType}. Response start: ${text.substring(0, 500)}`;
+      const errorMsg = `Expected JSON response from server but got ${contentType} (Status: ${response.status}). Response start: ${text.substring(0, 500)}`;
       console.error(errorMsg);
       throw new Error(errorMsg);
     }
