@@ -9,47 +9,60 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-    
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '24'
-        cache: 'npm'
-        
-    - name: Install dependencies
-      run: npm ci
-      
-    - name: Build Web App
-      run: npm run build
-      
-    - name: Setup Java
-      uses: actions/setup-java@v4
-      with:
-        distribution: 'zulu'
-        java-version: '21'
-        cache: 'gradle'
-        
-    - name: Setup Android SDK
-      uses: android-actions/setup-android@v2
-      
-    - name: Add Android Platform
-      run: |
-        if [ ! -d "android" ]; then
-          npx cap add android
-        fi
-      
-    - name: Sync Capacitor
-      run: npx cap sync android
-      
-    - name: Build APK
-      run: |
-        cd android
-        chmod +x gradlew
-        ./gradlew assembleDebug
-      
-    - name: Upload APK
-      uses: actions/upload-artifact@v4
-      with:
-        name: app-debug.apk
-        path: android/app/build/outputs/apk/debug/app-debug.apk
+      - name: Checkout del codice
+        uses: actions/checkout@v4
+
+      # 1. Setup Node con caching delle dipendenze npm
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20' # Nota: la v24 non è ancora LTS, meglio usare una stabile come la 20 o 22
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Web App
+        run: npm run build
+
+      # 2. Setup Java con caching automatico di Gradle (Wrapper + Dipendenze)
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin' # 'temurin' è lo standard attuale più supportato
+          java-version: '17'      # La maggior parte dei progetti Android/Capacitor usa la 17 o 21
+          cache: 'gradle'
+
+      # 3. NOTA: 'android-actions/setup-android' non è necessario sui runner Ubuntu-latest 
+      # poiché l'SDK è già pre-installato. Rimuovendolo risparmi tempo di setup.
+
+      # 4. Caching della cartella Android di Capacitor
+      # Questo evita di dover reinstallare i plugin nativi ogni volta se non cambiano
+      - name: Cache Capacitor Android
+        uses: actions/cache@v4
+        with:
+          path: android
+          key: ${{ runner.os }}-cap-android-${{ hashFiles('package-lock.json') }}
+
+      - name: Sync Capacitor
+        run: |
+          npx cap stereo # Comando opzionale per telemetria
+          if [ ! -d "android" ]; then
+            npx cap add android
+          fi
+          npx cap sync android
+
+      # 5. Build dell'APK con ottimizzazione del Gradle Daemon
+      - name: Build APK
+        run: |
+          cd android
+          chmod +x gradlew
+          # Usiamo --no-daemon perché in CI il runner muore dopo la build
+          # Usiamo --build-cache per sfruttare il caching interno di Gradle
+          ./gradlew assembleDebug --no-daemon --build-cache
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-debug
+          path: android/app/build/outputs/apk/debug/app-debug.apk
