@@ -180,14 +180,7 @@ export const storage = {
     // Check if we are on a native platform (Android/iOS)
     const isNative = (window as any).Capacitor?.isNativePlatform();
     
-    const logEvent = (level: 'info' | 'warn' | 'error', message: string, details?: string) => {
-      window.dispatchEvent(new CustomEvent('app-log', { 
-        detail: { level, message, details, url: feedUrl, timestamp: Date.now() } 
-      }));
-    };
-
     if (isNative) {
-      logEvent('info', `Native direct fetch: ${feedUrl}`);
       try {
         const options = {
           url: feedUrl,
@@ -209,14 +202,11 @@ export const storage = {
 
         return { feed, articles: filteredArticles };
       } catch (e) {
-        const errorMsg = e instanceof Error ? e.message : String(e);
-        logEvent('error', 'Native fetch failed', errorMsg);
         throw e;
       }
     }
 
     // Web fallback (will likely fail CORS for most sites)
-    logEvent('info', `Web direct fetch (CORS restricted): ${feedUrl}`);
     try {
       const response = await fetch(feedUrl);
       const xmlString = await response.text();
@@ -229,8 +219,6 @@ export const storage = {
 
       return { feed, articles: filteredArticles };
     } catch (e) {
-      const errorMsg = e instanceof Error ? e.message : String(e);
-      logEvent('error', 'Web fetch failed (CORS)', errorMsg);
       throw e;
     }
   },

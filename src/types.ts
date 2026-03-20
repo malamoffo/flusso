@@ -4,15 +4,6 @@ export type Theme = 'light' | 'dark' | 'system';
 export type FontSize = 'small' | 'medium' | 'large' | 'xlarge';
 export type Font = 'sans' | 'serif' | 'mono';
 
-export interface LogEntry {
-  id: string;
-  timestamp: number;
-  level: 'info' | 'warn' | 'error';
-  message: string;
-  details?: string;
-  url?: string;
-}
-
 export interface Settings {
   theme: Theme;
   swipeLeftAction: SwipeAction;

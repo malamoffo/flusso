@@ -13,38 +13,89 @@ function MainContent() {
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [filter, setFilter] = useState<'all' | 'unread' | 'favorites'>('all');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
-  const [showDebugOverlay, setShowDebugOverlay] = useState(false);
-
-  const { logs, clearLogs } = useRss();
+  
+  // State for articles currently being displayed to allow deferred removal of read items
+  const [displayArticles, setDisplayArticles] = useState<Article[]>([]);
+  
+  // Pull to refresh state
+  const [pullDistance, setPullDistance] = useState(0);
+  const [isPulling, setIsPulling] = useState(false);
+  const PULL_THRESHOLD = 80;
 
   useEffect(() => {
     const isDark = settings.theme === 'dark' || (settings.theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
     document.documentElement.classList.toggle('dark', isDark);
   }, [settings.theme]);
 
-  const filteredArticles = articles.filter(article => {
-    let matchesFilter = true;
-    if (filter === 'unread') matchesFilter = !article.isRead;
-    else if (filter === 'favorites') matchesFilter = article.isFavorite;
+  // Update displayArticles only on specific triggers (re-accessing section, search change, or new articles)
+  useEffect(() => {
+    const filtered = articles.filter(article => {
+      let matchesFilter = true;
+      if (filter === 'unread') matchesFilter = !article.isRead;
+      else if (filter === 'favorites') matchesFilter = article.isFavorite;
+      
+      let matchesSearch = true;
+      if (searchQuery) {
+        const query = searchQuery.toLowerCase();
+        matchesSearch = article.title.toLowerCase().includes(query) || 
+                        (article.contentSnippet?.toLowerCase().includes(query) ?? false) ||
+                        (article.content?.toLowerCase().includes(query) ?? false);
+      }
+      
+      return matchesFilter && matchesSearch;
+    });
     
-    let matchesSearch = true;
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      matchesSearch = article.title.toLowerCase().includes(query) || 
-                      (article.contentSnippet?.toLowerCase().includes(query) ?? false) ||
-                      (article.content?.toLowerCase().includes(query) ?? false);
-    }
-    
-    return matchesFilter && matchesSearch;
-  });
+    setDisplayArticles(filtered);
+  }, [filter, searchQuery, articles.length, isLoading === false]);
 
   const unreadCount = articles.filter(a => !a.isRead).length;
 
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (window.scrollY === 0) {
+      setIsPulling(true);
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!isPulling) return;
+    const touch = e.touches[0];
+    const distance = touch.clientY - (e.currentTarget as any)._startY || 0;
+    if (distance > 0) {
+      setPullDistance(Math.min(distance * 0.5, PULL_THRESHOLD + 20));
+    }
+  };
+
+  const handleTouchEnd = () => {
+    if (pullDistance >= PULL_THRESHOLD) {
+      refreshFeeds();
+    }
+    setIsPulling(false);
+    setPullDistance(0);
+  };
+
   return (
-    <div className={`min-h-screen bg-gray-50 dark:bg-gray-950 flex flex-col transition-colors ${
-      settings.font === 'serif' ? 'font-serif' : 
-      settings.font === 'mono' ? 'font-mono' : 'font-sans'
-    }`}>
+    <div 
+      className={`min-h-screen bg-gray-50 dark:bg-gray-950 flex flex-col transition-colors ${
+        settings.font === 'serif' ? 'font-serif' : 
+        settings.font === 'mono' ? 'font-mono' : 'font-sans'
+      }`}
+      onTouchStart={(e) => {
+        (e.currentTarget as any)._startY = e.touches[0].clientY;
+        handleTouchStart(e);
+      }}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+    >
+      {/* Pull to refresh indicator */}
+      <div 
+        className="fixed top-0 left-0 right-0 flex justify-center pointer-events-none z-50"
+        style={{ transform: `translateY(${pullDistance - 40}px)`, opacity: pullDistance / PULL_THRESHOLD }}
+      >
+        <div className="bg-white dark:bg-gray-800 rounded-full p-2 shadow-lg border border-gray-100 dark:border-gray-700">
+          <RefreshCw className={`w-6 h-6 text-indigo-600 dark:text-indigo-400 ${pullDistance >= PULL_THRESHOLD ? 'animate-spin' : ''}`} />
+        </div>
+      </div>
+
       {/* Top App Bar */}
       <header className="bg-white dark:bg-gray-900 sticky top-0 z-20 px-4 py-3 flex items-center justify-between shadow-sm transition-colors">
         <div className="flex items-center gap-3">
@@ -60,23 +111,10 @@ function MainContent() {
         </div>
         <div className="flex items-center gap-2">
           <button 
-            onClick={() => setShowDebugOverlay(!showDebugOverlay)} 
-            className="p-2 rounded-full hover:bg-indigo-50 dark:hover:bg-indigo-900/30 text-gray-600 dark:text-gray-300"
-            title="Debug Logs"
-          >
-            <Terminal className="w-5 h-5" />
-          </button>
-          <button 
             onClick={() => setIsSearchOpen(true)} 
             className="p-2 rounded-full hover:bg-indigo-50 dark:hover:bg-indigo-900/30 text-gray-600 dark:text-gray-300"
           >
             <Search className="w-5 h-5" />
-          </button>
-          <button 
-            onClick={() => refreshFeeds()} 
-            className={`p-2 rounded-full hover:bg-indigo-50 dark:hover:bg-indigo-900/30 ${isLoading ? 'animate-spin text-indigo-600 dark:text-indigo-400' : 'text-gray-600 dark:text-gray-300'}`}
-          >
-            <RefreshCw className="w-5 h-5" />
           </button>
         </div>
       </header>
@@ -137,7 +175,7 @@ function MainContent() {
 
       {/* Article List */}
       <main className="flex-1 overflow-y-auto pb-24">
-        {filteredArticles.length === 0 ? (
+        {displayArticles.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-64 text-gray-500 dark:text-gray-400 px-6 text-center">
             <Inbox className="w-16 h-16 mb-4 text-gray-300 dark:text-gray-600" />
             <p className="text-lg font-medium text-gray-900 dark:text-white mb-1">No articles found</p>
@@ -149,7 +187,9 @@ function MainContent() {
           </div>
         ) : (
           <div className="flex flex-col">
-            {filteredArticles.map(article => {
+            {displayArticles.map(displayArticle => {
+              // Get the latest state of the article from the main articles array
+              const article = articles.find(a => a.id === displayArticle.id) || displayArticle;
               const feed = feeds.find(f => f.id === article.feedId);
               return (
                 <SwipeableArticle 
@@ -196,49 +236,6 @@ function MainContent() {
             article={selectedArticle} 
             onClose={() => setSelectedArticle(null)} 
           />
-        )}
-      </AnimatePresence>
-
-      {/* Debug Logs Overlay */}
-      <AnimatePresence>
-        {showDebugOverlay && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.95 }}
-            className="fixed inset-4 z-[60] bg-black/95 text-green-400 font-mono text-[10px] p-4 rounded-2xl overflow-hidden flex flex-col border border-green-900/50 shadow-2xl"
-          >
-            <div className="flex justify-between items-center mb-2 border-b border-green-900/30 pb-2">
-              <span className="font-bold">DEBUG_LOGS_V1</span>
-              <div className="flex gap-2">
-                <button onClick={clearLogs} className="px-2 py-1 bg-red-900/30 text-red-400 rounded hover:bg-red-900/50">CLEAR</button>
-                <button onClick={() => setShowDebugOverlay(false)} className="px-2 py-1 bg-green-900/30 text-green-400 rounded hover:bg-green-900/50">CLOSE</button>
-              </div>
-            </div>
-            <div className="flex-1 overflow-y-auto space-y-2">
-              {logs.length === 0 ? (
-                <div className="opacity-50 italic">No logs recorded...</div>
-              ) : (
-                logs.map(log => (
-                  <div key={log.id} className="border-b border-green-900/10 pb-2">
-                    <div className="flex justify-between opacity-50 mb-1">
-                      <span>[{log.level.toUpperCase()}]</span>
-                      <span>{new Date(log.timestamp).toLocaleTimeString()}</span>
-                    </div>
-                    <div className={log.level === 'error' ? 'text-red-400' : log.level === 'warn' ? 'text-yellow-400' : ''}>
-                      {log.message}
-                    </div>
-                    {log.url && <div className="opacity-40 truncate mt-0.5">{log.url}</div>}
-                    {log.details && (
-                      <div className="opacity-60 whitespace-pre-wrap mt-1 bg-white/5 p-1.5 rounded text-[9px] max-h-40 overflow-y-auto">
-                        {log.details}
-                      </div>
-                    )}
-                  </div>
-                ))
-              )}
-            </div>
-          </motion.div>
         )}
       </AnimatePresence>
     </div>
