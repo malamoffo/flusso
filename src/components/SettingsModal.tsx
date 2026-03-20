@@ -236,15 +236,41 @@ export function SettingsModal({ isOpen, onClose }: { isOpen: boolean; onClose: (
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                         Server URL (for Android/Native)
                       </label>
-                      <input 
-                        type="url"
-                        placeholder="https://your-app.run.app"
-                        value={settings.backendUrl || ''}
-                        onChange={(e) => updateSettings({ backendUrl: e.target.value })}
-                        className="block w-full px-3 py-3 text-base border-gray-300 dark:border-gray-700 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-xl bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white"
-                      />
-                      <p className="mt-1 text-[10px] text-gray-500">
-                        Leave empty for web version. Required for Android to reach the server.
+                      <div className="flex gap-2">
+                        <input 
+                          type="url"
+                          placeholder="https://your-app.run.app"
+                          value={settings.backendUrl || ''}
+                          onChange={(e) => updateSettings({ backendUrl: e.target.value })}
+                          className="flex-1 px-3 py-3 text-base border-gray-300 dark:border-gray-700 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-xl bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white"
+                        />
+                        <button 
+                          onClick={async () => {
+                            const baseUrl = settings.backendUrl || '';
+                            if (!baseUrl) {
+                              alert('Please enter a URL first');
+                              return;
+                            }
+                            try {
+                              const res = await fetch(`${baseUrl.replace(/\/$/, '')}/api/v1/health`);
+                              if (res.ok) {
+                                const data = await res.json();
+                                alert(`Success! Connected to server: ${data.serverId || 'OK'}`);
+                              } else {
+                                alert(`Server returned error: ${res.status}`);
+                              }
+                            } catch (e) {
+                              alert(`Connection failed: ${e instanceof Error ? e.message : String(e)}`);
+                            }
+                          }}
+                          className="px-4 py-3 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 rounded-xl font-bold text-xs"
+                        >
+                          TEST
+                        </button>
+                      </div>
+                      <p className="mt-2 text-[10px] text-gray-500 leading-relaxed">
+                        <span className="font-bold text-amber-600 dark:text-amber-400">IMPORTANT:</span> On Android, you must enter the full URL of your Cloud Run server (e.g., <code className="bg-gray-100 dark:bg-gray-800 px-1 rounded">https://ais-dev-...run.app</code>). 
+                        If left empty, the app tries to connect to <code className="bg-gray-100 dark:bg-gray-800 px-1 rounded">localhost</code>, which will fail.
                       </p>
                     </div>
                     <div>

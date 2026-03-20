@@ -69,8 +69,9 @@ export function ArticleReader({ article, onClose }: ArticleReaderProps) {
     const fetchFullContent = async () => {
       try {
         setIsLoading(true);
-        const baseUrl = settings.backendUrl || process.env.VITE_API_BASE_URL || '';
-        const apiUrl = `${baseUrl}/api/v1/article?url=${encodeURIComponent(article.link)}`;
+        const envBaseUrl = (import.meta as any).env?.VITE_API_BASE_URL || (process as any).env?.VITE_API_BASE_URL || '';
+        const baseUrl = settings.backendUrl || envBaseUrl;
+        const apiUrl = `${baseUrl.replace(/\/$/, '')}/api/v1/article?url=${encodeURIComponent(article.link)}`;
         console.log(`[READER] Fetching article from: ${apiUrl}`);
         const response = await fetch(apiUrl, {
           headers: {
