@@ -155,15 +155,30 @@ export const storage = {
 
   async parseOpml(opmlText: string): Promise<string[]> {
     const parser = new DOMParser();
-    const doc = parser.parseFromString(opmlText, 'text/xml');
-    const outlines = doc.querySelectorAll('outline[xmlUrl]');
+    let doc = parser.parseFromString(opmlText, 'text/xml');
+    
+    // If XML parsing fails (common with malformed OPML), try text/html which is more lenient
+    if (doc.querySelector('parsererror')) {
+      doc = parser.parseFromString(opmlText, 'text/html');
+    }
+
+    const outlines = doc.querySelectorAll('outline');
     const urls: string[] = [];
     
     outlines.forEach(outline => {
-      const url = outline.getAttribute('xmlUrl');
-      if (url) urls.push(url);
+      // OPML attributes can be case-sensitive in XML but case-insensitive in HTML
+      // We check common variations
+      const url = outline.getAttribute('xmlUrl') || 
+                  outline.getAttribute('xmlURL') || 
+                  outline.getAttribute('xmlurl') || 
+                  outline.getAttribute('url');
+                  
+      if (url && url.startsWith('http')) {
+        urls.push(url.trim());
+      }
     });
     
-    return urls;
+    // Remove duplicates
+    return Array.from(new Set(urls));
   }
 };

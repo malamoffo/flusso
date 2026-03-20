@@ -88,9 +88,26 @@ export function RssProvider({ children }: { children: React.ReactNode }) {
     try {
       setIsLoading(true);
       setError(null);
-      const text = await file.text();
+      
+      let text;
+      if (typeof file.text === 'function') {
+        text = await file.text();
+      } else {
+        text = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = () => reject(reader.error);
+          reader.readAsText(file);
+        });
+      }
+
       const urls = await storage.parseOpml(text);
       
+      if (urls.length === 0) {
+        setError('No valid feed URLs found in the OPML file.');
+        return;
+      }
+
       let successCount = 0;
       let failCount = 0;
       setProgress({ current: 0, total: urls.length });
@@ -105,6 +122,11 @@ export function RssProvider({ children }: { children: React.ReactNode }) {
           failCount++;
         }
         setProgress({ current: i + 1, total: urls.length });
+        
+        // Small delay to avoid slamming the server and potential rate limits
+        if (i < urls.length - 1) {
+          await new Promise(r => setTimeout(r, 100));
+        }
       }
       
       await loadData();
