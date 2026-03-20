@@ -47,20 +47,29 @@ export function ArticleReader({ article, onClose }: ArticleReaderProps) {
   };
 
   const generateSummary = async (retries = 2) => {
-    if (!fullContent?.content) return;
+    if (!fullContent?.textContent) return;
     setIsSummarizing(true);
+    setSummary(null);
     try {
+      // Use textContent to avoid HTML noise and limit length to avoid token limits
+      const textToSummarize = fullContent.textContent.substring(0, 15000);
       const response = await ai.models.generateContent({
         model: "gemini-3-flash-preview",
-        contents: `Riassumi questo articolo in 3-5 frasi in italiano: ${fullContent.content}`,
+        contents: `Riassumi questo articolo in 3-5 frasi in italiano: ${textToSummarize}`,
       });
-      setSummary(response.text || 'Nessun riassunto disponibile.');
+      
+      const text = response.text;
+      if (text) {
+        setSummary(text);
+      } else {
+        throw new Error('Empty response from AI');
+      }
     } catch (error) {
       console.error("Failed to generate summary", error);
       if (retries > 0) {
         await generateSummary(retries - 1);
       } else {
-        setSummary('Impossibile generare il riassunto.');
+        setSummary('Impossibile generare il riassunto. Verifica la connessione o la chiave API.');
       }
     } finally {
       setIsSummarizing(false);

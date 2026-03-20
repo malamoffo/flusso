@@ -131,7 +131,7 @@ export function RssProvider({ children }: { children: React.ReactNode }) {
       
       await loadData();
       if (failCount > 0) {
-        setError(`Import completed with warnings: ${successCount} feeds imported, ${failCount} failed.`);
+        console.warn(`Import completed with warnings: ${successCount} feeds imported, ${failCount} failed.`);
       } else {
         setError(null);
       }

@@ -7,12 +7,36 @@ import { Article } from './types';
 import { RefreshCw, Rss, Inbox, Settings as SettingsIcon, CheckSquare, Search, X, Terminal } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
+import { App as CapacitorApp } from '@capacitor/app';
+
 function MainContent() {
   const { articles, feeds, settings, isLoading, progress, error, refreshFeeds, toggleRead, markAllAsRead, searchQuery, setSearchQuery } = useRss();
   const [selectedArticle, setSelectedArticle] = useState<Article | null>(null);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [filter, setFilter] = useState<'all' | 'unread' | 'favorites'>('all');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  
+  // Handle Android back button
+  useEffect(() => {
+    const backListener = CapacitorApp.addListener('backButton', ({ canGoBack }) => {
+      if (selectedArticle) {
+        setSelectedArticle(null);
+      } else if (isSettingsModalOpen) {
+        setIsSettingsModalOpen(false);
+      } else if (isSearchOpen) {
+        setIsSearchOpen(false);
+        setSearchQuery('');
+      } else if (filter !== 'all') {
+        setFilter('all');
+      } else {
+        CapacitorApp.exitApp();
+      }
+    });
+
+    return () => {
+      backListener.then(l => l.remove());
+    };
+  }, [selectedArticle, isSettingsModalOpen, isSearchOpen, filter]);
   
   // State for articles currently being displayed to allow deferred removal of read items
   const [displayArticles, setDisplayArticles] = useState<Article[]>([]);
