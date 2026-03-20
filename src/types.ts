@@ -21,7 +21,6 @@ export interface Settings {
   fontSize: FontSize;
   font: Font;
   refreshInterval: number;
-  backendUrl?: string;
 }
 
 export interface Feed {

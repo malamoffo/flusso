@@ -61,13 +61,17 @@ export const storage = {
   },
 
   async fetchFeedData(feedUrl: string, sinceDate?: number): Promise<{ feed: Feed; articles: Article[] }> {
-    const settings = await this.getSettings();
-    
     // Check if we are on a native platform (Android/iOS)
     const isNative = (window as any).Capacitor?.isNativePlatform();
     
+    const logEvent = (level: 'info' | 'warn' | 'error', message: string, details?: string) => {
+      window.dispatchEvent(new CustomEvent('app-log', { 
+        detail: { level, message, details, url: feedUrl, timestamp: Date.now() } 
+      }));
+    };
+
     if (isNative) {
-      console.log(`[STORAGE] Native platform detected. Using CapacitorHttp for direct fetch: ${feedUrl}`);
+      logEvent('info', `Native direct fetch: ${feedUrl}`);
       try {
         const options = {
           url: feedUrl,
@@ -80,7 +84,6 @@ export const storage = {
           throw new Error(`Direct fetch failed with status ${response.status}`);
         }
 
-        // We need to parse the XML locally since we bypassed the server
         const parser = new RSSParser();
         const data = await parser.parseString(response.data);
         
@@ -108,64 +111,17 @@ export const storage = {
 
         return { feed: newFeed, articles: newArticles };
       } catch (e) {
-        console.error('[STORAGE] Native direct fetch failed, falling back to server', e);
-        // Fall back to server if native fetch fails
+        const errorMsg = e instanceof Error ? e.message : String(e);
+        logEvent('error', 'Native fetch failed', errorMsg);
+        throw e;
       }
     }
 
-    // Fallback to server proxy for Web or if native fetch failed
-    const envBaseUrl = (import.meta as any).env?.VITE_API_BASE_URL || '';
-    const hardcodedUrl = 'https://ais-dev-l4iutvfnf6f3lmjbx77q6c-53306626833.europe-west3.run.app';
-    const baseUrl = settings.backendUrl || envBaseUrl || hardcodedUrl;
-    const apiUrl = `${baseUrl.replace(/\/$/, '')}/api/v1/feed?url=${encodeURIComponent(feedUrl)}`;
-    
-    // We use a custom event to send logs to the UI since storage.ts is not a React component
-    const logEvent = (level: string, message: string, details?: string) => {
-      window.dispatchEvent(new CustomEvent('app-log', { 
-        detail: { level, message, details, url: apiUrl, timestamp: Date.now() } 
-      }));
-    };
-
-    logEvent('info', `Attempting fetch`, `Base URL: ${baseUrl || '(empty - using relative)'}\nTarget Feed: ${feedUrl}`);
-
+    // Web fallback (will likely fail CORS for most sites)
+    logEvent('info', `Web direct fetch (CORS restricted): ${feedUrl}`);
     try {
-      const response = await fetch(apiUrl, {
-        headers: {
-          'Cache-Control': 'no-cache',
-          'Pragma': 'no-cache'
-        }
-      });
-      const text = await response.text();
-      const contentType = response.headers.get('content-type');
-      
-      if (!response.ok) {
-        let errorData;
-        try {
-          errorData = JSON.parse(text);
-        } catch (e) {
-          errorData = { error: text || `HTTP error ${response.status}` };
-        }
-        const errorMsg = errorData.error || errorData.details || `Failed to fetch feed: ${response.status}`;
-        logEvent('error', `API Error (${response.status}): ${errorMsg}`, text);
-        console.error(`[STORAGE] API Error: ${errorMsg}`);
-        throw new Error(errorMsg);
-      }
-
-      if (contentType && !contentType.includes('application/json')) {
-        const errorMsg = `Expected JSON response from server but got ${contentType} (Status: ${response.status}). Response start: ${text.substring(0, 500)}`;
-        logEvent('error', 'Invalid Content-Type received', errorMsg);
-        console.error(`[STORAGE] API Error: ${errorMsg}`);
-        throw new Error(errorMsg);
-      }
-
-      let data;
-      try {
-        data = JSON.parse(text);
-      } catch (e) {
-        const errorMsg = `Failed to parse JSON response from server. Status: ${response.status}. Content-Type: ${contentType}. Response start: ${text.substring(0, 500)}`;
-        logEvent('error', 'JSON Parse Error', errorMsg);
-        throw new Error(errorMsg);
-      }
+      const parser = new RSSParser();
+      const data = await parser.parseURL(feedUrl);
       
       const newFeed: Feed = {
         id: uuidv4(),
@@ -177,40 +133,22 @@ export const storage = {
         lastFetched: Date.now(),
       };
 
-      const newArticles: Article[] = (data.items || []).map((item: any) => {
-        let imageUrl = null;
-        if (item['media:content'] && item['media:content']['$'] && item['media:content']['$'].url) {
-          imageUrl = item['media:content']['$'].url;
-        } else if (item['media:thumbnail'] && item['media:thumbnail']['$'] && item['media:thumbnail']['$'].url) {
-          imageUrl = item['media:thumbnail']['$'].url;
-        } else if (item.enclosure && item.enclosure.url && item.enclosure.type?.startsWith('image/')) {
-          imageUrl = item.enclosure.url;
-        } else {
-          const content = item['content:encoded'] || item.content || item.description || '';
-          const imgMatch = content.match(/<img[^>]+src="([^">]+)"/);
-          if (imgMatch) {
-            imageUrl = imgMatch[1];
-          }
-        }
+      const newArticles: Article[] = (data.items || []).map((item: any) => ({
+        id: uuidv4(),
+        feedId: newFeed.id,
+        title: item.title || 'Untitled',
+        link: item.link,
+        pubDate: item.pubDate ? new Date(item.pubDate).getTime() : Date.now(),
+        imageUrl: item.enclosure?.url || null,
+        isRead: false,
+        isFavorite: false,
+        contentSnippet: item.contentSnippet || item.content || '',
+      })).filter(a => (Date.now() - a.pubDate) <= 2 * 24 * 60 * 60 * 1000 && (!sinceDate || a.pubDate > sinceDate));
 
-        return {
-          id: uuidv4(),
-          feedId: newFeed.id,
-          title: item.title || 'Untitled',
-          link: item.link,
-          pubDate: item.pubDate ? new Date(item.pubDate).getTime() : Date.now(),
-          imageUrl,
-          isRead: false,
-          isFavorite: false,
-          contentSnippet: item.contentSnippet || item.description || '',
-        };
-      }).filter(a => (Date.now() - a.pubDate) <= 2 * 24 * 60 * 60 * 1000 && (!sinceDate || a.pubDate > sinceDate));
-
-      logEvent('info', `Successfully fetched feed`, `Items: ${newArticles.length}`);
       return { feed: newFeed, articles: newArticles };
     } catch (e) {
       const errorMsg = e instanceof Error ? e.message : String(e);
-      logEvent('error', 'Fetch Operation Failed', `Error: ${errorMsg}\nURL: ${apiUrl}`);
+      logEvent('error', 'Web fetch failed (CORS)', errorMsg);
       throw e;
     }
   },

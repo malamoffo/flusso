@@ -6,6 +6,8 @@ import { useRss } from '../context/RssContext';
 import { FastAverageColor } from 'fast-average-color';
 import DOMPurify from 'dompurify';
 import { GoogleGenAI } from "@google/genai";
+import { CapacitorHttp } from '@capacitor/core';
+import { Readability } from '@mozilla/readability';
 
 interface ArticleReaderProps {
   article: Article;
@@ -69,28 +71,51 @@ export function ArticleReader({ article, onClose }: ArticleReaderProps) {
     const fetchFullContent = async () => {
       try {
         setIsLoading(true);
-        const envBaseUrl = (import.meta as any).env?.VITE_API_BASE_URL || '';
-        const hardcodedUrl = 'https://ais-dev-l4iutvfnf6f3lmjbx77q6c-53306626833.europe-west3.run.app';
-        const baseUrl = settings.backendUrl || envBaseUrl || hardcodedUrl;
-        const apiUrl = `${baseUrl.replace(/\/$/, '')}/api/v1/article?url=${encodeURIComponent(article.link)}`;
-        console.log(`[READER] Fetching article from: ${apiUrl}`);
-        const response = await fetch(apiUrl, {
-          headers: {
-            'Cache-Control': 'no-cache',
-            'Pragma': 'no-cache'
+        const isNative = (window as any).Capacitor?.isNativePlatform();
+        let html = '';
+
+        if (isNative) {
+          console.log(`[READER] Native direct fetch: ${article.link}`);
+          const response = await CapacitorHttp.get({ url: article.link });
+          if (response.status === 200) {
+            html = response.data;
+          } else {
+            throw new Error(`Failed to fetch article: ${response.status}`);
           }
-        });
-        
-        const contentType = response.headers.get('content-type');
-        if (response.ok && contentType?.includes('application/json')) {
-          const data = await response.json();
-          setFullContent(data);
         } else {
-          const text = await response.text();
-          console.error(`[READER] API Error: Expected JSON but got ${contentType} (Status: ${response.status}). Response start: ${text.substring(0, 200)}`);
+          console.log(`[READER] Web direct fetch (CORS restricted): ${article.link}`);
+          const response = await fetch(article.link);
+          if (response.ok) {
+            html = await response.text();
+          } else {
+            throw new Error(`Failed to fetch article: ${response.status}`);
+          }
+        }
+
+        if (html) {
+          const doc = new DOMParser().parseFromString(html, 'text/html');
+          const reader = new Readability(doc);
+          const articleData = reader.parse();
+
+          if (articleData) {
+            setFullContent({
+              title: articleData.title,
+              content: articleData.content,
+              textContent: articleData.textContent,
+              length: articleData.length,
+              excerpt: articleData.excerpt,
+              byline: articleData.byline,
+              dir: articleData.dir,
+              siteName: articleData.siteName,
+              lang: articleData.lang,
+            });
+          } else {
+            setViewMode('snippet');
+          }
         }
       } catch (error) {
-        console.error("[READER] Failed to fetch full article", error);
+        console.error('[READER] Error fetching full content:', error);
+        setViewMode('snippet');
       } finally {
         setIsLoading(false);
       }
