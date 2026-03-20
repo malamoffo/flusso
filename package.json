@@ -24,6 +24,9 @@
     "dompurify": "^3.3.3",
     "dotenv": "^17.2.3",
     "express": "^4.22.1",
+    "@capacitor/android": "^8.2.0",
+    "@capacitor/cli": "^8.2.0",
+    "@capacitor/core": "^8.2.0",
     "fast-average-color": "^9.5.0",
     "framer-motion": "^12.38.0",
     "he": "^1.2.0",
@@ -40,9 +43,6 @@
     "vite": "^6.2.0"
   },
   "devDependencies": {
-    "@capacitor/android": "^8.2.0",
-    "@capacitor/cli": "^8.2.0",
-    "@capacitor/core": "^8.2.0",
     "@tailwindcss/typography": "^0.5.19",
     "@types/cors": "^2.8.19",
     "@types/dompurify": "^3.0.5",

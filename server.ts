@@ -13,7 +13,11 @@ async function startServer() {
 
   console.log(`[SERVER] Starting in ${process.env.NODE_ENV || 'development'} mode. Server ID: ${Math.random().toString(36).substring(7)}`);
 
-  app.use(cors());
+  app.use(cors({
+    origin: '*',
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Cache-Control', 'Pragma', 'x-goog-api-key']
+  }));
   app.use(express.json());
 
   // Request Logger - MUST BE FIRST
