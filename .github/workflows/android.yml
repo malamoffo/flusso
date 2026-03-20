@@ -30,7 +30,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin' # 'temurin' è lo standard attuale più supportato
-          java-version: '17'      # La maggior parte dei progetti Android/Capacitor usa la 17 o 21
+          java-version: '21'      # La maggior parte dei progetti Android/Capacitor usa la 17 o 21
           cache: 'gradle'
 
       # 3. NOTA: 'android-actions/setup-android' non è necessario sui runner Ubuntu-latest 
