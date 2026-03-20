@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { Feed, Article, Settings } from '../types';
+import { Feed, Article, Settings, LogEntry } from '../types';
 import { storage, defaultSettings } from '../services/storage';
 
 interface RssContextType {
@@ -7,8 +7,10 @@ interface RssContextType {
   articles: Article[];
   settings: Settings;
   isLoading: boolean;
-  progress: { current: number; total: number } | null;
+  progress: { current: number; total: number; status?: string } | null;
   error: string | null;
+  logs: LogEntry[];
+  clearLogs: () => void;
   addFeed: (url: string) => Promise<void>;
   importOpml: (file: File) => Promise<void>;
   toggleRead: (articleId: string) => Promise<void>;
@@ -29,9 +31,24 @@ export function RssProvider({ children }: { children: React.ReactNode }) {
   const [articles, setArticles] = useState<Article[]>([]);
   const [settings, setSettings] = useState<Settings>(defaultSettings);
   const [isLoading, setIsLoading] = useState(true);
-  const [progress, setProgress] = useState<{ current: number; total: number } | null>(null);
+  const [progress, setProgress] = useState<{ current: number; total: number; status?: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [logs, setLogs] = useState<LogEntry[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+
+  const addLog = (level: LogEntry['level'], message: string, details?: string, url?: string) => {
+    const newLog: LogEntry = {
+      id: Math.random().toString(36).substring(7),
+      timestamp: Date.now(),
+      level,
+      message,
+      details,
+      url
+    };
+    setLogs(prev => [newLog, ...prev].slice(0, 100)); // Keep last 100 logs
+  };
+
+  const clearLogs = () => setLogs([]);
 
   useEffect(() => {
     loadData();
@@ -88,6 +105,7 @@ export function RssProvider({ children }: { children: React.ReactNode }) {
     try {
       setIsLoading(true);
       setError(null);
+      addLog('info', `Starting OPML import: ${file.name}`);
       
       let text;
       if (typeof file.text === 'function') {
@@ -102,28 +120,34 @@ export function RssProvider({ children }: { children: React.ReactNode }) {
       }
 
       const urls = await storage.parseOpml(text);
+      addLog('info', `Found ${urls.length} URLs in OPML file`);
       
       if (urls.length === 0) {
         setError('No valid feed URLs found in the OPML file.');
+        addLog('warn', 'OPML import failed: No valid URLs found');
         return;
       }
 
       let successCount = 0;
       let failCount = 0;
-      setProgress({ current: 0, total: urls.length });
+      setProgress({ current: 0, total: urls.length, status: 'Starting import...' });
       
       for (let i = 0; i < urls.length; i++) {
         const url = urls[i];
         try {
+          setProgress({ current: i, total: urls.length, status: `Importing: ${url}` });
           await storage.addFeed(url);
           successCount++;
+          addLog('info', `Successfully imported: ${url}`);
         } catch (e) {
+          const errorMessage = e instanceof Error ? e.message : String(e);
+          const stack = e instanceof Error ? e.stack : undefined;
           console.error(`Failed to import ${url}`, e);
           failCount++;
+          addLog('error', `Failed to import: ${url}`, stack || errorMessage, url);
         }
-        setProgress({ current: i + 1, total: urls.length });
+        setProgress({ current: i + 1, total: urls.length, status: `Imported ${i + 1}/${urls.length}` });
         
-        // Small delay to avoid slamming the server and potential rate limits
         if (i < urls.length - 1) {
           await new Promise(r => setTimeout(r, 100));
         }
@@ -132,11 +156,15 @@ export function RssProvider({ children }: { children: React.ReactNode }) {
       await loadData();
       if (failCount > 0) {
         setError(`Import completed with warnings: ${successCount} feeds imported, ${failCount} failed.`);
+        addLog('warn', `OPML import completed with ${failCount} failures`);
       } else {
-        setError(null); // Clear error if all succeeded
+        setError(null);
+        addLog('info', `OPML import completed successfully: ${successCount} feeds added`);
       }
     } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
       setError('Failed to parse OPML file.');
+      addLog('error', 'Failed to parse OPML file', errorMessage);
       console.error(err);
     } finally {
       setIsLoading(false);
@@ -219,7 +247,7 @@ export function RssProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <RssContext.Provider value={{
-      feeds, articles, settings, isLoading, progress, error,
+      feeds, articles, settings, isLoading, progress, error, logs, clearLogs,
       addFeed, importOpml, toggleRead, toggleFavorite, markAllAsRead, refreshFeeds, removeFeed, updateFeed, updateSettings,
       searchQuery, setSearchQuery
     }}>

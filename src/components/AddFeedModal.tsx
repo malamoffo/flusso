@@ -7,7 +7,7 @@ export function AddFeedModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
   const [url, setUrl] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { addFeed, importOpml, error } = useRss();
+  const { addFeed, importOpml, error, progress } = useRss();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -65,6 +65,22 @@ export function AddFeedModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
                 <X className="w-5 h-5 text-gray-600 dark:text-gray-300" />
               </button>
             </div>
+
+            {progress && (
+              <div className="mb-6 p-4 rounded-2xl bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800">
+                <div className="flex justify-between text-sm font-medium text-indigo-700 dark:text-indigo-300 mb-2">
+                  <span className="truncate mr-2">{progress.status || 'Importing...'}</span>
+                  <span className="whitespace-nowrap">{Math.round((progress.current / progress.total) * 100)}%</span>
+                </div>
+                <div className="w-full h-2 bg-indigo-200 dark:bg-indigo-900/40 rounded-full overflow-hidden">
+                  <motion.div 
+                    className="h-full bg-indigo-600 dark:bg-indigo-400"
+                    initial={{ width: 0 }}
+                    animate={{ width: `${(progress.current / progress.total) * 100}%` }}
+                  />
+                </div>
+              </div>
+            )}
 
             {error && (
               <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-lg text-sm">

@@ -66,12 +66,14 @@ export const storage = {
     try {
       data = JSON.parse(text);
     } catch (e) {
-      console.error('Failed to parse JSON response:', text.substring(0, 200));
-      throw new Error(`Invalid server response (Status ${response.status})`);
+      const errorMsg = `Failed to parse JSON response from server for ${feedUrl}. Status: ${response.status}. Response start: ${text.substring(0, 100)}`;
+      console.error(errorMsg, e);
+      throw new Error(errorMsg);
     }
 
     if (!response.ok) {
-      throw new Error(data.error || data.details || 'Failed to fetch feed');
+      const errorMsg = data.error || data.details || `Failed to fetch feed: ${response.status}`;
+      throw new Error(errorMsg);
     }
     
     const newFeed: Feed = {
@@ -154,18 +156,22 @@ export const storage = {
   },
 
   async parseOpml(opmlText: string): Promise<string[]> {
+    console.log('Parsing OPML text, length:', opmlText.length);
     const parser = new DOMParser();
     let doc = parser.parseFromString(opmlText, 'text/xml');
     
     // If XML parsing fails (common with malformed OPML), try text/html which is more lenient
-    if (doc.querySelector('parsererror')) {
+    const parserError = doc.querySelector('parsererror');
+    if (parserError) {
+      console.warn('OPML XML parsing failed, trying HTML mode:', parserError.textContent);
       doc = parser.parseFromString(opmlText, 'text/html');
     }
 
     const outlines = doc.querySelectorAll('outline');
+    console.log('Found total outlines:', outlines.length);
     const urls: string[] = [];
     
-    outlines.forEach(outline => {
+    outlines.forEach((outline, index) => {
       // OPML attributes can be case-sensitive in XML but case-insensitive in HTML
       // We check common variations
       const url = outline.getAttribute('xmlUrl') || 
@@ -173,12 +179,15 @@ export const storage = {
                   outline.getAttribute('xmlurl') || 
                   outline.getAttribute('url');
                   
-      if (url && url.startsWith('http')) {
+      if (url && url.trim().startsWith('http')) {
         urls.push(url.trim());
+      } else if (url) {
+        console.warn(`Outline ${index} has invalid URL:`, url);
       }
     });
     
-    // Remove duplicates
-    return Array.from(new Set(urls));
+    const uniqueUrls = Array.from(new Set(urls));
+    console.log('Extracted unique URLs:', uniqueUrls.length);
+    return uniqueUrls;
   }
 };
