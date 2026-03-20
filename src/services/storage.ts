@@ -1,6 +1,8 @@
 import { get, set } from 'idb-keyval';
 import { v4 as uuidv4 } from 'uuid';
 import { Feed, Article, Settings } from '../types';
+import { CapacitorHttp } from '@capacitor/core';
+import RSSParser from 'rss-parser';
 
 const FEEDS_KEY = 'rss_feeds';
 const ARTICLES_KEY = 'rss_articles';
@@ -60,9 +62,61 @@ export const storage = {
 
   async fetchFeedData(feedUrl: string, sinceDate?: number): Promise<{ feed: Feed; articles: Article[] }> {
     const settings = await this.getSettings();
-    // Use settings first, then environment variable, then empty string
-    const envBaseUrl = (import.meta as any).env?.VITE_API_BASE_URL || (process as any).env?.VITE_API_BASE_URL || '';
-    const baseUrl = settings.backendUrl || envBaseUrl;
+    
+    // Check if we are on a native platform (Android/iOS)
+    const isNative = (window as any).Capacitor?.isNativePlatform();
+    
+    if (isNative) {
+      console.log(`[STORAGE] Native platform detected. Using CapacitorHttp for direct fetch: ${feedUrl}`);
+      try {
+        const options = {
+          url: feedUrl,
+          headers: { 'Accept': 'application/xml, text/xml, */*' },
+        };
+        
+        const response = await CapacitorHttp.get(options);
+        
+        if (response.status !== 200) {
+          throw new Error(`Direct fetch failed with status ${response.status}`);
+        }
+
+        // We need to parse the XML locally since we bypassed the server
+        const parser = new RSSParser();
+        const data = await parser.parseString(response.data);
+        
+        const newFeed: Feed = {
+          id: uuidv4(),
+          title: data.title || 'Unknown Feed',
+          description: data.description,
+          link: data.link,
+          feedUrl,
+          imageUrl: data.image?.url,
+          lastFetched: Date.now(),
+        };
+
+        const newArticles: Article[] = (data.items || []).map((item: any) => ({
+          id: uuidv4(),
+          feedId: newFeed.id,
+          title: item.title || 'Untitled',
+          link: item.link,
+          pubDate: item.pubDate ? new Date(item.pubDate).getTime() : Date.now(),
+          imageUrl: item.enclosure?.url || null,
+          isRead: false,
+          isFavorite: false,
+          contentSnippet: item.contentSnippet || item.content || '',
+        })).filter(a => (Date.now() - a.pubDate) <= 2 * 24 * 60 * 60 * 1000 && (!sinceDate || a.pubDate > sinceDate));
+
+        return { feed: newFeed, articles: newArticles };
+      } catch (e) {
+        console.error('[STORAGE] Native direct fetch failed, falling back to server', e);
+        // Fall back to server if native fetch fails
+      }
+    }
+
+    // Fallback to server proxy for Web or if native fetch failed
+    const envBaseUrl = (import.meta as any).env?.VITE_API_BASE_URL || '';
+    const hardcodedUrl = 'https://ais-dev-l4iutvfnf6f3lmjbx77q6c-53306626833.europe-west3.run.app';
+    const baseUrl = settings.backendUrl || envBaseUrl || hardcodedUrl;
     const apiUrl = `${baseUrl.replace(/\/$/, '')}/api/v1/feed?url=${encodeURIComponent(feedUrl)}`;
     
     // We use a custom event to send logs to the UI since storage.ts is not a React component

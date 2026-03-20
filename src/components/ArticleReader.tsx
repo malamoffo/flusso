@@ -69,8 +69,9 @@ export function ArticleReader({ article, onClose }: ArticleReaderProps) {
     const fetchFullContent = async () => {
       try {
         setIsLoading(true);
-        const envBaseUrl = (import.meta as any).env?.VITE_API_BASE_URL || (process as any).env?.VITE_API_BASE_URL || '';
-        const baseUrl = settings.backendUrl || envBaseUrl;
+        const envBaseUrl = (import.meta as any).env?.VITE_API_BASE_URL || '';
+        const hardcodedUrl = 'https://ais-dev-l4iutvfnf6f3lmjbx77q6c-53306626833.europe-west3.run.app';
+        const baseUrl = settings.backendUrl || envBaseUrl || hardcodedUrl;
         const apiUrl = `${baseUrl.replace(/\/$/, '')}/api/v1/article?url=${encodeURIComponent(article.link)}`;
         console.log(`[READER] Fetching article from: ${apiUrl}`);
         const response = await fetch(apiUrl, {
