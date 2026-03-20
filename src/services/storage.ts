@@ -2,11 +2,127 @@ import { get, set } from 'idb-keyval';
 import { v4 as uuidv4 } from 'uuid';
 import { Feed, Article, Settings } from '../types';
 import { CapacitorHttp } from '@capacitor/core';
-import RSSParser from 'rss-parser';
 
 const FEEDS_KEY = 'rss_feeds';
 const ARTICLES_KEY = 'rss_articles';
 const SETTINGS_KEY = 'rss_settings';
+
+// Helper to parse RSS/Atom XML using native DOMParser
+function parseRssXml(xmlString: string, feedUrl: string): { feed: Feed; articles: Article[] } {
+  const parser = new DOMParser();
+  const xmlDoc = parser.parseFromString(xmlString, 'text/xml');
+  
+  // Check for parsing errors
+  const parserError = xmlDoc.getElementsByTagName('parsererror')[0];
+  if (parserError) {
+    throw new Error('Failed to parse XML: ' + parserError.textContent);
+  }
+
+  const isAtom = xmlDoc.getElementsByTagName('feed').length > 0;
+  const feedId = uuidv4();
+  
+  if (isAtom) {
+    const feedNode = xmlDoc.getElementsByTagName('feed')[0];
+    const title = feedNode.getElementsByTagName('title')[0]?.textContent || 'Untitled Atom Feed';
+    const description = feedNode.getElementsByTagName('subtitle')[0]?.textContent || '';
+    const link = feedNode.getElementsByTagName('link')[0]?.getAttribute('href') || '';
+    
+    const entries = Array.from(xmlDoc.getElementsByTagName('entry'));
+    const articles: Article[] = entries.map(entry => {
+      const entryTitle = entry.getElementsByTagName('title')[0]?.textContent || 'Untitled';
+      const entryLink = entry.getElementsByTagName('link')[0]?.getAttribute('href') || '';
+      const pubDateStr = entry.getElementsByTagName('published')[0]?.textContent || 
+                         entry.getElementsByTagName('updated')[0]?.textContent || 
+                         new Date().toISOString();
+      const pubDate = new Date(pubDateStr).getTime();
+      
+      const content = entry.getElementsByTagName('content')[0]?.textContent || 
+                      entry.getElementsByTagName('summary')[0]?.textContent || '';
+      
+      // Try to find an image
+      let imageUrl = null;
+      const mediaContent = entry.getElementsByTagName('media:content')[0];
+      if (mediaContent) {
+        imageUrl = mediaContent.getAttribute('url');
+      }
+      
+      if (!imageUrl) {
+        const imgMatch = content.match(/<img[^>]+src="([^">]+)"/);
+        if (imgMatch) imageUrl = imgMatch[1];
+      }
+
+      return {
+        id: uuidv4(),
+        feedId,
+        title: entryTitle,
+        link: entryLink,
+        pubDate,
+        imageUrl,
+        isRead: false,
+        isFavorite: false,
+        contentSnippet: content.replace(/<[^>]*>/g, '').substring(0, 200),
+      };
+    });
+
+    return {
+      feed: { id: feedId, title, description, link, feedUrl, lastFetched: Date.now() },
+      articles
+    };
+  } else {
+    // Assume RSS 2.0
+    const channel = xmlDoc.getElementsByTagName('channel')[0];
+    if (!channel) throw new Error('Invalid RSS feed: missing <channel>');
+    
+    const title = channel.getElementsByTagName('title')[0]?.textContent || 'Untitled RSS Feed';
+    const description = channel.getElementsByTagName('description')[0]?.textContent || '';
+    const link = channel.getElementsByTagName('link')[0]?.textContent || '';
+    const feedImage = channel.getElementsByTagName('image')[0]?.getElementsByTagName('url')[0]?.textContent;
+
+    const items = Array.from(xmlDoc.getElementsByTagName('item'));
+    const articles: Article[] = items.map(item => {
+      const itemTitle = item.getElementsByTagName('title')[0]?.textContent || 'Untitled';
+      const itemLink = item.getElementsByTagName('link')[0]?.textContent || '';
+      const pubDateStr = item.getElementsByTagName('pubDate')[0]?.textContent || new Date().toISOString();
+      const pubDate = new Date(pubDateStr).getTime();
+      const content = item.getElementsByTagName('description')[0]?.textContent || 
+                      item.getElementsByTagName('content:encoded')[0]?.textContent || '';
+      
+      let imageUrl = null;
+      const enclosure = item.getElementsByTagName('enclosure')[0];
+      if (enclosure && enclosure.getAttribute('type')?.startsWith('image/')) {
+        imageUrl = enclosure.getAttribute('url');
+      }
+      
+      if (!imageUrl) {
+        const mediaContent = item.getElementsByTagName('media:content')[0] || 
+                            item.getElementsByTagName('media:thumbnail')[0];
+        if (mediaContent) imageUrl = mediaContent.getAttribute('url');
+      }
+
+      if (!imageUrl) {
+        const imgMatch = content.match(/<img[^>]+src="([^">]+)"/);
+        if (imgMatch) imageUrl = imgMatch[1];
+      }
+
+      return {
+        id: uuidv4(),
+        feedId,
+        title: itemTitle,
+        link: itemLink,
+        pubDate,
+        imageUrl,
+        isRead: false,
+        isFavorite: false,
+        contentSnippet: content.replace(/<[^>]*>/g, '').substring(0, 200),
+      };
+    });
+
+    return {
+      feed: { id: feedId, title, description, link, feedUrl, imageUrl: feedImage || undefined, lastFetched: Date.now() },
+      articles
+    };
+  }
+}
 
 export const defaultSettings: Settings = {
   theme: 'system',
@@ -84,32 +200,14 @@ export const storage = {
           throw new Error(`Direct fetch failed with status ${response.status}`);
         }
 
-        const parser = new RSSParser();
-        const data = await parser.parseString(response.data);
+        const { feed, articles } = parseRssXml(response.data, feedUrl);
         
-        const newFeed: Feed = {
-          id: uuidv4(),
-          title: data.title || 'Unknown Feed',
-          description: data.description,
-          link: data.link,
-          feedUrl,
-          imageUrl: data.image?.url,
-          lastFetched: Date.now(),
-        };
+        const filteredArticles = articles.filter(a => 
+          (Date.now() - a.pubDate) <= 2 * 24 * 60 * 60 * 1000 && 
+          (!sinceDate || a.pubDate > sinceDate)
+        );
 
-        const newArticles: Article[] = (data.items || []).map((item: any) => ({
-          id: uuidv4(),
-          feedId: newFeed.id,
-          title: item.title || 'Untitled',
-          link: item.link,
-          pubDate: item.pubDate ? new Date(item.pubDate).getTime() : Date.now(),
-          imageUrl: item.enclosure?.url || null,
-          isRead: false,
-          isFavorite: false,
-          contentSnippet: item.contentSnippet || item.content || '',
-        })).filter(a => (Date.now() - a.pubDate) <= 2 * 24 * 60 * 60 * 1000 && (!sinceDate || a.pubDate > sinceDate));
-
-        return { feed: newFeed, articles: newArticles };
+        return { feed, articles: filteredArticles };
       } catch (e) {
         const errorMsg = e instanceof Error ? e.message : String(e);
         logEvent('error', 'Native fetch failed', errorMsg);
@@ -120,32 +218,16 @@ export const storage = {
     // Web fallback (will likely fail CORS for most sites)
     logEvent('info', `Web direct fetch (CORS restricted): ${feedUrl}`);
     try {
-      const parser = new RSSParser();
-      const data = await parser.parseURL(feedUrl);
+      const response = await fetch(feedUrl);
+      const xmlString = await response.text();
+      const { feed, articles } = parseRssXml(xmlString, feedUrl);
       
-      const newFeed: Feed = {
-        id: uuidv4(),
-        title: data.title || 'Unknown Feed',
-        description: data.description,
-        link: data.link,
-        feedUrl,
-        imageUrl: data.image?.url,
-        lastFetched: Date.now(),
-      };
+      const filteredArticles = articles.filter(a => 
+        (Date.now() - a.pubDate) <= 2 * 24 * 60 * 60 * 1000 && 
+        (!sinceDate || a.pubDate > sinceDate)
+      );
 
-      const newArticles: Article[] = (data.items || []).map((item: any) => ({
-        id: uuidv4(),
-        feedId: newFeed.id,
-        title: item.title || 'Untitled',
-        link: item.link,
-        pubDate: item.pubDate ? new Date(item.pubDate).getTime() : Date.now(),
-        imageUrl: item.enclosure?.url || null,
-        isRead: false,
-        isFavorite: false,
-        contentSnippet: item.contentSnippet || item.content || '',
-      })).filter(a => (Date.now() - a.pubDate) <= 2 * 24 * 60 * 60 * 1000 && (!sinceDate || a.pubDate > sinceDate));
-
-      return { feed: newFeed, articles: newArticles };
+      return { feed, articles: filteredArticles };
     } catch (e) {
       const errorMsg = e instanceof Error ? e.message : String(e);
       logEvent('error', 'Web fetch failed (CORS)', errorMsg);
