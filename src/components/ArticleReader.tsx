@@ -12,45 +12,46 @@ import { contentFetcher } from '../utils/contentFetcher';
 interface ArticleReaderProps {
   article: Article;
   onClose: () => void;
+  onNext?: () => void;
+  onPrev?: () => void;
+  hasNext?: boolean;
+  hasPrev?: boolean;
 }
 
-export function ArticleReader({ article, onClose }: ArticleReaderProps) {
+export function ArticleReader({ article, onClose, onNext, onPrev, hasNext, hasPrev }: ArticleReaderProps) {
   const [fullContent, setFullContent] = useState<FullArticleContent | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [viewMode, setViewMode] = useState<'full' | 'snippet'>('snippet');
   const { settings, feeds, toggleFavorite, toggleRead } = useRss();
 
-  const [isPullingUp, setIsPullingUp] = useState(false);
-  const [pullUpDistance, setPullUpDistance] = useState(0);
+  const touchStartX = useRef(0);
   const touchStartY = useRef(0);
-  const PULL_UP_THRESHOLD = 80;
+  const SWIPE_THRESHOLD = 80;
 
   const handleTouchStart = (e: React.TouchEvent) => {
-    const target = e.currentTarget as HTMLElement;
-    const isAtBottom = target.scrollHeight - target.scrollTop <= target.clientHeight + 10;
-    
-    if (isAtBottom && viewMode === 'snippet') {
-      setIsPullingUp(true);
-      touchStartY.current = e.touches[0].clientY;
-    }
+    touchStartX.current = e.touches[0].clientX;
+    touchStartY.current = e.touches[0].clientY;
   };
 
-  const handleTouchMove = (e: React.TouchEvent) => {
-    if (!isPullingUp) return;
-    const touch = e.touches[0];
-    const distance = touchStartY.current - touch.clientY;
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    const touchEndX = e.changedTouches[0].clientX;
+    const touchEndY = e.changedTouches[0].clientY;
     
-    if (distance > 0) {
-      setPullUpDistance(Math.min(distance * 0.5, PULL_UP_THRESHOLD + 20));
-    }
-  };
+    const deltaX = touchStartX.current - touchEndX;
+    const deltaY = Math.abs(touchStartY.current - touchEndY);
 
-  const handleTouchEnd = () => {
-    if (isPullingUp && pullUpDistance >= PULL_UP_THRESHOLD) {
-      setViewMode('full');
+    // Ensure it's mostly a horizontal swipe
+    if (Math.abs(deltaX) > SWIPE_THRESHOLD && deltaY < 100) {
+      // Don't trigger if starting from the left edge (system back gesture)
+      if (touchStartX.current < 30) return;
+
+      if (deltaX > 0 && hasNext && onNext) {
+        // Swiped left -> Next article
+        onNext();
+      } else if (deltaX < 0 && hasPrev && onPrev) {
+        // Swiped right -> Previous article
+        onPrev();
+      }
     }
-    setIsPullingUp(false);
-    setPullUpDistance(0);
   };
 
   const feed = feeds.find(f => f.id === article.feedId);
@@ -87,6 +88,7 @@ export function ArticleReader({ article, onClose }: ArticleReaderProps) {
     const fetchFullContent = async () => {
       try {
         setIsLoading(true);
+        setFullContent(null); // Reset content when article changes
         
         // Check cache first
         const cached = await contentFetcher.getCachedContent(article.id);
@@ -133,20 +135,17 @@ export function ArticleReader({ article, onClose }: ArticleReaderProps) {
             setFullContent(contentToSave);
             // Cache it for future use
             contentFetcher.setCachedContent(article.id, contentToSave);
-          } else {
-            setViewMode('snippet');
           }
         }
       } catch (error) {
         console.error('[READER] Error fetching full content:', error);
-        setViewMode('snippet');
       } finally {
         setIsLoading(false);
       }
     };
 
     fetchFullContent();
-  }, [article.link]);
+  }, [article.link, article.id]);
 
   const sanitizedContent = fullContent?.content ? DOMPurify.sanitize(fullContent.content, {
     ADD_ATTR: ['style'],
@@ -163,7 +162,6 @@ export function ArticleReader({ article, onClose }: ArticleReaderProps) {
       exit={{ x: '100%' }}
       transition={{ type: 'spring', damping: 25, stiffness: 200 }}
       onTouchStart={handleTouchStart}
-      onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
       className="fixed inset-0 z-50 bg-white dark:bg-gray-950 overflow-y-auto overflow-x-hidden flex flex-col transition-colors break-words"
     >
@@ -202,7 +200,7 @@ export function ArticleReader({ article, onClose }: ArticleReaderProps) {
             dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(article.title) }}
           />
         </h1>
-        
+
         {article.contentSnippet && (
           <p 
             className="text-lg text-gray-600 dark:text-gray-300 mb-6 leading-relaxed"
@@ -270,7 +268,7 @@ export function ArticleReader({ article, onClose }: ArticleReaderProps) {
             <div className="h-4 bg-gray-200 dark:bg-gray-800 rounded w-full"></div>
             <div className="h-40 bg-gray-200 dark:bg-gray-800 rounded w-full mt-6"></div>
           </div>
-        ) : (viewMode === 'full' && fullContent?.content) ? (
+        ) : fullContent?.content ? (
           <div 
             className={`prose ${getProseSize()} prose-indigo dark:prose-invert max-w-full overflow-hidden
               prose-img:rounded-xl prose-img:w-full prose-img:object-cover prose-img:max-w-full
@@ -278,26 +276,6 @@ export function ArticleReader({ article, onClose }: ArticleReaderProps) {
               prose-pre:max-w-full prose-pre:overflow-x-auto`}
             dangerouslySetInnerHTML={{ __html: sanitizedContent }}
           />
-        ) : article.contentSnippet ? (
-          <div className={`prose ${getProseSize()} prose-indigo dark:prose-invert max-w-full overflow-hidden relative`}>
-            <p 
-              className="text-lg leading-relaxed"
-              dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(article.contentSnippet) }}
-            />
-            {/* Pull up to load indicator */}
-            {viewMode === 'snippet' && !isLoading && (
-              <div 
-                className="mt-8 flex flex-col items-center justify-center overflow-hidden transition-all duration-300 ease-out"
-                style={{ height: isPullingUp ? Math.max(0, pullUpDistance) : 0, opacity: isPullingUp ? Math.min(1, pullUpDistance / PULL_UP_THRESHOLD) : 0 }}
-              >
-                <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400">
-                  <span className="text-sm font-medium">
-                    {pullUpDistance >= PULL_UP_THRESHOLD ? 'Release to load full article' : 'Pull up to load full article'}
-                  </span>
-                </div>
-              </div>
-            )}
-          </div>
         ) : (
           <div className={`prose ${getProseSize()} prose-indigo dark:prose-invert max-w-full overflow-hidden`}>
             <p>No content available.</p>
@@ -305,9 +283,6 @@ export function ArticleReader({ article, onClose }: ArticleReaderProps) {
         )}
       </div>
 
-      {/* FABs removed as per request */}
-
     </motion.div>
   );
 }
-

@@ -309,6 +309,24 @@ function MainContent() {
           <ArticleReader 
             article={selectedArticle} 
             onClose={() => setSelectedArticle(null)} 
+            onNext={() => {
+              const idx = displayArticles.findIndex(a => a.id === selectedArticle.id);
+              if (idx < displayArticles.length - 1) {
+                const nextArticle = articles.find(a => a.id === displayArticles[idx + 1].id) || displayArticles[idx + 1];
+                setSelectedArticle(nextArticle);
+                if (!nextArticle.isRead) markAsRead(nextArticle.id);
+              }
+            }}
+            onPrev={() => {
+              const idx = displayArticles.findIndex(a => a.id === selectedArticle.id);
+              if (idx > 0) {
+                const prevArticle = articles.find(a => a.id === displayArticles[idx - 1].id) || displayArticles[idx - 1];
+                setSelectedArticle(prevArticle);
+                if (!prevArticle.isRead) markAsRead(prevArticle.id);
+              }
+            }}
+            hasNext={displayArticles.findIndex(a => a.id === selectedArticle.id) < displayArticles.length - 1}
+            hasPrev={displayArticles.findIndex(a => a.id === selectedArticle.id) > 0}
           />
         )}
       </AnimatePresence>
