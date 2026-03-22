@@ -54,18 +54,21 @@ function MainContent() {
 
   const prevFilterRef = useRef(filter);
   const prevSearchRef = useRef(searchQuery);
+  const prevIsLoadingRef = useRef(isLoading);
 
-  // Update displayArticles only on specific triggers (re-accessing section, search change, or new articles)
+  // Update displayArticles only on specific triggers (re-accessing section, search change, refresh completion, or new articles)
   useEffect(() => {
     const filterChanged = prevFilterRef.current !== filter;
     const searchChanged = prevSearchRef.current !== searchQuery;
+    const refreshFinished = prevIsLoadingRef.current === true && isLoading === false;
     
     prevFilterRef.current = filter;
     prevSearchRef.current = searchQuery;
+    prevIsLoadingRef.current = isLoading;
 
     setDisplayArticles(prev => {
-      if (filterChanged || searchChanged || prev.length === 0) {
-        // Full re-evaluation on filter/search change or initial load
+      if (filterChanged || searchChanged || refreshFinished || prev.length === 0) {
+        // Full re-evaluation on filter/search change, refresh completion, or initial load
         return articles.filter(article => {
           let matchesFilter = true;
           if (filter === 'unread') matchesFilter = !article.isRead;

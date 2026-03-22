@@ -152,6 +152,29 @@ export function ArticleReader({ article, onClose, onNext, onPrev, hasNext, hasPr
           <X className="w-6 h-6 text-gray-800 dark:text-gray-200" />
         </button>
         <div className="flex items-center gap-2">
+          <button onClick={() => {
+            window.open(article.link, '_blank');
+          }} className="p-2 rounded-full text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+            <AlignLeft className="w-5 h-5" />
+          </button>
+          <button onClick={() => {
+            if (navigator.share) {
+              navigator.share({
+                title: article.title,
+                url: article.link
+              }).catch(console.error);
+            } else {
+              navigator.clipboard.writeText(article.link);
+            }
+          }} className="p-2 rounded-full text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+            <Share2 className="w-5 h-5" />
+          </button>
+          <button onClick={() => toggleFavorite(article.id)} className={`p-2 rounded-full ${article.isFavorite ? 'text-amber-500' : 'text-gray-600 dark:text-gray-300'} hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors`}>
+            <Bookmark className="w-5 h-5" />
+          </button>
+          <button onClick={() => toggleRead(article.id)} className={`p-2 rounded-full ${article.isRead ? 'text-gray-400' : 'text-gray-600 dark:text-gray-300'} hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors`}>
+            <EyeOff className="w-5 h-5" />
+          </button>
         </div>
       </div>
 
