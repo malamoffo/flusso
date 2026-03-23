@@ -21,7 +21,7 @@ export function SettingsModal({ isOpen, onClose }: { isOpen: boolean; onClose: (
   const checkUpdates = async () => {
     setIsCheckingUpdates(true);
     try {
-      const repo = import.meta.env.VITE_GITHUB_REPO || 'giannetti-daniele/flusso';
+      const repo = import.meta.env.VITE_GITHUB_REPO || 'malamoffo/flusso';
       const response = await fetch(`https://api.github.com/repos/${repo}/releases/latest`);
       if (response.ok) {
         const data = await response.json();
@@ -445,7 +445,7 @@ export function SettingsModal({ isOpen, onClose }: { isOpen: boolean; onClose: (
 
                   <div className="space-y-2">
                     <a 
-                      href="https://github.com/giannetti-daniele/flusso" 
+                      href="https://github.com/malamoffo/flusso" 
                       target="_blank" 
                       rel="noopener noreferrer"
                       className="w-full flex items-center justify-between p-4 rounded-2xl bg-gray-900 text-white hover:bg-black transition-colors"

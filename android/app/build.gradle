@@ -39,6 +39,7 @@ android {
     buildTypes {
         release {
             minifyEnabled false
+            crunchPngs false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
             if (System.getenv("ANDROID_KEYSTORE_FILE")) {
                 signingConfig signingConfigs.release

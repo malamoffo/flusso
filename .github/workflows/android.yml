@@ -57,6 +57,8 @@ jobs:
           gradle wrapper --gradle-version 8.14.3
           chmod +x gradlew
           ./gradlew assembleDebug --no-daemon --build-cache
+        env:
+          GITHUB_RUN_NUMBER: ${{ github.run_number }}
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
