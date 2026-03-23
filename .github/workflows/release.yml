@@ -41,13 +41,13 @@ jobs:
           cache: 'gradle'
 
       # 3. Caching della cartella Android di Capacitor (opzionale se si usa npx cap add)
-      - name: Cache Capacitor Android
-        uses: actions/cache@v4
-        with:
-          path: android
-          key: ${{ runner.os }}-cap-android-${{ hashFiles('package.json') }}
-          restore-keys: |
-            ${{ runner.os }}-cap-android-
+      # - name: Cache Capacitor Android
+      #   uses: actions/cache@v4
+      #   with:
+      #     path: android
+      #     key: ${{ runner.os }}-cap-android-v2-${{ hashFiles('package.json') }}
+      #     restore-keys: |
+      #       ${{ runner.os }}-cap-android-v2-
 
       - name: Sync Capacitor
         run: |
