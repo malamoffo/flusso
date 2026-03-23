@@ -49,6 +49,12 @@ jobs:
       #     restore-keys: |
       #       ${{ runner.os }}-cap-android-v2-
 
+      - name: Update version in package.json
+        run: |
+          VERSION=${{ github.event.inputs.version }}
+          VERSION=${VERSION#v}
+          npm version $VERSION --no-git-tag-version
+
       - name: Sync Capacitor
         run: |
           if [ ! -d "android" ]; then
@@ -56,12 +62,28 @@ jobs:
           fi
           npx cap sync android
 
+      - name: Decode Keystore
+        if: env.ANDROID_KEYSTORE_BASE64 != ''
+        run: |
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > android/app/release.keystore
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+
       - name: Build Android APK
         run: |
           cd android
           gradle wrapper --gradle-version 8.14.3
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon --build-cache
+          if [ -f "app/release.keystore" ]; then
+            ./gradlew assembleRelease --no-daemon --build-cache
+          else
+            ./gradlew assembleDebug --no-daemon --build-cache
+          fi
+        env:
+          ANDROID_KEYSTORE_FILE: release.keystore
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
 
       - name: Create GitHub Release
         id: create_release
@@ -71,6 +93,8 @@ jobs:
           name: ${{ github.event.inputs.version }}
           draft: false
           prerelease: false
-          files: android/app/build/outputs/apk/debug/app-debug.apk
+          files: |
+            android/app/build/outputs/apk/release/app-release.apk
+            android/app/build/outputs/apk/debug/app-debug.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
