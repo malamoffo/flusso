@@ -262,8 +262,8 @@ export const storage = {
       const options = {
         url: feedUrl,
         headers: { 'Accept': 'application/xml, text/xml, */*' },
-        connectTimeout: 5000,
-        readTimeout: 5000,
+        connectTimeout: 10000,
+        readTimeout: 10000,
       };
       
       const response = await CapacitorHttp.get(options);

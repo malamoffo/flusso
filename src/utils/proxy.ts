@@ -22,9 +22,10 @@ export async function fetchWithProxy(url: string, isRss: boolean = true): Promis
   }
 
   const proxies = [
-    { url: `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`, type: 'json' },
     { url: `https://corsproxy.io/?${encodeURIComponent(url)}`, type: 'text' },
-    { url: `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`, type: 'text' }
+    { url: `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`, type: 'json' },
+    { url: `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`, type: 'text' },
+    { url: `https://thingproxy.freeboard.io/fetch/${url}`, type: 'text' }
   ];
 
   if (isRss) {
@@ -32,17 +33,21 @@ export async function fetchWithProxy(url: string, isRss: boolean = true): Promis
   }
 
   let lastError: any;
-  const timeout = 10000; // 10 seconds timeout
+  const timeout = 20000; // 20 seconds timeout
 
-  for (const proxy of proxies) {
+  for (let i = 0; i < proxies.length; i++) {
+    const proxy = proxies[i];
     const controller = new AbortController();
     const id = setTimeout(() => controller.abort(), timeout);
     
     try {
+      if (i > 0) {
+        await new Promise(resolve => setTimeout(resolve, 500)); // 500ms delay between retries
+      }
       const response = await fetch(proxy.url, { 
         signal: controller.signal,
         headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
         }
       });
       clearTimeout(id);
@@ -65,24 +70,29 @@ export async function fetchWithProxy(url: string, isRss: boolean = true): Promis
         
         if (text && text.trim().length > 0) {
           if (isRss) {
-            if (text.includes('<rss') || text.includes('<feed') || text.includes('<?xml') || text.includes('<rdf:RDF')) {
+            const trimmed = text.trim();
+            if (trimmed.includes('<rss') || trimmed.includes('<feed') || trimmed.includes('<?xml') || trimmed.includes('<rdf:RDF') || trimmed.startsWith('{')) {
               return text;
             } else {
-              lastError = new Error(`Proxy returned invalid content (not XML/RSS)`);
+              lastError = new Error(`Proxy ${proxy.url} returned invalid content (not XML/RSS)`);
               continue;
             }
           } else {
             return text;
           }
         } else {
-          lastError = new Error(`Proxy returned empty response`);
+          lastError = new Error(`Proxy ${proxy.url} returned empty response`);
           continue;
         }
       }
-      lastError = new Error(`Proxy returned status ${response.status}`);
-    } catch (e) {
+      lastError = new Error(`Proxy ${proxy.url} returned status ${response.status}`);
+    } catch (e: any) {
       clearTimeout(id);
-      lastError = e;
+      if (e.name === 'AbortError') {
+        lastError = new Error(`Proxy ${proxy.url} timed out after ${timeout}ms`);
+      } else {
+        lastError = e;
+      }
     }
   }
   throw lastError || new Error('Failed to fetch from all proxies.');

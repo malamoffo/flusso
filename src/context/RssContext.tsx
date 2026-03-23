@@ -15,7 +15,7 @@ interface RssContextType {
   markAsRead: (articleId: string) => Promise<void>;
   toggleFavorite: (articleId: string) => Promise<void>;
   markAllAsRead: () => Promise<void>;
-  refreshFeeds: () => Promise<void>;
+  refreshFeeds: (currentFeeds?: Feed[], currentArticles?: Article[]) => Promise<void>;
   removeFeed: (feedId: string) => Promise<void>;
   updateFeed: (feedId: string, updates: Partial<Feed>) => Promise<void>;
   updateSettings: (newSettings: Partial<Settings>) => Promise<void>;
@@ -35,9 +35,13 @@ export function RssProvider({ children }: { children: React.ReactNode }) {
   const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
-    loadData().then(() => {
-      refreshFeeds();
+    let mounted = true;
+    loadData().then((data) => {
+      if (mounted && data && data.loadedFeeds.length > 0) {
+        refreshFeeds(data.loadedFeeds, data.loadedArticles);
+      }
     });
+    return () => { mounted = false; };
   }, []);
 
   const loadData = async () => {
@@ -49,9 +53,11 @@ export function RssProvider({ children }: { children: React.ReactNode }) {
       setFeeds(loadedFeeds);
       setArticles(loadedArticles.sort((a, b) => b.pubDate - a.pubDate));
       setSettings(loadedSettings);
+      return { loadedFeeds, loadedArticles };
     } catch (err) {
       setError('Failed to load data');
       console.error(err);
+      return null;
     } finally {
       setIsLoading(false);
     }
@@ -187,19 +193,31 @@ export function RssProvider({ children }: { children: React.ReactNode }) {
     await storage.saveFeeds(updatedFeeds);
   };
 
-  const refreshFeeds = async () => {
+  const refreshFeeds = async (currentFeeds?: Feed[], currentArticles?: Article[]) => {
     try {
       setIsLoading(true);
-      const currentFeeds = await storage.getFeeds();
-      const currentArticles = await storage.getArticles();
-      setProgress({ current: 0, total: currentFeeds.length });
+      const feedsToUse = currentFeeds || await storage.getFeeds();
+      const articlesToUse = currentArticles || await storage.getArticles();
       
-      const feedResults = await Promise.allSettled(currentFeeds.map(async (feed) => {
-        const latestArticle = currentArticles
+      if (feedsToUse.length === 0) {
+        setIsLoading(false);
+        return;
+      }
+      
+      setProgress({ current: 0, total: feedsToUse.length });
+      
+      let completed = 0;
+      const feedResults = await Promise.allSettled(feedsToUse.map(async (feed) => {
+        const latestArticle = articlesToUse
           .filter(a => a.feedId === feed.id)
           .sort((a, b) => b.pubDate - a.pubDate)[0];
         
         const data = await storage.fetchFeedData(feed.feedUrl, latestArticle?.pubDate);
+        
+        // Update progress safely
+        completed++;
+        setProgress(prev => prev ? { ...prev, current: completed } : { current: completed, total: feedsToUse.length });
+        
         return data;
       }));
 
