@@ -1,23 +1,47 @@
 import React, { useState } from 'react';
-import { X, Moon, Sun, Monitor, Image as ImageIcon, LayoutList, Maximize, Type, Plus, Trash2, Edit2, AlertCircle, Save, ArrowLeft, ChevronDown, ChevronUp } from 'lucide-react';
+import { X, Moon, Sun, Monitor, Image as ImageIcon, LayoutList, Maximize, Type, Plus, Trash2, Edit2, AlertCircle, Save, ArrowLeft, ChevronDown, ChevronUp, Github, Info, ExternalLink, RefreshCw } from 'lucide-react';
 import { useRss } from '../context/RssContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { SwipeAction, Theme, ImageDisplay, FontSize, Font } from '../types';
 import { AddFeedModal } from './AddFeedModal';
+import packageJson from '../../package.json';
 
 export function SettingsModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const { settings, updateSettings, feeds, removeFeed, updateFeed, progress } = useRss();
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'settings' | 'subscriptions'>('settings');
+  const [activeTab, setActiveTab] = useState<'settings' | 'subscriptions' | 'about'>('settings');
   const [editingFeedId, setEditingFeedId] = useState<string | null>(null);
   const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState('');
   const [selectedFeedId, setSelectedFeedId] = useState<string | null>(null);
+  
+  const [latestRelease, setLatestRelease] = useState<{ version: string; url: string } | null>(null);
+  const [isCheckingUpdates, setIsCheckingUpdates] = useState(false);
+
+  const checkUpdates = async () => {
+    setIsCheckingUpdates(true);
+    try {
+      const repo = import.meta.env.VITE_GITHUB_REPO || 'giannetti-daniele/flusso';
+      const response = await fetch(`https://api.github.com/repos/${repo}/releases/latest`);
+      if (response.ok) {
+        const data = await response.json();
+        setLatestRelease({
+          version: data.tag_name.replace('v', ''),
+          url: data.html_url
+        });
+      }
+    } catch (error) {
+      console.error('Failed to check for updates:', error);
+    } finally {
+      setIsCheckingUpdates(false);
+    }
+  };
 
   React.useEffect(() => {
     if (isOpen) {
       setActiveTab('settings');
       setSelectedFeedId(null);
+      checkUpdates();
     }
   }, [isOpen]);
 
@@ -65,7 +89,9 @@ export function SettingsModal({ isOpen, onClose }: { isOpen: boolean; onClose: (
                     </button>
                   )}
                   <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
-                    {selectedFeed ? 'Feed Details' : activeTab === 'settings' ? 'Settings' : 'Subscriptions'}
+                    {selectedFeed ? 'Feed Details' : 
+                     activeTab === 'settings' ? 'Settings' : 
+                     activeTab === 'subscriptions' ? 'Subscriptions' : 'About Flusso'}
                   </h2>
                 </div>
                 <button onClick={() => selectedFeed ? setSelectedFeedId(null) : onClose()} className="p-2 bg-gray-100 dark:bg-gray-800 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
@@ -315,8 +341,21 @@ export function SettingsModal({ isOpen, onClose }: { isOpen: boolean; onClose: (
                     </div>
                   </div>
                 </section>
+
+                <section className="pt-4 border-t border-gray-100 dark:border-gray-800">
+                  <button
+                    onClick={() => setActiveTab('about')}
+                    className="w-full flex items-center justify-between p-4 rounded-2xl bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors font-medium"
+                  >
+                    <div className="flex items-center gap-3">
+                      <Info className="w-5 h-5 text-gray-500" />
+                      <span>About Flusso</span>
+                    </div>
+                    <span className="text-gray-500">→</span>
+                  </button>
+                </section>
               </div>
-            ) : (
+            ) : activeTab === 'subscriptions' ? (
               <section className="space-y-4">
                 <div className="space-y-2">
                   {feeds.map(feed => (
@@ -342,6 +381,89 @@ export function SettingsModal({ isOpen, onClose }: { isOpen: boolean; onClose: (
                   <Plus className="w-5 h-5" />
                   Add New Feed or Import OPML
                 </button>
+              </section>
+            ) : (
+              <section className="space-y-8">
+                <div className="flex flex-col items-center text-center py-4">
+                  <div className="w-20 h-20 bg-indigo-600 rounded-3xl flex items-center justify-center shadow-lg mb-4">
+                    <RefreshCw className="w-10 h-10 text-white" />
+                  </div>
+                  <h3 className="text-2xl font-bold text-gray-900 dark:text-white">Flusso</h3>
+                  <p className="text-gray-500 dark:text-gray-400 mt-1">Version {packageJson.version}</p>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="p-4 rounded-2xl bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700">
+                    <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">App Information</h4>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed">
+                      Flusso is a minimalist, mobile-first RSS reader designed for speed and focus. 
+                      It features full article extraction, swipe gestures, and OPML support.
+                    </p>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700">
+                    <div className="flex items-center justify-between mb-4">
+                      <h4 className="text-sm font-semibold text-gray-900 dark:text-white">Updates</h4>
+                      <button 
+                        onClick={checkUpdates}
+                        disabled={isCheckingUpdates}
+                        className="text-xs text-indigo-600 dark:text-indigo-400 font-medium flex items-center gap-1"
+                      >
+                        <RefreshCw className={`w-3 h-3 ${isCheckingUpdates ? 'animate-spin' : ''}`} />
+                        Check now
+                      </button>
+                    </div>
+                    
+                    {latestRelease ? (
+                      <div className="flex flex-col gap-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-gray-600 dark:text-gray-400">Latest Version:</span>
+                          <span className="text-sm font-bold text-gray-900 dark:text-white">{latestRelease.version}</span>
+                        </div>
+                        {latestRelease.version !== packageJson.version ? (
+                          <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-100 dark:border-green-800 rounded-xl">
+                            <p className="text-xs text-green-800 dark:text-green-300 font-medium">
+                              A newer version is available!
+                            </p>
+                            <a 
+                              href={latestRelease.url} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="text-xs text-green-600 dark:text-green-400 underline mt-1 inline-block"
+                            >
+                              Download from GitHub
+                            </a>
+                          </div>
+                        ) : (
+                          <p className="text-xs text-gray-500 text-center">You are using the latest version.</p>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-gray-500 text-center">Checking for updates...</p>
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <a 
+                      href="https://github.com/giannetti-daniele/flusso" 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="w-full flex items-center justify-between p-4 rounded-2xl bg-gray-900 text-white hover:bg-black transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        <Github className="w-5 h-5" />
+                        <span className="font-medium">GitHub Repository</span>
+                      </div>
+                      <ExternalLink className="w-4 h-4 opacity-50" />
+                    </a>
+                  </div>
+                </div>
+
+                <div className="text-center pt-4">
+                  <p className="text-[10px] text-gray-400 uppercase tracking-widest">
+                    Made with ❤️ by Daniele Giannetti
+                  </p>
+                </div>
               </section>
             )}
           </motion.div>
