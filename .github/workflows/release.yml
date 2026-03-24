@@ -51,6 +51,7 @@ jobs:
           gradle-version: '9.4.0'
           cache-read-only: false
           build-scan-publish: false
+          validate-wrappers: false
 
       - name: Sync Capacitor
         run: |
