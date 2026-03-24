@@ -25,7 +25,7 @@ jobs:
         with:
           node-version: '24'
           cache: 'npm'
-          cache-dependency-path: package.json
+          cache-dependency-path: package-lock.json
 
       - name: Install dependencies
         run: npm install
@@ -69,7 +69,6 @@ jobs:
       - name: Build Android APK
         run: |
           cd android
-          gradle wrapper
           chmod +x gradlew
           if [ -f "app/release.keystore" ]; then
             ./gradlew assembleRelease --build-cache
