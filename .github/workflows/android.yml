@@ -1,4 +1,4 @@
-name: Build Android APK
+name: Build Web App
 
 on:
   push:
@@ -25,43 +25,8 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: Lint check
+        run: npm run lint
+
       - name: Build Web App
         run: npm run build
-
-      # 2. Setup Java
-      - name: Setup Java
-        uses: actions/setup-java@v5
-        with:
-          distribution: 'temurin'
-          java-version: '21'
-
-      # 3. Setup Gradle con caching avanzato
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v6
-        with:
-          gradle-version: '9.4.0'
-          cache-read-only: false
-          build-scan-publish: false
-
-      - name: Sync Capacitor
-        run: |
-          if [ ! -d "android" ]; then
-            npx cap add android
-          fi
-          npx cap sync android
-
-      # 4. Build dell'APK
-      - name: Build APK
-        run: |
-          cd android
-          gradle wrapper
-          chmod +x gradlew
-          ./gradlew assembleDebug --build-cache
-        env:
-          GITHUB_RUN_NUMBER: ${{ github.run_number }}
-
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: app-debug
-          path: android/app/build/outputs/apk/debug/app-debug.apk
