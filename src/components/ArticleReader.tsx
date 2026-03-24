@@ -8,7 +8,7 @@ import { CapacitorHttp } from '@capacitor/core';
 import { Readability } from '@mozilla/readability';
 import { fetchWithProxy } from '../utils/proxy';
 import { contentFetcher } from '../utils/contentFetcher';
-import * as ColorThief from 'colorthief';
+import { getColorSync } from 'colorthief';
 
 interface ArticleReaderProps {
   key?: React.Key;
@@ -25,18 +25,35 @@ export function ArticleReader({ article, onClose, onNext, onPrev, hasNext, hasPr
   const [isLoading, setIsLoading] = useState(true);
   const [articleThemeColor, setArticleThemeColor] = useState<string | null>(null);
   const { settings, feeds, toggleFavorite, toggleRead } = useRss();
+  const [isFavorite, setIsFavorite] = useState(article.isFavorite);
+
+  useEffect(() => {
+    setIsFavorite(article.isFavorite);
+  }, [article.isFavorite]);
 
   useEffect(() => {
     if (settings.dynamicThemeColor && article.imageUrl) {
       const img = new Image();
       img.crossOrigin = "Anonymous";
-      img.src = article.imageUrl;
+      // Use proxy to bypass CORS for image color extraction
+      img.src = `https://api.allorigins.win/raw?url=${encodeURIComponent(article.imageUrl)}`;
       img.onload = () => {
-        const colorThief = new (ColorThief as any)();
-        const color = colorThief.getColor(img);
-        if (color) {
-          const hexColor = `#${color.map(c => c.toString(16).padStart(2, '0')).join('')}`;
-          setArticleThemeColor(hexColor);
+        try {
+          const color = getColorSync(img);
+          if (color) {
+            console.log("Extracted color:", color.hex());
+            setArticleThemeColor(color.hex());
+          }
+        } catch (e) {
+          console.error("Failed to extract color:", e);
+        }
+      };
+      img.onerror = () => {
+        // Fallback to direct URL if proxy fails (might work if CORS is allowed)
+        if (img.src !== article.imageUrl) {
+          img.src = article.imageUrl;
+        } else {
+          setArticleThemeColor(null);
         }
       };
     } else {
@@ -155,10 +172,6 @@ export function ArticleReader({ article, onClose, onNext, onPrev, hasNext, hasPr
 
   return (
     <motion.div 
-      style={{ 
-        backgroundColor: articleThemeColor ? `${articleThemeColor}10` : undefined,
-        transition: 'background-color 0.3s ease'
-      }}
       initial={{ x: '100%' }}
       animate={{ x: 0 }}
       exit={{ x: '-100%' }}
@@ -176,9 +189,17 @@ export function ArticleReader({ article, onClose, onNext, onPrev, hasNext, hasPr
       }}
       className="fixed inset-0 z-50 bg-white dark:bg-gray-950 overflow-y-auto overflow-x-hidden flex flex-col transition-colors break-words"
     >
+      {/* Background Tint */}
+      {articleThemeColor && (
+        <div 
+          className="fixed inset-0 pointer-events-none z-0 transition-colors duration-500"
+          style={{ backgroundColor: `${articleThemeColor}15` }}
+        />
+      )}
+
       {/* Top App Bar */}
       <div 
-        className="sticky top-0 z-10 bg-white/80 dark:bg-gray-950/80 backdrop-blur-md border-b border-gray-200 dark:border-gray-800 px-4 py-3 flex items-center justify-between transition-colors"
+        className="sticky top-0 z-20 bg-white/80 dark:bg-gray-950/80 backdrop-blur-md border-b border-gray-200 dark:border-gray-800 px-4 py-3 flex items-center justify-between transition-colors"
       >
         <button onClick={onClose} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800">
           <X className="w-6 h-6 text-gray-800 dark:text-gray-200" />
@@ -186,7 +207,7 @@ export function ArticleReader({ article, onClose, onNext, onPrev, hasNext, hasPr
       </div>
 
       {/* Article Content */}
-      <div className="flex-1 px-4 pt-6 pb-12 max-w-3xl mx-auto w-full">
+      <div className="relative z-10 flex-1 px-4 pt-6 pb-12 max-w-3xl mx-auto w-full">
         {article.imageUrl && (
           <img 
             src={article.imageUrl} 
@@ -235,18 +256,15 @@ export function ArticleReader({ article, onClose, onNext, onPrev, hasNext, hasPr
 
           <div className="flex items-center gap-4 text-gray-500 dark:text-gray-400">
             <button 
-              onClick={() => {
-                toggleRead(article.id);
-                onClose();
-              }}
-              className="hover:text-gray-900 dark:hover:text-white transition-colors"
-            >
-              <EyeOff className="w-5 h-5" />
-            </button>
-            <button 
-              onClick={() => {
-                if (navigator.share) {
-                  navigator.share({ title: article.title, url: article.link });
+              onClick={async () => {
+                try {
+                  if (navigator.share) {
+                    await navigator.share({ title: article.title, url: article.link });
+                  } else {
+                    console.log('Web Share API not supported');
+                  }
+                } catch (err) {
+                  console.error('Error sharing:', err);
                 }
               }}
               className="hover:text-gray-900 dark:hover:text-white transition-colors"
@@ -254,10 +272,13 @@ export function ArticleReader({ article, onClose, onNext, onPrev, hasNext, hasPr
               <Share2 className="w-5 h-5" />
             </button>
             <button 
-              onClick={() => toggleFavorite(article.id)}
+              onClick={() => {
+                setIsFavorite(!isFavorite);
+                toggleFavorite(article.id);
+              }}
               className="hover:text-gray-900 dark:hover:text-white transition-colors"
             >
-              <Bookmark className={`w-5 h-5 ${article.isFavorite ? 'fill-current text-indigo-500' : ''}`} />
+              <Bookmark className={`w-5 h-5 ${isFavorite ? 'fill-current text-indigo-500' : ''}`} />
             </button>
           </div>
         </div>
@@ -296,8 +317,19 @@ export function ArticleReader({ article, onClose, onNext, onPrev, hasNext, hasPr
             dangerouslySetInnerHTML={{ __html: sanitizedContent }}
           />
         ) : (
-          <div className={`prose ${getProseSize()} prose-indigo dark:prose-invert max-w-full overflow-hidden`}>
-            <p>No content available.</p>
+          <div className={`prose ${getProseSize()} prose-indigo dark:prose-invert max-w-full overflow-hidden text-center py-8`}>
+            <FileText className="w-12 h-12 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
+            <p className="text-gray-500 dark:text-gray-400">
+              We couldn't load the full content of this article.
+            </p>
+            <a 
+              href={article.link} 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 mt-4 px-4 py-2 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-colors no-underline"
+            >
+              Read original article
+            </a>
           </div>
         )}
       </div>

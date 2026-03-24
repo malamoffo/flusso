@@ -3,8 +3,7 @@ export async function fetchWithProxy(url: string, isRss: boolean = true): Promis
   try {
     const directResponse = await fetch(url, {
       headers: {
-        ...(isRss ? { 'Accept': 'application/rss+xml, application/xml, text/xml, */*' } : {}),
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        ...(isRss ? { 'Accept': 'application/rss+xml, application/xml, text/xml, */*' } : {})
       }
     });
     if (directResponse.ok) {
@@ -22,6 +21,7 @@ export async function fetchWithProxy(url: string, isRss: boolean = true): Promis
   }
 
   const proxies = [
+    { url: `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`, type: 'text' },
     { url: `https://corsproxy.io/?${encodeURIComponent(url)}`, type: 'text' },
     { url: `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`, type: 'json' },
     { url: `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`, type: 'text' },
@@ -45,10 +45,7 @@ export async function fetchWithProxy(url: string, isRss: boolean = true): Promis
         await new Promise(resolve => setTimeout(resolve, 500)); // 500ms delay between retries
       }
       const response = await fetch(proxy.url, { 
-        signal: controller.signal,
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-        }
+        signal: controller.signal
       });
       clearTimeout(id);
       if (response.ok) {

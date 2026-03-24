@@ -171,10 +171,20 @@ function MainContent() {
 
   const handleTouchMove = (e: React.TouchEvent) => {
     if (!isPulling) return;
+    
+    // Cancel pull if we scrolled down
+    if (mainRef.current && mainRef.current.scrollTop > 0) {
+      setIsPulling(false);
+      setPullDistance(0);
+      return;
+    }
+    
     const touch = e.touches[0];
     const distance = touch.clientY - (e.currentTarget as any)._startY || 0;
     if (distance > 0) {
       setPullDistance(Math.min(distance * 0.5, PULL_THRESHOLD + 20));
+    } else {
+      setPullDistance(0);
     }
   };
 
@@ -184,6 +194,17 @@ function MainContent() {
     }
     setIsPulling(false);
     setPullDistance(0);
+  };
+
+  const handleScroll = (e: React.UIEvent<HTMLElement>) => {
+    const target = e.currentTarget;
+    // Check if we reached the bottom (with a small 50px threshold)
+    if (target.scrollHeight - target.scrollTop <= target.clientHeight + 50) {
+      const unreadIds = displayArticles.filter(a => !a.isRead).map(a => a.id);
+      if (unreadIds.length > 0) {
+        markArticlesAsRead(unreadIds);
+      }
+    }
   };
 
   return (
@@ -264,7 +285,11 @@ function MainContent() {
       </div>
 
       {/* Article List */}
-      <main className="flex-1 overflow-y-auto pb-32" ref={mainRef}>
+      <main 
+        className="flex-1 overflow-y-auto pb-32" 
+        ref={mainRef}
+        onScroll={handleScroll}
+      >
         {displayArticles.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-64 text-gray-500 dark:text-gray-400 px-6 text-center">
             <Inbox className="w-16 h-16 mb-4 text-gray-300 dark:text-gray-600" />

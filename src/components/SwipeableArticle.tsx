@@ -195,9 +195,15 @@ export function SwipeableArticle({ article, feedName, onClick, onMarkAsRead, onV
               </span>
             </div>
             <h3 
-              className={`${getTitleSize()} font-semibold leading-tight mb-1 line-clamp-2 ${article.isRead ? 'text-gray-500 dark:text-gray-400' : 'text-gray-900 dark:text-gray-100'}`}
+              className={`${getTitleSize()} font-semibold leading-tight mb-1 ${article.isRead ? 'text-gray-500 dark:text-gray-400' : 'text-gray-900 dark:text-gray-100'}`}
               dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(article.title) }}
             />
+            {article.contentSnippet && article.contentSnippet.trim() !== '' && (
+              <p 
+                className={`${getSnippetSize()} text-gray-500 dark:text-gray-400 line-clamp-2 mt-1`}
+                dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(article.contentSnippet) }}
+              />
+            )}
           </div>
           {article.isFavorite && (
             <div className="absolute top-4 right-4">
