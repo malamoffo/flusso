@@ -28,7 +28,7 @@ jobs:
           cache-dependency-path: package.json
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
       - name: Update version in package.json
         run: |
@@ -44,16 +44,13 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '21'
-          cache: 'gradle'
 
-      # 3. Caching della cartella Android di Capacitor (opzionale se si usa npx cap add)
-      # - name: Cache Capacitor Android
-      #   uses: actions/cache@v4
-      #   with:
-      #     path: android
-      #     key: ${{ runner.os }}-cap-android-v2-${{ hashFiles('package.json') }}
-      #     restore-keys: |
-      #       ${{ runner.os }}-cap-android-v2-
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: wrapper
+          cache-read-only: false
+          build-scan-publish: false
 
       - name: Sync Capacitor
         run: |
@@ -72,12 +69,11 @@ jobs:
       - name: Build Android APK
         run: |
           cd android
-          gradle wrapper --gradle-version 8.14.3
           chmod +x gradlew
           if [ -f "app/release.keystore" ]; then
-            ./gradlew assembleRelease --no-daemon --build-cache
+            ./gradlew assembleRelease --build-cache
           else
-            ./gradlew assembleDebug --no-daemon --build-cache
+            ./gradlew assembleDebug --build-cache
           fi
         env:
           ANDROID_KEYSTORE_FILE: release.keystore

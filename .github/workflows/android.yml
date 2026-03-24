@@ -23,25 +23,25 @@ jobs:
           cache-dependency-path: 'package.json'
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
       - name: Build Web App
         run: npm run build
 
-      # 2. Setup Java con caching automatico di Gradle (Wrapper + Dipendenze)
+      # 2. Setup Java
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '21'
-          cache: 'gradle'
 
-      # 3. Caching della cartella Android di Capacitor
-      # - name: Cache Capacitor Android
-      #   uses: actions/cache@v4
-      #   with:
-      #     path: android
-      #     key: ${{ runner.os }}-cap-android-v2-${{ hashFiles('package.json') }}
+      # 3. Setup Gradle con caching avanzato
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: wrapper
+          cache-read-only: false
+          build-scan-publish: false
 
       - name: Sync Capacitor
         run: |
@@ -50,13 +50,12 @@ jobs:
           fi
           npx cap sync android
 
-      # 4. Build dell'APK con ottimizzazione del Gradle Daemon
+      # 4. Build dell'APK
       - name: Build APK
         run: |
           cd android
-          gradle wrapper --gradle-version 8.14.3
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon --build-cache
+          ./gradlew assembleDebug --build-cache
         env:
           GITHUB_RUN_NUMBER: ${{ github.run_number }}
 
