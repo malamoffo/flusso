@@ -16,7 +16,7 @@ jobs:
 
       # 1. Setup Node con caching delle dipendenze npm
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v4
         with:
           node-version: '24'
           cache: 'npm'
