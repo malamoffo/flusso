@@ -33,7 +33,7 @@ export async function fetchWithProxy(url: string, isRss: boolean = true): Promis
   }
 
   let lastError: any;
-  const timeout = 20000; // 20 seconds timeout
+  const timeout = 10000; // 10 seconds timeout per proxy
 
   for (let i = 0; i < proxies.length; i++) {
     const proxy = proxies[i];

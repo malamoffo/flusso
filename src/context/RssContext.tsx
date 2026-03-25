@@ -237,17 +237,31 @@ export function RssProvider({ children }: { children: React.ReactNode }) {
       setProgress({ current: 0, total: feedsToUse.length });
       
       let completed = 0;
+      const FEED_TIMEOUT = 25000; // 25 seconds max per feed
+
       const feedResults = await Promise.allSettled(feedsToUse.map(async (feed) => {
-        const latestArticle = articlesToUse
-          .filter(a => a.feedId === feed.id)
-          .sort((a, b) => b.pubDate - a.pubDate)[0];
-        
-        const data = await storage.fetchFeedData(feed.feedUrl, latestArticle?.pubDate);
-        
-        completed++;
-        setProgress(prev => prev ? { ...prev, current: completed } : { current: completed, total: feedsToUse.length });
-        
-        return data;
+        try {
+          const latestArticle = articlesToUse
+            .filter(a => a.feedId === feed.id)
+            .sort((a, b) => b.pubDate - a.pubDate)[0];
+          
+          // Add a timeout to the individual feed fetch
+          const fetchPromise = storage.fetchFeedData(feed.feedUrl, latestArticle?.pubDate);
+          const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Feed fetch timeout')), FEED_TIMEOUT)
+          );
+
+          const data = await Promise.race([fetchPromise, timeoutPromise]) as { feed: Feed; articles: Article[] };
+          
+          completed++;
+          setProgress(prev => prev ? { ...prev, current: completed } : { current: completed, total: feedsToUse.length });
+          
+          return data;
+        } catch (error) {
+          completed++;
+          setProgress(prev => prev ? { ...prev, current: completed } : { current: completed, total: feedsToUse.length });
+          throw error;
+        }
       }));
 
       const successfulResults: { feed: Feed; articles: Article[] }[] = [];
@@ -260,9 +274,11 @@ export function RssProvider({ children }: { children: React.ReactNode }) {
       }
       
       if (successfulResults.length > 0) {
+        setProgress(prev => prev ? { ...prev, status: 'Saving articles...' } : null);
         await storage.saveAllFeedData(successfulResults);
       }
       
+      setProgress(prev => prev ? { ...prev, status: 'Finalizing...' } : null);
       await loadData();
     } catch (err) {
       setError('Failed to refresh feeds');

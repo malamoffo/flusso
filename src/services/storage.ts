@@ -258,29 +258,34 @@ export const storage = {
     // Check if we are on a native platform (Android/iOS)
     const isNative = typeof window !== 'undefined' && (window as any).Capacitor?.isNativePlatform();
     
-    // Always try direct fetch first, as native platforms don't have CORS issues
-    try {
-      const options = {
-        url: feedUrl,
-        headers: { 'Accept': 'application/xml, text/xml, */*' },
-        connectTimeout: 10000,
-        readTimeout: 10000,
-      };
-      
-      const response = await CapacitorHttp.get(options);
-      
-      if (response.status === 200) {
-        const { feed, articles } = parseRssXml(response.data, feedUrl);
+    if (isNative) {
+      // On native, we ALWAYS use direct fetch via CapacitorHttp as it bypasses CORS
+      try {
+        const options = {
+          url: feedUrl,
+          headers: { 'Accept': 'application/xml, text/xml, */*' },
+          connectTimeout: 15000,
+          readTimeout: 15000,
+        };
         
-        const filteredArticles = articles.filter(a => 
-          (Date.now() - a.pubDate) <= 2 * 24 * 60 * 60 * 1000 && 
-          (!sinceDate || a.pubDate > sinceDate)
-        );
+        const response = await CapacitorHttp.get(options);
+        
+        if (response.status === 200) {
+          const { feed, articles } = parseRssXml(response.data, feedUrl);
+          
+          const filteredArticles = articles.filter(a => 
+            (Date.now() - a.pubDate) <= 2 * 24 * 60 * 60 * 1000 && 
+            (!sinceDate || a.pubDate > sinceDate)
+          );
 
-        return { feed, articles: filteredArticles };
+          return { feed, articles: filteredArticles };
+        } else {
+          throw new Error(`Feed fetch failed with status ${response.status}`);
+        }
+      } catch (e) {
+        console.error(`[STORAGE] Native direct fetch failed for ${feedUrl}:`, e);
+        throw e;
       }
-    } catch (e) {
-      console.warn(`Direct fetch failed for ${feedUrl}, falling back to proxy:`, e);
     }
 
     // Web fallback (using CORS proxy to avoid "Failed to fetch" errors in browser preview)
@@ -308,6 +313,9 @@ export const storage = {
     const existingFeeds = await this.getFeeds();
     const existingArticles = await this.getArticles();
     
+    // Create a set of all existing links for fast lookup
+    const existingLinks = new Set(existingArticles.map(a => a.link));
+    
     let updatedFeeds = [...existingFeeds];
     let allNewArticles: Article[] = [];
     
@@ -316,7 +324,9 @@ export const storage = {
       
       if (existingFeedIndex === -1) {
         updatedFeeds.push(feed);
-        allNewArticles.push(...articles);
+        // Still check for duplicates even for new feeds
+        const trulyNewArticles = articles.filter(a => !existingLinks.has(a.link));
+        allNewArticles.push(...trulyNewArticles);
       } else {
         const feedId = updatedFeeds[existingFeedIndex].id;
         updatedFeeds[existingFeedIndex] = {
@@ -326,7 +336,6 @@ export const storage = {
           imageUrl: feed.imageUrl || updatedFeeds[existingFeedIndex].imageUrl
         };
         
-        const existingLinks = new Set(existingArticles.filter(a => a.feedId === feedId).map(a => a.link));
         const trulyNewArticles = articles.filter(a => !existingLinks.has(a.link)).map(a => ({
           ...a,
           feedId
