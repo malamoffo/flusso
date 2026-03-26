@@ -3,24 +3,26 @@ name: Build Web App
 on:
   push:
     branches: [ main ]
+  pull_request:
+    branches: [ main ]
   workflow_dispatch:
 
 jobs:
-  build:
+  build-web:
+    name: Build & Lint Web App
     runs-on: ubuntu-latest
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
-      - name: Checkout del codice
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 1. Setup Node con caching delle dipendenze npm
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '24'
           cache: 'npm'
-          cache-dependency-path: 'package-lock.json'
+          cache-dependency-path: package-lock.json
 
       - name: Install dependencies
         run: npm install
@@ -30,3 +32,52 @@ jobs:
 
       - name: Build Web App
         run: npm run build
+
+  build-android:
+    name: Build Android (Debug)
+    runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build Web App
+        run: npm run build
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.4.0'
+          cache-read-only: false
+          build-scan-publish: false
+
+      - name: Sync Capacitor
+        run: |
+          if [ ! -d "android" ]; then
+            npx cap add android
+          fi
+          npx cap sync android
+
+      - name: Build Android Debug APK
+        run: |
+          cd android
+          gradle wrapper
+          chmod +x gradlew
+          ./gradlew assembleDebug --build-cache
