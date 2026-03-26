@@ -7,7 +7,6 @@ updates:
       interval: "weekly"
     labels:
       - "dependencies"
-      - "github-actions"
     commit-message:
       prefix: "chore"
       include: "scope"
@@ -20,7 +19,6 @@ updates:
     open-pull-requests-limit: 10
     labels:
       - "dependencies"
-      - "npm"
     commit-message:
       prefix: "chore"
       include: "scope"
@@ -41,7 +39,6 @@ updates:
     open-pull-requests-limit: 10
     labels:
       - "dependencies"
-      - "android"
     commit-message:
       prefix: "chore"
       include: "scope"
