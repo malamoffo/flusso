@@ -320,20 +320,14 @@ export function RssProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const unreadCount = React.useMemo(() => articles.filter(a => !a.isRead).length, [articles]);
-
-  const contextValue = React.useMemo(() => ({
-    feeds, articles, settings, isLoading, progress, error,
-    addFeed, importOpml, toggleRead, markAsRead, markArticlesAsRead, toggleFavorite, markAllAsRead, refreshFeeds, removeFeed, updateFeed, updateSettings,
-    exportFeeds, searchQuery, setSearchQuery, unreadCount
-  }), [
-    feeds, articles, settings, isLoading, progress, error,
-    addFeed, importOpml, toggleRead, markAsRead, markArticlesAsRead, toggleFavorite, markAllAsRead, refreshFeeds, removeFeed, updateFeed, updateSettings,
-    exportFeeds, searchQuery, setSearchQuery, unreadCount
-  ]);
+  const unreadCount = articles.filter(a => !a.isRead).length;
 
   return (
-    <RssContext.Provider value={contextValue}>
+    <RssContext.Provider value={{
+      feeds, articles, settings, isLoading, progress, error,
+      addFeed, importOpml, toggleRead, markAsRead, markArticlesAsRead, toggleFavorite, markAllAsRead, refreshFeeds, removeFeed, updateFeed, updateSettings,
+      exportFeeds, searchQuery, setSearchQuery, unreadCount
+    }}>
       {children}
     </RssContext.Provider>
   );

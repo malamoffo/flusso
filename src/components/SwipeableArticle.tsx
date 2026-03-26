@@ -2,7 +2,8 @@ import React, { useRef, useEffect } from 'react';
 import { motion, useMotionValue, useTransform, PanInfo } from 'framer-motion';
 import { format, isToday } from 'date-fns';
 import { Check, Star, Trash2 } from 'lucide-react';
-import { Article, Settings } from '../types';
+import { Article } from '../types';
+import { useRss } from '../context/RssContext';
 import { useInView } from 'react-intersection-observer';
 import { contentFetcher } from '../utils/contentFetcher';
 import { cn } from '../lib/utils';
@@ -12,26 +13,14 @@ interface SwipeableArticleProps {
   key?: React.Key;
   article: Article;
   feedName: string;
-  settings: Settings;
-  onClick: (article: Article) => void;
+  onClick: () => void;
   onMarkAsRead: (id: string) => void;
-  onToggleRead: (id: string) => void;
-  onToggleFavorite: (id: string) => void;
   onVisibilityChange: (id: string, inView: boolean) => void;
   style?: React.CSSProperties;
 }
 
-export const SwipeableArticle = React.memo(({
-  article,
-  feedName,
-  settings,
-  onClick,
-  onMarkAsRead,
-  onToggleRead,
-  onToggleFavorite,
-  onVisibilityChange,
-  style
-}: SwipeableArticleProps) => {
+export function SwipeableArticle({ article, feedName, onClick, onMarkAsRead, onVisibilityChange, style }: SwipeableArticleProps) {
+  const { toggleRead, markAsRead, toggleFavorite, settings } = useRss();
   const x = useMotionValue(0);
   
   const { ref, inView, entry } = useInView({
@@ -74,7 +63,7 @@ export const SwipeableArticle = React.memo(({
     if (!article.isRead) {
       onMarkAsRead(article.id);
     }
-    onClick(article);
+    onClick();
   };
 
   // Background colors based on swipe action
@@ -106,12 +95,12 @@ export const SwipeableArticle = React.memo(({
     const threshold = 80;
     if (info.offset.x > threshold) {
       // Swiped right
-      if (settings.swipeRightAction === 'toggleRead') onToggleRead(article.id);
-      else if (settings.swipeRightAction === 'toggleFavorite') onToggleFavorite(article.id);
+      if (settings.swipeRightAction === 'toggleRead') toggleRead(article.id);
+      else if (settings.swipeRightAction === 'toggleFavorite') toggleFavorite(article.id);
     } else if (info.offset.x < -threshold) {
       // Swiped left
-      if (settings.swipeLeftAction === 'toggleRead') onToggleRead(article.id);
-      else if (settings.swipeLeftAction === 'toggleFavorite') onToggleFavorite(article.id);
+      if (settings.swipeLeftAction === 'toggleRead') toggleRead(article.id);
+      else if (settings.swipeLeftAction === 'toggleFavorite') toggleFavorite(article.id);
     }
   };
 
@@ -233,4 +222,4 @@ export const SwipeableArticle = React.memo(({
       </motion.div>
     </motion.div>
   );
-});
+}

@@ -20,9 +20,9 @@ function MainContent() {
   const startYRef = useRef<number>(0);
   const isAtTopRef = useRef<boolean>(true);
 
-  const { articles, feeds, settings, isLoading, progress, error, refreshFeeds, toggleRead, markAsRead, markArticlesAsRead, markAllAsRead, searchQuery, setSearchQuery, unreadCount, toggleFavorite } = useRss();
+  const { articles, feeds, settings, isLoading, progress, error, refreshFeeds, toggleRead, markAsRead, markArticlesAsRead, markAllAsRead, searchQuery, setSearchQuery, unreadCount } = useRss();
 
-  const handleVisibilityChange = useCallback((id: string, inView: boolean) => {
+  const handleVisibilityChange = (id: string, inView: boolean) => {
     if (inView) {
       visibleArticlesRef.current.add(id);
     } else {
@@ -40,7 +40,7 @@ function MainContent() {
         markArticlesAsRead(visibleIds);
       }
     }, 5000);
-  }, [markArticlesAsRead]);
+  };
 
   // Cleanup timeout on unmount
   useEffect(() => {
@@ -52,13 +52,6 @@ function MainContent() {
   }, []);
 
   const [selectedArticle, setSelectedArticle] = useState<Article | null>(null);
-
-  const handleArticleClick = useCallback((article: Article) => {
-    setSelectedArticle(article);
-    if (!article.isRead) {
-      markAsRead(article.id);
-    }
-  }, [markAsRead]);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isMarkAllConfirmOpen, setIsMarkAllConfirmOpen] = useState(false);
   const [filter, setFilter] = useState<'all' | 'unread' | 'favorites'>('unread');
@@ -350,11 +343,13 @@ function MainContent() {
                   key={article.id} 
                   article={article} 
                   feedName={feed?.title || 'Unknown Feed'}
-                  settings={settings}
-                  onClick={handleArticleClick}
+                  onClick={() => {
+                    setSelectedArticle(article);
+                    if (!article.isRead) {
+                      markAsRead(article.id);
+                    }
+                  }}
                   onMarkAsRead={markAsRead}
-                  onToggleRead={toggleRead}
-                  onToggleFavorite={toggleFavorite}
                   onVisibilityChange={handleVisibilityChange}
                 />
               );
