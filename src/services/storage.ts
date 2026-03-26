@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { Feed, Article, Settings } from '../types';
 import { CapacitorHttp } from '@capacitor/core';
 import { fetchWithProxy } from '../utils/proxy';
+import sanitizeHtml from 'sanitize-html';
 
 const FEEDS_KEY = 'rss_feeds';
 const ARTICLES_KEY = 'rss_articles';
@@ -29,6 +30,13 @@ function escapeXml(unsafe: string): string {
       default: return c;
     }
   });
+}
+
+// Helper to sanitize article content into a safe text snippet
+function sanitizeSnippet(input: string): string {
+  if (!input) return '';
+  const textOnly = sanitizeHtml(input, { allowedTags: [], allowedAttributes: {} });
+  return textOnly.trim().substring(0, 200);
 }
 
 // Helper to parse RSS/Atom XML using native DOMParser
@@ -83,7 +91,7 @@ function parseRssXml(xmlString: string, feedUrl: string): { feed: Feed; articles
             mediaType,
             isRead: false,
             isFavorite: false,
-            contentSnippet: decodeHtmlEntities((item.content || item.description || '').replace(/<[^>]*>/g, '').substring(0, 200)),
+            contentSnippet: decodeHtmlEntities(sanitizeSnippet(item.content || item.description || '')),
           };
         });
 
