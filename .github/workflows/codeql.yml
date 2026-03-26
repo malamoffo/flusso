@@ -52,6 +52,14 @@ jobs:
         java-version: '21'
         distribution: 'temurin'
 
+    - name: Setup Gradle
+      if: matrix.language == 'java-kotlin'
+      uses: gradle/actions/setup-gradle@v4
+      with:
+        gradle-version: '9.4.0'
+        cache-read-only: false
+        build-scan-publish: false
+
     - name: Initialize CodeQL
       uses: github/codeql-action/init@v4
       with:
@@ -65,6 +73,7 @@ jobs:
       run: |
         echo "Compilazione manuale del progetto Android..."
         cd android
+        gradle wrapper
         chmod +x gradlew
         ./gradlew assembleDebug
 
