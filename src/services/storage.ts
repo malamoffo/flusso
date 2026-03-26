@@ -17,6 +17,17 @@ function decodeHtmlEntities(text: string): string {
   return doc.documentElement.textContent || '';
 }
 
+// Helper to sanitize OPML/XML text before parsing, to avoid any HTML/script re-interpretation
+function sanitizeOpmlText(opmlText: string): string {
+  if (!opmlText) return '';
+  // Remove script and style blocks, which are irrelevant for OPML and could contain HTML/JS
+  let sanitized = opmlText.replace(/<\s*(script|style)[^>]*>[\s\S]*?<\s*\/\s*\1\s*>/gi, '');
+  // Remove common event handler attributes (onload, onclick, etc.) that are HTML-specific
+  sanitized = sanitized.replace(/\son[a-z]+\s*=\s*"(?:[^"\\]|\\.)*"/gi, '');
+  sanitized = sanitized.replace(/\son[a-z]+\s*=\s*'(?:[^'\\]|\\.)*'/gi, '');
+  return sanitized;
+}
+
 // Helper to escape XML special characters
 function escapeXml(unsafe: string): string {
   if (!unsafe) return '';
@@ -531,7 +542,8 @@ export const storage = {
   async parseOpml(opmlText: string): Promise<string[]> {
     console.log('Parsing OPML text, length:', opmlText.length);
     const parser = new DOMParser();
-    const doc = parser.parseFromString(opmlText, 'text/xml');
+    const safeOpmlText = sanitizeOpmlText(opmlText);
+    const doc = parser.parseFromString(safeOpmlText, 'application/xml');
     
     // If XML parsing fails (common with malformed OPML), treat as invalid and return no URLs
     const parserError = doc.querySelector('parsererror');
