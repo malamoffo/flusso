@@ -13,9 +13,9 @@
     "cap:open": "npx cap open android"
   },
   "dependencies": {
-    "@capacitor/android": "^8.2.0",
-    "@capacitor/app": "^8.0.1",
-    "@capacitor/cli": "^8.2.0",
+    "@capacitor/android": "^8.3.0",
+    "@capacitor/app": "^8.1.0",
+    "@capacitor/cli": "^8.3.0",
     "@capacitor/core": "^8.2.0",
     "@capacitor/share": "^8.0.1",
     "@mozilla/readability": "^0.6.0",
@@ -36,7 +36,7 @@
     "@capacitor/assets": "^3.0.5",
     "@tailwindcss/typography": "^0.5.19",
     "@tailwindcss/vite": "^4.1.14",
-    "@types/dompurify": "^3.0.5",
+    "@types/dompurify": "^3.2.0",
     "@types/mozilla-readability": "^0.2.1",
     "@types/node": "^22.14.0",
     "@types/uuid": "^10.0.0",
