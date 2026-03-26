@@ -1,34 +1,71 @@
-# Flusso - Modern RSS Reader
+# 🌊 Flusso - Il Tuo Lettore RSS Moderno
 
-A fast, privacy-focused, and highly customizable RSS reader built for the modern web and mobile devices.
+**Flusso** è un lettore di notizie veloce, focalizzato sulla privacy e altamente personalizzabile, progettato per offrire un'esperienza di lettura superiore sia sul web che su dispositivi mobile.
 
-## Features
+---
 
-- **Smart Feed Management**: Add RSS/Atom feeds by URL or import your existing subscriptions via OPML.
-- **Distraction-Free Reading**: Full article content extraction using Mozilla's Readability for a clean, consistent reading experience.
-- **Intelligent Read Status**: Articles are automatically marked as read as you scroll them to the top of the screen.
-- **AMOLED Optimized**: Includes a "Pure Black" theme option to save battery on OLED displays.
-- **Deep Customization**:
-  - Themes: Light, Dark, System, and Pure Black.
-  - Typography: Sans, Serif, and Mono fonts with adjustable sizes (Small to X-Large).
-  - Layout: Choose how images are displayed (None, Small, or Large).
-  - Gestures: Customizable swipe actions for marking as read or favoriting.
-- **Media Integration**: Built-in support for audio and video content found within articles.
-- **Offline First**: All your feeds and articles are stored locally on your device using IndexedDB.
-- **Native Experience**: Powered by Capacitor for high performance on Android and iOS.
+## ✨ Funzionalità Avanzate
 
-## Technologies
+### 🛠️ Widget Intelligenti & Header Dinamico
+*   **Meteo in Tempo Reale**: Widget meteo integrato che rileva automaticamente la tua posizione per fornirti le condizioni attuali.
+*   **Orologio Sincronizzato**: Un design minimalista che integra ora e meteo direttamente nel flusso delle tue notizie.
 
-- **Frontend**: React 19, TypeScript, Tailwind CSS
-- **Animations**: Framer Motion
-- **Icons**: Lucide React
-- **Core Logic**: Capacitor (Native APIs), @mozilla/readability (Content Extraction), idb-keyval (Storage)
-- **Styling**: Modern Tailwind 4.0 configuration
+### 📖 Esperienza di Lettura Immersiva
+*   **Modalità Distraction-Free**: Estrazione automatica del contenuto tramite *Mozilla Readability* per una lettura pulita e coerente.
+*   **Ricerca & Organizzazione**: Motore di ricerca integrato per trovare rapidamente articoli tra tutti i tuoi feed e gestione semplificata delle sottoscrizioni.
+*   **Prefetching Intelligente**: Gli articoli vengono caricati preventivamente in background per garantirti un'apertura istantanea, anche offline.
+*   **Immagini Senza Compromessi**: Visualizzazione ottimizzata delle immagini a tutta altezza (senza ritagli) sia nell'anteprima che nell'articolo completo.
 
-## Recent Updates
+### 🎨 Personalizzazione Estrema
+*   **OLED Ready**: Include il tema **Pure Black** per il massimo risparmio energetico su schermi AMOLED.
+*   **Tipografia Variabile**: Supporto per font Sans-serif (Inter) con dimensioni regolabili da *Small* a *X-Large*.
+*   **Gesti Intuitivi**: Azioni swipe personalizzabili per segnare come letto o aggiungere ai preferiti con un solo tocco.
 
-- **AMOLED Theme**: Added "Pure Black" mode for better contrast and battery life.
-- **Smart Scrolling**: Refined the "read" logic to trigger only when articles reach the top of the viewport.
-- **UI Refinement**: Removed unnecessary sharing and external link buttons for a cleaner reading interface.
-- **Performance**: Optimized feed fetching and removed legacy AI summarization for a faster, more focused experience.
-- **Build System**: Improved GitHub Actions for faster Android APK generation.
+### 🚀 Tecnologia & Performance
+*   **Offline First**: Tutti i feed e gli articoli sono salvati localmente tramite *IndexedDB*.
+*   **Android Native**: Icone e splash screen personalizzati per un'esperienza app nativa fluida grazie a *Capacitor*.
+
+---
+
+## 🛠️ Stack Tecnologico
+
+*   **Frontend**: React 19 + TypeScript
+*   **Styling**: Tailwind CSS 4.0 (Modern Utility-First)
+*   **Animazioni**: Framer Motion (Transizioni fluide e feedback aptico visivo)
+*   **Storage**: idb-keyval (IndexedDB)
+*   **Native Bridge**: Capacitor (Accesso alle API native Android/iOS)
+*   **Content Engine**: @mozilla/readability
+
+---
+
+## 📱 Installazione & Sviluppo
+
+### Requisiti
+*   Node.js (v18+)
+*   npm
+
+### Setup Locale
+```bash
+# Installa le dipendenze
+npm install
+
+# Avvia il server di sviluppo
+npm run dev
+```
+
+### Build Android
+```bash
+# Genera la build di produzione
+npm run build
+
+# Sincronizza con il progetto Android
+npx cap sync android
+```
+
+---
+
+## 🛡️ Privacy & Sicurezza
+Flusso non traccia le tue abitudini di lettura. Tutti i dati dei tuoi feed rimangono sul tuo dispositivo. Le immagini vengono caricate con `referrerPolicy="no-referrer"` per proteggere la tua identità durante la navigazione.
+
+---
+*Sviluppato con ❤️ per una lettura migliore.*
