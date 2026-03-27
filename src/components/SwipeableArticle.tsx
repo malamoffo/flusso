@@ -6,7 +6,7 @@ import { Article } from '../types';
 import { useRss } from '../context/RssContext';
 import { useInView } from 'react-intersection-observer';
 import { contentFetcher } from '../utils/contentFetcher';
-import { cn } from '../lib/utils';
+import { cn, getSafeUrl } from '../lib/utils';
 import DOMPurify from 'dompurify';
 
 interface SwipeableArticleProps {
@@ -177,7 +177,7 @@ export function SwipeableArticle({ article, feedName, onClick, onMarkAsRead, onV
         <div className={`flex ${settings.imageDisplay === 'large' ? 'flex-col' : 'gap-4'}`}>
           {article.imageUrl && settings.imageDisplay !== 'none' && (
             <img 
-              src={article.imageUrl} 
+              src={getSafeUrl(article.imageUrl)}
               alt="" 
               className={`${settings.imageDisplay === 'large' ? 'w-full h-auto max-h-[70vh] mb-3' : 'w-20 h-auto max-h-32'} object-contain rounded-lg flex-shrink-0 bg-gray-100 dark:bg-gray-800 transition-opacity`}
               referrerPolicy="no-referrer"
@@ -209,12 +209,12 @@ export function SwipeableArticle({ article, feedName, onClick, onMarkAsRead, onV
             </div>
             <h3 
               className={`${getTitleSize()} font-semibold leading-tight mb-1 ${article.isRead ? 'text-gray-500 dark:text-gray-400' : 'text-gray-900 dark:text-gray-100'}`}
-              dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(article.title) }}
+              dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(article.title, { FORBID_ATTR: ['id', 'name'] }) }}
             />
             {article.contentSnippet && article.contentSnippet.trim() !== '' && (
               <p 
                 className={`${getSnippetSize()} text-gray-500 dark:text-gray-400 line-clamp-2 mt-1`}
-                dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(article.contentSnippet) }}
+                dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(article.contentSnippet, { FORBID_ATTR: ['id', 'name'] }) }}
               />
             )}
           </div>

@@ -4,6 +4,7 @@ import { Article, FullArticleContent } from '../types';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRss } from '../context/RssContext';
 import DOMPurify from 'dompurify';
+import { getSafeUrl } from '../lib/utils';
 import { CapacitorHttp } from '@capacitor/core';
 import { Share } from '@capacitor/share';
 import { Readability } from '@mozilla/readability';
@@ -168,6 +169,7 @@ export function ArticleReader({ article, onClose, onNext, onPrev, hasNext, hasPr
     return DOMPurify.sanitize(content, {
       ADD_ATTR: ['style', 'allowfullscreen', 'frameborder', 'scrolling', 'controls'],
       ADD_TAGS: ['video', 'audio', 'source', 'iframe'],
+      FORBID_ATTR: ['id', 'name'],
     });
   }, [fullContent?.content]);
 
@@ -222,7 +224,7 @@ export function ArticleReader({ article, onClose, onNext, onPrev, hasNext, hasPr
       <div className="relative z-10 flex-1 px-4 pt-6 pb-12 max-w-3xl mx-auto w-full">
         {article.imageUrl && (
           <img 
-            src={article.imageUrl} 
+            src={getSafeUrl(article.imageUrl)}
             alt="" 
             className="w-full h-auto rounded-2xl mb-4 object-contain max-h-[80vh]"
             referrerPolicy="no-referrer"
@@ -235,18 +237,18 @@ export function ArticleReader({ article, onClose, onNext, onPrev, hasNext, hasPr
 
         <h1 className={`${getTitleSize()} font-bold text-gray-900 dark:text-white mb-4 leading-tight`}>
           <a 
-            href={article.link} 
+            href={getSafeUrl(article.link)}
             target="_blank" 
             rel="noopener noreferrer" 
             className="hover:underline"
-            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(article.title) }}
+            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(article.title, { FORBID_ATTR: ['id', 'name'] }) }}
           />
         </h1>
 
         {article.contentSnippet && (
           <p 
             className="text-lg text-gray-600 dark:text-gray-300 mb-6 leading-relaxed"
-            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(article.contentSnippet) }}
+            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(article.contentSnippet, { FORBID_ATTR: ['id', 'name'] }) }}
           />
         )}
 
@@ -313,9 +315,9 @@ export function ArticleReader({ article, onClose, onNext, onPrev, hasNext, hasPr
             <h3 className="text-lg font-bold text-gray-900 dark:text-white">Media</h3>
             <div className="rounded-xl overflow-hidden bg-gray-100 dark:bg-gray-800">
               {article.mediaType?.startsWith('video/') ? (
-                <video src={article.mediaUrl!} controls className="w-full" />
+                <video src={getSafeUrl(article.mediaUrl!)} controls className="w-full" />
               ) : article.mediaType?.startsWith('audio/') ? (
-                <audio src={article.mediaUrl!} controls className="w-full" />
+                <audio src={getSafeUrl(article.mediaUrl!)} controls className="w-full" />
               ) : null}
             </div>
           </div>
@@ -344,7 +346,7 @@ export function ArticleReader({ article, onClose, onNext, onPrev, hasNext, hasPr
               We couldn't load the full content of this article.
             </p>
             <a 
-              href={article.link} 
+              href={getSafeUrl(article.link)}
               target="_blank" 
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 mt-4 px-4 py-2 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-colors no-underline"

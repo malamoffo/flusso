@@ -4,6 +4,7 @@ import { Feed, Article, Settings } from '../types';
 import { CapacitorHttp } from '@capacitor/core';
 import { fetchWithProxy } from '../utils/proxy';
 import sanitizeHtml from 'sanitize-html';
+import { getSafeUrl } from '../lib/utils';
 
 const FEEDS_KEY = 'rss_feeds';
 const ARTICLES_KEY = 'rss_articles';
@@ -95,10 +96,10 @@ function parseRssXml(xmlString: string, feedUrl: string): { feed: Feed; articles
             id: uuidv4(),
             feedId,
             title: decodeHtmlEntities(item.title || 'Untitled'),
-            link: item.link || '',
+            link: getSafeUrl(item.link),
             pubDate,
-            imageUrl,
-            mediaUrl,
+            imageUrl: getSafeUrl(imageUrl, null as any),
+            mediaUrl: getSafeUrl(mediaUrl, null as any),
             mediaType,
             isRead: false,
             isFavorite: false,
@@ -111,9 +112,9 @@ function parseRssXml(xmlString: string, feedUrl: string): { feed: Feed; articles
             id: feedId,
             title: data.feed.title || 'Untitled Feed',
             description: data.feed.description || '',
-            link: data.feed.link || '',
-            feedUrl,
-            imageUrl: data.feed.image || undefined,
+            link: getSafeUrl(data.feed.link),
+            feedUrl: getSafeUrl(feedUrl),
+            imageUrl: getSafeUrl(data.feed.image, undefined),
             lastFetched: Date.now()
           },
           articles
@@ -204,10 +205,10 @@ function parseRssXml(xmlString: string, feedUrl: string): { feed: Feed; articles
         id: uuidv4(),
         feedId,
         title: decodeHtmlEntities(entryTitle),
-        link: entryLink,
+        link: getSafeUrl(entryLink),
         pubDate,
-        imageUrl,
-        mediaUrl,
+        imageUrl: getSafeUrl(imageUrl, null as any),
+        mediaUrl: getSafeUrl(mediaUrl, null as any),
         mediaType,
         isRead: false,
         isFavorite: false,
@@ -216,7 +217,14 @@ function parseRssXml(xmlString: string, feedUrl: string): { feed: Feed; articles
     });
 
     return {
-      feed: { id: feedId, title, description, link, feedUrl, lastFetched: Date.now() },
+      feed: {
+        id: feedId,
+        title,
+        description,
+        link: getSafeUrl(link),
+        feedUrl: getSafeUrl(feedUrl),
+        lastFetched: Date.now()
+      },
       articles
     };
   } else {
@@ -282,10 +290,10 @@ function parseRssXml(xmlString: string, feedUrl: string): { feed: Feed; articles
         id: uuidv4(),
         feedId,
         title: decodeHtmlEntities(itemTitle),
-        link: itemLink,
+        link: getSafeUrl(itemLink),
         pubDate,
-        imageUrl,
-        mediaUrl,
+        imageUrl: getSafeUrl(imageUrl, null as any),
+        mediaUrl: getSafeUrl(mediaUrl, null as any),
         mediaType,
         isRead: false,
         isFavorite: false,
@@ -296,7 +304,15 @@ function parseRssXml(xmlString: string, feedUrl: string): { feed: Feed; articles
     });
 
     return {
-      feed: { id: feedId, title, description, link, feedUrl, imageUrl: feedImage || undefined, lastFetched: Date.now() },
+      feed: {
+        id: feedId,
+        title,
+        description,
+        link: getSafeUrl(link),
+        feedUrl: getSafeUrl(feedUrl),
+        imageUrl: getSafeUrl(feedImage, undefined),
+        lastFetched: Date.now()
+      },
       articles
     };
   }
