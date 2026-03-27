@@ -5,11 +5,16 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { SwipeAction, Theme, ImageDisplay, FontSize } from '../types';
 import { AddFeedModal } from './AddFeedModal';
 import packageJson from '../../package.json';
+import { Filesystem, Directory } from '@capacitor/filesystem';
+import { FileTransfer } from '@capacitor/file-transfer';
+import { FileOpener } from '@capawesome-team/capacitor-file-opener';
 
 export function SettingsModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const { settings, updateSettings, feeds, removeFeed, updateFeed, progress, updateInfo, checkUpdates } = useRss();
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
+  const [isDownloadingUpdate, setIsDownloadingUpdate] = useState(false);
+  const [downloadProgress, setDownloadProgress] = useState(0);
   const [activeTab, setActiveTab] = useState<'settings' | 'subscriptions' | 'about'>('settings');
   const [editingFeedId, setEditingFeedId] = useState<string | null>(null);
   const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
@@ -22,6 +27,47 @@ export function SettingsModal({ isOpen, onClose }: { isOpen: boolean; onClose: (
       setSelectedFeedId(null);
     }
   }, [isOpen]);
+
+  const handleUpdate = async () => {
+    if (!updateInfo?.latestRelease) return;
+    const apkAsset = updateInfo.latestRelease.assets.find(a => a.name.endsWith('.apk'));
+    if (!apkAsset) return;
+
+    try {
+      setIsDownloadingUpdate(true);
+      setDownloadProgress(0);
+
+      const fileName = `flusso-update-${updateInfo.latestRelease.version}.apk`;
+      const pathResult = await Filesystem.getUri({
+        path: fileName,
+        directory: Directory.Cache
+      });
+
+      FileTransfer.addListener('progress', (progress) => {
+        if (progress.contentLength) {
+          setDownloadProgress(Math.round((progress.bytes / progress.contentLength) * 100));
+        }
+      });
+
+      await FileTransfer.downloadFile({
+        url: apkAsset.browser_download_url,
+        path: pathResult.uri,
+        progress: true
+      });
+
+      await FileOpener.openFile({
+        path: pathResult.uri,
+        mimeType: 'application/vnd.android.package-archive'
+      });
+    } catch (error) {
+      console.error('Update failed:', error);
+      alert('Update failed. Please try again later.');
+    } finally {
+      setIsDownloadingUpdate(false);
+      setDownloadProgress(0);
+      FileTransfer.removeAllListeners();
+    }
+  };
 
   const handleThemeChange = (theme: Theme) => updateSettings({ theme });
   const handleImageDisplayChange = (imageDisplay: ImageDisplay) => updateSettings({ imageDisplay });
@@ -100,15 +146,15 @@ export function SettingsModal({ isOpen, onClose }: { isOpen: boolean; onClose: (
             {selectedFeed ? (
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Title</label>
-                  <input value={editTitle} onChange={(e) => setEditTitle(e.target.value)} className="w-full p-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800" />
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Title</label>
+                  <input value={editTitle} onChange={(e) => setEditTitle(e.target.value)} className="w-full p-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">URL</label>
-                  <input value={selectedFeed.feedUrl} readOnly className="w-full p-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-700" />
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">URL</label>
+                  <input value={selectedFeed.feedUrl} readOnly className="w-full p-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white opacity-70" />
                 </div>
-                <button onClick={() => saveEdit(selectedFeed.id)} className="w-full p-3 bg-indigo-600 text-white rounded-xl">Save</button>
-                <button onClick={() => { removeFeed(selectedFeed.id); setSelectedFeedId(null); }} className="w-full p-3 bg-red-600 text-white rounded-xl">Remove Feed</button>
+                <button onClick={() => saveEdit(selectedFeed.id)} className="w-full p-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-medium transition-colors">Save Changes</button>
+                <button onClick={() => { removeFeed(selectedFeed.id); setSelectedFeedId(null); }} className="w-full p-3 bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-500/20 rounded-xl font-medium transition-colors">Remove Feed</button>
               </div>
             ) : activeTab === 'settings' ? (
               <div className="space-y-8">
@@ -263,25 +309,6 @@ export function SettingsModal({ isOpen, onClose }: { isOpen: boolean; onClose: (
                         />
                       </button>
                     </div>
-                    
-                    {!updateInfo?.hasUpdate && (
-                      <button
-                        onClick={async () => {
-                          setIsCheckingUpdate(true);
-                          await checkUpdates(true);
-                          setIsCheckingUpdate(false);
-                        }}
-                        disabled={isCheckingUpdate}
-                        className="w-full flex items-center justify-center gap-2 p-3 rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors text-sm font-medium disabled:opacity-50"
-                      >
-                        {isCheckingUpdate ? (
-                          <RefreshCw className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <ShieldCheck className="w-4 h-4" />
-                        )}
-                        {isCheckingUpdate ? 'Checking...' : 'Check for updates now'}
-                      </button>
-                    )}
                   </div>
                 </section>
 
@@ -412,13 +439,23 @@ export function SettingsModal({ isOpen, onClose }: { isOpen: boolean; onClose: (
                           Release Page
                         </a>
                         {updateInfo.latestRelease?.assets.find(a => a.name.endsWith('.apk')) ? (
-                          <a 
-                            href={updateInfo.latestRelease.assets.find(a => a.name.endsWith('.apk'))?.browser_download_url}
-                            className="flex items-center justify-center gap-2 p-3 bg-indigo-500 text-white rounded-xl font-bold text-sm hover:bg-indigo-400 transition-colors border border-white/20"
+                          <button 
+                            onClick={handleUpdate}
+                            disabled={isDownloadingUpdate}
+                            className="flex items-center justify-center gap-2 p-3 bg-indigo-500 text-white rounded-xl font-bold text-sm hover:bg-indigo-400 transition-colors border border-white/20 disabled:opacity-50"
                           >
-                            <Download className="w-4 h-4" />
-                            Download APK
-                          </a>
+                            {isDownloadingUpdate ? (
+                              <>
+                                <RefreshCw className="w-4 h-4 animate-spin" />
+                                {downloadProgress}%
+                              </>
+                            ) : (
+                              <>
+                                <Download className="w-4 h-4" />
+                                Update Now
+                              </>
+                            )}
+                          </button>
                         ) : (
                           <button 
                             disabled

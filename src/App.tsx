@@ -56,6 +56,8 @@ function MainContent() {
   const [isMarkAllConfirmOpen, setIsMarkAllConfirmOpen] = useState(false);
   const [filter, setFilter] = useState<'all' | 'unread' | 'favorites'>('unread');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [searchSourceFilter, setSearchSourceFilter] = useState('all');
+  const [searchDateRange, setSearchDateRange] = useState('all');
   
   // Scroll to top when filter changes
   useEffect(() => {
@@ -72,9 +74,14 @@ function MainContent() {
         setSelectedArticle(null);
       } else if (isSettingsModalOpen) {
         setIsSettingsModalOpen(false);
+        setFilter('all');
+        setSearchQuery('');
+        setIsSearchOpen(false);
       } else if (isSearchOpen) {
         setIsSearchOpen(false);
         setSearchQuery('');
+        setSearchSourceFilter('all');
+        setSearchDateRange('all');
       } else if (filter !== 'all') {
         setFilter('all');
       } else {
@@ -85,7 +92,7 @@ function MainContent() {
     return () => {
       backListener.then(l => l.remove());
     };
-  }, [selectedArticle, isSettingsModalOpen, isSearchOpen, filter]);
+  }, [selectedArticle, isSettingsModalOpen, isSearchOpen, filter, searchSourceFilter, searchDateRange]);
   
   // State for articles currently being displayed to allow deferred removal of read items
   const [displayArticles, setDisplayArticles] = useState<Article[]>([]);
@@ -103,24 +110,45 @@ function MainContent() {
 
   const prevFilterRef = useRef(filter);
   const prevSearchRef = useRef(searchQuery);
+  const prevSourceFilterRef = useRef(searchSourceFilter);
+  const prevDateRangeRef = useRef(searchDateRange);
   const prevIsLoadingRef = useRef(isLoading);
 
   // Update displayArticles only on specific triggers (re-accessing section, search change, refresh completion, or new articles)
   useEffect(() => {
     const filterChanged = prevFilterRef.current !== filter;
     const searchChanged = prevSearchRef.current !== searchQuery;
+    const sourceFilterChanged = prevSourceFilterRef.current !== searchSourceFilter;
+    const dateRangeChanged = prevDateRangeRef.current !== searchDateRange;
     const refreshFinished = prevIsLoadingRef.current === true && isLoading === false;
     
     prevFilterRef.current = filter;
     prevSearchRef.current = searchQuery;
+    prevSourceFilterRef.current = searchSourceFilter;
+    prevDateRangeRef.current = searchDateRange;
     prevIsLoadingRef.current = isLoading;
 
     setDisplayArticles(prev => {
-      if (filterChanged || searchChanged || refreshFinished || prev.length === 0) {
+      if (filterChanged || searchChanged || sourceFilterChanged || dateRangeChanged || refreshFinished || prev.length === 0) {
         // Full re-evaluation on filter/search change, refresh completion, or initial load
         return articles.filter(article => {
           if (filter === 'unread' && article.isRead) return false;
           if (filter === 'favorites' && !article.isFavorite) return false;
+          
+          if (isSearchOpen) {
+            if (searchSourceFilter !== 'all' && article.feedId !== searchSourceFilter) return false;
+            
+            if (searchDateRange !== 'all') {
+              const articleDate = new Date(article.pubDate);
+              const now = new Date();
+              const diffTime = Math.abs(now.getTime() - articleDate.getTime());
+              const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+              
+              if (searchDateRange === 'today' && diffDays > 1) return false;
+              if (searchDateRange === 'week' && diffDays > 7) return false;
+              if (searchDateRange === 'month' && diffDays > 30) return false;
+            }
+          }
           
           if (searchQuery) {
             const query = searchQuery.toLowerCase();
@@ -153,6 +181,21 @@ function MainContent() {
           if (filter === 'unread' && article.isRead) return false;
           if (filter === 'favorites' && !article.isFavorite) return false;
           
+          if (isSearchOpen) {
+            if (searchSourceFilter !== 'all' && article.feedId !== searchSourceFilter) return false;
+            
+            if (searchDateRange !== 'all') {
+              const articleDate = new Date(article.pubDate);
+              const now = new Date();
+              const diffTime = Math.abs(now.getTime() - articleDate.getTime());
+              const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+              
+              if (searchDateRange === 'today' && diffDays > 1) return false;
+              if (searchDateRange === 'week' && diffDays > 7) return false;
+              if (searchDateRange === 'month' && diffDays > 30) return false;
+            }
+          }
+          
           if (searchQuery) {
             const query = searchQuery.toLowerCase();
             return article.title.toLowerCase().includes(query) || 
@@ -174,7 +217,7 @@ function MainContent() {
         return [...nextDisplay, ...newMatchingArticles].sort((a, b) => b.pubDate - a.pubDate);
       }
     });
-  }, [filter, searchQuery, articles, isLoading]);
+  }, [filter, searchQuery, searchSourceFilter, searchDateRange, isSearchOpen, articles, isLoading]);
 
   const handleTouchStart = (e: React.TouchEvent) => {
     const scrollTop = mainRef.current?.scrollTop || 0;
@@ -287,24 +330,48 @@ function MainContent() {
         </header>
 
         {isSearchOpen && (
-          <div className="px-4 py-3 flex items-center gap-2 border-t border-gray-100 dark:border-gray-800">
-            <Search className="w-5 h-5 text-gray-400" aria-hidden="true" />
-            <input 
-              type="text" 
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search articles..."
-              className="flex-1 bg-transparent text-gray-900 dark:text-white focus:outline-none"
-              aria-label="Search articles"
-              autoFocus
-            />
-            <button
-              onClick={() => { setSearchQuery(''); setIsSearchOpen(false); }}
-              className="p-1 text-gray-500"
-              aria-label="Close search"
-            >
-              <X className="w-5 h-5" aria-hidden="true" />
-            </button>
+          <div className="px-4 py-3 border-t border-gray-100 dark:border-gray-800 flex flex-col gap-3">
+            <div className="flex items-center gap-2">
+              <Search className="w-5 h-5 text-gray-400" aria-hidden="true" />
+              <input 
+                type="text" 
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search articles..."
+                className="flex-1 bg-transparent text-gray-900 dark:text-white focus:outline-none"
+                aria-label="Search articles"
+                autoFocus
+              />
+              <button
+                onClick={() => { setSearchQuery(''); setIsSearchOpen(false); setSearchSourceFilter('all'); setSearchDateRange('all'); }}
+                className="p-1 text-gray-500"
+                aria-label="Close search"
+              >
+                <X className="w-5 h-5" aria-hidden="true" />
+              </button>
+            </div>
+            <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide">
+              <select
+                value={searchSourceFilter}
+                onChange={(e) => setSearchSourceFilter(e.target.value)}
+                className="text-xs bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-full px-3 py-1.5 border-none focus:ring-0 outline-none whitespace-nowrap"
+              >
+                <option value="all">All Sources</option>
+                {feeds.map(feed => (
+                  <option key={feed.id} value={feed.id}>{feed.title}</option>
+                ))}
+              </select>
+              <select
+                value={searchDateRange}
+                onChange={(e) => setSearchDateRange(e.target.value)}
+                className="text-xs bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-full px-3 py-1.5 border-none focus:ring-0 outline-none whitespace-nowrap"
+              >
+                <option value="all">Any Time</option>
+                <option value="today">Past 24 Hours</option>
+                <option value="week">Past Week</option>
+                <option value="month">Past Month</option>
+              </select>
+            </div>
           </div>
         )}
 
@@ -463,7 +530,12 @@ function MainContent() {
         )}
       </AnimatePresence>
 
-      <SettingsModal isOpen={isSettingsModalOpen} onClose={() => setIsSettingsModalOpen(false)} />
+      <SettingsModal isOpen={isSettingsModalOpen} onClose={() => {
+        setIsSettingsModalOpen(false);
+        setFilter('all');
+        setSearchQuery('');
+        setIsSearchOpen(false);
+      }} />
       
       <AnimatePresence>
         {selectedArticle && (
