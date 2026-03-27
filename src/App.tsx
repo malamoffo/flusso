@@ -279,25 +279,31 @@ function MainContent() {
             <button 
               onClick={() => setIsSearchOpen(true)} 
               className="p-2 rounded-full hover:bg-indigo-50 dark:hover:bg-indigo-900/30 text-gray-600 dark:text-gray-300"
+              aria-label="Open search"
             >
-              <Search className="w-5 h-5" />
+              <Search className="w-5 h-5" aria-hidden="true" />
             </button>
           </div>
         </header>
 
         {isSearchOpen && (
           <div className="px-4 py-3 flex items-center gap-2 border-t border-gray-100 dark:border-gray-800">
-            <Search className="w-5 h-5 text-gray-400" />
+            <Search className="w-5 h-5 text-gray-400" aria-hidden="true" />
             <input 
               type="text" 
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search articles..."
               className="flex-1 bg-transparent text-gray-900 dark:text-white focus:outline-none"
+              aria-label="Search articles"
               autoFocus
             />
-            <button onClick={() => { setSearchQuery(''); setIsSearchOpen(false); }} className="p-1 text-gray-500">
-              <X className="w-5 h-5" />
+            <button
+              onClick={() => { setSearchQuery(''); setIsSearchOpen(false); }}
+              className="p-1 text-gray-500"
+              aria-label="Close search"
+            >
+              <X className="w-5 h-5" aria-hidden="true" />
             </button>
           </div>
         )}
@@ -364,38 +370,60 @@ function MainContent() {
       <div className={`fixed bottom-0 left-0 right-0 border-t border-gray-100 dark:border-gray-800 flex justify-around pt-3 pb-5 px-3 z-20 transition-colors ${
         settings.theme === 'dark' && settings.pureBlack ? 'bg-black' : 'bg-white dark:bg-gray-900'
       }`}>
-        <button onClick={() => setFilter('all')} className={filter === 'all' ? 'text-[var(--theme-color)]' : 'text-gray-500'}>
-          <LayoutGrid className="w-6 h-6" />
-        </button>
-        <button onClick={() => setFilter('unread')} className={`${filter === 'unread' ? 'text-[var(--theme-color)]' : 'text-gray-500'} relative`}>
-          <Inbox className="w-6 h-6" />
+        <motion.button
+          whileTap={{ scale: 0.9 }}
+          onClick={() => setFilter('all')}
+          className={filter === 'all' ? 'text-[var(--theme-color)]' : 'text-gray-500'}
+          aria-label="All articles"
+          aria-pressed={filter === 'all'}
+        >
+          <LayoutGrid className="w-6 h-6" aria-hidden="true" />
+        </motion.button>
+        <motion.button
+          whileTap={{ scale: 0.9 }}
+          onClick={() => setFilter('unread')}
+          className={`${filter === 'unread' ? 'text-[var(--theme-color)]' : 'text-gray-500'} relative`}
+          aria-label="Unread articles"
+          aria-pressed={filter === 'unread'}
+        >
+          <Inbox className="w-6 h-6" aria-hidden="true" />
           {unreadCount > 0 && (
             <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full border-2 border-white dark:border-gray-900">
               {unreadCount > 99 ? '99+' : unreadCount}
             </span>
           )}
-        </button>
-        <button onClick={() => setFilter('favorites')} className={filter === 'favorites' ? 'text-[var(--theme-color)]' : 'text-gray-500'}>
-          <Star className="w-6 h-6" />
-        </button>
+        </motion.button>
+        <motion.button
+          whileTap={{ scale: 0.9 }}
+          onClick={() => setFilter('favorites')}
+          className={filter === 'favorites' ? 'text-[var(--theme-color)]' : 'text-gray-500'}
+          aria-label="Favorite articles"
+          aria-pressed={filter === 'favorites'}
+        >
+          <Star className="w-6 h-6" aria-hidden="true" />
+        </motion.button>
       </div>
 
       {/* Floating Action Buttons */}
       <div className="fixed bottom-28 right-6 flex flex-col gap-4 z-30 items-center">
-        <button 
+        <motion.button
+          whileTap={{ scale: 0.9 }}
           onClick={() => setIsSettingsModalOpen(true)}
           className="w-12 h-12 bg-indigo-50 dark:bg-gray-800 text-indigo-700 dark:text-indigo-300 rounded-xl shadow-md flex items-center justify-center hover:bg-indigo-100 dark:hover:bg-gray-700 active:scale-95 transition-transform"
           title="Settings"
+          aria-label="Settings"
         >
-          <SettingsIcon className="w-5 h-5" />
-        </button>
-        <button 
+          <SettingsIcon className="w-5 h-5" aria-hidden="true" />
+        </motion.button>
+        <motion.button
+          whileTap={{ scale: 0.9 }}
           onClick={() => setIsMarkAllConfirmOpen(true)}
           className="w-14 h-14 bg-indigo-600 dark:bg-indigo-500 text-white rounded-2xl shadow-lg flex items-center justify-center hover:bg-indigo-700 dark:hover:bg-indigo-600 active:scale-95 transition-transform"
           title="Mark all as read"
+          aria-label="Mark all as read"
         >
-          <CheckSquare className="w-6 h-6" />
-        </button>
+          <CheckSquare className="w-6 h-6" aria-hidden="true" />
+        </motion.button>
       </div>
 
       {/* Modals & Overlays */}

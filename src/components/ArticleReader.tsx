@@ -208,9 +208,14 @@ export function ArticleReader({ article, onClose, onNext, onPrev, hasNext, hasPr
           settings.theme === 'dark' && settings.pureBlack ? 'bg-black/80' : 'bg-white/80 dark:bg-gray-950/80'
         }`}
       >
-        <button onClick={onClose} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800">
-          <X className="w-6 h-6 text-gray-800 dark:text-gray-200" />
-        </button>
+        <motion.button
+          whileTap={{ scale: 0.9 }}
+          onClick={onClose}
+          className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800"
+          aria-label="Close article"
+        >
+          <X className="w-6 h-6 text-gray-800 dark:text-gray-200" aria-hidden="true" />
+        </motion.button>
       </div>
 
       {/* Article Content */}
@@ -262,7 +267,8 @@ export function ArticleReader({ article, onClose, onNext, onPrev, hasNext, hasPr
           </div>
 
           <div className="flex items-center gap-4 text-gray-500 dark:text-gray-400">
-            <button 
+            <motion.button
+              whileTap={{ scale: 0.9 }}
               onClick={async () => {
                 try {
                   await Share.share({
@@ -282,18 +288,21 @@ export function ArticleReader({ article, onClose, onNext, onPrev, hasNext, hasPr
                 }
               }}
               className="hover:text-gray-900 dark:hover:text-white transition-colors"
+              aria-label="Share article"
             >
-              <Share2 className="w-5 h-5" />
-            </button>
-            <button 
+              <Share2 className="w-5 h-5" aria-hidden="true" />
+            </motion.button>
+            <motion.button
+              whileTap={{ scale: 0.9 }}
               onClick={() => {
                 setIsFavorite(!isFavorite);
                 toggleFavorite(article.id);
               }}
               className="hover:text-gray-900 dark:hover:text-white transition-colors"
+              aria-label={isFavorite ? "Remove from favorites" : "Add to favorites"}
             >
-              <Star className={`w-5 h-5 ${isFavorite ? 'fill-current text-amber-500' : ''}`} />
-            </button>
+              <Star className={`w-5 h-5 ${isFavorite ? 'fill-current text-amber-500' : ''}`} aria-hidden="true" />
+            </motion.button>
           </div>
         </div>
 
