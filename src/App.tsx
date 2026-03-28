@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 
 import { RssProvider, useRss } from './context/RssContext';
 import { SwipeableArticle } from './components/SwipeableArticle';
@@ -20,9 +20,10 @@ function MainContent() {
   const startYRef = useRef<number>(0);
   const isAtTopRef = useRef<boolean>(true);
 
-  const { articles, feeds, settings, isLoading, progress, error, refreshFeeds, toggleRead, markAsRead, markArticlesAsRead, markAllAsRead, searchQuery, setSearchQuery, unreadCount } = useRss();
+  const { articles, feeds, settings, isLoading, progress, error, refreshFeeds, toggleRead, markAsRead, markArticlesAsRead, markAllAsRead, searchQuery, setSearchQuery, unreadCount, toggleFavorite } = useRss();
 
-  const handleVisibilityChange = (id: string, inView: boolean) => {
+  // ⚡ Bolt: Memoize handleVisibilityChange to keep reference stable for SwipeableArticle
+  const handleVisibilityChange = useCallback((id: string, inView: boolean) => {
     if (inView) {
       visibleArticlesRef.current.add(id);
     } else {
@@ -40,7 +41,7 @@ function MainContent() {
         markArticlesAsRead(visibleIds);
       }
     }, 5000);
-  };
+  }, [markArticlesAsRead]);
 
   // Cleanup timeout on unmount
   useEffect(() => {
@@ -92,7 +93,7 @@ function MainContent() {
     return () => {
       backListener.then(l => l.remove());
     };
-  }, [selectedArticle, isSettingsModalOpen, isSearchOpen, filter, searchSourceFilter, searchDateRange]);
+  }, [selectedArticle, isSettingsModalOpen, isSearchOpen, filter, searchSourceFilter, searchDateRange, setSearchQuery]);
   
   // State for articles currently being displayed to allow deferred removal of read items
   const [displayArticles, setDisplayArticles] = useState<Article[]>([]);
@@ -281,6 +282,17 @@ function MainContent() {
     isAtTopRef.current = scrollTop <= 0;
   };
 
+  // ⚡ Bolt: Memoize handleSelectArticle to keep reference stable for SwipeableArticle
+  const handleSelectArticle = useCallback((article: Article) => {
+    setSelectedArticle(article);
+    if (!article.isRead) {
+      markAsRead(article.id);
+    }
+  }, [markAsRead, setSelectedArticle]);
+
+  // ⚡ Bolt: Use a Map for O(1) feed lookups instead of O(F) find inside article loop
+  const feedMap = useMemo(() => new Map(feeds.map(f => [f.id, f])), [feeds]);
+
   return (
     <div 
       className={`h-[100dvh] overflow-hidden flex flex-col transition-colors ${
@@ -410,20 +422,18 @@ function MainContent() {
         ) : (
           <div className="flex-1">
             {displayArticles.map((article) => {
-              const feed = feeds.find(f => f.id === article.feedId);
+              const feed = feedMap.get(article.feedId);
               return (
                 <SwipeableArticle 
                   key={article.id} 
                   article={article} 
                   feedName={feed?.title || 'Unknown Feed'}
-                  onClick={() => {
-                    setSelectedArticle(article);
-                    if (!article.isRead) {
-                      markAsRead(article.id);
-                    }
-                  }}
+                  settings={settings}
+                  onClick={handleSelectArticle}
                   onMarkAsRead={markAsRead}
                   onVisibilityChange={handleVisibilityChange}
+                  toggleRead={toggleRead}
+                  toggleFavorite={toggleFavorite}
                 />
               );
             })}
@@ -571,6 +581,7 @@ function MainContent() {
 export default function App() {
   return (
     <RssProvider>
+      {/* ⚡ Bolt: RssProvider handles context performance (stable value, memoized derivations) */}
       <MainContent />
     </RssProvider>
   );
