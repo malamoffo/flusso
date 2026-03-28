@@ -56,6 +56,52 @@ function sanitizeSnippet(input: string): string {
   return textOnly.trim().substring(0, 200);
 }
 
+// Helper to extract the best image from HTML content, avoiding tracking pixels and icons
+function extractBestImage(content: string): string | null {
+  if (!content) return null;
+  const imgRegex = /<img[^>]+>/gi;
+  let match;
+  
+  while ((match = imgRegex.exec(content)) !== null) {
+    const imgTag = match[0];
+    const dataSrcMatch = imgTag.match(/data-src=["']([^"']+)["']/i);
+    const srcMatch = imgTag.match(/src=["']([^"']+)["']/i);
+    const url = (dataSrcMatch && dataSrcMatch[1]) || (srcMatch && srcMatch[1]);
+    if (!url) continue;
+    
+    // Skip likely tracking pixels or icons based on URL
+    const lowerUrl = url.toLowerCase();
+    if (
+      lowerUrl.includes('1x1') ||
+      lowerUrl.includes('pixel') ||
+      lowerUrl.includes('tracker') ||
+      lowerUrl.includes('feedburner') ||
+      lowerUrl.includes('stats') ||
+      lowerUrl.includes('gravatar') ||
+      lowerUrl.includes('avatar') ||
+      lowerUrl.includes('icon') ||
+      lowerUrl.includes('logo') ||
+      lowerUrl.includes('wp-includes/images/smilies') ||
+      lowerUrl.includes('share') ||
+      lowerUrl.includes('button') ||
+      lowerUrl.includes('badge')
+    ) {
+      continue;
+    }
+
+    // Check for width/height attributes that suggest a 1x1 pixel
+    const widthMatch = imgTag.match(/width=["']?(\d+)["']?/i);
+    const heightMatch = imgTag.match(/height=["']?(\d+)["']?/i);
+    if (widthMatch && parseInt(widthMatch[1]) <= 10) continue;
+    if (heightMatch && parseInt(heightMatch[1]) <= 10) continue;
+
+    // First valid image found
+    return url;
+  }
+  
+  return null;
+}
+
 // Helper to parse RSS/Atom XML using native DOMParser
 function parseRssXml(xmlString: string, feedUrl: string): { feed: Feed; articles: Article[] } {
   if (typeof xmlString !== 'string') {
@@ -85,8 +131,7 @@ function parseRssXml(xmlString: string, feedUrl: string): { feed: Feed; articles
           }
           if (!imageUrl) {
             const content = item.content || item.description || '';
-            const imgMatch = content.match(/<img[^>]+src="([^">]+)"/);
-            if (imgMatch) imageUrl = imgMatch[1];
+            imageUrl = extractBestImage(content);
           }
 
           let pubDate = Date.now();
@@ -202,8 +247,7 @@ function parseRssXml(xmlString: string, feedUrl: string): { feed: Feed; articles
       }
       
       if (!imageUrl) {
-        const imgMatch = content.match(/<img[^>]+src="([^">]+)"/);
-        if (imgMatch) imageUrl = imgMatch[1];
+        imageUrl = extractBestImage(content);
       }
 
       return {
@@ -287,8 +331,7 @@ function parseRssXml(xmlString: string, feedUrl: string): { feed: Feed; articles
       }
 
       if (!imageUrl) {
-        const imgMatch = content.match(/<img[^>]+src="([^">]+)"/);
-        if (imgMatch) imageUrl = imgMatch[1];
+        imageUrl = extractBestImage(content);
       }
 
       return {

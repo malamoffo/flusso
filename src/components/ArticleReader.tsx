@@ -167,8 +167,8 @@ export function ArticleReader({ article, onClose, onNext, onPrev, hasNext, hasPr
     content = content.replace(/<span[^>]*>(\s|&nbsp;|<br\s*\/?>)*<\/span>/gi, '');
     
     return DOMPurify.sanitize(content, {
-      ADD_ATTR: ['style', 'allowfullscreen', 'frameborder', 'scrolling', 'controls'],
-      ADD_TAGS: ['video', 'audio', 'source', 'iframe'],
+      ADD_ATTR: ['style', 'allowfullscreen', 'frameborder', 'scrolling', 'controls', 'src', 'alt', 'width', 'height', 'srcset', 'sizes'],
+      ADD_TAGS: ['video', 'audio', 'source', 'iframe', 'img'],
       FORBID_ATTR: ['id', 'name'],
     });
   }, [fullContent?.content]);
@@ -245,24 +245,23 @@ export function ArticleReader({ article, onClose, onNext, onPrev, hasNext, hasPr
           />
         </h1>
 
-        {article.contentSnippet && (
-          <p 
-            className="text-lg text-gray-600 dark:text-gray-300 mb-6 leading-relaxed"
-            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(article.contentSnippet, { FORBID_ATTR: ['id', 'name'] }) }}
-          />
-        )}
-
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 dark:bg-gray-800 rounded-full">
             {article.link && (
               <img 
-                src={`https://www.google.com/s2/favicons?domain=${(() => {
+                src={`https://icons.duckduckgo.com/ip3/${(() => {
                   try { return new URL(article.link).hostname; }
                   catch { return ''; }
-                })()}&sz=32`} 
+                })()}.ico`} 
                 alt="" 
                 className="w-4 h-4 rounded-sm"
                 referrerPolicy="no-referrer"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = `https://www.google.com/s2/favicons?domain=${(() => {
+                    try { return new URL(article.link).hostname; }
+                    catch { return ''; }
+                  })()}&sz=32`;
+                }}
               />
             )}
             <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{feed?.title || 'Unknown Source'}</span>

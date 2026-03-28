@@ -207,11 +207,14 @@ export const SwipeableArticle = React.memo(function SwipeableArticle({
               <div className="flex items-center gap-1.5 min-w-0">
                 {domain && (
                   <img 
-                    src={`https://www.google.com/s2/favicons?domain=${domain}&sz=32`} 
+                    src={`https://icons.duckduckgo.com/ip3/${domain}.ico`} 
                     alt="" 
                     loading="lazy"
                     className={`w-4 h-4 rounded-sm flex-shrink-0`}
                     referrerPolicy="no-referrer"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src = `https://www.google.com/s2/favicons?domain=${domain}&sz=32`;
+                    }}
                   />
                 )}
                 <span className={`text-xs font-medium truncate text-indigo-600 dark:text-indigo-400`}>
@@ -233,7 +236,7 @@ export const SwipeableArticle = React.memo(function SwipeableArticle({
             />
             {article.contentSnippet && article.contentSnippet.trim() !== '' && (
               <p 
-                className={`${getSnippetSize()} text-gray-500 dark:text-gray-400 line-clamp-2 mt-1`}
+                className={`${getSnippetSize()} text-gray-500 dark:text-gray-400 mt-1`}
                 dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(article.contentSnippet, { FORBID_ATTR: ['id', 'name'] }) }}
               />
             )}
