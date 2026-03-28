@@ -327,10 +327,10 @@ function MainContent() {
             </div>
             <div className="flex items-baseline gap-4">
               <h1 className="text-xl font-bold text-gray-900 dark:text-white tracking-tight">flusso</h1>
-              <HeaderWidgets />
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <HeaderWidgets />
             <button 
               onClick={() => setIsSearchOpen(true)} 
               className="p-2 rounded-full hover:bg-indigo-50 dark:hover:bg-indigo-900/30 text-gray-600 dark:text-gray-300"

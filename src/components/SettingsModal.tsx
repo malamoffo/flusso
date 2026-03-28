@@ -5,16 +5,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { SwipeAction, Theme, ImageDisplay, FontSize } from '../types';
 import { AddFeedModal } from './AddFeedModal';
 import packageJson from '../../package.json';
-import { Filesystem, Directory } from '@capacitor/filesystem';
-import { FileTransfer } from '@capacitor/file-transfer';
-import { FileOpener } from '@capawesome-team/capacitor-file-opener';
 
 export function SettingsModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const { settings, updateSettings, feeds, removeFeed, updateFeed, progress, updateInfo, checkUpdates } = useRss();
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
-  const [isDownloadingUpdate, setIsDownloadingUpdate] = useState(false);
-  const [downloadProgress, setDownloadProgress] = useState(0);
   const [activeTab, setActiveTab] = useState<'settings' | 'subscriptions' | 'about'>('settings');
   const [editingFeedId, setEditingFeedId] = useState<string | null>(null);
   const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
@@ -27,47 +22,6 @@ export function SettingsModal({ isOpen, onClose }: { isOpen: boolean; onClose: (
       setSelectedFeedId(null);
     }
   }, [isOpen]);
-
-  const handleUpdate = async () => {
-    if (!updateInfo?.latestRelease) return;
-    const apkAsset = updateInfo.latestRelease.assets.find(a => a.name.endsWith('.apk'));
-    if (!apkAsset) return;
-
-    try {
-      setIsDownloadingUpdate(true);
-      setDownloadProgress(0);
-
-      const fileName = `flusso-update-${updateInfo.latestRelease.version}.apk`;
-      const pathResult = await Filesystem.getUri({
-        path: fileName,
-        directory: Directory.Cache
-      });
-
-      FileTransfer.addListener('progress', (progress) => {
-        if (progress.contentLength) {
-          setDownloadProgress(Math.round((progress.bytes / progress.contentLength) * 100));
-        }
-      });
-
-      await FileTransfer.downloadFile({
-        url: apkAsset.browser_download_url,
-        path: pathResult.uri,
-        progress: true
-      });
-
-      await FileOpener.openFile({
-        path: pathResult.uri,
-        mimeType: 'application/vnd.android.package-archive'
-      });
-    } catch (error) {
-      console.error('Update failed:', error);
-      alert('Update failed. If the installation is blocked, please enable "Install unknown apps" for Flusso in your Android settings.');
-    } finally {
-      setIsDownloadingUpdate(false);
-      setDownloadProgress(0);
-      FileTransfer.removeAllListeners();
-    }
-  };
 
   const handleThemeChange = (theme: Theme) => updateSettings({ theme });
   const handleImageDisplayChange = (imageDisplay: ImageDisplay) => updateSettings({ imageDisplay });
@@ -428,48 +382,16 @@ export function SettingsModal({ isOpen, onClose }: { isOpen: boolean; onClose: (
                         </div>
                       )}
 
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="grid grid-cols-1 gap-3">
                         <a 
                           href={updateInfo.latestRelease?.url} 
                           target="_blank" 
                           rel="noopener noreferrer"
                           className="flex items-center justify-center gap-2 p-3 bg-white text-indigo-600 rounded-xl font-bold text-sm hover:bg-indigo-50 transition-colors"
                         >
-                          <ExternalLink className="w-4 h-4" />
-                          Release Page
+                          <Download className="w-4 h-4" />
+                          Download Update
                         </a>
-                        {updateInfo.latestRelease?.assets.find(a => a.name.endsWith('.apk')) ? (
-                          <>
-                            <button 
-                              onClick={handleUpdate}
-                              disabled={isDownloadingUpdate}
-                              className="flex items-center justify-center gap-2 p-3 bg-indigo-500 text-white rounded-xl font-bold text-sm hover:bg-indigo-400 transition-colors border border-white/20 disabled:opacity-50"
-                            >
-                              {isDownloadingUpdate ? (
-                                <>
-                                  <RefreshCw className="w-4 h-4 animate-spin" />
-                                  {downloadProgress}%
-                                </>
-                              ) : (
-                                <>
-                                  <Download className="w-4 h-4" />
-                                  Update Now
-                                </>
-                              )}
-                            </button>
-                            <p className="mt-2 text-[10px] text-indigo-200/70 text-center leading-tight">
-                              You may need to enable "Install unknown apps" for Flusso in your Android settings.
-                            </p>
-                          </>
-                        ) : (
-                          <button 
-                            disabled
-                            className="flex items-center justify-center gap-2 p-3 bg-indigo-500/50 text-white/50 rounded-xl font-bold text-sm cursor-not-allowed border border-white/10"
-                          >
-                            <Download className="w-4 h-4" />
-                            No APK found
-                          </button>
-                        )}
                       </div>
                     </div>
                   ) : (
