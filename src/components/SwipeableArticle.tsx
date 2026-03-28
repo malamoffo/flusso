@@ -2,8 +2,7 @@ import React, { useRef, useEffect } from 'react';
 import { motion, useMotionValue, useTransform, PanInfo } from 'framer-motion';
 import { format, isToday } from 'date-fns';
 import { Check, Star, Trash2 } from 'lucide-react';
-import { Article } from '../types';
-import { useRss } from '../context/RssContext';
+import { Article, Settings } from '../types';
 import { useInView } from 'react-intersection-observer';
 import { contentFetcher } from '../utils/contentFetcher';
 import { cn, getSafeUrl } from '../lib/utils';
@@ -13,14 +12,32 @@ interface SwipeableArticleProps {
   key?: React.Key;
   article: Article;
   feedName: string;
-  onClick: () => void;
+  settings: Settings;
+  onClick: (article: Article) => void;
   onMarkAsRead: (id: string) => void;
   onVisibilityChange: (id: string, inView: boolean) => void;
+  toggleRead: (id: string) => void;
+  toggleFavorite: (id: string) => void;
   style?: React.CSSProperties;
 }
 
-export function SwipeableArticle({ article, feedName, onClick, onMarkAsRead, onVisibilityChange, style }: SwipeableArticleProps) {
-  const { toggleRead, markAsRead, toggleFavorite, settings } = useRss();
+/**
+ * ⚡ Bolt: Memoized SwipeableArticle component to prevent unnecessary re-renders.
+ * By removing the useRss context hook and receiving data via props, this component
+ * only re-renders when its specific article data or global settings change,
+ * rather than on every context update (e.g., during feed refresh progress).
+ */
+export const SwipeableArticle = React.memo(function SwipeableArticle({
+  article,
+  feedName,
+  settings,
+  onClick,
+  onMarkAsRead,
+  onVisibilityChange,
+  toggleRead,
+  toggleFavorite,
+  style
+}: SwipeableArticleProps) {
   const x = useMotionValue(0);
   
   const { ref, inView, entry } = useInView({
@@ -63,7 +80,8 @@ export function SwipeableArticle({ article, feedName, onClick, onMarkAsRead, onV
     if (!article.isRead) {
       onMarkAsRead(article.id);
     }
-    onClick();
+    // ⚡ Bolt: Pass article to the stable onClick handler
+    onClick(article);
   };
 
   // Background colors based on swipe action
@@ -179,6 +197,7 @@ export function SwipeableArticle({ article, feedName, onClick, onMarkAsRead, onV
             <img 
               src={getSafeUrl(article.imageUrl)}
               alt="" 
+              loading="lazy"
               className={`${settings.imageDisplay === 'large' ? 'w-full h-auto max-h-[70vh] mb-3' : 'w-20 h-auto max-h-32'} object-contain rounded-lg flex-shrink-0 bg-gray-100 dark:bg-gray-800 transition-opacity`}
               referrerPolicy="no-referrer"
             />
@@ -190,6 +209,7 @@ export function SwipeableArticle({ article, feedName, onClick, onMarkAsRead, onV
                   <img 
                     src={`https://www.google.com/s2/favicons?domain=${domain}&sz=32`} 
                     alt="" 
+                    loading="lazy"
                     className={`w-4 h-4 rounded-sm flex-shrink-0`}
                     referrerPolicy="no-referrer"
                   />
@@ -222,4 +242,4 @@ export function SwipeableArticle({ article, feedName, onClick, onMarkAsRead, onV
       </motion.div>
     </motion.div>
   );
-}
+});
