@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Plus, Upload, X, Rss } from 'lucide-react';
+import { Plus, Upload, X, Rss, RefreshCw } from 'lucide-react';
 import { useRss } from '../context/RssContext';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -63,9 +63,14 @@ export function AddFeedModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
           >
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-xl font-bold text-gray-900 dark:text-white">Add RSS Feed</h2>
-              <button onClick={onClose} className="p-2 bg-gray-100 dark:bg-gray-800 rounded-full">
-                <X className="w-5 h-5 text-gray-600 dark:text-gray-300" />
-              </button>
+              <motion.button
+                whileTap={{ scale: 0.9 }}
+                onClick={onClose}
+                className="p-2 bg-gray-100 dark:bg-gray-800 rounded-full"
+                aria-label="Close modal"
+              >
+                <X className="w-5 h-5 text-gray-600 dark:text-gray-300" aria-hidden="true" />
+              </motion.button>
             </div>
 
             {progress && (
@@ -93,7 +98,7 @@ export function AddFeedModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
             <form onSubmit={handleSubmit} className="mb-6">
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Rss className="h-5 w-5 text-gray-400 dark:text-gray-500" />
+                  <Rss className="h-5 w-5 text-gray-400 dark:text-gray-500" aria-hidden="true" />
                 </div>
                 <input
                   type="url"
@@ -104,13 +109,19 @@ export function AddFeedModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
                   required
                 />
               </div>
-              <button
+              <motion.button
+                whileTap={{ scale: 0.98 }}
                 type="submit"
                 disabled={isSubmitting || !url}
-                className="mt-4 w-full flex justify-center py-3 px-4 border border-transparent rounded-xl shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
+                className="mt-4 w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-xl shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
               >
-                {isSubmitting ? 'Adding...' : 'Add Feed'}
-              </button>
+                {isSubmitting ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 mr-2 animate-spin" aria-hidden="true" />
+                    Adding...
+                  </>
+                ) : 'Add Feed'}
+              </motion.button>
             </form>
 
             <div className="relative mb-6">
@@ -131,14 +142,15 @@ export function AddFeedModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
               ref={fileInputRef}
               onChange={handleFileUpload}
             />
-            <button
+            <motion.button
+              whileTap={{ scale: 0.98 }}
               onClick={() => fileInputRef.current?.click()}
               disabled={isSubmitting}
               className="w-full flex justify-center items-center py-3 px-4 border border-gray-300 dark:border-gray-700 rounded-xl shadow-sm text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
             >
-              <Upload className="w-5 h-5 mr-2 text-gray-500 dark:text-gray-400" />
+              <Upload className="w-5 h-5 mr-2 text-gray-500 dark:text-gray-400" aria-hidden="true" />
               Import OPML File
-            </button>
+            </motion.button>
           </motion.div>
         </>
       )}
