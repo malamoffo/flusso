@@ -8,7 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "clean": "rm -rf dist",
-    "postinstall": "node scripts/generate-icons.js",
+    "postinstall": "node scripts/generate-icons.js || true",
     "lint": "tsc --noEmit",
     "cap:sync": "npx cap sync",
     "cap:open": "npx cap open android"
@@ -53,6 +53,18 @@
     "vite": "^6.2.0"
   },
   "overrides": {
+    "tar": "^7.5.13",
+    "minimatch": "^10.2.4",
+    "glob": "^13.0.6"
+  },
+  "pnpm": {
+    "overrides": {
+      "tar": "^7.5.13",
+      "minimatch": "^10.2.4",
+      "glob": "^13.0.6"
+    }
+  },
+  "resolutions": {
     "tar": "^7.5.13",
     "minimatch": "^10.2.4",
     "glob": "^13.0.6"
