@@ -49,7 +49,7 @@ class ContentFetcherQueue {
     }
   }
 
-  private async fetchWithRetry(articleId: string, url: string, retries = 1) {
+  private async fetchWithRetry(articleId: string, url: string, retries = 2) {
     try {
       await this.fetchAndCache(articleId, url);
     } catch (error) {

@@ -55,6 +55,7 @@ function MainContent() {
   const [selectedArticle, setSelectedArticle] = useState<Article | null>(null);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isMarkAllConfirmOpen, setIsMarkAllConfirmOpen] = useState(false);
+  const [forceRefresh, setForceRefresh] = useState(0);
   const [filter, setFilter] = useState<'all' | 'unread' | 'favorites'>('unread');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchSourceFilter, setSearchSourceFilter] = useState('all');
@@ -114,6 +115,7 @@ function MainContent() {
   const prevSourceFilterRef = useRef(searchSourceFilter);
   const prevDateRangeRef = useRef(searchDateRange);
   const prevIsLoadingRef = useRef(isLoading);
+  const prevForceRefreshRef = useRef(forceRefresh);
 
   // Update displayArticles only on specific triggers (re-accessing section, search change, refresh completion, or new articles)
   useEffect(() => {
@@ -122,15 +124,17 @@ function MainContent() {
     const sourceFilterChanged = prevSourceFilterRef.current !== searchSourceFilter;
     const dateRangeChanged = prevDateRangeRef.current !== searchDateRange;
     const refreshFinished = prevIsLoadingRef.current === true && isLoading === false;
+    const forceRefreshTriggered = prevForceRefreshRef.current !== forceRefresh;
     
     prevFilterRef.current = filter;
     prevSearchRef.current = searchQuery;
     prevSourceFilterRef.current = searchSourceFilter;
     prevDateRangeRef.current = searchDateRange;
     prevIsLoadingRef.current = isLoading;
+    prevForceRefreshRef.current = forceRefresh;
 
     setDisplayArticles(prev => {
-      if (filterChanged || searchChanged || sourceFilterChanged || dateRangeChanged || refreshFinished || prev.length === 0) {
+      if (filterChanged || searchChanged || sourceFilterChanged || dateRangeChanged || refreshFinished || forceRefreshTriggered || prev.length === 0) {
         // Full re-evaluation on filter/search change, refresh completion, or initial load
         return articles.filter(article => {
           if (filter === 'unread' && article.isRead) return false;
@@ -218,7 +222,7 @@ function MainContent() {
         return [...nextDisplay, ...newMatchingArticles].sort((a, b) => b.pubDate - a.pubDate);
       }
     });
-  }, [filter, searchQuery, searchSourceFilter, searchDateRange, isSearchOpen, articles, isLoading]);
+  }, [filter, searchQuery, searchSourceFilter, searchDateRange, isSearchOpen, articles, isLoading, forceRefresh]);
 
   const handleTouchStart = (e: React.TouchEvent) => {
     const scrollTop = mainRef.current?.scrollTop || 0;
@@ -528,6 +532,7 @@ function MainContent() {
                 <button
                   onClick={() => {
                     markAllAsRead();
+                    setForceRefresh(prev => prev + 1);
                     setIsMarkAllConfirmOpen(false);
                   }}
                   className="flex-1 py-2.5 rounded-xl font-medium bg-indigo-600 text-white"

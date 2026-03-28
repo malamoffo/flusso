@@ -63,6 +63,7 @@ export function RssProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     let mounted = true;
+    
     loadData().then((data) => {
       if (mounted) {
         if (data && data.loadedFeeds.length > 0) {

@@ -12,7 +12,6 @@ export function SettingsModal({ isOpen, onClose }: { isOpen: boolean; onClose: (
   const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
   const [activeTab, setActiveTab] = useState<'settings' | 'subscriptions' | 'about'>('settings');
   const [editingFeedId, setEditingFeedId] = useState<string | null>(null);
-  const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState('');
   const [selectedFeedId, setSelectedFeedId] = useState<string | null>(null);
   

@@ -401,19 +401,38 @@ export const storage = {
     const THREE_DAYS = 3 * 24 * 60 * 60 * 1000;
     const now = Date.now();
     
-    // Filter out read articles older than 3 days
+    // Filter out articles older than 3 days (both read and unread)
+    // to prevent storage saturation as requested by the user.
     const validArticles = articles.filter(a => {
-      if (!a.isRead) return true;
-      const readTime = a.readAt || a.pubDate;
-      return (now - readTime) <= THREE_DAYS;
+      const articleTime = a.readAt || a.pubDate;
+      return (now - articleTime) <= THREE_DAYS;
     });
     
     // If we filtered out some articles, save the cleaned up list
     if (validArticles.length !== articles.length) {
       await this.saveArticles(validArticles);
+      // Also trigger a cleanup of orphaned content in the background
+      this.cleanupOrphanedContent(validArticles).catch(err => console.error('Failed to cleanup orphaned content', err));
     }
     
     return validArticles;
+  },
+
+  async cleanupOrphanedContent(validArticles: Article[]): Promise<void> {
+    const { keys, del } = await import('idb-keyval');
+    const allKeys = await keys();
+    const validIds = new Set(validArticles.map(a => a.id));
+    const CONTENT_PREFIX = 'article_content_';
+    
+    for (const key of allKeys) {
+      const keyStr = String(key);
+      if (keyStr.startsWith(CONTENT_PREFIX)) {
+        const id = keyStr.substring(CONTENT_PREFIX.length);
+        if (!validIds.has(id)) {
+          await del(key);
+        }
+      }
+    }
   },
 
   async saveArticles(articles: Article[]): Promise<void> {
@@ -444,7 +463,7 @@ export const storage = {
           const { feed, articles } = parseRssXml(dataString, feedUrl);
           
           const filteredArticles = articles.filter(a => 
-            (Date.now() - a.pubDate) <= 2 * 24 * 60 * 60 * 1000 && 
+            (Date.now() - a.pubDate) <= 3 * 24 * 60 * 60 * 1000 && 
             (!sinceDate || a.pubDate > sinceDate)
           );
 
@@ -464,7 +483,7 @@ export const storage = {
       const { feed, articles } = parseRssXml(xmlString, feedUrl);
       
       const filteredArticles = articles.filter(a => 
-        (Date.now() - a.pubDate) <= 2 * 24 * 60 * 60 * 1000 && 
+        (Date.now() - a.pubDate) <= 3 * 24 * 60 * 60 * 1000 && 
         (!sinceDate || a.pubDate > sinceDate)
       );
 
