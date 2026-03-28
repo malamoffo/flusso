@@ -166,8 +166,32 @@ export function ArticleReader({ article, onClose, onNext, onPrev, hasNext, hasPr
     content = content.replace(/<div[^>]*>(\s|&nbsp;|<br\s*\/?>)*<\/div>/gi, '');
     content = content.replace(/<span[^>]*>(\s|&nbsp;|<br\s*\/?>)*<\/span>/gi, '');
     
-    return DOMPurify.sanitize(content, {
-      ADD_ATTR: ['style', 'allowfullscreen', 'frameborder', 'scrolling', 'controls', 'src', 'alt', 'width', 'height', 'srcset', 'sizes'],
+    // Create a local instance of DOMPurify to be thread-safe in React
+    const purifier = DOMPurify();
+
+    // Security enhancement: Add hooks to ensure all links and iframes are safe
+    purifier.addHook('afterSanitizeAttributes', (node) => {
+      // Force rel="nofollow noopener noreferrer" on all links
+      if (node.tagName === 'A') {
+        node.setAttribute('rel', 'nofollow noopener noreferrer');
+      }
+
+      // Force sandbox on iframes to prevent them from breaking the app
+      if (node.tagName === 'IFRAME') {
+        node.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-popups allow-forms');
+      }
+
+      // Sanitized protocols for src and href
+      if (node.hasAttribute('src')) {
+        node.setAttribute('src', getSafeUrl(node.getAttribute('src'), ''));
+      }
+      if (node.hasAttribute('href')) {
+        node.setAttribute('href', getSafeUrl(node.getAttribute('href'), ''));
+      }
+    });
+
+    return purifier.sanitize(content, {
+      ADD_ATTR: ['style', 'allowfullscreen', 'frameborder', 'scrolling', 'controls', 'src', 'alt', 'width', 'height', 'srcset', 'sizes', 'sandbox'],
       ADD_TAGS: ['video', 'audio', 'source', 'iframe', 'img'],
       FORBID_ATTR: ['id', 'name'],
     });

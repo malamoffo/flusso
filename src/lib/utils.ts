@@ -14,13 +14,26 @@ export function isSafeUrl(url: string | null | undefined): boolean {
   const trimmed = url.trim();
   if (!trimmed) return false;
 
-  // Basic protocol check
-  const lowercase = trimmed.toLowerCase();
-  return (
-    lowercase.startsWith('http://') ||
-    lowercase.startsWith('https://') ||
-    lowercase.startsWith('mailto:')
-  );
+  // Allow protocol-relative URLs, relative paths, and anchors
+  if (
+    trimmed.startsWith('//') ||
+    trimmed.startsWith('/') ||
+    trimmed.startsWith('./') ||
+    trimmed.startsWith('../') ||
+    trimmed.startsWith('#')
+  ) {
+    return true;
+  }
+
+  try {
+    // Use the URL constructor for robust protocol validation
+    const parsed = new URL(trimmed);
+    return ['http:', 'https:', 'mailto:'].includes(parsed.protocol);
+  } catch (e) {
+    // If URL parsing fails and it's not a relative path we handle above,
+    // we return false to be safe.
+    return false;
+  }
 }
 
 /**
