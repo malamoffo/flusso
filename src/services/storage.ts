@@ -6,32 +6,16 @@ import { fetchWithProxy } from '../utils/proxy';
 import sanitizeHtml from 'sanitize-html';
 import { getSafeUrl } from '../lib/utils';
 
+import he from 'he';
+
 const FEEDS_KEY = 'rss_feeds';
 const ARTICLES_KEY = 'rss_articles';
 const SETTINGS_KEY = 'rss_settings';
 
-// Helper to decode HTML entities safely using DOMParser
+// Helper to decode HTML entities safely
 function decodeHtmlEntities(text: string): string {
   if (!text) return '';
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(text, 'text/html');
-  return doc.documentElement.textContent || '';
-}
-
-// Helper to sanitize OPML/XML text before parsing, to avoid any HTML/script re-interpretation
-function sanitizeOpmlText(opmlText: string): string {
-  if (!opmlText) return '';
-  // Remove script and style blocks, which are irrelevant for OPML and could contain HTML/JS
-  let sanitized = opmlText.replace(/<\s*(script|style)[^>]*>[\s\S]*?<\s*\/\s*\1\s*>/gi, '');
-  // Remove common event handler attributes (onload, onclick, etc.) that are HTML-specific.
-  // Apply the replacement repeatedly to avoid incomplete multi-character sanitization.
-  let previous: string;
-  do {
-    previous = sanitized;
-    sanitized = sanitized.replace(/\son[a-z]+\s*=\s*"(?:[^"\\]|\\.)*"/gi, '');
-    sanitized = sanitized.replace(/\son[a-z]+\s*=\s*'(?:[^'\\]|\\.)*'/gi, '');
-  } while (sanitized !== previous);
-  return sanitized;
+  return he.decode(text);
 }
 
 // Helper to escape XML special characters
@@ -267,7 +251,7 @@ function parseRssXml(xmlString: string, feedUrl: string): { feed: Feed; articles
         mediaType,
         isRead: false,
         isFavorite: false,
-        contentSnippet: decodeHtmlEntities(content.replace(/<[^>]*>/g, '').substring(0, 200)),
+        contentSnippet: decodeHtmlEntities(sanitizeSnippet(content)),
       };
     });
 
@@ -630,8 +614,7 @@ export const storage = {
   async parseOpml(opmlText: string): Promise<string[]> {
     console.log('Parsing OPML text, length:', opmlText.length);
     const parser = new DOMParser();
-    const safeOpmlText = sanitizeOpmlText(opmlText);
-    const doc = parser.parseFromString(safeOpmlText, 'application/xml');
+    const doc = parser.parseFromString(opmlText, 'application/xml');
     
     // If XML parsing fails (common with malformed OPML), treat as invalid and return no URLs
     const parserError = doc.querySelector('parsererror');
