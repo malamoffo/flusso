@@ -6,7 +6,15 @@ import { SwipeAction, Theme, ImageDisplay, FontSize } from '../types';
 import { AddFeedModal } from './AddFeedModal';
 import packageJson from '../../package.json';
 
-export function SettingsModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
+export function SettingsModal({
+  isOpen,
+  onClose,
+  initialTab
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  initialTab?: 'settings' | 'subscriptions' | 'about';
+}) {
   const { settings, updateSettings, feeds, removeFeed, updateFeed, progress, updateInfo, checkUpdates } = useRss();
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
@@ -17,10 +25,10 @@ export function SettingsModal({ isOpen, onClose }: { isOpen: boolean; onClose: (
   
   React.useEffect(() => {
     if (isOpen) {
-      setActiveTab('settings');
+      setActiveTab(initialTab || 'settings');
       setSelectedFeedId(null);
     }
-  }, [isOpen]);
+  }, [isOpen, initialTab]);
 
   const handleThemeChange = (theme: Theme) => updateSettings({ theme });
   const handleImageDisplayChange = (imageDisplay: ImageDisplay) => updateSettings({ imageDisplay });
@@ -63,8 +71,12 @@ export function SettingsModal({ isOpen, onClose }: { isOpen: boolean; onClose: (
               <div className="flex justify-between items-center">
                 <div className="flex items-center gap-3">
                   {(activeTab !== 'settings' || selectedFeed) && (
-                    <button onClick={() => selectedFeed ? setSelectedFeedId(null) : setActiveTab('settings')} className="p-2 -ml-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
-                      <ArrowLeft className="w-5 h-5 text-gray-600 dark:text-gray-300" />
+                    <button
+                      onClick={() => selectedFeed ? setSelectedFeedId(null) : setActiveTab('settings')}
+                      className="p-2 -ml-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                      aria-label="Go back"
+                    >
+                      <ArrowLeft className="w-5 h-5 text-gray-600 dark:text-gray-300" aria-hidden="true" />
                     </button>
                   )}
                   <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
@@ -73,8 +85,12 @@ export function SettingsModal({ isOpen, onClose }: { isOpen: boolean; onClose: (
                      activeTab === 'subscriptions' ? 'Subscriptions' : 'About Flusso'}
                   </h2>
                 </div>
-                <button onClick={() => selectedFeed ? setSelectedFeedId(null) : onClose()} className="p-2 bg-gray-100 dark:bg-gray-800 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
-                  <X className="w-5 h-5 text-gray-600 dark:text-gray-300" />
+                <button
+                  onClick={() => selectedFeed ? setSelectedFeedId(null) : onClose()}
+                  className="p-2 bg-gray-100 dark:bg-gray-800 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                  aria-label="Close settings"
+                >
+                  <X className="w-5 h-5 text-gray-600 dark:text-gray-300" aria-hidden="true" />
                 </button>
               </div>
             </div>
@@ -164,6 +180,9 @@ export function SettingsModal({ isOpen, onClose }: { isOpen: boolean; onClose: (
                       <button 
                         onClick={() => updateSettings({ pureBlack: !settings.pureBlack })}
                         className={`w-12 h-6 rounded-full transition-colors relative ${settings.pureBlack ? 'bg-indigo-600' : 'bg-gray-300 dark:bg-gray-600'}`}
+                        role="switch"
+                        aria-checked={settings.pureBlack}
+                        aria-label="Toggle Pure Black theme"
                       >
                         <motion.div 
                           animate={{ x: settings.pureBlack ? 24 : 4 }}
@@ -308,7 +327,7 @@ export function SettingsModal({ isOpen, onClose }: { isOpen: boolean; onClose: (
                   onClick={() => setIsAddModalOpen(true)}
                   className="w-full flex items-center justify-center gap-2 p-4 rounded-2xl bg-indigo-100 dark:bg-indigo-900/30 text-indigo-900 dark:text-indigo-100 hover:bg-indigo-200 dark:hover:bg-indigo-900/50 transition-colors font-medium"
                 >
-                  <Plus className="w-5 h-5" />
+                  <Plus className="w-5 h-5" aria-hidden="true" />
                   Add New Feed or Import OPML
                 </button>
               </section>

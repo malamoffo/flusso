@@ -107,6 +107,7 @@ export function AddFeedModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
                   placeholder="https://example.com/feed.xml"
                   className="block w-full pl-10 pr-3 py-3 border border-gray-300 dark:border-gray-700 rounded-xl focus:ring-indigo-500 focus:border-indigo-500 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500"
                   required
+                  aria-label="Feed URL"
                 />
               </div>
               <motion.button

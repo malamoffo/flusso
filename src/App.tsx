@@ -6,7 +6,7 @@ import { ArticleReader } from './components/ArticleReader';
 import { SettingsModal } from './components/SettingsModal';
 import { HeaderWidgets } from './components/HeaderWidgets';
 import { Article } from './types';
-import { RefreshCw, Rss, Inbox, Settings as SettingsIcon, CheckSquare, Search, X, LayoutGrid, Star } from 'lucide-react';
+import { RefreshCw, Rss, Inbox, Settings as SettingsIcon, CheckSquare, Search, X, LayoutGrid, Star, Plus } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from './lib/utils';
 
@@ -54,6 +54,7 @@ function MainContent() {
 
   const [selectedArticle, setSelectedArticle] = useState<Article | null>(null);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const [settingsInitialTab, setSettingsInitialTab] = useState<'settings' | 'subscriptions' | 'about' | undefined>(undefined);
   const [isMarkAllConfirmOpen, setIsMarkAllConfirmOpen] = useState(false);
   const [forceRefresh, setForceRefresh] = useState(0);
   const [filter, setFilter] = useState<'all' | 'unread' | 'favorites'>('unread');
@@ -417,11 +418,26 @@ function MainContent() {
           <div className="flex flex-col items-center justify-center h-64 text-gray-500 dark:text-gray-400 px-6 text-center">
             <Inbox className="w-16 h-16 mb-4 text-gray-300 dark:text-gray-600" />
             <p className="text-lg font-medium text-gray-900 dark:text-white mb-1">No articles found</p>
-            <p className="text-sm">
-              {feeds.length === 0 
-                ? "You haven't added any feeds yet. Open Settings to get started." 
-                : "You're all caught up!"}
-            </p>
+            <div className="text-sm">
+              {feeds.length === 0 ? (
+                <div className="space-y-4">
+                  <p>You haven't added any feeds yet.</p>
+                  <motion.button
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => {
+                      setSettingsInitialTab('subscriptions');
+                      setIsSettingsModalOpen(true);
+                    }}
+                    className="inline-flex items-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shadow-lg shadow-indigo-500/20 transition-all"
+                  >
+                    <Plus className="w-5 h-5" aria-hidden="true" />
+                    Add your first feed
+                  </motion.button>
+                </div>
+              ) : (
+                <p>You're all caught up!</p>
+              )}
+            </div>
           </div>
         ) : (
           <div className="flex-1">
@@ -545,12 +561,17 @@ function MainContent() {
         )}
       </AnimatePresence>
 
-      <SettingsModal isOpen={isSettingsModalOpen} onClose={() => {
-        setIsSettingsModalOpen(false);
-        setFilter('all');
-        setSearchQuery('');
-        setIsSearchOpen(false);
-      }} />
+      <SettingsModal
+        isOpen={isSettingsModalOpen}
+        initialTab={settingsInitialTab}
+        onClose={() => {
+          setIsSettingsModalOpen(false);
+          setSettingsInitialTab(undefined);
+          setFilter('all');
+          setSearchQuery('');
+          setIsSearchOpen(false);
+        }}
+      />
       
       <AnimatePresence>
         {selectedArticle && (
