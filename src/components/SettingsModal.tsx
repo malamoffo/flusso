@@ -269,8 +269,8 @@ export function SettingsModal({
                         onChange={handleSwipeLeftChange}
                         className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 dark:border-gray-700 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-lg bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white"
                       >
-                        <option value="toggleRead">Toggle Read/Unread</option>
-                        <option value="toggleFavorite">Toggle Favorite</option>
+                        <option value="toggleRead">Read/unread</option>
+                        <option value="toggleFavorite">Favorite/Queue</option>
                         <option value="none">None</option>
                       </select>
                     </div>
@@ -283,8 +283,8 @@ export function SettingsModal({
                         onChange={handleSwipeRightChange}
                         className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 dark:border-gray-700 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-lg bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white"
                       >
-                        <option value="toggleRead">Toggle Read/Unread</option>
-                        <option value="toggleFavorite">Toggle Favorite</option>
+                        <option value="toggleRead">Read/unread</option>
+                        <option value="toggleFavorite">Favorite/Queue</option>
                         <option value="none">None</option>
                       </select>
                     </div>

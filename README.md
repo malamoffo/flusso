@@ -14,17 +14,25 @@
 *   **Real-time Weather**: Integrated weather widget that automatically detects your location to provide current conditions.
 *   **Synchronized Clock**: A minimalist design that integrates time and weather directly into your news flow.
 
+### 🎙️ Advanced Podcast Experience
+*   **Integrated Player**: Full-featured podcast player with real-time progress, remaining time, and queue controls.
+*   **Playback Progress**: Automatically saves and resumes playback position for every podcast episode.
+*   **Queue Management**: Easily add podcasts to your queue and navigate through them directly from the player.
+*   **Visual Progress**: Podcast-specific list items with progress bars and remaining time.
+
 ### 📖 Immersive Reading Experience
 *   **Smart Feed Discovery**: Simply enter a website URL, and Flusso will automatically find the RSS/Atom feed for you.
 *   **Distraction-Free Mode**: Automatic content extraction via *Mozilla Readability* for a clean and consistent reading experience.
 *   **Search & Organization**: Integrated search engine to quickly find articles across all your feeds and simplified subscription management.
 *   **Smart Prefetching**: Articles are pre-loaded in the background to ensure instant opening, even offline.
 *   **Uncompromised Images**: Optimized display of full-height images (no cropping) in both the preview and the full article.
+*   **Vertical Navigation**: Swipe up and down in the article reader to seamlessly move between articles.
 
 ### 🎨 Extreme Customization
 *   **OLED Ready**: Includes the **Pure Black** theme for maximum energy savings on AMOLED screens.
 *   **Variable Typography**: Support for Sans-serif (Inter) fonts with adjustable sizes from *Small* to *X-Large*.
 *   **Intuitive Gestures**: Customizable swipe actions to mark as read or add to favorites with a single touch.
+*   **OPML Import/Merge**: Support for both replacing existing feeds or merging new ones from OPML files.
 
 ### 🚀 Technology & Performance
 *   **Offline First**: All feeds and articles are saved locally via *IndexedDB*.

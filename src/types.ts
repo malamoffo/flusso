@@ -35,11 +35,15 @@ export interface Article {
   contentSnippet?: string;
   content?: string;
   imageUrl?: string;
+  duration?: string;
+  progress?: number; // 0 to 1
   mediaUrl?: string;
   mediaType?: string;
   isRead: boolean;
   readAt?: number;
   isFavorite: boolean;
+  isQueued: boolean;
+  type: 'article' | 'podcast';
 }
 
 export interface FullArticleContent {

@@ -18,16 +18,31 @@
 .pure-black .bg-white,
 .pure-black .bg-gray-50,
 .pure-black .bg-gray-100,
+.pure-black .bg-gray-200,
+.pure-black .bg-gray-800,
 .pure-black .bg-gray-900,
 .pure-black .bg-gray-950,
+.pure-black .dark\:bg-gray-800,
 .pure-black .dark\:bg-gray-900,
-.pure-black .dark\:bg-gray-950 {
+.pure-black .dark\:bg-gray-950,
+.pure-black .dark\:bg-black,
+.pure-black .dark\:bg-slate-900,
+.pure-black .dark\:bg-slate-950,
+.pure-black .dark\:bg-zinc-900,
+.pure-black .dark\:bg-zinc-950 {
   background-color: #000000 !important;
 }
 
 .pure-black .border-gray-100,
 .pure-black .border-gray-200,
 .pure-black .border-gray-800,
-.pure-black .dark\:border-gray-800 {
-  border-color: #333333 !important;
+.pure-black .dark\:border-gray-800,
+.pure-black .dark\:border-gray-700 {
+  border-color: #222222 !important;
+}
+
+.pure-black .dark\:bg-gray-900\/50,
+.pure-black .dark\:bg-gray-800\/50,
+.pure-black .dark\:bg-indigo-900\/20 {
+  background-color: rgba(0, 0, 0, 0.5) !important;
 }

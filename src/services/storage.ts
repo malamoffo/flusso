@@ -43,16 +43,21 @@ function sanitizeSnippet(input: string): string {
 // Helper to extract the best image from HTML content, avoiding tracking pixels and icons
 export function extractBestImage(content: string): string | null {
   if (!content) return null;
-  const imgRegex = /<img[^>]+>/gi;
-  let match;
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(content, 'text/html');
   
-  while ((match = imgRegex.exec(content)) !== null) {
-    const imgTag = match[0];
-    const dataSrcMatch = imgTag.match(/data-src=["']([^"']+)["']/i) || 
-                         imgTag.match(/data-lazy-src=["']([^"']+)["']/i) ||
-                         imgTag.match(/data-original=["']([^"']+)["']/i);
-    const srcMatch = imgTag.match(/src=["']([^"']+)["']/i);
-    const url = (dataSrcMatch && dataSrcMatch[1]) || (srcMatch && srcMatch[1]);
+  // Try og:image
+  const ogImage = doc.querySelector('meta[property="og:image"]')?.getAttribute('content');
+  if (ogImage) return ogImage;
+
+  const imgTags = doc.getElementsByTagName('img');
+  
+  for (let i = 0; i < imgTags.length; i++) {
+    const imgTag = imgTags[i];
+    const url = imgTag.getAttribute('data-src') || 
+                imgTag.getAttribute('data-lazy-src') ||
+                imgTag.getAttribute('data-original') ||
+                imgTag.getAttribute('src');
     if (!url) continue;
     
     // Skip likely tracking pixels or icons based on URL
@@ -65,6 +70,7 @@ export function extractBestImage(content: string): string | null {
       lowerUrl.includes('stats') ||
       lowerUrl.includes('gravatar') ||
       lowerUrl.includes('avatar') ||
+      lowerUrl.includes('favicon') ||
       lowerUrl.includes('icon') ||
       lowerUrl.includes('logo') ||
       lowerUrl.includes('wp-includes/images/smilies') ||
@@ -76,10 +82,10 @@ export function extractBestImage(content: string): string | null {
     }
 
     // Check for width/height attributes that suggest a 1x1 pixel
-    const widthMatch = imgTag.match(/width=["']?(\d+)["']?/i);
-    const heightMatch = imgTag.match(/height=["']?(\d+)["']?/i);
-    if (widthMatch && parseInt(widthMatch[1]) <= 10) continue;
-    if (heightMatch && parseInt(heightMatch[1]) <= 10) continue;
+    const width = parseInt(imgTag.getAttribute('width') || '0', 10);
+    const height = parseInt(imgTag.getAttribute('height') || '0', 10);
+    if (width > 0 && width <= 10) continue;
+    if (height > 0 && height <= 10) continue;
 
     // First valid image found
     return url;
@@ -134,11 +140,13 @@ function parseRssXml(xmlString: string, feedUrl: string): { feed: Feed; articles
             title: decodeHtmlEntities(item.title || 'Untitled'),
             link: getSafeUrl(item.link),
             pubDate,
-            imageUrl: getSafeUrl(imageUrl, null as any),
+            imageUrl: imageUrl ? getSafeUrl(imageUrl) : undefined,
             mediaUrl: getSafeUrl(mediaUrl, null as any),
             mediaType,
             isRead: false,
             isFavorite: false,
+            isQueued: false,
+            type: mediaType?.startsWith('audio/') ? 'podcast' : 'article',
             contentSnippet: sanitizeSnippet(decodeHtmlEntities(item.content || item.description || '')),
           };
         });
@@ -177,11 +185,19 @@ function parseRssXml(xmlString: string, feedUrl: string): { feed: Feed; articles
     throw new Error('Failed to parse XML: ' + parserError.textContent);
   }
 
-  // Helper to get text content from a list of possible tags
+  // Helper to get text content from a list of possible tags, including namespaced ones
   function getTagText(element: Element, tags: string[]): string {
     for (const tag of tags) {
-      const el = element.getElementsByTagName(tag)[0];
-      if (el && el.textContent) return el.textContent;
+      // Try exact match (for namespaced tags in XML mode)
+      let el = element.getElementsByTagName(tag)[0];
+      
+      // If not found and tag contains a colon, try local name (for HTML mode or different prefix handling)
+      if (!el && tag.includes(':')) {
+        const localName = tag.split(':')[1];
+        el = element.getElementsByTagName(localName)[0];
+      }
+      
+      if (el && el.textContent) return el.textContent.trim();
     }
     return '';
   }
@@ -246,17 +262,29 @@ function parseRssXml(xmlString: string, feedUrl: string): { feed: Feed; articles
         imageUrl = extractBestImage(content);
       }
 
+      let duration = getTagText(entry, ['itunes:duration', 'duration', 'media:duration']);
+      if (!duration) {
+        // Try to find duration in media:content or enclosure
+        const mediaContent = entry.getElementsByTagName('media:content')[0];
+        if (mediaContent) {
+          duration = mediaContent.getAttribute('duration') || '';
+        }
+      }
+
       return {
         id: uuidv4(),
         feedId,
         title: decodeHtmlEntities(entryTitle),
         link: getSafeUrl(entryLink),
         pubDate,
-        imageUrl: getSafeUrl(imageUrl, null as any),
+        imageUrl: imageUrl ? getSafeUrl(imageUrl) : undefined,
+        duration,
         mediaUrl: getSafeUrl(mediaUrl, null as any),
         mediaType,
         isRead: false,
         isFavorite: false,
+        isQueued: false,
+        type: mediaType?.startsWith('audio/') ? 'podcast' : 'article',
         contentSnippet: sanitizeSnippet(decodeHtmlEntities(content)),
         content: content,
       };
@@ -281,11 +309,14 @@ function parseRssXml(xmlString: string, feedUrl: string): { feed: Feed; articles
     const title = getTagText(channel, ['title', 'dc:title']) || 'Untitled RSS Feed';
     const description = getTagText(channel, ['description', 'subtitle', 'summary']) || '';
     const link = getTagText(channel, ['link']) || '';
-    const feedImage = channel.getElementsByTagName('image')[0]?.getElementsByTagName('url')[0]?.textContent;
+    
+    // Try itunes:image first for feed image, fallback to image/url
+    const itunesFeedImage = channel.getElementsByTagName('itunes:image')[0]?.getAttribute('href');
+    const feedImage = itunesFeedImage || channel.getElementsByTagName('image')[0]?.getElementsByTagName('url')[0]?.textContent;
 
     const items = Array.from(xmlDoc.getElementsByTagName('item'));
     const articles: Article[] = items.map(item => {
-      const content = getTagText(item, ['description', 'content:encoded', 'content', 'summary']) || '';
+      const content = getTagText(item, ['description', 'content:encoded', 'content', 'summary', 'itunes:summary', 'itunes:subtitle']) || '';
       let itemTitle = getTagText(item, ['title', 'dc:title']);
       if (!itemTitle) {
         const plainText = sanitizeSnippet(decodeHtmlEntities(content));
@@ -300,6 +331,10 @@ function parseRssXml(xmlString: string, feedUrl: string): { feed: Feed; articles
       let mediaUrl = null;
       let mediaType = null;
       
+      // Try itunes:image first for podcasts
+      const itunesImage = item.getElementsByTagName('itunes:image')[0]?.getAttribute('href');
+      if (itunesImage) imageUrl = itunesImage;
+
       const enclosures = Array.from(item.getElementsByTagName('enclosure'));
       for (const enclosure of enclosures) {
         const type = enclosure.getAttribute('type');
@@ -335,17 +370,29 @@ function parseRssXml(xmlString: string, feedUrl: string): { feed: Feed; articles
         imageUrl = extractBestImage(content);
       }
 
+      let duration = getTagText(item, ['itunes:duration', 'duration', 'media:duration']);
+      if (!duration) {
+        // Try to find duration in media:content or enclosure
+        const mediaContent = item.getElementsByTagName('media:content')[0];
+        if (mediaContent) {
+          duration = mediaContent.getAttribute('duration') || '';
+        }
+      }
+
       return {
         id: uuidv4(),
         feedId,
         title: decodeHtmlEntities(itemTitle),
         link: getSafeUrl(itemLink),
         pubDate,
-        imageUrl: getSafeUrl(imageUrl, null as any),
+        imageUrl: imageUrl ? getSafeUrl(imageUrl) : undefined,
+        duration,
         mediaUrl: getSafeUrl(mediaUrl, null as any),
         mediaType,
         isRead: false,
         isFavorite: false,
+        isQueued: false,
+        type: mediaType?.startsWith('audio/') ? 'podcast' : 'article',
         contentSnippet: sanitizeSnippet(decodeHtmlEntities(content)),
         content: content,
       };
@@ -406,7 +453,11 @@ export const storage = {
     const validArticles = articles.filter(a => {
       const articleTime = a.readAt || a.pubDate;
       return (now - articleTime) <= THREE_DAYS;
-    });
+    }).map(a => ({
+      ...a,
+      type: a.type || (a.mediaType?.startsWith('audio/') ? 'podcast' : 'article'),
+      isQueued: a.isQueued || false
+    }));
     
     // If we filtered out some articles, save the cleaned up list
     if (validArticles.length !== articles.length) {
@@ -615,9 +666,14 @@ export const storage = {
     }
   },
 
-  async addFeed(url: string): Promise<{ feed: Feed; articles: Article[] }> {
+  async addFeed(url: string, append: boolean = true): Promise<{ feed: Feed; articles: Article[] }> {
     const discoveredUrl = await this.discoverFeedUrl(url);
     const data = await this.fetchFeedData(discoveredUrl);
+    if (!append) {
+      // If not appending, we might want to clear existing feeds, 
+      // but usually "Import from scratch" means replace the whole list.
+      // This is handled in saveAllFeedData if we pass a flag or clear first.
+    }
     await this.saveFeedData(data.feed, data.articles);
     return data;
   },

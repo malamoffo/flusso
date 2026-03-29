@@ -1,11 +1,12 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { ArrowLeft, FileText, AlignLeft, X, Share2, Star, EyeOff } from 'lucide-react';
+import { ArrowLeft, FileText, AlignLeft, X, Share2, Star, EyeOff, ListPlus, Play, Pause, SkipBack, SkipForward, RotateCcw, RotateCw, ChevronUp, ChevronDown, Clock, Calendar, User, ExternalLink } from 'lucide-react';
 import { Article, FullArticleContent } from '../types';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRss } from '../context/RssContext';
+import { useAudioPlayer } from '../context/AudioPlayerContext';
 import DOMPurify from 'dompurify';
 import he from 'he';
-import { getSafeUrl } from '../lib/utils';
+import { getSafeUrl, formatTime, parseDurationToSeconds } from '../lib/utils';
 import { CapacitorHttp } from '@capacitor/core';
 import { Share } from '@capacitor/share';
 import { Readability } from '@mozilla/readability';
@@ -20,20 +21,38 @@ interface ArticleReaderProps {
   onClose: () => void;
   onNext?: () => void;
   onPrev?: () => void;
+  onSelectArticle?: (article: Article) => void;
   hasNext?: boolean;
   hasPrev?: boolean;
 }
 
-export function ArticleReader({ article, onClose, onNext, onPrev, hasNext, hasPrev }: ArticleReaderProps) {
+export function ArticleReader({ article, onClose, onNext, onPrev, onSelectArticle, hasNext, hasPrev }: ArticleReaderProps) {
   const [fullContent, setFullContent] = useState<FullArticleContent | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [articleThemeColor, setArticleThemeColor] = useState<string | null>(null);
-  const { settings, feeds, toggleFavorite, toggleRead, updateArticle } = useRss();
+  const { settings, feeds, articles, toggleFavorite, toggleQueue, toggleRead, updateArticle } = useRss();
+  const feed = feeds.find(f => f.id === article.feedId);
+  const { play, currentTrack, isPlaying, toggle, progress, duration, seek } = useAudioPlayer();
+  
+  const isCurrentTrack = currentTrack?.id === article.id;
+  const totalSeconds = isCurrentTrack ? duration : parseDurationToSeconds(article.duration);
+  const currentSeconds = isCurrentTrack ? progress : (article.progress ? article.progress * totalSeconds : 0);
+  const remainingSeconds = Math.max(0, totalSeconds - currentSeconds);
+  const progressPercent = totalSeconds > 0 ? (currentSeconds / totalSeconds) * 100 : 0;
+
+  // Get queue for navigation
+  const queue = articles.filter(a => a.isQueued);
+  const queueIndex = queue.findIndex(a => a.id === article.id);
+  const prevInQueue = queueIndex > 0 ? queue[queueIndex - 1] : null;
+  const nextInQueue = queueIndex !== -1 && queueIndex < queue.length - 1 ? queue[queueIndex + 1] : null;
+
   const [isFavorite, setIsFavorite] = useState(article.isFavorite);
+  const [isQueued, setIsQueued] = useState(article.isQueued);
 
   useEffect(() => {
     setIsFavorite(article.isFavorite);
-  }, [article.isFavorite]);
+    setIsQueued(article.isQueued);
+  }, [article.isFavorite, article.isQueued]);
 
   useEffect(() => {
     if (article.imageUrl) {
@@ -65,7 +84,6 @@ export function ArticleReader({ article, onClose, onNext, onPrev, hasNext, hasPr
     }
   }, [article.imageUrl]);
 
-  const feed = feeds.find(f => f.id === article.feedId);
   const readTime = fullContent?.textContent ? Math.max(1, Math.ceil(fullContent.textContent.split(/\s+/).length / 200)) : 1;
   const formattedDate = new Date(article.pubDate).toLocaleString('it-IT', {
     day: 'numeric',
@@ -98,6 +116,11 @@ export function ArticleReader({ article, onClose, onNext, onPrev, hasNext, hasPr
 
   useEffect(() => {
     const fetchFullContent = async () => {
+      if (article.type === 'podcast') {
+        setIsLoading(false);
+        return;
+      }
+      
       try {
         setIsLoading(true);
         setFullContent(null); // Reset content when article changes
@@ -225,6 +248,7 @@ export function ArticleReader({ article, onClose, onNext, onPrev, hasNext, hasPr
           lowerSrc.includes('stats') ||
           lowerSrc.includes('gravatar') ||
           lowerSrc.includes('avatar') ||
+          lowerSrc.includes('favicon') ||
           lowerSrc.includes('icon') ||
           lowerSrc.includes('logo') ||
           lowerSrc.includes('wp-includes/images/smilies') ||
@@ -254,14 +278,14 @@ export function ArticleReader({ article, onClose, onNext, onPrev, hasNext, hasPr
       animate={{ x: 0 }}
       exit={{ x: '-100%' }}
       transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-      drag="x"
-      dragConstraints={{ left: 0, right: 0 }}
+      drag="y"
+      dragConstraints={{ top: 0, bottom: 0 }}
       dragElastic={0.8}
       onDragEnd={(e, info) => {
         const threshold = 100;
-        if (info.offset.x > threshold && hasPrev && onPrev) {
+        if (info.offset.y > threshold && hasPrev && onPrev) {
           onPrev();
-        } else if (info.offset.x < -threshold && hasNext && onNext) {
+        } else if (info.offset.y < -threshold && hasNext && onNext) {
           onNext();
         }
       }}
@@ -295,9 +319,9 @@ export function ArticleReader({ article, onClose, onNext, onPrev, hasNext, hasPr
 
       {/* Article Content */}
       <div className="relative z-10 flex-1 px-4 pt-6 pb-12 max-w-3xl mx-auto w-full">
-        {article.imageUrl && (
+        {(article.imageUrl || (article.type === 'podcast' && feed?.imageUrl)) && (
           <img 
-            src={getSafeUrl(article.imageUrl)}
+            src={getSafeUrl(article.imageUrl || (article.type === 'podcast' ? feed?.imageUrl : '') || '')}
             alt="" 
             className="w-full h-auto rounded-2xl mb-4 object-contain max-h-[80vh]"
             referrerPolicy="no-referrer"
@@ -369,28 +393,127 @@ export function ArticleReader({ article, onClose, onNext, onPrev, hasNext, hasPr
             <motion.button
               whileTap={{ scale: 0.9 }}
               onClick={() => {
-                setIsFavorite(!isFavorite);
-                toggleFavorite(article.id);
+                if (article.type === 'podcast') {
+                  setIsQueued(!isQueued);
+                  toggleQueue(article.id);
+                } else {
+                  setIsFavorite(!isFavorite);
+                  toggleFavorite(article.id);
+                }
               }}
               className="hover:text-gray-900 dark:hover:text-white transition-colors"
-              aria-label={isFavorite ? "Remove from favorites" : "Add to favorites"}
+              aria-label={
+                article.type === 'podcast' 
+                  ? (isQueued ? "Remove from queue" : "Add to queue")
+                  : (isFavorite ? "Remove from favorites" : "Add to favorites")
+              }
             >
-              <Star className={`w-5 h-5 ${isFavorite ? 'fill-current text-amber-500' : ''}`} aria-hidden="true" />
+              {article.type === 'podcast' ? (
+                <ListPlus className={`w-5 h-5 ${isQueued ? 'text-indigo-500' : ''}`} aria-hidden="true" />
+              ) : (
+                <Star className={`w-5 h-5 ${isFavorite ? 'fill-current text-amber-500' : ''}`} aria-hidden="true" />
+              )}
             </motion.button>
           </div>
         </div>
 
         <hr className="border-gray-200 dark:border-gray-800 mb-6" />
 
-        {hasMedia && (
-          <div className="mb-6 space-y-4">
-            <h3 className="text-lg font-bold text-gray-900 dark:text-white">Media</h3>
-            <div className="rounded-xl overflow-hidden bg-gray-100 dark:bg-gray-800">
-              {article.mediaType?.startsWith('video/') ? (
-                <video src={getSafeUrl(article.mediaUrl!)} controls className="w-full" />
-              ) : article.mediaType?.startsWith('audio/') ? (
-                <audio src={getSafeUrl(article.mediaUrl!)} controls className="w-full" />
-              ) : null}
+        {article.type === 'podcast' && article.mediaUrl && (
+          <div className="mb-8 p-6 bg-gray-50 dark:bg-gray-900/50 rounded-3xl border border-gray-100 dark:border-gray-800 shadow-sm">
+            <div className="flex flex-col gap-6">
+              {/* Progress Info */}
+              <div className="flex items-center gap-4 text-xs font-bold text-indigo-600 dark:text-indigo-400">
+                <span className="w-10 text-left">{formatTime(currentSeconds)}</span>
+                <div 
+                  className="relative flex-1 h-2 bg-gray-200 dark:bg-gray-800 rounded-full overflow-hidden cursor-pointer"
+                  onClick={(e) => {
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    const x = e.clientX - rect.left;
+                    const percent = x / rect.width;
+                    seek(percent * totalSeconds);
+                  }}
+                >
+                  <div 
+                    className="h-full bg-indigo-500 transition-all duration-300" 
+                    style={{ width: `${progressPercent}%` }} 
+                  />
+                </div>
+                <span className="w-10 text-right">{formatTime(remainingSeconds)}</span>
+              </div>
+
+              {/* Controls */}
+              <div className="flex items-center justify-between">
+                <motion.button
+                  whileTap={{ scale: 0.9 }}
+                  disabled={!prevInQueue}
+                  onClick={() => {
+                    if (prevInQueue) {
+                      play(prevInQueue);
+                      onSelectArticle?.(prevInQueue);
+                    }
+                  }}
+                  className={`p-2 rounded-full transition-colors ${prevInQueue ? 'text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-800' : 'text-gray-300 dark:text-gray-700'}`}
+                  aria-label="Previous in queue"
+                >
+                  <SkipBack className="w-6 h-6 fill-current" />
+                </motion.button>
+
+                <motion.button
+                  whileTap={{ scale: 0.9 }}
+                  onClick={() => seek(Math.max(0, currentSeconds - 15))}
+                  className="p-2 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-800 rounded-full transition-colors"
+                  aria-label="Back 15 seconds"
+                >
+                  <div className="relative">
+                    <RotateCcw className="w-6 h-6" />
+                    <span className="absolute inset-0 flex items-center justify-center text-[8px] font-bold mt-0.5">15</span>
+                  </div>
+                </motion.button>
+
+                <motion.button
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => {
+                    if (isCurrentTrack) toggle();
+                    else play(article);
+                  }}
+                  className="w-16 h-16 bg-indigo-600 text-white rounded-full flex items-center justify-center shadow-lg hover:bg-indigo-700 transition-colors"
+                  aria-label={isPlaying && isCurrentTrack ? "Pause" : "Play"}
+                >
+                  {isPlaying && isCurrentTrack ? (
+                    <Pause className="w-8 h-8 fill-current" />
+                  ) : (
+                    <Play className="w-8 h-8 fill-current ml-1" />
+                  )}
+                </motion.button>
+
+                <motion.button
+                  whileTap={{ scale: 0.9 }}
+                  onClick={() => seek(Math.min(totalSeconds, currentSeconds + 15))}
+                  className="p-2 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-800 rounded-full transition-colors"
+                  aria-label="Forward 15 seconds"
+                >
+                  <div className="relative">
+                    <RotateCw className="w-6 h-6" />
+                    <span className="absolute inset-0 flex items-center justify-center text-[8px] font-bold mt-0.5">15</span>
+                  </div>
+                </motion.button>
+
+                <motion.button
+                  whileTap={{ scale: 0.9 }}
+                  disabled={!nextInQueue}
+                  onClick={() => {
+                    if (nextInQueue) {
+                      play(nextInQueue);
+                      onSelectArticle?.(nextInQueue);
+                    }
+                  }}
+                  className={`p-2 rounded-full transition-colors ${nextInQueue ? 'text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-800' : 'text-gray-300 dark:text-gray-700'}`}
+                  aria-label="Next in queue"
+                >
+                  <SkipForward className="w-6 h-6 fill-current" />
+                </motion.button>
+              </div>
             </div>
           </div>
         )}

@@ -7,6 +7,7 @@ export function AddFeedModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
   const [url, setUrl] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [importMode, setImportMode] = useState<'replace' | 'append'>('append');
   const { addFeed, importOpml, error, progress, settings } = useRss();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -31,7 +32,7 @@ export function AddFeedModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
 
     setIsSubmitting(true);
     try {
-      await importOpml(file);
+      await importOpml(file, importMode === 'append');
       onClose();
     } catch (err) {
       // Error handled in context
@@ -143,15 +144,26 @@ export function AddFeedModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
               ref={fileInputRef}
               onChange={handleFileUpload}
             />
-            <motion.button
-              whileTap={{ scale: 0.98 }}
-              onClick={() => fileInputRef.current?.click()}
-              disabled={isSubmitting}
-              className="w-full flex justify-center items-center py-3 px-4 border border-gray-300 dark:border-gray-700 rounded-xl shadow-sm text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
-            >
-              <Upload className="w-5 h-5 mr-2 text-gray-500 dark:text-gray-400" aria-hidden="true" />
-              Import OPML File
-            </motion.button>
+            <div className="grid grid-cols-2 gap-3">
+              <motion.button
+                whileTap={{ scale: 0.98 }}
+                onClick={() => { setImportMode('replace'); setTimeout(() => fileInputRef.current?.click(), 0); }}
+                disabled={isSubmitting}
+                className="flex justify-center items-center py-3 px-4 border border-gray-300 dark:border-gray-700 rounded-xl shadow-sm text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
+              >
+                <Upload className="w-4 h-4 mr-2 text-gray-500 dark:text-gray-400" aria-hidden="true" />
+                Import OPML
+              </motion.button>
+              <motion.button
+                whileTap={{ scale: 0.98 }}
+                onClick={() => { setImportMode('append'); setTimeout(() => fileInputRef.current?.click(), 0); }}
+                disabled={isSubmitting}
+                className="flex justify-center items-center py-3 px-4 border border-gray-300 dark:border-gray-700 rounded-xl shadow-sm text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
+              >
+                <Plus className="w-4 h-4 mr-2 text-gray-500 dark:text-gray-400" aria-hidden="true" />
+                Add OPML
+              </motion.button>
+            </div>
           </motion.div>
         </>
       )}

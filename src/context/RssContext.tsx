@@ -10,11 +10,12 @@ interface RssContextType {
   progress: { current: number; total: number; status?: string } | null;
   error: string | null;
   addFeed: (url: string) => Promise<void>;
-  importOpml: (file: File) => Promise<void>;
+  importOpml: (file: File, append?: boolean) => Promise<void>;
   toggleRead: (articleId: string) => Promise<void>;
   markAsRead: (articleId: string) => Promise<void>;
   markArticlesAsRead: (articleIds: string[]) => Promise<void>;
   toggleFavorite: (articleId: string) => Promise<void>;
+  toggleQueue: (articleId: string) => Promise<void>;
   markAllAsRead: () => Promise<void>;
   refreshFeeds: (currentFeeds?: Feed[], currentArticles?: Article[]) => Promise<void>;
   removeFeed: (feedId: string) => Promise<void>;
@@ -138,7 +139,7 @@ export function RssProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const importOpml = async (file: File) => {
+  const importOpml = async (file: File, append: boolean = true) => {
     try {
       setIsLoading(true);
       setError(null);
@@ -160,6 +161,14 @@ export function RssProvider({ children }: { children: React.ReactNode }) {
       if (urls.length === 0) {
         setError('No valid feed URLs found in the OPML file.');
         return;
+      }
+
+      if (!append) {
+        // Clear existing feeds and articles if not appending
+        await storage.saveFeeds([]);
+        await storage.saveArticles([]);
+        setFeeds([]);
+        setArticles([]);
       }
 
       let successCount = 0;
@@ -247,6 +256,16 @@ export function RssProvider({ children }: { children: React.ReactNode }) {
     setArticles(prev => {
       const updatedArticles = prev.map(a => 
         a.id === articleId ? { ...a, isFavorite: !a.isFavorite } : a
+      );
+      storage.saveArticles(updatedArticles);
+      return updatedArticles;
+    });
+  }, []);
+
+  const toggleQueue = useCallback(async (articleId: string) => {
+    setArticles(prev => {
+      const updatedArticles = prev.map(a => 
+        a.id === articleId ? { ...a, isQueued: !a.isQueued } : a
       );
       storage.saveArticles(updatedArticles);
       return updatedArticles;
@@ -368,11 +387,11 @@ export function RssProvider({ children }: { children: React.ReactNode }) {
   // consumer components when unrelated parent state changes.
   const value = React.useMemo(() => ({
     feeds, articles, settings, isLoading, progress, error,
-    addFeed, importOpml, toggleRead, markAsRead, markArticlesAsRead, toggleFavorite, markAllAsRead, refreshFeeds, removeFeed, updateFeed, updateArticle, updateSettings,
+    addFeed, importOpml, toggleRead, markAsRead, markArticlesAsRead, toggleFavorite, toggleQueue, markAllAsRead, refreshFeeds, removeFeed, updateFeed, updateArticle, updateSettings,
     exportFeeds, searchQuery, setSearchQuery, unreadCount, updateInfo, checkUpdates
   }), [
     feeds, articles, settings, isLoading, progress, error,
-    addFeed, importOpml, toggleRead, markAsRead, markArticlesAsRead, toggleFavorite, markAllAsRead, refreshFeeds, removeFeed, updateFeed, updateArticle, updateSettings,
+    addFeed, importOpml, toggleRead, markAsRead, markArticlesAsRead, toggleFavorite, toggleQueue, markAllAsRead, refreshFeeds, removeFeed, updateFeed, updateArticle, updateSettings,
     exportFeeds, searchQuery, setSearchQuery, unreadCount, updateInfo, checkUpdates
   ]);
 

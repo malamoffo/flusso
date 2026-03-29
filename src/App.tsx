@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 
 import { RssProvider, useRss } from './context/RssContext';
+import { AudioPlayerProvider, useAudioPlayer } from './context/AudioPlayerContext';
 import { SwipeableArticle } from './components/SwipeableArticle';
 import { ArticleReader } from './components/ArticleReader';
 import { SettingsModal } from './components/SettingsModal';
 import { HeaderWidgets } from './components/HeaderWidgets';
+import { PersistentPlayer } from './components/PersistentPlayer';
 import { Article } from './types';
-import { RefreshCw, Rss, Inbox, Settings as SettingsIcon, CheckSquare, Search, X, LayoutGrid, Star, Plus } from 'lucide-react';
+import { RefreshCw, Rss, Inbox, Settings as SettingsIcon, CheckSquare, Search, X, LayoutGrid, Star, Plus, FileText, Headphones, ListPlus } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from './lib/utils';
 
@@ -19,7 +21,8 @@ function MainContent() {
   const startYRef = useRef<number>(0);
   const isAtTopRef = useRef<boolean>(true);
 
-  const { articles, feeds, settings, isLoading, progress, error, refreshFeeds, toggleRead, markAsRead, markArticlesAsRead, markAllAsRead, searchQuery, setSearchQuery, unreadCount, toggleFavorite } = useRss();
+  const { articles, feeds, settings, isLoading, progress, error, refreshFeeds, toggleRead, markAsRead, markArticlesAsRead, markAllAsRead, searchQuery, setSearchQuery, unreadCount, toggleFavorite, toggleQueue } = useRss();
+  const { currentTrack } = useAudioPlayer();
 
   // ⚡ Bolt: Memoize handleVisibilityChange to keep reference stable for SwipeableArticle
   const handleVisibilityChange = useCallback((id: string, inView: boolean) => {
@@ -41,7 +44,8 @@ function MainContent() {
   const [settingsInitialTab, setSettingsInitialTab] = useState<'settings' | 'subscriptions' | 'about' | undefined>(undefined);
   const [isMarkAllConfirmOpen, setIsMarkAllConfirmOpen] = useState(false);
   const [forceRefresh, setForceRefresh] = useState(0);
-  const [filter, setFilter] = useState<'all' | 'unread' | 'favorites'>('unread');
+  const [filter, setFilter] = useState<'all' | 'unread' | 'favorites' | 'queue'>('unread');
+  const [typeFilter, setTypeFilter] = useState<'all' | 'article' | 'podcast'>('all');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchSourceFilter, setSearchSourceFilter] = useState('all');
   const [searchDateRange, setSearchDateRange] = useState('all');
@@ -52,7 +56,7 @@ function MainContent() {
       mainRef.current.scrollTop = 0;
       isAtTopRef.current = true;
     }
-  }, [filter]);
+  }, [filter, typeFilter]);
   
   // Sync selectedArticle with articles in context
   useEffect(() => {
@@ -106,6 +110,7 @@ function MainContent() {
   }, [settings.theme, settings.pureBlack]);
 
   const prevFilterRef = useRef(filter);
+  const prevTypeFilterRef = useRef(typeFilter);
   const prevSearchRef = useRef(searchQuery);
   const prevSourceFilterRef = useRef(searchSourceFilter);
   const prevDateRangeRef = useRef(searchDateRange);
@@ -115,6 +120,7 @@ function MainContent() {
   // Update displayArticles only on specific triggers (re-accessing section, search change, refresh completion, or new articles)
   useEffect(() => {
     const filterChanged = prevFilterRef.current !== filter;
+    const typeFilterChanged = prevTypeFilterRef.current !== typeFilter;
     const searchChanged = prevSearchRef.current !== searchQuery;
     const sourceFilterChanged = prevSourceFilterRef.current !== searchSourceFilter;
     const dateRangeChanged = prevDateRangeRef.current !== searchDateRange;
@@ -122,6 +128,7 @@ function MainContent() {
     const forceRefreshTriggered = prevForceRefreshRef.current !== forceRefresh;
     
     prevFilterRef.current = filter;
+    prevTypeFilterRef.current = typeFilter;
     prevSearchRef.current = searchQuery;
     prevSourceFilterRef.current = searchSourceFilter;
     prevDateRangeRef.current = searchDateRange;
@@ -129,11 +136,14 @@ function MainContent() {
     prevForceRefreshRef.current = forceRefresh;
 
     setDisplayArticles(prev => {
-      if (filterChanged || searchChanged || sourceFilterChanged || dateRangeChanged || refreshFinished || forceRefreshTriggered || prev.length === 0) {
+      if (filterChanged || typeFilterChanged || searchChanged || sourceFilterChanged || dateRangeChanged || refreshFinished || forceRefreshTriggered || prev.length === 0) {
         // Full re-evaluation on filter/search change, refresh completion, or initial load
         return articles.filter(article => {
           if (filter === 'unread' && article.isRead) return false;
           if (filter === 'favorites' && !article.isFavorite) return false;
+          if (filter === 'queue' && !article.isQueued) return false;
+          
+          if (typeFilter !== 'all' && article.type !== typeFilter) return false;
           
           if (isSearchOpen) {
             if (searchSourceFilter !== 'all' && article.feedId !== searchSourceFilter) return false;
@@ -180,6 +190,9 @@ function MainContent() {
           
           if (filter === 'unread' && article.isRead) return false;
           if (filter === 'favorites' && !article.isFavorite) return false;
+          if (filter === 'queue' && !article.isQueued) return false;
+          
+          if (typeFilter !== 'all' && article.type !== typeFilter) return false;
           
           if (isSearchOpen) {
             if (searchSourceFilter !== 'all' && article.feedId !== searchSourceFilter) return false;
@@ -217,7 +230,7 @@ function MainContent() {
         return [...nextDisplay, ...newMatchingArticles].sort((a, b) => b.pubDate - a.pubDate);
       }
     });
-  }, [filter, searchQuery, searchSourceFilter, searchDateRange, isSearchOpen, articles, isLoading, forceRefresh]);
+  }, [filter, typeFilter, searchQuery, searchSourceFilter, searchDateRange, isSearchOpen, articles, isLoading, forceRefresh]);
 
   const handleTouchStart = (e: React.TouchEvent) => {
     const scrollTop = mainRef.current?.scrollTop || 0;
@@ -284,7 +297,7 @@ function MainContent() {
   // ⚡ Bolt: Memoize handleSelectArticle to keep reference stable for SwipeableArticle
   const handleSelectArticle = useCallback((article: Article) => {
     setSelectedArticle(article);
-    if (!article.isRead) {
+    if (!article.isRead && article.type !== 'podcast') {
       markAsRead(article.id);
     }
   }, [markAsRead, setSelectedArticle]);
@@ -339,6 +352,48 @@ function MainContent() {
             </button>
           </div>
         </header>
+        
+        {/* Type Filters */}
+        {filter !== 'queue' && filter !== 'favorites' && (
+          <div className="px-4 pb-3 flex items-center gap-2 overflow-x-auto scrollbar-hide">
+            <button
+              onClick={() => setTypeFilter('all')}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap",
+                typeFilter === 'all' 
+                  ? "bg-indigo-600 text-white shadow-sm" 
+                  : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700"
+              )}
+            >
+              <LayoutGrid className="w-3.5 h-3.5" />
+              All
+            </button>
+            <button
+              onClick={() => setTypeFilter('article')}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap",
+                typeFilter === 'article' 
+                  ? "bg-indigo-600 text-white shadow-sm" 
+                  : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700"
+              )}
+            >
+              <FileText className="w-3.5 h-3.5" />
+              Articles
+            </button>
+            <button
+              onClick={() => setTypeFilter('podcast')}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap",
+                typeFilter === 'podcast' 
+                  ? "bg-indigo-600 text-white shadow-sm" 
+                  : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700"
+              )}
+            >
+              <Headphones className="w-3.5 h-3.5" />
+              Podcasts
+            </button>
+          </div>
+        )}
 
         {isSearchOpen && (
           <div className="px-4 py-3 border-t border-gray-100 dark:border-gray-800 flex flex-col gap-3">
@@ -404,7 +459,10 @@ function MainContent() {
 
       {/* Article List */}
       <main 
-        className="flex-1 overflow-y-auto pb-32" 
+        className={cn(
+          "flex-1 overflow-y-auto transition-all duration-300",
+          currentTrack ? "pb-48" : "pb-32"
+        )}
         ref={mainRef}
         onScroll={handleScroll}
       >
@@ -442,12 +500,14 @@ function MainContent() {
                   key={article.id} 
                   article={article} 
                   feedName={feed?.title || 'Unknown Feed'}
+                  feedImageUrl={feed?.imageUrl}
                   settings={settings}
                   onClick={handleSelectArticle}
                   onMarkAsRead={markAsRead}
                   onVisibilityChange={handleVisibilityChange}
                   toggleRead={toggleRead}
                   toggleFavorite={toggleFavorite}
+                  toggleQueue={toggleQueue}
                 />
               );
             })}
@@ -472,6 +532,15 @@ function MainContent() {
         </motion.button>
         <motion.button
           whileTap={{ scale: 0.9 }}
+          onClick={() => setFilter('queue')}
+          className={filter === 'queue' ? 'text-[var(--theme-color)]' : 'text-gray-500'}
+          aria-label="Listening queue"
+          aria-pressed={filter === 'queue'}
+        >
+          <ListPlus className="w-6 h-6" aria-hidden="true" />
+        </motion.button>
+        <motion.button
+          whileTap={{ scale: 0.9 }}
           onClick={() => setFilter('unread')}
           className={`${filter === 'unread' ? 'text-[var(--theme-color)]' : 'text-gray-500'} relative`}
           aria-label="Unread articles"
@@ -493,19 +562,21 @@ function MainContent() {
         >
           <Star className="w-6 h-6" aria-hidden="true" />
         </motion.button>
-      </div>
-
-      {/* Floating Action Buttons */}
-      <div className="fixed bottom-28 right-6 flex flex-col gap-4 z-30 items-center">
         <motion.button
           whileTap={{ scale: 0.9 }}
           onClick={() => setIsSettingsModalOpen(true)}
-          className="w-12 h-12 bg-indigo-50 dark:bg-gray-800 text-indigo-700 dark:text-indigo-300 rounded-xl shadow-md flex items-center justify-center hover:bg-indigo-100 dark:hover:bg-gray-700 active:scale-95 transition-transform"
-          title="Settings"
+          className="text-gray-500"
           aria-label="Settings"
         >
-          <SettingsIcon className="w-5 h-5" aria-hidden="true" />
+          <SettingsIcon className="w-6 h-6" aria-hidden="true" />
         </motion.button>
+      </div>
+
+      {/* Floating Action Buttons */}
+      <div className={cn(
+        "fixed right-6 flex flex-col gap-4 z-30 items-center transition-all duration-300",
+        currentTrack ? "bottom-44" : "bottom-28"
+      )}>
         <motion.button
           whileTap={{ scale: 0.9 }}
           onClick={() => setIsMarkAllConfirmOpen(true)}
@@ -573,12 +644,13 @@ function MainContent() {
             key={selectedArticle.id}
             article={selectedArticle} 
             onClose={() => setSelectedArticle(null)} 
+            onSelectArticle={(article) => setSelectedArticle(article)}
             onNext={() => {
               const idx = displayArticles.findIndex(a => a.id === selectedArticle.id);
               if (idx < displayArticles.length - 1) {
                 const nextArticle = articles.find(a => a.id === displayArticles[idx + 1].id) || displayArticles[idx + 1];
                 setSelectedArticle(nextArticle);
-                if (!nextArticle.isRead) markAsRead(nextArticle.id);
+                if (!nextArticle.isRead && nextArticle.type !== 'podcast') markAsRead(nextArticle.id);
               }
             }}
             onPrev={() => {
@@ -586,7 +658,7 @@ function MainContent() {
               if (idx > 0) {
                 const prevArticle = articles.find(a => a.id === displayArticles[idx - 1].id) || displayArticles[idx - 1];
                 setSelectedArticle(prevArticle);
-                if (!prevArticle.isRead) markAsRead(prevArticle.id);
+                if (!prevArticle.isRead && prevArticle.type !== 'podcast') markAsRead(prevArticle.id);
               }
             }}
             hasNext={displayArticles.findIndex(a => a.id === selectedArticle.id) < displayArticles.length - 1}
@@ -594,6 +666,7 @@ function MainContent() {
           />
         )}
       </AnimatePresence>
+      <PersistentPlayer onNavigate={(article) => setSelectedArticle(article)} />
     </div>
   );
 }
@@ -601,8 +674,10 @@ function MainContent() {
 export default function App() {
   return (
     <RssProvider>
-      {/* ⚡ Bolt: RssProvider handles context performance (stable value, memoized derivations) */}
-      <MainContent />
+      <AudioPlayerProvider>
+        {/* ⚡ Bolt: RssProvider handles context performance (stable value, memoized derivations) */}
+        <MainContent />
+      </AudioPlayerProvider>
     </RssProvider>
   );
 }

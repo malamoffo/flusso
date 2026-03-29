@@ -1,23 +1,26 @@
 import React, { useRef, useEffect } from 'react';
 import { motion, useMotionValue, useTransform, PanInfo } from 'framer-motion';
 import { format, isToday } from 'date-fns';
-import { Check, Star, Trash2 } from 'lucide-react';
+import { Check, Star, Trash2, Headphones, ListPlus, FileText } from 'lucide-react';
 import { Article, Settings } from '../types';
 import { useInView } from 'react-intersection-observer';
 import { contentFetcher } from '../utils/contentFetcher';
-import { cn, getSafeUrl } from '../lib/utils';
+import { cn, getSafeUrl, formatTime, parseDurationToSeconds } from '../lib/utils';
+import { useAudioPlayer } from '../context/AudioPlayerContext';
 import DOMPurify from 'dompurify';
 
 interface SwipeableArticleProps {
   key?: React.Key;
   article: Article;
   feedName: string;
+  feedImageUrl?: string;
   settings: Settings;
   onClick: (article: Article) => void;
   onMarkAsRead: (id: string) => void;
   onVisibilityChange: (id: string, inView: boolean) => void;
   toggleRead: (id: string) => void;
   toggleFavorite: (id: string) => void;
+  toggleQueue: (id: string) => void;
   style?: React.CSSProperties;
 }
 
@@ -30,12 +33,14 @@ interface SwipeableArticleProps {
 export const SwipeableArticle = React.memo(function SwipeableArticle({
   article,
   feedName,
+  feedImageUrl,
   settings,
   onClick,
   onMarkAsRead,
   onVisibilityChange,
   toggleRead,
   toggleFavorite,
+  toggleQueue,
   style
 }: SwipeableArticleProps) {
   const x = useMotionValue(0);
@@ -99,13 +104,18 @@ export const SwipeableArticle = React.memo(function SwipeableArticle({
 
   const getActionIcon = (action: string, isLeft: boolean) => {
     if (action === 'toggleRead') return <Check className="w-6 h-6" />;
-    if (action === 'toggleFavorite') return <Star className="w-6 h-6" />;
+    if (action === 'toggleFavorite') {
+      return article.type === 'podcast' ? <ListPlus className="w-6 h-6" /> : <Star className="w-6 h-6" />;
+    }
     return null;
   };
 
   const getActionText = (action: string) => {
     if (action === 'toggleRead') return article.isRead ? 'Mark Unread' : 'Mark Read';
-    if (action === 'toggleFavorite') return article.isFavorite ? 'Unfavorite' : 'Favorite';
+    if (action === 'toggleFavorite') {
+      if (article.type === 'podcast') return article.isQueued ? 'Remove from Queue' : 'Add to Queue';
+      return article.isFavorite ? 'Unfavorite' : 'Favorite';
+    }
     return '';
   };
 
@@ -114,11 +124,15 @@ export const SwipeableArticle = React.memo(function SwipeableArticle({
     if (info.offset.x > threshold) {
       // Swiped right
       if (settings.swipeRightAction === 'toggleRead') toggleRead(article.id);
-      else if (settings.swipeRightAction === 'toggleFavorite') toggleFavorite(article.id);
+      else if (settings.swipeRightAction === 'toggleFavorite') {
+        article.type === 'podcast' ? toggleQueue(article.id) : toggleFavorite(article.id);
+      }
     } else if (info.offset.x < -threshold) {
       // Swiped left
       if (settings.swipeLeftAction === 'toggleRead') toggleRead(article.id);
-      else if (settings.swipeLeftAction === 'toggleFavorite') toggleFavorite(article.id);
+      else if (settings.swipeLeftAction === 'toggleFavorite') {
+        article.type === 'podcast' ? toggleQueue(article.id) : toggleFavorite(article.id);
+      }
     }
   };
 
@@ -152,6 +166,14 @@ export const SwipeableArticle = React.memo(function SwipeableArticle({
 
   const domain = getDomain(article.link);
 
+  const { currentTrack, progress: liveProgress, duration: liveDuration } = useAudioPlayer();
+
+  const isCurrentTrack = currentTrack?.id === article.id;
+  const totalSeconds = isCurrentTrack ? liveDuration : parseDurationToSeconds(article.duration);
+  const currentSeconds = isCurrentTrack ? liveProgress : (article.progress ? article.progress * totalSeconds : 0);
+  const remainingSeconds = Math.max(0, totalSeconds - currentSeconds);
+  const progressPercent = totalSeconds > 0 ? (currentSeconds / totalSeconds) * 100 : 0;
+
   return (
     <motion.div 
       ref={(node) => {
@@ -165,13 +187,17 @@ export const SwipeableArticle = React.memo(function SwipeableArticle({
       <div className="absolute inset-0 flex items-center justify-between px-6 z-0">
         <div className="flex items-center text-white font-medium">
           {settings.swipeRightAction === 'toggleRead' && <Check className="w-6 h-6 mr-2" />}
-          {settings.swipeRightAction === 'toggleFavorite' && <Star className="w-6 h-6 mr-2" />}
+          {settings.swipeRightAction === 'toggleFavorite' && (
+            article.type === 'podcast' ? <ListPlus className="w-6 h-6 mr-2" /> : <Star className="w-6 h-6 mr-2" />
+          )}
           {getActionText(settings.swipeRightAction)}
         </div>
         <div className="flex items-center text-white font-medium">
           {getActionText(settings.swipeLeftAction)}
           {settings.swipeLeftAction === 'toggleRead' && <Check className="w-6 h-6 ml-2" />}
-          {settings.swipeLeftAction === 'toggleFavorite' && <Star className="w-6 h-6 ml-2" />}
+          {settings.swipeLeftAction === 'toggleFavorite' && (
+            article.type === 'podcast' ? <ListPlus className="w-6 h-6 ml-2" /> : <Star className="w-6 h-6 ml-2" />
+          )}
         </div>
       </div>
 
@@ -192,13 +218,13 @@ export const SwipeableArticle = React.memo(function SwipeableArticle({
           settings.pureBlack ? "bg-black" : "bg-white dark:bg-gray-900"
         )}
       >
-        <div className={`flex ${settings.imageDisplay === 'large' ? 'flex-col' : 'gap-4'}`}>
-          {article.imageUrl && settings.imageDisplay !== 'none' && (
+        <div className={`flex ${(article.type !== 'podcast' && settings.imageDisplay === 'large') ? 'flex-col' : 'gap-4'}`}>
+          {(article.imageUrl || (article.type === 'podcast' && feedImageUrl)) && (article.type === 'podcast' || settings.imageDisplay !== 'none') && (
             <img 
-              src={getSafeUrl(article.imageUrl)}
+              src={getSafeUrl(article.imageUrl || feedImageUrl!)}
               alt="" 
               loading="lazy"
-              className={`${settings.imageDisplay === 'large' ? 'w-full h-auto max-h-[70vh] mb-3' : 'w-20 h-auto max-h-32'} object-contain rounded-lg flex-shrink-0 bg-gray-100 dark:bg-gray-800 transition-opacity`}
+              className={`${(article.type !== 'podcast' && settings.imageDisplay === 'large') ? 'w-full h-auto max-h-[70vh] mb-3' : 'w-20 h-20'} object-cover rounded-lg flex-shrink-0 bg-gray-100 dark:bg-gray-800 transition-opacity`}
               referrerPolicy="no-referrer"
             />
           )}
@@ -217,6 +243,11 @@ export const SwipeableArticle = React.memo(function SwipeableArticle({
                     }}
                   />
                 )}
+                {article.type === 'podcast' ? (
+                  <Headphones className="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-400" />
+                ) : (
+                  <FileText className="w-3.5 h-3.5 text-gray-400 dark:text-gray-500" />
+                )}
                 <span className={`text-xs font-medium truncate text-indigo-600 dark:text-indigo-400`}>
                   {feedName}
                 </span>
@@ -225,8 +256,13 @@ export const SwipeableArticle = React.memo(function SwipeableArticle({
                 {article.isFavorite && (
                   <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
                 )}
+                {article.isQueued && (
+                  <ListPlus className="w-3.5 h-3.5 text-indigo-500" />
+                )}
                 <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
-                  {isToday(article.pubDate) ? format(article.pubDate, 'HH:mm') : format(article.pubDate, 'HH:mm dd/MM/yy')}
+                  {article.type === 'podcast' 
+                    ? format(article.pubDate, 'dd/MM/yy')
+                    : (isToday(article.pubDate) ? format(article.pubDate, 'HH:mm') : format(article.pubDate, 'HH:mm dd/MM/yy'))}
                 </span>
               </div>
             </div>
@@ -234,11 +270,26 @@ export const SwipeableArticle = React.memo(function SwipeableArticle({
               className={`${getTitleSize()} font-semibold leading-tight mb-1 ${article.isRead ? 'text-gray-500 dark:text-gray-400' : 'text-gray-900 dark:text-gray-100'}`}
               dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(article.title, { FORBID_ATTR: ['id', 'name'] }) }}
             />
-            {article.contentSnippet && article.contentSnippet.trim() !== '' && (
-              <p 
-                className={`${getSnippetSize()} text-gray-500 dark:text-gray-400 mt-1 line-clamp-3 text-justify`}
-                dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(article.contentSnippet, { FORBID_ATTR: ['id', 'name'] }) }}
-              />
+            {article.type === 'podcast' ? (
+              <div className="mt-2">
+                <div className="flex items-center gap-2 text-[10px] font-medium text-indigo-600 dark:text-indigo-400">
+                  <span className="w-8 text-left">{formatTime(currentSeconds)}</span>
+                  <div className="flex-1 h-1.5 bg-gray-200 dark:bg-gray-800 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-indigo-500 transition-all duration-300" 
+                      style={{ width: `${progressPercent}%` }} 
+                    />
+                  </div>
+                  <span className="w-8 text-right">{formatTime(remainingSeconds)}</span>
+                </div>
+              </div>
+            ) : (
+              article.contentSnippet && article.contentSnippet.trim() !== '' && (
+                <p 
+                  className={`${getSnippetSize()} text-gray-500 dark:text-gray-400 mt-1 line-clamp-3 text-justify`}
+                  dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(article.contentSnippet, { FORBID_ATTR: ['id', 'name'] }) }}
+                />
+              )
             )}
           </div>
         </div>
