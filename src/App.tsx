@@ -56,7 +56,17 @@ function MainContent() {
       mainRef.current.scrollTop = 0;
       isAtTopRef.current = true;
     }
-  }, [filter, typeFilter]);
+    // Reset type filter to 'all' when switching sections
+    setTypeFilter('all');
+  }, [filter]);
+  
+  // Scroll to top when typeFilter changes
+  useEffect(() => {
+    if (mainRef.current) {
+      mainRef.current.scrollTop = 0;
+      isAtTopRef.current = true;
+    }
+  }, [typeFilter]);
   
   // Sync selectedArticle with articles in context
   useEffect(() => {
@@ -458,7 +468,27 @@ function MainContent() {
       </div>
 
       {/* Article List */}
-      <main 
+      <motion.main 
+        drag="x"
+        dragConstraints={{ left: 0, right: 0 }}
+        dragElastic={0.2}
+        onDragEnd={(e, info) => {
+          const threshold = 100;
+          const filters: ('all' | 'queue' | 'unread' | 'favorites')[] = ['all', 'queue', 'unread', 'favorites'];
+          const currentIndex = filters.indexOf(filter);
+          
+          if (info.offset.x > threshold) {
+            // Swipe right -> Previous section
+            if (currentIndex > 0) {
+              setFilter(filters[currentIndex - 1]);
+            }
+          } else if (info.offset.x < -threshold) {
+            // Swipe left -> Next section
+            if (currentIndex < filters.length - 1) {
+              setFilter(filters[currentIndex + 1]);
+            }
+          }
+        }}
         className={cn(
           "flex-1 overflow-y-auto transition-all duration-300",
           currentTrack ? "pb-48" : "pb-32"
@@ -514,7 +544,7 @@ function MainContent() {
             <div ref={bottomRef} className="h-20" />
           </div>
         )}
-      </main>
+      </motion.main>
 
 
       {/* Bottom Navigation Bar */}

@@ -1,12 +1,12 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { ArrowLeft, FileText, AlignLeft, X, Share2, Star, EyeOff, ListPlus, Play, Pause, SkipBack, SkipForward, RotateCcw, RotateCw, ChevronUp, ChevronDown, Clock, Calendar, User, ExternalLink } from 'lucide-react';
+import { ArrowLeft, FileText, AlignLeft, X, Share2, Star, EyeOff, ListPlus, Play, Pause, SkipBack, SkipForward, RotateCcw, RotateCw, ChevronUp, ChevronDown, Clock, Calendar, User, ExternalLink, RefreshCw } from 'lucide-react';
 import { Article, FullArticleContent } from '../types';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRss } from '../context/RssContext';
 import { useAudioPlayer } from '../context/AudioPlayerContext';
 import DOMPurify from 'dompurify';
 import he from 'he';
-import { getSafeUrl, formatTime, parseDurationToSeconds } from '../lib/utils';
+import { cn, getSafeUrl, formatTime, parseDurationToSeconds } from '../lib/utils';
 import { CapacitorHttp } from '@capacitor/core';
 import { Share } from '@capacitor/share';
 import { Readability } from '@mozilla/readability';
@@ -32,9 +32,10 @@ export function ArticleReader({ article, onClose, onNext, onPrev, onSelectArticl
   const [articleThemeColor, setArticleThemeColor] = useState<string | null>(null);
   const { settings, feeds, articles, toggleFavorite, toggleQueue, toggleRead, updateArticle } = useRss();
   const feed = feeds.find(f => f.id === article.feedId);
-  const { play, currentTrack, isPlaying, toggle, progress, duration, seek } = useAudioPlayer();
+  const { play, currentTrack, isPlaying, isBuffering, toggle, progress, duration, seek } = useAudioPlayer();
   
   const isCurrentTrack = currentTrack?.id === article.id;
+  const isLoadingAudio = isCurrentTrack && isBuffering;
   const totalSeconds = isCurrentTrack ? duration : parseDurationToSeconds(article.duration);
   const currentSeconds = isCurrentTrack ? progress : (article.progress ? article.progress * totalSeconds : 0);
   const remainingSeconds = Math.max(0, totalSeconds - currentSeconds);
@@ -278,17 +279,6 @@ export function ArticleReader({ article, onClose, onNext, onPrev, onSelectArticl
       animate={{ x: 0 }}
       exit={{ x: '-100%' }}
       transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-      drag="y"
-      dragConstraints={{ top: 0, bottom: 0 }}
-      dragElastic={0.8}
-      onDragEnd={(e, info) => {
-        const threshold = 100;
-        if (info.offset.y > threshold && hasPrev && onPrev) {
-          onPrev();
-        } else if (info.offset.y < -threshold && hasNext && onNext) {
-          onNext();
-        }
-      }}
       className={`fixed inset-0 z-50 overflow-y-auto overflow-x-hidden flex flex-col transition-colors break-words ${
         settings.theme === 'dark' && settings.pureBlack ? 'bg-black' : 'bg-white dark:bg-gray-950'
       }`}
@@ -477,10 +467,15 @@ export function ArticleReader({ article, onClose, onNext, onPrev, onSelectArticl
                     if (isCurrentTrack) toggle();
                     else play(article);
                   }}
-                  className="w-16 h-16 bg-indigo-600 text-white rounded-full flex items-center justify-center shadow-lg hover:bg-indigo-700 transition-colors"
+                  className={cn(
+                    "w-16 h-16 bg-indigo-600 text-white rounded-full flex items-center justify-center shadow-lg hover:bg-indigo-700 transition-colors relative",
+                    isLoadingAudio && "animate-pulse"
+                  )}
                   aria-label={isPlaying && isCurrentTrack ? "Pause" : "Play"}
                 >
-                  {isPlaying && isCurrentTrack ? (
+                  {isLoadingAudio ? (
+                    <RefreshCw className="w-8 h-8 animate-spin" />
+                  ) : isPlaying && isCurrentTrack ? (
                     <Pause className="w-8 h-8 fill-current" />
                   ) : (
                     <Play className="w-8 h-8 fill-current ml-1" />

@@ -320,8 +320,8 @@ export function RssProvider({ children }: { children: React.ReactNode }) {
       
       setProgress({ current: 0, total: feedsToUse.length });
       
-      const FEED_TIMEOUT = 90000; // 90 seconds max per feed
-      const CONCURRENCY_LIMIT = 15;
+      const FEED_TIMEOUT = 120000; // 120 seconds max per feed
+      const CONCURRENCY_LIMIT = 25;
 
       const successfulResults: { feed: Feed; articles: Article[] }[] = [];
       let completed = 0;

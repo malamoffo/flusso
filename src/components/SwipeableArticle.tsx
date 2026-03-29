@@ -181,7 +181,10 @@ export const SwipeableArticle = React.memo(function SwipeableArticle({
         prefetchRef(node);
       }} 
       style={{ ...style, background }}
-      className="relative w-full overflow-hidden border-b border-gray-200 dark:border-gray-800"
+      className={cn(
+        "relative w-full overflow-hidden border-b border-gray-200 dark:border-gray-800",
+        settings.pureBlack && "dark:border-gray-700"
+      )}
     >
       {/* Background Actions */}
       <div className="absolute inset-0 flex items-center justify-between px-6 z-0">
@@ -218,13 +221,20 @@ export const SwipeableArticle = React.memo(function SwipeableArticle({
           settings.pureBlack ? "bg-black" : "bg-white dark:bg-gray-900"
         )}
       >
-        <div className={`flex ${(article.type !== 'podcast' && settings.imageDisplay === 'large') ? 'flex-col' : 'gap-4'}`}>
+        <div className={cn(
+          "flex gap-4",
+          (article.type !== 'podcast' && settings.imageDisplay === 'large') ? 'flex-col' : 'items-stretch'
+        )}>
           {(article.imageUrl || (article.type === 'podcast' && feedImageUrl)) && (article.type === 'podcast' || settings.imageDisplay !== 'none') && (
             <img 
               src={getSafeUrl(article.imageUrl || feedImageUrl!)}
               alt="" 
               loading="lazy"
-              className={`${(article.type !== 'podcast' && settings.imageDisplay === 'large') ? 'w-full h-auto max-h-[70vh] mb-3' : 'w-20 h-20'} object-cover rounded-lg flex-shrink-0 bg-gray-100 dark:bg-gray-800 transition-opacity`}
+              className={cn(
+                "object-cover rounded-lg flex-shrink-0 bg-gray-100 dark:bg-gray-800 transition-opacity aspect-square",
+                (article.type !== 'podcast' && settings.imageDisplay === 'large') ? 'w-full h-auto max-h-[70vh] mb-3' : 
+                (article.type === 'podcast' ? 'h-auto w-auto max-w-[64px]' : 'w-20 h-20')
+              )}
               referrerPolicy="no-referrer"
             />
           )}

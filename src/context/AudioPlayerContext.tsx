@@ -6,6 +6,7 @@ import { parseDurationToSeconds } from '../lib/utils';
 interface AudioPlayerContextType {
   currentTrack: Article | null;
   isPlaying: boolean;
+  isBuffering: boolean;
   progress: number;
   duration: number;
   play: (track: Article) => void;
@@ -21,6 +22,7 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
   const { updateArticle } = useRss();
   const [currentTrack, setCurrentTrack] = useState<Article | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isBuffering, setIsBuffering] = useState(false);
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -39,14 +41,24 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
     
     const handleTimeUpdate = () => {
       setProgress(audio.currentTime);
+      setIsBuffering(false);
     };
 
     const handleLoadedMetadata = () => {
       setDuration(audio.duration);
     };
 
+    const handleWaiting = () => {
+      setIsBuffering(true);
+    };
+
+    const handlePlaying = () => {
+      setIsBuffering(false);
+    };
+
     const handleEnded = () => {
       setIsPlaying(false);
+      setIsBuffering(false);
       setProgress(0);
       if (currentTrackRef.current) {
         updateArticle(currentTrackRef.current.id, { progress: 0 });
@@ -58,16 +70,21 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
       if (e?.name === 'AbortError') return;
       console.error("Audio error:", e);
       setIsPlaying(false);
+      setIsBuffering(false);
     };
 
     audio.addEventListener('timeupdate', handleTimeUpdate);
     audio.addEventListener('loadedmetadata', handleLoadedMetadata);
+    audio.addEventListener('waiting', handleWaiting);
+    audio.addEventListener('playing', handlePlaying);
     audio.addEventListener('ended', handleEnded);
     audio.addEventListener('error', handleError);
 
     return () => {
       audio.removeEventListener('timeupdate', handleTimeUpdate);
       audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
+      audio.removeEventListener('waiting', handleWaiting);
+      audio.removeEventListener('playing', handlePlaying);
       audio.removeEventListener('ended', handleEnded);
       audio.removeEventListener('error', handleError);
       audio.pause();
@@ -130,13 +147,16 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
     
     audioRef.current.play().then(() => {
       setIsPlaying(true);
+      setIsBuffering(false);
     }).catch(err => {
       if (err.name === 'AbortError') {
         // Ignore AbortError as it's usually caused by a new play request
         return;
       }
       console.error("Playback failed:", err);
+      setIsBuffering(false);
     });
+    setIsBuffering(true);
   }, [currentTrack]);
 
   const pause = useCallback(() => {
@@ -192,6 +212,7 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
     <AudioPlayerContext.Provider value={{
       currentTrack,
       isPlaying,
+      isBuffering,
       progress,
       duration,
       play,

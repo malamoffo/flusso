@@ -1,14 +1,16 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Play, Pause, X, SkipBack, SkipForward } from 'lucide-react';
+import { Play, Pause, X, SkipBack, SkipForward, RefreshCw } from 'lucide-react';
 import { useAudioPlayer } from '../context/AudioPlayerContext';
 import { Article } from '../types';
 import { cn } from '../lib/utils';
 
 export function PersistentPlayer({ onNavigate }: { onNavigate?: (article: Article) => void }) {
-  const { currentTrack, isPlaying, progress, duration, toggle, seek, stop } = useAudioPlayer();
+  const { currentTrack, isPlaying, isBuffering, progress, duration, toggle, seek, stop } = useAudioPlayer();
 
   if (!currentTrack) return null;
+
+  const isLoadingAudio = isBuffering;
 
   const formatTime = (time: number) => {
     const minutes = Math.floor(time / 60);
@@ -67,12 +69,22 @@ export function PersistentPlayer({ onNavigate }: { onNavigate?: (article: Articl
               <SkipBack className="w-4 h-4 fill-current" />
             </button>
             
-            <button 
+            <motion.button 
+              whileTap={{ scale: 0.9 }}
               onClick={(e) => { e.stopPropagation(); toggle(); }}
-              className="p-2 bg-indigo-600 text-white rounded-full shadow-sm hover:bg-indigo-700 transition-colors"
+              className={cn(
+                "p-2 bg-indigo-600 text-white rounded-full shadow-sm hover:bg-indigo-700 transition-colors relative",
+                isLoadingAudio && "animate-pulse"
+              )}
             >
-              {isPlaying ? <Pause className="w-5 h-5 fill-current" /> : <Play className="w-5 h-5 fill-current ml-0.5" />}
-            </button>
+              {isLoadingAudio ? (
+                <RefreshCw className="w-5 h-5 animate-spin" />
+              ) : isPlaying ? (
+                <Pause className="w-5 h-5 fill-current" />
+              ) : (
+                <Play className="w-5 h-5 fill-current ml-0.5" />
+              )}
+            </motion.button>
             
             <button 
               onClick={(e) => { e.stopPropagation(); seek(Math.min(duration, progress + 30)); }}
