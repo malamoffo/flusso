@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { Feed, Article, Settings } from '../types';
 import { storage, defaultSettings } from '../services/storage';
+import QueuePlugin from '../plugins/QueuePlugin';
+import { Capacitor } from '@capacitor/core';
 
 interface RssContextType {
   feeds: Feed[];
@@ -106,6 +108,19 @@ export function RssProvider({ children }: { children: React.ReactNode }) {
       setFeeds(loadedFeeds);
       setArticles(loadedArticles.sort((a, b) => b.pubDate - a.pubDate));
       setSettings(loadedSettings);
+      
+      // Sync queue and favorites with native plugin on load
+      if (Capacitor.isNativePlatform()) {
+        const queueAndFavorites = loadedArticles.filter(a => a.isQueued || a.isFavorite).map(a => ({
+          id: a.id,
+          title: a.title,
+          feedTitle: a.feedId, // We might want to look up the actual feed title here if possible
+          imageUrl: a.imageUrl || '',
+          mediaUrl: a.mediaUrl || ''
+        }));
+        QueuePlugin.setQueue({ queue: queueAndFavorites }).catch(console.error);
+      }
+      
       return { loadedFeeds, loadedArticles, loadedSettings };
     } catch (err) {
       setError('Failed to load data');
@@ -258,6 +273,18 @@ export function RssProvider({ children }: { children: React.ReactNode }) {
         a.id === articleId ? { ...a, isFavorite: !a.isFavorite } : a
       );
       storage.saveArticles(updatedArticles);
+      
+      if (Capacitor.isNativePlatform()) {
+        const queueAndFavorites = updatedArticles.filter(a => a.isQueued || a.isFavorite).map(a => ({
+          id: a.id,
+          title: a.title,
+          feedTitle: a.feedId,
+          imageUrl: a.imageUrl || '',
+          mediaUrl: a.mediaUrl || ''
+        }));
+        QueuePlugin.setQueue({ queue: queueAndFavorites }).catch(console.error);
+      }
+      
       return updatedArticles;
     });
   }, []);
@@ -268,6 +295,18 @@ export function RssProvider({ children }: { children: React.ReactNode }) {
         a.id === articleId ? { ...a, isQueued: !a.isQueued } : a
       );
       storage.saveArticles(updatedArticles);
+      
+      if (Capacitor.isNativePlatform()) {
+        const queueAndFavorites = updatedArticles.filter(a => a.isQueued || a.isFavorite).map(a => ({
+          id: a.id,
+          title: a.title,
+          feedTitle: a.feedId,
+          imageUrl: a.imageUrl || '',
+          mediaUrl: a.mediaUrl || ''
+        }));
+        QueuePlugin.setQueue({ queue: queueAndFavorites }).catch(console.error);
+      }
+      
       return updatedArticles;
     });
   }, []);

@@ -20,6 +20,7 @@
     "@capacitor/core": "^8.2.0",
     "@capacitor/filesystem": "^8.1.2",
     "@capacitor/share": "^8.0.1",
+    "@capgo/capacitor-media-session": "^8.0.17",
     "@mozilla/readability": "^0.6.0",
     "clsx": "^2.1.1",
     "colorthief": "^3.3.1",

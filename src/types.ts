@@ -4,13 +4,11 @@ export type Theme = 'light' | 'dark' | 'system';
 export type FontSize = 'small' | 'medium' | 'large' | 'xlarge';
 
 export interface Settings {
-  theme: Theme;
   swipeLeftAction: SwipeAction;
   swipeRightAction: SwipeAction;
   imageDisplay: ImageDisplay;
   fontSize: FontSize;
   refreshInterval: number;
-  pureBlack: boolean;
   themeColor: string;
   autoCheckUpdates: boolean;
 }

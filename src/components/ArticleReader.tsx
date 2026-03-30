@@ -6,6 +6,7 @@ import { useRss } from '../context/RssContext';
 import { useAudioPlayer } from '../context/AudioPlayerContext';
 import DOMPurify from 'dompurify';
 import he from 'he';
+import { CachedImage } from './CachedImage';
 import { cn, getSafeUrl, formatTime, parseDurationToSeconds } from '../lib/utils';
 import { CapacitorHttp } from '@capacitor/core';
 import { Share } from '@capacitor/share';
@@ -279,9 +280,7 @@ export function ArticleReader({ article, onClose, onNext, onPrev, onSelectArticl
       animate={{ x: 0 }}
       exit={{ x: '-100%' }}
       transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-      className={`fixed inset-0 z-50 overflow-y-auto overflow-x-hidden flex flex-col transition-colors break-words ${
-        settings.theme === 'dark' && settings.pureBlack ? 'bg-black' : 'bg-white dark:bg-gray-950'
-      }`}
+      className="fixed inset-0 z-50 overflow-y-auto overflow-x-hidden flex flex-col transition-colors break-words bg-black"
     >
       {/* Background Tint */}
       {articleThemeColor && (
@@ -293,9 +292,7 @@ export function ArticleReader({ article, onClose, onNext, onPrev, onSelectArticl
 
       {/* Top App Bar */}
       <div 
-        className={`sticky top-0 z-20 backdrop-blur-md border-b border-gray-200 dark:border-gray-800 px-4 py-3 flex items-center justify-between transition-colors ${
-          settings.theme === 'dark' && settings.pureBlack ? 'bg-black/80' : 'bg-white/80 dark:bg-gray-950/80'
-        }`}
+        className="sticky top-0 z-20 backdrop-blur-md border-b border-gray-800 px-4 py-3 flex items-center justify-between transition-colors bg-black/80"
       >
         <motion.button
           whileTap={{ scale: 0.9 }}
@@ -310,7 +307,7 @@ export function ArticleReader({ article, onClose, onNext, onPrev, onSelectArticl
       {/* Article Content */}
       <div className="relative z-10 flex-1 px-4 pt-6 pb-12 max-w-3xl mx-auto w-full">
         {(article.imageUrl || (article.type === 'podcast' && feed?.imageUrl)) && (
-          <img 
+          <CachedImage 
             src={getSafeUrl(article.imageUrl || (article.type === 'podcast' ? feed?.imageUrl : '') || '')}
             alt="" 
             className="w-full h-auto rounded-2xl mb-4 object-contain max-h-[80vh]"
@@ -335,7 +332,7 @@ export function ArticleReader({ article, onClose, onNext, onPrev, onSelectArticl
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 dark:bg-gray-800 rounded-full">
             {article.link && (
-              <img 
+              <CachedImage 
                 src={`https://icons.duckduckgo.com/ip3/${(() => {
                   try { return new URL(article.link).hostname; }
                   catch { return ''; }
@@ -401,7 +398,7 @@ export function ArticleReader({ article, onClose, onNext, onPrev, onSelectArticl
               {article.type === 'podcast' ? (
                 <ListPlus className={`w-5 h-5 ${isQueued ? 'text-indigo-500' : ''}`} aria-hidden="true" />
               ) : (
-                <Star className={`w-5 h-5 ${isFavorite ? 'fill-current text-amber-500' : ''}`} aria-hidden="true" />
+                <Star className={`w-5 h-5 ${isFavorite ? 'fill-current text-indigo-500' : ''}`} aria-hidden="true" />
               )}
             </motion.button>
           </div>

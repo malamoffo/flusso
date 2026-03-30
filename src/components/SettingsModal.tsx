@@ -60,13 +60,9 @@ export function SettingsModal({
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className={`fixed bottom-0 left-0 right-0 rounded-t-[28px] z-50 px-6 pb-8 pt-0 max-h-[90vh] overflow-y-auto shadow-2xl transition-colors ${
-              settings.theme === 'dark' && settings.pureBlack ? 'bg-black' : 'bg-white dark:bg-gray-900'
-            }`}
+            className="fixed bottom-0 left-0 right-0 rounded-t-[28px] z-50 px-6 pb-8 pt-0 max-h-[90vh] overflow-y-auto shadow-2xl transition-colors bg-black"
           >
-            <div className={`sticky top-0 pt-4 pb-4 z-20 border-b border-gray-100 dark:border-gray-800 mb-6 -mx-6 px-6 transition-colors ${
-              settings.theme === 'dark' && settings.pureBlack ? 'bg-black' : 'bg-white dark:bg-gray-900'
-            }`}>
+            <div className="sticky top-0 pt-4 pb-4 z-20 border-b border-gray-800 mb-6 -mx-6 px-6 transition-colors bg-black">
               
               <div className="flex justify-between items-center">
                 <div className="flex items-center gap-3">
@@ -137,60 +133,6 @@ export function SettingsModal({
                     </div>
                     <span className="text-gray-500">→</span>
                   </button>
-                </section>
-
-                {/* Theme Settings */}
-                <section>
-                  <h3 className="text-sm font-semibold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider mb-3">Appearance</h3>
-                  <div className="grid grid-cols-3 gap-3">
-                    <button
-                      onClick={() => handleThemeChange('light')}
-                      className={`flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-colors ${settings.theme === 'light' ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-400' : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'}`}
-                    >
-                      <Sun className="w-6 h-6 mb-2" />
-                      <span className="text-xs font-medium">Light</span>
-                    </button>
-                    <button
-                      onClick={() => handleThemeChange('dark')}
-                      className={`flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-colors ${settings.theme === 'dark' ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-400' : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'}`}
-                    >
-                      <Moon className="w-6 h-6 mb-2" />
-                      <span className="text-xs font-medium">Dark</span>
-                    </button>
-                    <button
-                      onClick={() => handleThemeChange('system')}
-                      className={`flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-colors ${settings.theme === 'system' ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-400' : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'}`}
-                    >
-                      <Monitor className="w-6 h-6 mb-2" />
-                      <span className="text-xs font-medium">System</span>
-                    </button>
-                  </div>
-
-                  {(settings.theme === 'dark' || settings.theme === 'system') && (
-                    <div className="mt-4 flex items-center justify-between p-4 rounded-2xl bg-gray-50 dark:bg-gray-800">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-black flex items-center justify-center">
-                          <Moon className="w-5 h-5 text-white" />
-                        </div>
-                        <div>
-                          <p className="font-medium text-gray-900 dark:text-white">Pure Black</p>
-                          <p className="text-xs text-gray-500">AMOLED optimized</p>
-                        </div>
-                      </div>
-                      <button 
-                        onClick={() => updateSettings({ pureBlack: !settings.pureBlack })}
-                        className={`w-12 h-6 rounded-full transition-colors relative ${settings.pureBlack ? 'bg-indigo-600' : 'bg-gray-300 dark:bg-gray-600'}`}
-                        role="switch"
-                        aria-checked={settings.pureBlack}
-                        aria-label="Toggle Pure Black theme"
-                      >
-                        <motion.div 
-                          animate={{ x: settings.pureBlack ? 24 : 4 }}
-                          className="absolute top-1 left-0 w-4 h-4 bg-white rounded-full shadow-sm"
-                        />
-                      </button>
-                    </div>
-                  )}
                 </section>
 
                 {/* Font Size Settings */}

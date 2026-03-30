@@ -414,13 +414,11 @@ function parseRssXml(xmlString: string, feedUrl: string): { feed: Feed; articles
 }
 
 export const defaultSettings: Settings = {
-  theme: 'system',
   swipeLeftAction: 'toggleFavorite',
   swipeRightAction: 'toggleRead',
   imageDisplay: 'small',
   fontSize: 'medium',
   refreshInterval: 60, // Default to 1 hour
-  pureBlack: false,
   themeColor: '#4f46e5', // Indigo-600
   autoCheckUpdates: true,
 };
@@ -446,13 +444,16 @@ export const storage = {
   async getArticles(): Promise<Article[]> {
     const articles = (await get<Article[]>(ARTICLES_KEY)) || [];
     const THREE_DAYS = 3 * 24 * 60 * 60 * 1000;
+    const SEVEN_DAYS = 7 * 24 * 60 * 60 * 1000;
     const now = Date.now();
     
-    // Filter out articles older than 3 days (both read and unread)
+    // Filter out articles older than their respective limits
     // to prevent storage saturation as requested by the user.
+    // Podcasts get 7 days, articles get 3 days.
     const validArticles = articles.filter(a => {
       const articleTime = a.readAt || a.pubDate;
-      return (now - articleTime) <= THREE_DAYS;
+      const limit = a.type === 'podcast' ? SEVEN_DAYS : THREE_DAYS;
+      return (now - articleTime) <= limit;
     }).map(a => ({
       ...a,
       type: a.type || (a.mediaType?.startsWith('audio/') ? 'podcast' : 'article'),
@@ -513,10 +514,14 @@ export const storage = {
           const dataString = typeof response.data === 'string' ? response.data : JSON.stringify(response.data);
           const { feed, articles } = parseRssXml(dataString, feedUrl);
           
-          const filteredArticles = articles.filter(a => 
-            (Date.now() - a.pubDate) <= 3 * 24 * 60 * 60 * 1000 && 
-            (!sinceDate || a.pubDate > sinceDate)
-          );
+          const THREE_DAYS = 3 * 24 * 60 * 60 * 1000;
+          const SEVEN_DAYS = 7 * 24 * 60 * 60 * 1000;
+
+          const filteredArticles = articles.filter(a => {
+            const limit = a.type === 'podcast' ? SEVEN_DAYS : THREE_DAYS;
+            return (Date.now() - a.pubDate) <= limit && 
+                   (!sinceDate || a.pubDate > sinceDate);
+          });
 
           return { feed, articles: filteredArticles };
         } else {
@@ -533,10 +538,14 @@ export const storage = {
       const xmlString = await fetchWithProxy(feedUrl);
       const { feed, articles } = parseRssXml(xmlString, feedUrl);
       
-      const filteredArticles = articles.filter(a => 
-        (Date.now() - a.pubDate) <= 3 * 24 * 60 * 60 * 1000 && 
-        (!sinceDate || a.pubDate > sinceDate)
-      );
+      const THREE_DAYS = 3 * 24 * 60 * 60 * 1000;
+      const SEVEN_DAYS = 7 * 24 * 60 * 60 * 1000;
+
+      const filteredArticles = articles.filter(a => {
+        const limit = a.type === 'podcast' ? SEVEN_DAYS : THREE_DAYS;
+        return (Date.now() - a.pubDate) <= limit && 
+               (!sinceDate || a.pubDate > sinceDate);
+      });
 
       return { feed, articles: filteredArticles };
     } catch (e) {
