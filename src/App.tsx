@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 
 import { RssProvider, useRss } from './context/RssContext';
-import { AudioPlayerProvider, useAudioPlayer } from './context/AudioPlayerContext';
+import { AudioPlayerProvider, useAudioState } from './context/AudioPlayerContext';
 import { SwipeableArticle } from './components/SwipeableArticle';
 import { ArticleReader } from './components/ArticleReader';
 import { SettingsModal } from './components/SettingsModal';
@@ -22,7 +22,7 @@ function MainContent() {
   const isAtTopRef = useRef<boolean>(true);
 
   const { articles, feeds, settings, isLoading, progress, error, refreshFeeds, toggleRead, markAsRead, markArticlesAsRead, markAllAsRead, searchQuery, setSearchQuery, unreadCount, toggleFavorite, toggleQueue } = useRss();
-  const { currentTrack } = useAudioPlayer();
+  const { currentTrack } = useAudioState();
 
   // ⚡ Bolt: Memoize handleVisibilityChange to keep reference stable for SwipeableArticle
   const handleVisibilityChange = useCallback((id: string, inView: boolean) => {

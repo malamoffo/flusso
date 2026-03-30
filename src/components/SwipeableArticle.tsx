@@ -6,8 +6,71 @@ import { Article, Settings } from '../types';
 import { useInView } from 'react-intersection-observer';
 import { contentFetcher } from '../utils/contentFetcher';
 import { cn, getSafeUrl, formatTime, parseDurationToSeconds } from '../lib/utils';
-import { useAudioPlayer } from '../context/AudioPlayerContext';
+import { useAudioState, useAudioProgress } from '../context/AudioPlayerContext';
 import DOMPurify from 'dompurify';
+
+/**
+ * ⚡ Bolt: Inner progress bar that actually consumes the progress context.
+ * This is wrapped by a parent to ensure ONLY the active track's bar re-renders.
+ */
+const ActivePodcastProgressBar = ({ article }: { article: Article }) => {
+  const { progress: liveProgress, duration: liveDuration } = useAudioProgress();
+
+  const remainingSeconds = Math.max(0, liveDuration - liveProgress);
+  const progressPercent = liveDuration > 0 ? (liveProgress / liveDuration) * 100 : 0;
+
+  return (
+    <div className="mt-2">
+      <div className="flex items-center gap-2 text-[10px] font-medium text-indigo-600 dark:text-indigo-400">
+        <span className="w-8 text-left">{formatTime(liveProgress)}</span>
+        <div className="flex-1 h-1.5 bg-gray-200 dark:bg-gray-800 rounded-full overflow-hidden">
+          <div
+            className="h-full bg-indigo-500 transition-all duration-300"
+            style={{ width: `${progressPercent}%` }}
+          />
+        </div>
+        <span className="w-8 text-right">{formatTime(remainingSeconds)}</span>
+      </div>
+    </div>
+  );
+};
+
+/**
+ * ⚡ Bolt: Static progress bar for inactive tracks.
+ * Does NOT subscribe to the high-frequency progress context.
+ */
+const InactivePodcastProgressBar = ({ article }: { article: Article }) => {
+  const totalSeconds = parseDurationToSeconds(article.duration);
+  const currentSeconds = article.progress ? article.progress * totalSeconds : 0;
+  const remainingSeconds = Math.max(0, totalSeconds - currentSeconds);
+  const progressPercent = totalSeconds > 0 ? (currentSeconds / totalSeconds) * 100 : 0;
+
+  return (
+    <div className="mt-2 opacity-60">
+      <div className="flex items-center gap-2 text-[10px] font-medium text-gray-500 dark:text-gray-400">
+        <span className="w-8 text-left">{formatTime(currentSeconds)}</span>
+        <div className="flex-1 h-1.5 bg-gray-200 dark:bg-gray-800 rounded-full overflow-hidden">
+          <div
+            className="h-full bg-gray-400 dark:bg-gray-600 transition-all duration-300"
+            style={{ width: `${progressPercent}%` }}
+          />
+        </div>
+        <span className="w-8 text-right">{formatTime(remainingSeconds)}</span>
+      </div>
+    </div>
+  );
+};
+
+/**
+ * ⚡ Bolt: Strategy component to choose between active and inactive progress bars.
+ * This prevents ALL podcast articles from re-rendering on every progress update.
+ */
+const PodcastProgressBar = React.memo(({ article, isCurrentTrack }: { article: Article, isCurrentTrack: boolean }) => {
+  if (isCurrentTrack) {
+    return <ActivePodcastProgressBar article={article} />;
+  }
+  return <InactivePodcastProgressBar article={article} />;
+});
 
 interface SwipeableArticleProps {
   key?: React.Key;
@@ -166,13 +229,9 @@ export const SwipeableArticle = React.memo(function SwipeableArticle({
 
   const domain = getDomain(article.link);
 
-  const { currentTrack, progress: liveProgress, duration: liveDuration } = useAudioPlayer();
+  const { currentTrack } = useAudioState();
 
   const isCurrentTrack = currentTrack?.id === article.id;
-  const totalSeconds = isCurrentTrack ? liveDuration : parseDurationToSeconds(article.duration);
-  const currentSeconds = isCurrentTrack ? liveProgress : (article.progress ? article.progress * totalSeconds : 0);
-  const remainingSeconds = Math.max(0, totalSeconds - currentSeconds);
-  const progressPercent = totalSeconds > 0 ? (currentSeconds / totalSeconds) * 100 : 0;
 
   return (
     <motion.div 
@@ -281,18 +340,7 @@ export const SwipeableArticle = React.memo(function SwipeableArticle({
               dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(article.title, { FORBID_ATTR: ['id', 'name'] }) }}
             />
             {article.type === 'podcast' ? (
-              <div className="mt-2">
-                <div className="flex items-center gap-2 text-[10px] font-medium text-indigo-600 dark:text-indigo-400">
-                  <span className="w-8 text-left">{formatTime(currentSeconds)}</span>
-                  <div className="flex-1 h-1.5 bg-gray-200 dark:bg-gray-800 rounded-full overflow-hidden">
-                    <div 
-                      className="h-full bg-indigo-500 transition-all duration-300" 
-                      style={{ width: `${progressPercent}%` }} 
-                    />
-                  </div>
-                  <span className="w-8 text-right">{formatTime(remainingSeconds)}</span>
-                </div>
-              </div>
+              <PodcastProgressBar article={article} isCurrentTrack={isCurrentTrack} />
             ) : (
               article.contentSnippet && article.contentSnippet.trim() !== '' && (
                 <p 
