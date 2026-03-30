@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useRef, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { Article } from '../types';
 import { useRss } from './RssContext';
 import { parseDurationToSeconds } from '../lib/utils';
@@ -6,12 +6,10 @@ import { MediaSession } from '@capgo/capacitor-media-session';
 import QueuePlugin from '../plugins/QueuePlugin';
 import { Capacitor } from '@capacitor/core';
 
-interface AudioPlayerContextType {
+interface AudioPlayerStateContextType {
   currentTrack: Article | null;
   isPlaying: boolean;
   isBuffering: boolean;
-  progress: number;
-  duration: number;
   play: (track: Article) => void;
   pause: () => void;
   toggle: () => void;
@@ -21,7 +19,13 @@ interface AudioPlayerContextType {
   playPrevious: () => void;
 }
 
-const AudioPlayerContext = createContext<AudioPlayerContextType | undefined>(undefined);
+interface AudioPlayerProgressContextType {
+  progress: number;
+  duration: number;
+}
+
+const AudioPlayerStateContext = createContext<AudioPlayerStateContextType | undefined>(undefined);
+const AudioPlayerProgressContext = createContext<AudioPlayerProgressContextType | undefined>(undefined);
 
 export function AudioPlayerProvider({ children }: { children: React.ReactNode }) {
   const { articles, updateArticle } = useRss();
@@ -36,73 +40,12 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
 
   // Get the current queue
   const queue = articles.filter(a => a.isQueued);
-
-  // Define play first
-  const play = useCallback((track: Article) => {
-    if (!audioRef.current) return;
-
-    if (currentTrack?.id !== track.id) {
-      setCurrentTrack(track);
-      audioRef.current.src = track.mediaUrl || '';
-      audioRef.current.load();
-      
-      // Resume from saved progress if available
-      if (track.progress && track.progress > 0) {
-        const resumeTime = track.progress * (track.duration ? parseDurationToSeconds(track.duration) : 0);
-        if (resumeTime > 0) {
-          audioRef.current.currentTime = resumeTime;
-          setProgress(resumeTime);
-          lastSavedProgressRef.current = track.progress;
-        }
-      } else {
-        lastSavedProgressRef.current = 0;
-      }
-    }
-    
-    audioRef.current.play().then(() => {
-      setIsPlaying(true);
-      setIsBuffering(false);
-    }).catch(err => {
-      if (err.name === 'AbortError') {
-        // Ignore AbortError as it's usually caused by a new play request
-        return;
-      }
-      console.error("Playback failed:", err);
-      setIsBuffering(false);
-    });
-    setIsBuffering(true);
-  }, [currentTrack]);
-
-  const playNext = useCallback(() => {
-    if (!currentTrackRef.current) return;
-    const currentIndex = queue.findIndex(a => a.id === currentTrackRef.current?.id);
-    if (currentIndex !== -1 && currentIndex < queue.length - 1) {
-      play(queue[currentIndex + 1]);
-    }
-  }, [queue, play]);
-
-  const playPrevious = useCallback(() => {
-    if (!currentTrackRef.current) return;
-    const currentIndex = queue.findIndex(a => a.id === currentTrackRef.current?.id);
-    if (currentIndex > 0) {
-      play(queue[currentIndex - 1]);
-    }
-  }, [queue, play]);
-
-  // Listen for play requests from Android Auto
+  const queueRef = useRef<Article[]>([]);
   useEffect(() => {
-    if (Capacitor.isNativePlatform()) {
-      const listener = QueuePlugin.addListener('playRequest', (data) => {
-        const trackToPlay = queue.find(a => a.id === data.id);
-        if (trackToPlay) {
-          play(trackToPlay);
-        }
-      });
-      return () => {
-        listener.then(l => l.remove());
-      };
-    }
-  }, [queue, play]);
+    queueRef.current = queue;
+  }, [queue]);
+
+  const playNextRef = useRef<() => void>(() => {});
 
   // Keep track of current track in a ref for event listeners
   useEffect(() => {
@@ -154,7 +97,7 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
       if (currentTrackRef.current) {
         updateArticle(currentTrackRef.current.id, { progress: 0 });
         // Auto-play next in queue if available
-        playNext();
+        playNextRef.current();
       }
     };
 
@@ -184,7 +127,7 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
       audio.pause();
       audio.src = '';
     };
-  }, [updateArticle, playNext]);
+  }, [updateArticle]);
 
   // Periodically save progress
   useEffect(() => {
@@ -201,33 +144,76 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
     }
   }, [isPlaying, currentTrack, progress, duration, updateArticle]);
 
-  // Media Session API for background controls
-  useEffect(() => {
-    if (currentTrack) {
-      MediaSession.setMetadata({
-        title: currentTrack.title,
-        artist: currentTrack.feedId, // Using feedId as artist for now
-        album: 'Flusso',
-        artwork: currentTrack.imageUrl ? [{ src: currentTrack.imageUrl }] : []
-      }).catch(console.error);
+  const play = useCallback((track: Article) => {
+    if (!audioRef.current) return;
 
-      MediaSession.setActionHandler({ action: 'play' }, () => {
-        if (audioRef.current) audioRef.current.play();
-      });
-      MediaSession.setActionHandler({ action: 'pause' }, () => {
-        if (audioRef.current) audioRef.current.pause();
-      });
-      MediaSession.setActionHandler({ action: 'seekbackward' }, () => seek(Math.max(0, progress - 10)));
-      MediaSession.setActionHandler({ action: 'seekforward' }, () => seek(Math.min(duration, progress + 30)));
-      MediaSession.setActionHandler({ action: 'stop' }, () => stop());
+    if (currentTrack?.id !== track.id) {
+      setCurrentTrack(track);
+      audioRef.current.src = track.mediaUrl || '';
+      audioRef.current.load();
       
-      // Android Auto / Media Session Queue Support
-      MediaSession.setActionHandler({ action: 'previoustrack' }, () => playPrevious());
-      MediaSession.setActionHandler({ action: 'nexttrack' }, () => playNext());
+      // Resume from saved progress if available
+      if (track.progress && track.progress > 0) {
+        const resumeTime = track.progress * (track.duration ? parseDurationToSeconds(track.duration) : 0);
+        if (resumeTime > 0) {
+          audioRef.current.currentTime = resumeTime;
+          setProgress(resumeTime);
+          lastSavedProgressRef.current = track.progress;
+        }
+      } else {
+        lastSavedProgressRef.current = 0;
+      }
     }
-  }, [currentTrack, progress, duration, playNext, playPrevious]);
+    
+    audioRef.current.play().then(() => {
+      setIsPlaying(true);
+      setIsBuffering(false);
+    }).catch(err => {
+      if (err.name === 'AbortError') {
+        // Ignore AbortError as it's usually caused by a new play request
+        return;
+      }
+      console.error("Playback failed:", err);
+      setIsBuffering(false);
+    });
+    setIsBuffering(true);
+  }, [currentTrack]);
 
-  // play is defined above
+  const playNext = useCallback(() => {
+    if (!currentTrackRef.current) return;
+    const currentIndex = queue.findIndex(a => a.id === currentTrackRef.current?.id);
+    if (currentIndex !== -1 && currentIndex < queue.length - 1) {
+      play(queue[currentIndex + 1]);
+    }
+  }, [queue, play]);
+
+  const playPrevious = useCallback(() => {
+    if (!currentTrackRef.current) return;
+    const currentIndex = queue.findIndex(a => a.id === currentTrackRef.current?.id);
+    if (currentIndex > 0) {
+      play(queue[currentIndex - 1]);
+    }
+  }, [queue, play]);
+
+  // Update the ref for handleEnded
+  useEffect(() => {
+    playNextRef.current = playNext;
+  }, [playNext]);
+
+  // Listen for play requests from Android Auto
+  useEffect(() => {
+    if (Capacitor.isNativePlatform()) {
+      const listener = QueuePlugin.addListener('playRequest', (data) => {
+        const trackToPlay = queue.find(a => a.id === data.id);
+        if (trackToPlay) {
+          play(trackToPlay);
+        }
+      });
+      return () => {
+        listener.then(l => l.remove());
+      };
+    }
+  }, [queue, play]);
 
   const pause = useCallback(() => {
     if (!audioRef.current) return;
@@ -280,30 +266,91 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
     MediaSession.setPlaybackState({ playbackState: 'none' }).catch(console.error);
   }, [currentTrack, progress, duration, updateArticle]);
 
+  // Media Session API for background controls
+  useEffect(() => {
+    if (currentTrack) {
+      MediaSession.setMetadata({
+        title: currentTrack.title,
+        artist: currentTrack.feedId, // Using feedId as artist for now
+        album: 'Flusso',
+        artwork: currentTrack.imageUrl ? [{ src: currentTrack.imageUrl }] : []
+      }).catch(console.error);
+
+      MediaSession.setActionHandler({ action: 'play' }, () => {
+        if (audioRef.current) audioRef.current.play();
+      });
+      MediaSession.setActionHandler({ action: 'pause' }, () => {
+        if (audioRef.current) audioRef.current.pause();
+      });
+      MediaSession.setActionHandler({ action: 'seekbackward' }, () => seek(Math.max(0, progress - 10)));
+      MediaSession.setActionHandler({ action: 'seekforward' }, () => seek(Math.min(duration, progress + 30)));
+      MediaSession.setActionHandler({ action: 'stop' }, () => stop());
+      
+      // Android Auto / Media Session Queue Support
+      MediaSession.setActionHandler({ action: 'previoustrack' }, () => playPrevious());
+      MediaSession.setActionHandler({ action: 'nexttrack' }, () => playNext());
+    }
+  }, [currentTrack, progress, duration, playNext, playPrevious, seek, stop]);
+
+  // ⚡ Bolt: Memoize state context value
+  const stateValue = useMemo(() => ({
+    currentTrack,
+    isPlaying,
+    isBuffering,
+    play,
+    pause,
+    toggle,
+    seek,
+    stop,
+    playNext,
+    playPrevious
+  }), [currentTrack, isPlaying, isBuffering, play, pause, toggle, seek, stop, playNext, playPrevious]);
+
+  // ⚡ Bolt: Memoize progress context value (this will update frequently)
+  const progressValue = useMemo(() => ({
+    progress,
+    duration
+  }), [progress, duration]);
+
   return (
-    <AudioPlayerContext.Provider value={{
-      currentTrack,
-      isPlaying,
-      isBuffering,
-      progress,
-      duration,
-      play,
-      pause,
-      toggle,
-      seek,
-      stop,
-      playNext,
-      playPrevious
-    }}>
-      {children}
-    </AudioPlayerContext.Provider>
+    <AudioPlayerStateContext.Provider value={stateValue}>
+      <AudioPlayerProgressContext.Provider value={progressValue}>
+        {children}
+      </AudioPlayerProgressContext.Provider>
+    </AudioPlayerStateContext.Provider>
   );
 }
 
-export function useAudioPlayer() {
-  const context = useContext(AudioPlayerContext);
+/**
+ * ⚡ Bolt: Custom hook to access audio player state.
+ * Use this for components that only need to know WHAT is playing or need actions.
+ */
+export function useAudioState() {
+  const context = useContext(AudioPlayerStateContext);
   if (context === undefined) {
-    throw new Error('useAudioPlayer must be used within an AudioPlayerProvider');
+    throw new Error('useAudioState must be used within an AudioPlayerProvider');
   }
   return context;
+}
+
+/**
+ * ⚡ Bolt: Custom hook to access audio player progress.
+ * Use this for components that need to display REAL-TIME progress (seek bars, timers).
+ * Warning: Components using this will re-render frequently during playback.
+ */
+export function useAudioProgress() {
+  const context = useContext(AudioPlayerProgressContext);
+  if (context === undefined) {
+    throw new Error('useAudioProgress must be used within an AudioPlayerProvider');
+  }
+  return context;
+}
+
+/**
+ * @deprecated Use useAudioState or useAudioProgress for better performance.
+ */
+export function useAudioPlayer() {
+  const state = useAudioState();
+  const progress = useAudioProgress();
+  return { ...state, ...progress };
 }
