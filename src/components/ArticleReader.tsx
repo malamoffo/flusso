@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { ArrowLeft, FileText, AlignLeft, X, Share2, Star, EyeOff, ListPlus, Play, Pause, SkipBack, SkipForward, RotateCcw, RotateCw, ChevronUp, ChevronDown, Clock, Calendar, User, ExternalLink, RefreshCw } from 'lucide-react';
+import { ArrowLeft, FileText, AlignLeft, X, Share2, Star, EyeOff, ListPlus, Play, Pause, SkipBack, SkipForward, RotateCcw, RotateCw, ChevronUp, ChevronDown, Clock, Calendar, User, ExternalLink, RefreshCw, Bookmark } from 'lucide-react';
 import { Article, FullArticleContent } from '../types';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRss } from '../context/RssContext';
@@ -398,7 +398,7 @@ export function ArticleReader({ article, onClose, onNext, onPrev, onSelectArticl
               {article.type === 'podcast' ? (
                 <ListPlus className={`w-5 h-5 ${isQueued ? 'text-[var(--theme-color)]' : ''}`} aria-hidden="true" />
               ) : (
-                <Star className={`w-5 h-5 ${isFavorite ? 'fill-current text-[var(--theme-color)]' : ''}`} aria-hidden="true" />
+                <Bookmark className={`w-5 h-5 ${isFavorite ? 'fill-current text-[var(--theme-color)]' : ''}`} aria-hidden="true" />
               )}
             </motion.button>
           </div>

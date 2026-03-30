@@ -44,7 +44,7 @@ function MainContent() {
   const [settingsInitialTab, setSettingsInitialTab] = useState<'settings' | 'subscriptions' | 'about' | undefined>(undefined);
   const [isMarkAllConfirmOpen, setIsMarkAllConfirmOpen] = useState(false);
   const [forceRefresh, setForceRefresh] = useState(0);
-  const [filter, setFilter] = useState<'all' | 'unread' | 'saved'>('unread');
+  const [filter, setFilter] = useState<'inbox' | 'saved'>('inbox');
   const [typeFilter, setTypeFilter] = useState<'all' | 'article' | 'podcast'>('all');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchSourceFilter, setSearchSourceFilter] = useState('all');
@@ -77,7 +77,7 @@ function MainContent() {
       }
     }
   }, [articles, selectedArticle]);
-
+  
   // Handle Android back button
   useEffect(() => {
     const backListener = CapacitorApp.addListener('backButton', ({ canGoBack }) => {
@@ -85,7 +85,7 @@ function MainContent() {
         setSelectedArticle(null);
       } else if (isSettingsModalOpen) {
         setIsSettingsModalOpen(false);
-        setFilter('all');
+        setFilter('inbox');
         setSearchQuery('');
         setIsSearchOpen(false);
       } else if (isSearchOpen) {
@@ -93,8 +93,8 @@ function MainContent() {
         setSearchQuery('');
         setSearchSourceFilter('all');
         setSearchDateRange('all');
-      } else if (filter !== 'all') {
-        setFilter('all');
+      } else if (filter !== 'inbox') {
+        setFilter('inbox');
       } else {
         CapacitorApp.exitApp();
       }
@@ -149,7 +149,7 @@ function MainContent() {
       if (filterChanged || typeFilterChanged || searchChanged || sourceFilterChanged || dateRangeChanged || refreshFinished || forceRefreshTriggered || prev.length === 0) {
         // Full re-evaluation on filter/search change, refresh completion, or initial load
         return articles.filter(article => {
-          if (filter === 'unread' && article.isRead) return false;
+          // Inbox section shows all articles, saved section filters by favorite/queued
           if (filter === 'saved' && !article.isFavorite && !article.isQueued) return false;
           
           if (typeFilter !== 'all' && article.type !== typeFilter) return false;
@@ -197,7 +197,7 @@ function MainContent() {
         const newMatchingArticles = articles.filter(article => {
           if (existingIds.has(article.id)) return false;
           
-          if (filter === 'unread' && article.isRead) return false;
+          // Inbox section shows all articles, saved section filters by favorite/queued
           if (filter === 'saved' && !article.isFavorite && !article.isQueued) return false;
           
           if (typeFilter !== 'all' && article.type !== typeFilter) return false;
@@ -279,7 +279,7 @@ function MainContent() {
 
   // Mark all as read when reaching the bottom
   useEffect(() => {
-    if (filter !== 'unread' || !bottomRef.current || displayArticles.length === 0) return;
+    if (filter !== 'inbox' || !bottomRef.current || displayArticles.length === 0) return;
 
     const observer = new IntersectionObserver((entries) => {
       if (entries[0].isIntersecting) {
@@ -470,7 +470,7 @@ function MainContent() {
         dragElastic={0.2}
         onDragEnd={(e, info) => {
           const threshold = 100;
-          const filters: ('all' | 'saved' | 'unread')[] = ['all', 'saved', 'unread'];
+          const filters: ('inbox' | 'saved')[] = ['inbox', 'saved'];
           const currentIndex = filters.indexOf(filter as any);
           
           if (info.offset.x > threshold) {
@@ -540,6 +540,7 @@ function MainContent() {
                     onRemove={(id) => {
                       if (article.isFavorite) toggleFavorite(id);
                       if (article.isQueued) toggleQueue(id);
+                      setDisplayArticles(prev => prev.filter(a => a.id !== id));
                     }}
                   />
                 );
@@ -557,15 +558,6 @@ function MainContent() {
       }`}>
         <motion.button
           whileTap={{ scale: 0.9 }}
-          onClick={() => setFilter('all')}
-          className={filter === 'all' ? 'text-[var(--theme-color)]' : 'text-gray-500'}
-          aria-label="All articles"
-          aria-pressed={filter === 'all'}
-        >
-          <LayoutGrid className="w-6 h-6" aria-hidden="true" />
-        </motion.button>
-        <motion.button
-          whileTap={{ scale: 0.9 }}
           onClick={() => setFilter('saved')}
           className={`${filter === 'saved' ? 'text-[var(--theme-color)]' : 'text-gray-500'} relative`}
           aria-label="Saved articles"
@@ -573,17 +565,17 @@ function MainContent() {
         >
           <Star className="w-6 h-6" aria-hidden="true" />
           {articles.filter(a => a.isFavorite || a.isQueued).length > 0 && (
-            <span className="absolute -top-1 -right-1 bg-[var(--theme-color)] text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full border-2 border-white dark:border-gray-900">
+            <span className="absolute -top-1 -right-1 bg-[#f59e0b] text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full border-2 border-white dark:border-gray-900">
               {articles.filter(a => a.isFavorite || a.isQueued).length > 99 ? '99+' : articles.filter(a => a.isFavorite || a.isQueued).length}
             </span>
           )}
         </motion.button>
         <motion.button
           whileTap={{ scale: 0.9 }}
-          onClick={() => setFilter('unread')}
-          className={`${filter === 'unread' ? 'text-[var(--theme-color)]' : 'text-gray-500'} relative`}
-          aria-label="Unread articles"
-          aria-pressed={filter === 'unread'}
+          onClick={() => setFilter('inbox')}
+          className={`${filter === 'inbox' ? 'text-[var(--theme-color)]' : 'text-gray-500'} relative`}
+          aria-label="Inbox"
+          aria-pressed={filter === 'inbox'}
         >
           <Inbox className="w-6 h-6" aria-hidden="true" />
           {unreadCount > 0 && (
@@ -662,7 +654,7 @@ function MainContent() {
         onClose={() => {
           setIsSettingsModalOpen(false);
           setSettingsInitialTab(undefined);
-          setFilter('all');
+          setFilter('inbox');
           setSearchQuery('');
           setIsSearchOpen(false);
         }}

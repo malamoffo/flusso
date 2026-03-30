@@ -41,6 +41,8 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
   // Get the current queue
   const queue = articles.filter(a => a.isQueued);
   const queueRef = useRef<Article[]>([]);
+  const { feeds } = useRss();
+  
   useEffect(() => {
     queueRef.current = queue;
   }, [queue]);
@@ -269,11 +271,12 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
   // Media Session API for background controls
   useEffect(() => {
     if (currentTrack) {
+      const feed = feeds.find(f => f.id === currentTrack.feedId);
       MediaSession.setMetadata({
         title: currentTrack.title,
-        artist: currentTrack.feedId, // Using feedId as artist for now
+        artist: feed?.title || 'Podcast', // Use feed title if found, else generic 'Podcast'
         album: 'Flusso',
-        artwork: currentTrack.imageUrl ? [{ src: currentTrack.imageUrl }] : []
+        artwork: (currentTrack.imageUrl || feed?.imageUrl) ? [{ src: currentTrack.imageUrl || feed!.imageUrl! }] : []
       }).catch(console.error);
 
       MediaSession.setActionHandler({ action: 'play' }, () => {
@@ -290,7 +293,7 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
       MediaSession.setActionHandler({ action: 'previoustrack' }, () => playPrevious());
       MediaSession.setActionHandler({ action: 'nexttrack' }, () => playNext());
     }
-  }, [currentTrack, progress, duration, playNext, playPrevious, seek, stop]);
+  }, [currentTrack, progress, duration, playNext, playPrevious, seek, stop, feeds]);
 
   // ⚡ Bolt: Memoize state context value
   const stateValue = useMemo(() => ({

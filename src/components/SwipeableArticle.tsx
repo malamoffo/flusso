@@ -118,7 +118,7 @@ export const SwipeableArticle = React.memo(function SwipeableArticle({
   const getActionIcon = (action: string, isLeft: boolean) => {
     if (action === 'toggleRead') return <Check className="w-6 h-6" />;
     if (action === 'toggleFavorite') {
-      return article.type === 'podcast' ? <ListPlus className="w-6 h-6" /> : <Star className="w-6 h-6" />;
+      return article.type === 'podcast' ? <ListPlus className="w-6 h-6" /> : <Bookmark className="w-6 h-6" />;
     }
     return null;
   };
@@ -137,40 +137,29 @@ export const SwipeableArticle = React.memo(function SwipeableArticle({
 
   const handleDragEnd = (event: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
     const threshold = 80;
-    const isUnreadSection = !isSavedSection && filter === 'unread';
-    
-    if (info.offset.x > threshold) {
-      // Swiped right
-      const action = isSavedSection ? 'remove' : settings.swipeRightAction;
+    const isRight = info.offset.x > threshold;
+    const isLeft = info.offset.x < -threshold;
+
+    if (isRight || isLeft) {
+      const action = isSavedSection ? 'remove' : (isRight ? settings.swipeRightAction : settings.swipeLeftAction);
       
-      if (action === 'remove' || (isUnreadSection && action === 'toggleRead' && !article.isRead)) {
-        const targetX = window.innerWidth;
-        setExitX(targetX);
-        animate(x, targetX, { duration: 0.15, ease: "easeOut" });
-        
-        if (action === 'remove') onRemove?.(article.id);
-        else toggleRead(article.id);
-      } else if (action === 'toggleRead') {
-        toggleRead(article.id);
-      } else if (action === 'toggleFavorite') {
-        article.type === 'podcast' ? toggleQueue(article.id) : toggleFavorite(article.id);
+      // Snap back for all actions to give the "bounce" feel
+      animate(x, 0, { type: "spring", stiffness: 600, damping: 35, restDelta: 0.5 }).then(() => {
+        if (action === 'remove') {
+          onRemove?.(article.id);
+        }
+      });
+
+      if (action !== 'remove') {
+        if (action === 'toggleRead') {
+          toggleRead(article.id);
+        } else if (action === 'toggleFavorite') {
+          article.type === 'podcast' ? toggleQueue(article.id) : toggleFavorite(article.id);
+        }
       }
-    } else if (info.offset.x < -threshold) {
-      // Swiped left
-      const action = isSavedSection ? 'remove' : settings.swipeLeftAction;
-      
-      if (action === 'remove' || (isUnreadSection && action === 'toggleRead' && !article.isRead)) {
-        const targetX = -window.innerWidth;
-        setExitX(targetX);
-        animate(x, targetX, { duration: 0.15, ease: "easeOut" });
-        
-        if (action === 'remove') onRemove?.(article.id);
-        else toggleRead(article.id);
-      } else if (action === 'toggleRead') {
-        toggleRead(article.id);
-      } else if (action === 'toggleFavorite') {
-        article.type === 'podcast' ? toggleQueue(article.id) : toggleFavorite(article.id);
-      }
+    } else {
+      // Snap back if threshold not met
+      animate(x, 0, { type: "spring", stiffness: 400, damping: 25 });
     }
   };
 
@@ -241,26 +230,24 @@ export const SwipeableArticle = React.memo(function SwipeableArticle({
       <div className="absolute inset-0 flex items-center justify-between px-6 z-10">
         <div className="flex items-center text-white font-medium">
           {isSavedSection ? (
-            <Trash2 className="w-6 h-6 mr-2" />
+            <Trash2 className="w-6 h-6" />
           ) : (
             <>
-              {settings.swipeRightAction === 'toggleRead' && <Check className="w-6 h-6 mr-2" />}
+              {settings.swipeRightAction === 'toggleRead' && <Check className="w-6 h-6" />}
               {settings.swipeRightAction === 'toggleFavorite' && (
-                article.type === 'podcast' ? <ListPlus className="w-6 h-6 mr-2" /> : <Star className="w-6 h-6 mr-2" />
+                article.type === 'podcast' ? <ListPlus className="w-6 h-6" /> : <Bookmark className="w-6 h-6" />
               )}
             </>
           )}
-          {getActionText(isSavedSection ? '' : settings.swipeRightAction)}
         </div>
         <div className="flex items-center text-white font-medium">
-          {getActionText(isSavedSection ? '' : settings.swipeLeftAction)}
           {isSavedSection ? (
-            <Trash2 className="w-6 h-6 ml-2" />
+            <Trash2 className="w-6 h-6" />
           ) : (
             <>
-              {settings.swipeLeftAction === 'toggleRead' && <Check className="w-6 h-6 ml-2" />}
+              {settings.swipeLeftAction === 'toggleRead' && <Check className="w-6 h-6" />}
               {settings.swipeLeftAction === 'toggleFavorite' && (
-                article.type === 'podcast' ? <ListPlus className="w-6 h-6 ml-2" /> : <Star className="w-6 h-6 ml-2" />
+                article.type === 'podcast' ? <ListPlus className="w-6 h-6" /> : <Bookmark className="w-6 h-6" />
               )}
             </>
           )}
@@ -272,9 +259,9 @@ export const SwipeableArticle = React.memo(function SwipeableArticle({
         style={{ x }}
         drag={isSavedSection ? "x" : (settings.swipeLeftAction === 'none' && settings.swipeRightAction === 'none' ? false : "x")}
         dragConstraints={{ left: 0, right: 0 }}
-        dragElastic={isSavedSection ? 0.2 : { 
-          left: settings.swipeLeftAction === 'none' ? 0 : 0.2, 
-          right: settings.swipeRightAction === 'none' ? 0 : 0.2 
+        dragElastic={isSavedSection ? 0.5 : { 
+          left: settings.swipeLeftAction === 'none' ? 0 : 0.5, 
+          right: settings.swipeRightAction === 'none' ? 0 : 0.5 
         }}
         dragTransition={{ bounceStiffness: 400, bounceDamping: 25 }}
         onDragEnd={handleDragEnd}
@@ -326,7 +313,7 @@ export const SwipeableArticle = React.memo(function SwipeableArticle({
               </div>
               <div className="flex items-center gap-1.5 ml-2">
                 {article.isFavorite && (
-                  <Star className="w-3.5 h-3.5 text-[var(--theme-color)] fill-[var(--theme-color)]" />
+                  article.type === 'podcast' ? <ListPlus className="w-3.5 h-3.5 text-[var(--theme-color)]" /> : <Bookmark className="w-3.5 h-3.5 text-[var(--theme-color)] fill-[var(--theme-color)]" />
                 )}
                 {article.isQueued && (
                   <ListPlus className="w-3.5 h-3.5 text-[var(--theme-color)]" />
