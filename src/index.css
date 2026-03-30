@@ -46,3 +46,16 @@
 .pure-black .dark\:bg-indigo-900\/20 {
   background-color: rgba(0, 0, 0, 0.5) !important;
 }
+
+@layer utilities {
+  .safe-bottom {
+    padding-bottom: calc(2.5rem + env(safe-area-inset-bottom, 20px)) !important;
+  }
+  .scrollbar-hide {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+}

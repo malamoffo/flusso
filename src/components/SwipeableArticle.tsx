@@ -221,11 +221,12 @@ export const SwipeableArticle = React.memo(function SwipeableArticle({
         prefetchRef(node);
       }} 
       className={cn(
-        "relative w-full overflow-hidden border-b border-gray-800"
+        "relative w-full overflow-hidden border-b border-gray-800 will-change-transform"
       )}
       style={{
         contentVisibility: 'auto',
         containIntrinsicSize: '0 120px', // Rough estimate of article height
+        transform: 'translateZ(0)', // GPU acceleration
         ...style
       } as React.CSSProperties}
     >

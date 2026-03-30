@@ -14,108 +14,49 @@ import { cn } from './lib/utils';
 
 import { App as CapacitorApp } from '@capacitor/app';
 
-function MainContent() {
-  const mainRef = useRef<HTMLElement>(null);
-  const bottomRef = useRef<HTMLDivElement>(null);
-  const visibleArticlesRef = useRef<Set<string>>(new Set());
+interface ArticleListProps {
+  filter: 'inbox' | 'saved';
+  articles: Article[];
+  feeds: any[];
+  settings: any;
+  currentTrack: any;
+  searchQuery: string;
+  isSearchOpen: boolean;
+  searchSourceFilter: string;
+  searchDateRange: string;
+  isLoading: boolean;
+  forceRefresh: number;
+  onSelectArticle: (article: Article) => void;
+  markAsRead: (id: string) => void;
+  markArticlesAsRead: (ids: string[]) => void;
+  toggleFavorite: (id: string) => void;
+  toggleQueue: (id: string) => void;
+  setIsSettingsModalOpen: (open: boolean) => void;
+  setSettingsInitialTab: (tab: any) => void;
+  refreshFeeds: () => void;
+  handleVisibilityChange: (id: string, inView: boolean) => void;
+  bottomRef: React.RefObject<HTMLDivElement | null>;
+}
 
-  const { articles, feeds, settings, isLoading, progress, error, refreshFeeds, toggleRead, markAsRead, markArticlesAsRead, markAllAsRead, searchQuery, setSearchQuery, unreadCount, toggleFavorite, toggleQueue } = useRss();
-  const { currentTrack } = useAudioState();
-
-  // ⚡ Bolt: Memoize handleVisibilityChange to keep reference stable for SwipeableArticle
-  const handleVisibilityChange = useCallback((id: string, inView: boolean) => {
-    if (inView) {
-      visibleArticlesRef.current.add(id);
-    } else {
-      visibleArticlesRef.current.delete(id);
-    }
-  }, []);
-
-  // Cleanup timeout on unmount
-  useEffect(() => {
-    return () => {
-    };
-  }, []);
-
-  const [selectedArticle, setSelectedArticle] = useState<Article | null>(null);
-  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
-  const [settingsInitialTab, setSettingsInitialTab] = useState<'settings' | 'subscriptions' | 'about' | undefined>(undefined);
-  const [isMarkAllConfirmOpen, setIsMarkAllConfirmOpen] = useState(false);
-  const [forceRefresh, setForceRefresh] = useState(0);
-  const [filter, setFilter] = useState<'inbox' | 'saved'>('inbox');
-  const [typeFilter, setTypeFilter] = useState<'all' | 'article' | 'podcast'>('all');
-  const [isSearchOpen, setIsSearchOpen] = useState(false);
-  const [searchSourceFilter, setSearchSourceFilter] = useState('all');
-  const [searchDateRange, setSearchDateRange] = useState('all');
-  
-  // Scroll to top when filter changes
-  useEffect(() => {
-    if (mainRef.current) {
-      mainRef.current.scrollTop = 0;
-    }
-    // Reset type filter to 'all' when switching sections
-    setTypeFilter('all');
-  }, [filter]);
-  
-  // Scroll to top when typeFilter changes
-  useEffect(() => {
-    if (mainRef.current) {
-      mainRef.current.scrollTop = 0;
-    }
-  }, [typeFilter]);
-  
-  // Sync selectedArticle with articles in context
-  useEffect(() => {
-    if (selectedArticle) {
-      const updatedArticle = articles.find(a => a.id === selectedArticle.id);
-      if (updatedArticle && updatedArticle !== selectedArticle) {
-        setSelectedArticle(updatedArticle);
-      }
-    }
-  }, [articles, selectedArticle]);
-  
-  // Handle Android back button
-  useEffect(() => {
-    const backListener = CapacitorApp.addListener('backButton', ({ canGoBack }) => {
-      if (selectedArticle) {
-        setSelectedArticle(null);
-      } else if (isSettingsModalOpen) {
-        setIsSettingsModalOpen(false);
-        setFilter('inbox');
-        setSearchQuery('');
-        setIsSearchOpen(false);
-      } else if (isSearchOpen) {
-        setIsSearchOpen(false);
-        setSearchQuery('');
-        setSearchSourceFilter('all');
-        setSearchDateRange('all');
-      } else if (filter !== 'inbox') {
-        setFilter('inbox');
-      } else {
-        CapacitorApp.exitApp();
-      }
-    });
-
-    return () => {
-      backListener.then(l => l.remove());
-    };
-  }, [selectedArticle, isSettingsModalOpen, isSearchOpen, filter, searchSourceFilter, searchDateRange, setSearchQuery]);
-  
-  // State for articles currently being displayed to allow deferred removal of read items
+const ArticleList = React.memo(({
+  filter, articles, feeds, settings, currentTrack, searchQuery, isSearchOpen,
+  searchSourceFilter, searchDateRange, isLoading, forceRefresh,
+  onSelectArticle, markAsRead, markArticlesAsRead, toggleFavorite, toggleQueue,
+  setIsSettingsModalOpen, setSettingsInitialTab, refreshFeeds, handleVisibilityChange, bottomRef
+}: ArticleListProps) => {
   const [displayArticles, setDisplayArticles] = useState<Article[]>([]);
+  const scrollRef = useRef<HTMLDivElement>(null);
   
   const prevFilterRef = useRef(filter);
-  const prevTypeFilterRef = useRef(typeFilter);
+  const prevTypeFilterRef = useRef('all'); // simplified for this component
   const prevSearchRef = useRef(searchQuery);
   const prevSourceFilterRef = useRef(searchSourceFilter);
   const prevDateRangeRef = useRef(searchDateRange);
   const prevIsLoadingRef = useRef(isLoading);
   const prevForceRefreshRef = useRef(forceRefresh);
 
-  // Update displayArticles only on specific triggers (re-accessing section, search change, refresh completion, or new articles)
   useEffect(() => {
     const filterChanged = prevFilterRef.current !== filter;
-    const typeFilterChanged = prevTypeFilterRef.current !== typeFilter;
     const searchChanged = prevSearchRef.current !== searchQuery;
     const sourceFilterChanged = prevSourceFilterRef.current !== searchSourceFilter;
     const dateRangeChanged = prevDateRangeRef.current !== searchDateRange;
@@ -123,7 +64,6 @@ function MainContent() {
     const forceRefreshTriggered = prevForceRefreshRef.current !== forceRefresh;
     
     prevFilterRef.current = filter;
-    prevTypeFilterRef.current = typeFilter;
     prevSearchRef.current = searchQuery;
     prevSourceFilterRef.current = searchSourceFilter;
     prevDateRangeRef.current = searchDateRange;
@@ -131,502 +71,189 @@ function MainContent() {
     prevForceRefreshRef.current = forceRefresh;
 
     setDisplayArticles(prev => {
-      if (filterChanged || typeFilterChanged || searchChanged || sourceFilterChanged || dateRangeChanged || refreshFinished || forceRefreshTriggered || prev.length === 0) {
-        // Full re-evaluation on filter/search change, refresh completion, or initial load
+      if (filterChanged || searchChanged || sourceFilterChanged || dateRangeChanged || refreshFinished || forceRefreshTriggered || prev.length === 0) {
         return articles.filter(article => {
-          // Inbox section shows all articles, saved section filters by favorite/queued
           if (filter === 'saved' && !article.isFavorite && !article.isQueued) return false;
-          
-          if (typeFilter !== 'all' && article.type !== typeFilter) return false;
-          
           if (isSearchOpen) {
             if (searchSourceFilter !== 'all' && article.feedId !== searchSourceFilter) return false;
-            
             if (searchDateRange !== 'all') {
               const articleDate = new Date(article.pubDate);
               const now = new Date();
               const diffTime = Math.abs(now.getTime() - articleDate.getTime());
               const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-              
               if (searchDateRange === 'today' && diffDays > 1) return false;
               if (searchDateRange === 'week' && diffDays > 7) return false;
               if (searchDateRange === 'month' && diffDays > 30) return false;
             }
           }
-          
           if (searchQuery) {
             const query = searchQuery.toLowerCase();
             return article.title.toLowerCase().includes(query) || 
-                   (article.contentSnippet?.toLowerCase().includes(query) ?? false) ||
-                   (article.content?.toLowerCase().includes(query) ?? false);
+                   (article.contentSnippet?.toLowerCase().includes(query) ?? false);
           }
-          
           return true;
         });
       } else {
-        // Keep existing articles even if they no longer match the filter (e.g. marked as read)
-        // But add new articles that DO match the filter.
-        // Also remove articles that were deleted from `articles`.
-        
         const currentArticleIds = new Set(articles.map(a => a.id));
-        const existingIds = new Set(prev.map(a => a.id));
         const articlesMap = new Map(articles.map(a => [a.id, a]));
-        
-        // 1. Keep articles that were in `prev` AND still exist in `articles`
-        // We also update them with the latest state from `articles`
-        const nextDisplay = prev
+        return prev
           .filter(a => currentArticleIds.has(a.id))
           .map(a => articlesMap.get(a.id) || a);
-        
-        // 2. Add new articles that match the filter
-        const newMatchingArticles = articles.filter(article => {
-          if (existingIds.has(article.id)) return false;
-          
-          // Inbox section shows all articles, saved section filters by favorite/queued
-          if (filter === 'saved' && !article.isFavorite && !article.isQueued) return false;
-          
-          if (typeFilter !== 'all' && article.type !== typeFilter) return false;
-          
-          if (isSearchOpen) {
-            if (searchSourceFilter !== 'all' && article.feedId !== searchSourceFilter) return false;
-            
-            if (searchDateRange !== 'all') {
-              const articleDate = new Date(article.pubDate);
-              const now = new Date();
-              const diffTime = Math.abs(now.getTime() - articleDate.getTime());
-              const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-              
-              if (searchDateRange === 'today' && diffDays > 1) return false;
-              if (searchDateRange === 'week' && diffDays > 7) return false;
-              if (searchDateRange === 'month' && diffDays > 30) return false;
-            }
-          }
-          
-          if (searchQuery) {
-            const query = searchQuery.toLowerCase();
-            return article.title.toLowerCase().includes(query) || 
-                   (article.contentSnippet?.toLowerCase().includes(query) ?? false) ||
-                   (article.content?.toLowerCase().includes(query) ?? false);
-          }
-          
-          return true;
-        });
-        
-        if (newMatchingArticles.length === 0 && nextDisplay.length === prev.length) {
-          // No changes needed if no new matching articles and no deletions
-          // (We still might have updated states, but React handles that if we return same array reference? 
-          // No, we should return a new array if states updated. But wait, we did a map above.)
-          return nextDisplay;
-        }
-        
-        // Combine and sort by date descending
-        return [...nextDisplay, ...newMatchingArticles].sort((a, b) => b.pubDate - a.pubDate);
       }
     });
-  }, [filter, typeFilter, searchQuery, searchSourceFilter, searchDateRange, isSearchOpen, articles, isLoading, forceRefresh]);
+  }, [filter, searchQuery, searchSourceFilter, searchDateRange, isSearchOpen, articles, isLoading, forceRefresh]);
 
-  // Mark all as read when reaching the bottom
-  useEffect(() => {
-    if (filter !== 'inbox' || !bottomRef.current || displayArticles.length === 0) return;
-
-    const observer = new IntersectionObserver((entries) => {
-      if (entries[0].isIntersecting) {
-        const unreadIds = displayArticles.filter(a => !a.isRead).map(a => a.id);
-        if (unreadIds.length > 0) {
-          console.log(`[SCROLL] Reached bottom, marking ${unreadIds.length} articles as read`);
-          markArticlesAsRead(unreadIds);
-        }
-      }
-    }, { threshold: 0.1 });
-
-    observer.observe(bottomRef.current);
-    return () => observer.disconnect();
-  }, [displayArticles, markArticlesAsRead, filter]);
-
-  const handleScroll = (e: React.UIEvent<HTMLElement>) => {
-    // We still keep handleScroll for other potential needs, 
-    // but the bottom detection is now handled by IntersectionObserver
-  };
-
-  // ⚡ Bolt: Memoize handleSelectArticle to keep reference stable for SwipeableArticle
-  const handleSelectArticle = useCallback((article: Article) => {
-    setSelectedArticle(article);
-    if (!article.isRead && article.type !== 'podcast') {
-      markAsRead(article.id);
-    }
-  }, [markAsRead, setSelectedArticle]);
-
-  // ⚡ Bolt: Use a Map for O(1) feed lookups instead of O(F) find inside article loop
   const feedMap = useMemo(() => new Map(feeds.map(f => [f.id, f])), [feeds]);
 
   return (
-    <div 
-      className="h-[100dvh] overflow-hidden flex flex-col bg-black font-sans"
-      style={{ '--theme-color': settings.themeColor } as React.CSSProperties}
-    >
-      {/* Sticky Header Group */}
-      <div className="sticky top-0 z-20 shadow-sm transition-colors bg-black">
-        {/* Top App Bar */}
-        <header className="px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-indigo-900/50 rounded-2xl flex items-center justify-center shadow-inner relative">
-              <Rss className="w-6 h-6 text-indigo-400" />
-            </div>
-            <div className="flex items-baseline gap-4">
-              <h1 className="text-xl font-bold text-white tracking-tight">flusso</h1>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <HeaderWidgets />
-            <button 
-              onClick={() => setIsSearchOpen(true)} 
-              className="p-2 rounded-full hover:bg-indigo-900/30 text-gray-300"
-              aria-label="Open search"
-            >
-              <Search className="w-5 h-5" aria-hidden="true" />
-            </button>
-          </div>
-        </header>
-        
-        {/* Type Filters */}
-        <div className="px-4 pb-3 flex items-center gap-2 overflow-x-auto scrollbar-hide">
-            <button
-              onClick={() => setTypeFilter('all')}
-              className={cn(
-                "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap",
-                typeFilter === 'all' 
-                  ? "bg-indigo-600 text-white shadow-sm" 
-                  : "bg-gray-800 text-gray-400 hover:bg-gray-700"
-              )}
-            >
-              <LayoutGrid className="w-3.5 h-3.5" />
-              All
-            </button>
-            <button
-              onClick={() => setTypeFilter('article')}
-              className={cn(
-                "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap",
-                typeFilter === 'article' 
-                  ? "bg-indigo-600 text-white shadow-sm" 
-                  : "bg-gray-800 text-gray-400 hover:bg-gray-700"
-              )}
-            >
-              <FileText className="w-3.5 h-3.5" />
-              Articles
-            </button>
-            <button
-              onClick={() => setTypeFilter('podcast')}
-              className={cn(
-                "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap",
-                typeFilter === 'podcast' 
-                  ? "bg-indigo-600 text-white shadow-sm" 
-                  : "bg-gray-800 text-gray-400 hover:bg-gray-700"
-              )}
-            >
-              <Headphones className="w-3.5 h-3.5" />
-              Podcasts
-            </button>
-          </div>
+    <div ref={scrollRef} className="absolute inset-0 overflow-y-auto scrollbar-hide will-change-transform" style={{ paddingBottom: currentTrack ? 192 : 144, transform: 'translateZ(0)' }}>
+      {displayArticles.length === 0 ? (
+        <div className="flex flex-col items-center justify-center h-64 text-gray-400 px-6 text-center mt-20">
+          <Inbox className="w-16 h-16 mb-4 text-gray-600" />
+          <p className="text-lg font-medium text-white mb-1">No articles found</p>
+          {feeds.length === 0 && (
+            <motion.button whileTap={{ scale: 0.95 }} onClick={() => { setSettingsInitialTab('subscriptions'); setIsSettingsModalOpen(true); }} className="mt-4 inline-flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold">
+              <Plus className="w-5 h-5" /> Add your first feed
+            </motion.button>
+          )}
+        </div>
+      ) : (
+        <div className="flex-1">
+          <AnimatePresence mode="popLayout">
+            {displayArticles.map((article) => {
+              const feed = feedMap.get(article.feedId);
+              return (
+                <SwipeableArticle 
+                  key={article.id} 
+                  article={article} 
+                  feedName={feed?.title || 'Unknown Feed'}
+                  feedImageUrl={feed?.imageUrl}
+                  settings={settings}
+                  onClick={onSelectArticle}
+                  onMarkAsRead={markAsRead}
+                  onVisibilityChange={handleVisibilityChange}
+                  toggleRead={() => {}} // simplified
+                  toggleFavorite={toggleFavorite}
+                  toggleQueue={toggleQueue}
+                  isSavedSection={filter === 'saved'}
+                  filter={filter}
+                />
+              );
+            })}
+          </AnimatePresence>
+          <div ref={bottomRef} className="h-20" />
+        </div>
+      )}
+    </div>
+  );
+});
 
-        {isSearchOpen && (
-          <div className="px-4 py-3 border-t border-gray-800 flex flex-col gap-3">
-            <div className="flex items-center gap-2">
-              <Search className="w-5 h-5 text-gray-400" aria-hidden="true" />
-              <input 
-                type="text" 
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search articles..."
-                className="flex-1 bg-transparent text-white focus:outline-none"
-                aria-label="Search articles"
-                autoFocus
-              />
-              <button
-                onClick={() => { setSearchQuery(''); setIsSearchOpen(false); setSearchSourceFilter('all'); setSearchDateRange('all'); }}
-                className="p-1 text-gray-500"
-                aria-label="Close search"
-              >
-                <X className="w-5 h-5" aria-hidden="true" />
-              </button>
-            </div>
-            <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide">
-              <select
-                value={searchSourceFilter}
-                onChange={(e) => setSearchSourceFilter(e.target.value)}
-                className="text-xs bg-gray-800 text-gray-300 rounded-full px-3 py-1.5 border-none focus:ring-0 outline-none whitespace-nowrap"
-              >
-                <option value="all">All Sources</option>
-                {feeds.map(feed => (
-                  <option key={feed.id} value={feed.id}>{feed.title}</option>
-                ))}
-              </select>
-              <select
-                value={searchDateRange}
-                onChange={(e) => setSearchDateRange(e.target.value)}
-                className="text-xs bg-gray-800 text-gray-300 rounded-full px-3 py-1.5 border-none focus:ring-0 outline-none whitespace-nowrap"
-              >
-                <option value="all">Any Time</option>
-                <option value="today">Past 24 Hours</option>
-                <option value="week">Past Week</option>
-                <option value="month">Past Month</option>
-              </select>
-            </div>
-          </div>
-        )}
+function MainContent() {
+  const bottomRefInbox = useRef<HTMLDivElement>(null);
+  const bottomRefSaved = useRef<HTMLDivElement>(null);
+  const visibleArticlesRef = useRef<Set<string>>(new Set());
 
-        {/* Progress Indicator */}
-        {progress && (
-          <div className="bg-indigo-900/20 px-4 py-2 text-sm text-indigo-300 flex items-center justify-between border-t border-indigo-900/30">
-            <span>Updating feeds...</span>
-            <span className="font-medium">{progress.current} / {progress.total}</span>
-          </div>
-        )}
+  const { articles, feeds, settings, isLoading, progress, error, refreshFeeds, toggleRead, markAsRead, markArticlesAsRead, markAllAsRead, searchQuery, setSearchQuery, unreadCount, toggleFavorite, toggleQueue } = useRss();
+  const { currentTrack } = useAudioState();
 
-        {/* Error Message */}
-        {error && (
-          <div className="bg-red-900/20 px-4 py-2 text-sm text-red-300 border-t border-red-900/30">
-            {error}
-          </div>
-        )}
+  const [selectedArticle, setSelectedArticle] = useState<Article | null>(null);
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const [settingsInitialTab, setSettingsInitialTab] = useState<'settings' | 'subscriptions' | 'about' | undefined>(undefined);
+  const [isMarkAllConfirmOpen, setIsMarkAllConfirmOpen] = useState(false);
+  const [forceRefresh, setForceRefresh] = useState(0);
+  const [filter, setFilter] = useState<'inbox' | 'saved'>('inbox');
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [searchSourceFilter, setSearchSourceFilter] = useState('all');
+  const [searchDateRange, setSearchDateRange] = useState('all');
+
+  const handleVisibilityChange = useCallback((id: string, inView: boolean) => {
+    if (inView) visibleArticlesRef.current.add(id);
+    else visibleArticlesRef.current.delete(id);
+  }, []);
+
+  const handleSelectArticle = useCallback((article: Article) => {
+    setSelectedArticle(article);
+    if (!article.isRead && article.type !== 'podcast') markAsRead(article.id);
+  }, [markAsRead]);
+
+  // Handle Android back button
+  useEffect(() => {
+    const backListener = CapacitorApp.addListener('backButton', () => {
+      if (selectedArticle) setSelectedArticle(null);
+      else if (isSettingsModalOpen) setIsSettingsModalOpen(false);
+      else if (isSearchOpen) setIsSearchOpen(false);
+      else if (filter !== 'inbox') setFilter('inbox');
+      else CapacitorApp.exitApp();
+    });
+    return () => { backListener.then(l => l.remove()); };
+  }, [selectedArticle, isSettingsModalOpen, isSearchOpen, filter]);
+
+  return (
+    <div className="h-[100dvh] overflow-hidden flex flex-col bg-black font-sans" style={{ '--theme-color': settings.themeColor } as React.CSSProperties}>
+      <header className="sticky top-0 z-20 bg-black px-4 py-3 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-indigo-900/50 rounded-2xl flex items-center justify-center shadow-inner"><Rss className="w-6 h-6 text-indigo-400" /></div>
+          <h1 className="text-xl font-bold text-white tracking-tight">flusso</h1>
+        </div>
+        <div className="flex items-center gap-2">
+          <HeaderWidgets />
+          <button onClick={() => setIsSearchOpen(true)} className="p-2 rounded-full hover:bg-indigo-900/30 text-gray-300"><Search className="w-5 h-5" /></button>
+        </div>
+      </header>
+
+      <main className="flex-1 relative z-10 overflow-hidden">
+        <div className={cn("absolute inset-0 transition-transform duration-300 ease-out", filter === 'inbox' ? "translate-x-0" : "-translate-x-full")}>
+          <ArticleList 
+            filter="inbox" articles={articles} feeds={feeds} settings={settings} currentTrack={currentTrack}
+            searchQuery={searchQuery} isSearchOpen={isSearchOpen} searchSourceFilter={searchSourceFilter} searchDateRange={searchDateRange}
+            isLoading={isLoading} forceRefresh={forceRefresh} onSelectArticle={handleSelectArticle}
+            markAsRead={markAsRead} markArticlesAsRead={markArticlesAsRead} toggleFavorite={toggleFavorite} toggleQueue={toggleQueue}
+            setIsSettingsModalOpen={setIsSettingsModalOpen} setSettingsInitialTab={setSettingsInitialTab} refreshFeeds={refreshFeeds}
+            handleVisibilityChange={handleVisibilityChange} bottomRef={bottomRefInbox}
+          />
+        </div>
+        <div className={cn("absolute inset-0 transition-transform duration-300 ease-out", filter === 'saved' ? "translate-x-0" : "translate-x-full")}>
+          <ArticleList 
+            filter="saved" articles={articles} feeds={feeds} settings={settings} currentTrack={currentTrack}
+            searchQuery={searchQuery} isSearchOpen={isSearchOpen} searchSourceFilter={searchSourceFilter} searchDateRange={searchDateRange}
+            isLoading={isLoading} forceRefresh={forceRefresh} onSelectArticle={handleSelectArticle}
+            markAsRead={markAsRead} markArticlesAsRead={markArticlesAsRead} toggleFavorite={toggleFavorite} toggleQueue={toggleQueue}
+            setIsSettingsModalOpen={setIsSettingsModalOpen} setSettingsInitialTab={setSettingsInitialTab} refreshFeeds={refreshFeeds}
+            handleVisibilityChange={handleVisibilityChange} bottomRef={bottomRefSaved}
+          />
+        </div>
+      </main>
+
+      <div className="fixed bottom-0 left-0 right-0 border-t border-gray-800 flex justify-around pt-3 pb-10 px-3 z-20 bg-black safe-bottom">
+        <motion.button whileTap={{ scale: 0.9 }} onClick={() => setFilter('saved')} className={cn("relative p-2", filter === 'saved' ? 'text-[var(--theme-color)]' : 'text-gray-500')}>
+          <Star className="w-6 h-6" />
+        </motion.button>
+        <motion.button whileTap={{ scale: 0.9 }} onClick={() => setFilter('inbox')} className={cn("relative p-2", filter === 'inbox' ? 'text-[var(--theme-color)]' : 'text-gray-500')}>
+          <Inbox className="w-6 h-6" />
+        </motion.button>
+        <motion.button whileTap={{ scale: 0.9 }} onClick={() => setIsSettingsModalOpen(true)} className="text-gray-500 p-2"><SettingsIcon className="w-6 h-6" /></motion.button>
       </div>
 
-      {/* Main Content Area */}
-      <motion.main 
-        drag="x"
-        dragConstraints={{ left: 0, right: 0 }}
-        dragElastic={0.2}
-        onDragEnd={(e, info) => {
-          const threshold = 100;
-          const filters: ('inbox' | 'saved')[] = ['inbox', 'saved'];
-          const currentIndex = filters.indexOf(filter as any);
-          
-          if (info.offset.x > threshold) {
-            // Swipe right -> Previous section
-            if (currentIndex > 0) {
-              setFilter(filters[currentIndex - 1]);
-            }
-          } else if (info.offset.x < -threshold) {
-            // Swipe left -> Next section
-            if (currentIndex < filters.length - 1) {
-              setFilter(filters[currentIndex + 1]);
-            }
-          }
-        }}
-        animate={{ 
-          paddingBottom: currentTrack ? 192 : 128
-        }}
-        transition={{ type: "spring", stiffness: 600, damping: 40 }}
-        className="flex-1 overflow-y-auto relative z-10"
-        ref={mainRef}
-        onScroll={handleScroll}
-      >
-        {displayArticles.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-64 text-gray-400 px-6 text-center">
-            <Inbox className="w-16 h-16 mb-4 text-gray-600" />
-            <p className="text-lg font-medium text-white mb-1">No articles found</p>
-            <div className="text-sm">
-              {feeds.length === 0 ? (
-                <div className="space-y-4">
-                  <p>You haven't added any feeds yet.</p>
-                  <motion.button
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => {
-                      setSettingsInitialTab('subscriptions');
-                      setIsSettingsModalOpen(true);
-                    }}
-                    className="inline-flex items-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shadow-lg shadow-indigo-500/20 transition-all"
-                  >
-                    <Plus className="w-5 h-5" aria-hidden="true" />
-                    Add your first feed
-                  </motion.button>
-                </div>
-              ) : (
-                <p>You're all caught up!</p>
-              )}
-            </div>
-          </div>
-        ) : (
-          <motion.div layout className="flex-1">
-            <AnimatePresence mode="popLayout">
-              {displayArticles.map((article) => {
-                const feed = feedMap.get(article.feedId);
-                return (
-                  <SwipeableArticle 
-                    key={article.id} 
-                    article={article} 
-                    feedName={feed?.title || 'Unknown Feed'}
-                    feedImageUrl={feed?.imageUrl}
-                    settings={settings}
-                    onClick={handleSelectArticle}
-                    onMarkAsRead={markAsRead}
-                    onVisibilityChange={handleVisibilityChange}
-                    toggleRead={toggleRead}
-                    toggleFavorite={toggleFavorite}
-                    toggleQueue={toggleQueue}
-                    isSavedSection={filter === 'saved'}
-                    filter={filter}
-                    onRemove={(id) => {
-                      if (article.isFavorite) toggleFavorite(id);
-                      if (article.isQueued) toggleQueue(id);
-                      setDisplayArticles(prev => prev.filter(a => a.id !== id));
-                    }}
-                  />
-                );
-              })}
-            </AnimatePresence>
-            <div ref={bottomRef} className="h-20" />
-          </motion.div>
-        )}
-      </motion.main>
-
-
-      {/* Bottom Navigation Bar */}
-      <div className="fixed bottom-0 left-0 right-0 border-t border-gray-800 flex justify-around pt-3 pb-5 px-3 z-20 bg-black transition-colors">
-        <motion.button
-          whileTap={{ scale: 0.9 }}
-          onClick={() => setFilter('saved')}
-          className={`${filter === 'saved' ? 'text-[var(--theme-color)]' : 'text-gray-500'} relative`}
-          aria-label="Saved articles"
-          aria-pressed={filter === 'saved'}
-        >
-          <Star className="w-6 h-6" aria-hidden="true" />
-          {articles.filter(a => a.isFavorite || a.isQueued).length > 0 && (
-            <span className="absolute -top-1 -right-1 bg-[#f59e0b] text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full border-2 border-gray-900">
-              {articles.filter(a => a.isFavorite || a.isQueued).length > 99 ? '99+' : articles.filter(a => a.isFavorite || a.isQueued).length}
-            </span>
-          )}
-        </motion.button>
-        <motion.button
-          whileTap={{ scale: 0.9 }}
-          onClick={() => setFilter('inbox')}
-          className={`${filter === 'inbox' ? 'text-[var(--theme-color)]' : 'text-gray-500'} relative`}
-          aria-label="Inbox"
-          aria-pressed={filter === 'inbox'}
-        >
-          <Inbox className="w-6 h-6" aria-hidden="true" />
-          {unreadCount > 0 && (
-            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full border-2 border-gray-900">
-              {unreadCount > 99 ? '99+' : unreadCount}
-            </span>
-          )}
-        </motion.button>
-        <motion.button
-          whileTap={{ scale: 0.9 }}
-          onClick={() => setIsSettingsModalOpen(true)}
-          className="text-gray-500"
-          aria-label="Settings"
-        >
-          <SettingsIcon className="w-6 h-6" aria-hidden="true" />
-        </motion.button>
-      </div>
-
-      {/* Floating Action Buttons */}
-      <div className={cn(
-        "fixed right-6 flex flex-col gap-4 z-30 items-center transition-all duration-300",
-        currentTrack ? "bottom-44" : "bottom-28"
-      )}>
+      <div className={cn("fixed right-6 flex flex-col gap-4 z-30 items-center transition-all duration-300", currentTrack ? "bottom-48" : "bottom-32")}>
         {filter === 'inbox' && (
-          <motion.button
-            whileTap={{ scale: 0.9 }}
-            onClick={() => refreshFeeds()}
-            disabled={isLoading}
-            className={cn(
-              "w-10 h-10 bg-gray-800 text-indigo-400 rounded-xl shadow-lg flex items-center justify-center hover:bg-gray-700 active:scale-95 transition-all",
-              isLoading ? "animate-spin opacity-50" : ""
-            )}
-            title="Refresh feeds"
-            aria-label="Refresh feeds"
-          >
-            <RefreshCw className="w-5 h-5" aria-hidden="true" />
+          <motion.button whileTap={{ scale: 0.9 }} onClick={() => refreshFeeds()} disabled={isLoading} className={cn("w-10 h-10 bg-gray-800 text-indigo-400 rounded-xl shadow-lg flex items-center justify-center", isLoading ? "animate-spin opacity-50" : "")}>
+            <RefreshCw className="w-5 h-5" />
           </motion.button>
         )}
-        <motion.button
-          whileTap={{ scale: 0.9 }}
-          onClick={() => setIsMarkAllConfirmOpen(true)}
-          className="w-14 h-14 bg-indigo-500 text-white rounded-2xl shadow-lg flex items-center justify-center hover:bg-indigo-600 active:scale-95 transition-transform"
-          title="Mark all as read"
-          aria-label="Mark all as read"
-        >
-          <CheckSquare className="w-6 h-6" aria-hidden="true" />
-        </motion.button>
+        <motion.button whileTap={{ scale: 0.9 }} onClick={() => setIsMarkAllConfirmOpen(true)} className="w-14 h-14 bg-indigo-500 text-white rounded-2xl shadow-lg flex items-center justify-center"><CheckSquare className="w-6 h-6" /></motion.button>
       </div>
 
-      {/* Modals & Overlays */}
-      <AnimatePresence>
-        {isMarkAllConfirmOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="w-full max-w-sm p-6 rounded-2xl shadow-2xl bg-gray-900"
-            >
-              <h3 className="text-lg font-bold mb-2 text-gray-100">Mark all as read?</h3>
-              <p className="text-gray-400 mb-6">This will mark all articles in the current view as read.</p>
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setIsMarkAllConfirmOpen(false)}
-                  className="flex-1 py-2.5 rounded-xl font-medium bg-gray-800 text-gray-100"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={() => {
-                    markAllAsRead();
-                    setForceRefresh(prev => prev + 1);
-                    setIsMarkAllConfirmOpen(false);
-                  }}
-                  className="flex-1 py-2.5 rounded-xl font-medium bg-indigo-600 text-white"
-                >
-                  Mark All
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      <SettingsModal
-        isOpen={isSettingsModalOpen}
-        initialTab={settingsInitialTab}
-        onClose={() => {
-          setIsSettingsModalOpen(false);
-          setSettingsInitialTab(undefined);
-          setFilter('inbox');
-          setSearchQuery('');
-          setIsSearchOpen(false);
-        }}
-      />
-      
+      <SettingsModal isOpen={isSettingsModalOpen} initialTab={settingsInitialTab} onClose={() => { setIsSettingsModalOpen(false); setSettingsInitialTab(undefined); }} />
       <AnimatePresence>
         {selectedArticle && (
           <ArticleReader 
-            key={selectedArticle.id}
-            article={selectedArticle} 
-            onClose={() => setSelectedArticle(null)} 
-            onSelectArticle={(article) => setSelectedArticle(article)}
-            onNext={() => {
-              const idx = displayArticles.findIndex(a => a.id === selectedArticle.id);
-              if (idx < displayArticles.length - 1) {
-                const nextArticle = articles.find(a => a.id === displayArticles[idx + 1].id) || displayArticles[idx + 1];
-                setSelectedArticle(nextArticle);
-                if (!nextArticle.isRead && nextArticle.type !== 'podcast') markAsRead(nextArticle.id);
-              }
-            }}
-            onPrev={() => {
-              const idx = displayArticles.findIndex(a => a.id === selectedArticle.id);
-              if (idx > 0) {
-                const prevArticle = articles.find(a => a.id === displayArticles[idx - 1].id) || displayArticles[idx - 1];
-                setSelectedArticle(prevArticle);
-                if (!prevArticle.isRead && prevArticle.type !== 'podcast') markAsRead(prevArticle.id);
-              }
-            }}
-            hasNext={displayArticles.findIndex(a => a.id === selectedArticle.id) < displayArticles.length - 1}
-            hasPrev={displayArticles.findIndex(a => a.id === selectedArticle.id) > 0}
+            key={selectedArticle.id} article={selectedArticle} onClose={() => setSelectedArticle(null)} onSelectArticle={setSelectedArticle}
+            hasNext={articles.findIndex(a => a.id === selectedArticle.id) < articles.length - 1}
+            hasPrev={articles.findIndex(a => a.id === selectedArticle.id) > 0}
           />
         )}
       </AnimatePresence>
-      <PersistentPlayer onNavigate={(article) => setSelectedArticle(article)} />
+      <PersistentPlayer onNavigate={setSelectedArticle} />
     </div>
   );
 }
@@ -635,7 +262,6 @@ export default function App() {
   return (
     <RssProvider>
       <AudioPlayerProvider>
-        {/* ⚡ Bolt: RssProvider handles context performance (stable value, memoized derivations) */}
         <MainContent />
       </AudioPlayerProvider>
     </RssProvider>

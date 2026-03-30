@@ -84,10 +84,11 @@ export function RssProvider({ children }: { children: React.ReactNode }) {
     // Handle background to foreground transitions
     const stateListener = CapacitorApp.addListener('appStateChange', ({ isActive }) => {
       if (isActive) {
-        // If it's been more than 15 minutes since last refresh, refresh again
+        // When the app is opened/resumed, check if we should refresh
         const now = Date.now();
-        if (now - lastRefreshRef.current > 15 * 60 * 1000) {
-          console.log('App resumed after 15+ mins, refreshing feeds...');
+        // Reduced threshold to 5 minutes for better responsiveness on resume
+        if (now - lastRefreshRef.current > 5 * 60 * 1000) {
+          console.log('App resumed after 5+ mins, refreshing feeds...');
           refreshFeeds();
         }
       }
