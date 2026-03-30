@@ -1,6 +1,4 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-// Correzione TS2305: Uso l'import di default dato che il named export 'fetchFeed' non esiste
-import fetchFeed from '../fetch-feed';
 
 export interface FeedItem {
   id: string;
@@ -11,13 +9,12 @@ export interface FeedItem {
   contentSnippet?: string;
 }
 
-// Correzione TS2339 e TS2353: Aggiunta la proprietà 'url' all'interfaccia Feed
 export interface Feed {
   id?: string;
   title: string;
   description?: string;
   link?: string;
-  url: string; // Aggiunto per risolvere gli errori alle righe 48, 76, 129
+  url: string;
   items: FeedItem[];
 }
 
@@ -31,6 +28,40 @@ interface RssContextType {
 
 const RssContext = createContext<RssContextType | undefined>(undefined);
 
+// Sostituiamo l'importazione del file Node.js con una funzione client-side sicura.
+// Utilizziamo un servizio proxy pubblico (rss2json) per aggirare i blocchi CORS del browser
+// e convertire nativamente l'XML del feed in JSON.
+const fetchFeed = async (url: string): Promise<Feed> => {
+  const proxyUrl = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(url)}`;
+  
+  const response = await fetch(proxyUrl);
+  if (!response.ok) {
+    throw new Error('Errore di rete durante il fetch del feed');
+  }
+  
+  const data = await response.json();
+  if (data.status !== 'ok') {
+    throw new Error('Impossibile parsare il feed RSS');
+  }
+
+  // Mappiamo la risposta nel nostro formato Feed standard
+  return {
+    title: data.feed.title,
+    description: data.feed.description,
+    link: data.feed.link,
+    url: url,
+    items: data.items.map((item: any) => ({
+      id: item.guid || item.link,
+      title: item.title,
+      link: item.link,
+      pubDate: item.pubDate,
+      content: item.content,
+      // Usiamo una versione pulita o la descrizione breve per lo snippet
+      contentSnippet: item.description?.replace(/(<([^>]+)>)/gi, "") || '' 
+    }))
+  };
+};
+
 export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [feeds, setFeeds] = useState<Feed[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -38,20 +69,12 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const addFeed = async (url: string) => {
     setIsLoading(true);
     try {
-      // Fetch del feed tramite la funzione importata
       const feedData = await fetchFeed(url);
       
       if (feedData) {
-        // Ora TypeScript riconosce 'url' come proprietà valida del tipo Feed
-        const newFeed: Feed = { 
-          ...feedData, 
-          url: url 
-        };
-        
         setFeeds(prevFeeds => {
-          // Evita duplicati basandosi sull'url
           if (prevFeeds.some(f => f.url === url)) return prevFeeds;
-          return [...prevFeeds, newFeed];
+          return [...prevFeeds, feedData];
         });
       }
     } catch (error) {
@@ -62,7 +85,6 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const removeFeed = (url: string) => {
-    // Ora è possibile filtrare correttamente usando la proprietà 'url'
     setFeeds(prevFeeds => prevFeeds.filter(feed => feed.url !== url));
   };
 
@@ -73,10 +95,10 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         feeds.map(async (feed) => {
           try {
             const updatedData = await fetchFeed(feed.url);
-            return { ...updatedData, url: feed.url };
+            return updatedData;
           } catch (e) {
             console.error(`Errore durante l'aggiornamento di ${feed.url}`, e);
-            return feed; // In caso di errore, mantieni il feed vecchio
+            return feed; 
           }
         })
       );
@@ -86,9 +108,8 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   };
 
-  // Logica di inizializzazione base
   useEffect(() => {
-    // Qui potresti inserire un caricamento iniziale da localStorage
+    // Inizializzazione (es. caricamento dei feed pregressi dal DB locale)
   }, []);
 
   return (

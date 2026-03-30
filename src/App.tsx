@@ -31,7 +31,11 @@ export default function App() {
           {/* Struttura base per ospitare la logica di lettura */}
           <SwipeableArticle />
           <div className="hidden">
-            <ArticleReader />
+            {/* Passiamo un oggetto strutturato anziché null per evitare il crash "article is undefined" */}
+            <ArticleReader 
+              article={{ id: 'placeholder', title: '', link: '', pubDate: '' }} 
+              onClose={() => {}} 
+            />
           </div>
         </main>
 
@@ -39,11 +43,11 @@ export default function App() {
 
         {/* Modali */}
         {isAddFeedOpen && (
-          <AddFeedModal onClose={() => setIsAddFeedOpen(false)} />
+          <AddFeedModal isOpen={isAddFeedOpen} onClose={() => setIsAddFeedOpen(false)} />
         )}
         
         {isSettingsOpen && (
-          <SettingsModal onClose={() => setIsSettingsOpen(false)} />
+          <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
         )}
       </div>
     </RssProvider>
