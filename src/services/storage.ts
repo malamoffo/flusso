@@ -259,8 +259,7 @@ function parseRssXml(xmlString: string, feedUrl: string): { feed: Feed; articles
       }
       
       if (!imageUrl) {
-        // Sanitize content before parsing it as HTML to avoid interpreting tainted text as markup
-        imageUrl = extractBestImage(sanitizeHtml(content));
+        imageUrl = extractBestImage(content);
       }
 
       let duration = getTagText(entry, ['itunes:duration', 'duration', 'media:duration']);
