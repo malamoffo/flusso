@@ -81,6 +81,7 @@ public class AndroidAutoService extends MediaBrowserServiceCompat {
     @Override
     public void onCreate() {
         super.onCreate();
+        Log.d(TAG, "onCreate");
         // Bind to the Capgo MediaSessionService to get the session token
         Intent intent = new Intent(this, MediaSessionService.class);
         isBound = bindService(intent, connection, Context.BIND_AUTO_CREATE);
@@ -89,6 +90,7 @@ public class AndroidAutoService extends MediaBrowserServiceCompat {
     @Override
     public void onDestroy() {
         super.onDestroy();
+        Log.d(TAG, "onDestroy");
         if (isBound) {
             unbindService(connection);
             isBound = false;
@@ -98,20 +100,24 @@ public class AndroidAutoService extends MediaBrowserServiceCompat {
     @Nullable
     @Override
     public BrowserRoot onGetRoot(@NonNull String clientPackageName, int clientUid, @Nullable Bundle rootHints) {
+        Log.d(TAG, "onGetRoot");
         // Allow all clients to connect, but return a simple root
         return new BrowserRoot(ROOT_ID, null);
     }
 
     @Override
     public void onLoadChildren(@NonNull String parentId, @NonNull Result<List<MediaBrowserCompat.MediaItem>> result) {
+        Log.d(TAG, "onLoadChildren: " + parentId);
         List<MediaBrowserCompat.MediaItem> mediaItems = new ArrayList<>();
 
         if (ROOT_ID.equals(parentId)) {
             // Fetch queue from our custom plugin
             QueuePlugin queuePlugin = QueuePlugin.getInstance();
             if (queuePlugin != null) {
+                Log.d(TAG, "QueuePlugin is not null");
                 JSArray queue = queuePlugin.getQueue();
                 if (queue != null) {
+                    Log.d(TAG, "Queue size: " + queue.length());
                     try {
                         for (int i = 0; i < queue.length(); i++) {
                             JSONObject item = queue.getJSONObject(i);
@@ -139,7 +145,11 @@ public class AndroidAutoService extends MediaBrowserServiceCompat {
                     } catch (Exception e) {
                         Log.e(TAG, "Error parsing queue", e);
                     }
+                } else {
+                    Log.d(TAG, "Queue is null");
                 }
+            } else {
+                Log.d(TAG, "QueuePlugin is null");
             }
         }
         

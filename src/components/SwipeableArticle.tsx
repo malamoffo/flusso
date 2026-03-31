@@ -22,7 +22,7 @@ interface SwipeableArticleProps {
   toggleRead: (id: string) => void;
   toggleFavorite: (id: string) => void;
   toggleQueue: (id: string) => void;
-  onRemove?: (id: string) => void;
+  onRemove?: (id: string, isFavorite: boolean, isQueued: boolean) => void;
   isSavedSection?: boolean;
   filter?: string;
   style?: React.CSSProperties;
@@ -133,8 +133,6 @@ export const SwipeableArticle = React.memo(function SwipeableArticle({
     return '';
   };
 
-  const [exitX, setExitX] = React.useState<number | string>(0);
-
   const handleDragEnd = (event: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
     const threshold = 50;
     const isRight = info.offset.x > threshold;
@@ -144,9 +142,11 @@ export const SwipeableArticle = React.memo(function SwipeableArticle({
       const action = isRight ? settings.swipeRightAction : settings.swipeLeftAction;
       
       if (isSavedSection) {
-        // Snap back for all actions to give the "bounce" feel
-        animate(x, 0, { type: "spring", stiffness: 600, damping: 35, restDelta: 0.5 });
-        onRemove?.(article.id);
+        // Slide out completely before removing
+        const direction = info.offset.x > 0 ? 1 : -1;
+        animate(x, direction * 500, { type: "spring", stiffness: 600, damping: 35 }).then(() => {
+          onRemove?.(article.id, article.isFavorite, article.isQueued);
+        });
       } else {
         // Snap back for all actions to give the "bounce" feel
         animate(x, 0, { type: "spring", stiffness: 600, damping: 35, restDelta: 0.5 });
@@ -207,7 +207,6 @@ export const SwipeableArticle = React.memo(function SwipeableArticle({
       initial={{ opacity: 0, height: 0 }}
       animate={{ opacity: 1, height: 'auto' }}
       exit={{ 
-        opacity: 0, 
         height: 0,
         transition: { duration: 0.2, ease: "easeInOut" } 
       }}
@@ -221,7 +220,7 @@ export const SwipeableArticle = React.memo(function SwipeableArticle({
         prefetchRef(node);
       }} 
       className={cn(
-        "relative w-full overflow-hidden border-b border-gray-800 will-change-transform"
+        "relative w-full overflow-hidden border-b border-gray-800 will-change-transform bg-black"
       )}
       style={{
         contentVisibility: 'auto',
@@ -276,9 +275,8 @@ export const SwipeableArticle = React.memo(function SwipeableArticle({
         dragTransition={{ bounceStiffness: 400, bounceDamping: 25 }}
         onDragEnd={handleDragEnd}
         onClick={handleArticleClick}
-        exit={{ x: exitX, opacity: 0, transition: { duration: 0.15, ease: "easeOut" } }}
         className={cn(
-          "relative z-20 w-full p-4 cursor-pointer shadow-sm transition-colors bg-black",
+          "relative z-20 w-full p-4 cursor-pointer shadow-sm transition-colors bg-black dark:bg-black",
           "opacity-100"
         )}
       >

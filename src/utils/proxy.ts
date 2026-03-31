@@ -30,7 +30,7 @@ export async function fetchWithProxy(url: string, isRss: boolean = true): Promis
     // Direct fetch failed (likely CORS or timeout), fallback to proxies
   }
 
-  const proxies = [
+  const proxies: { name: string, url: string, type: 'text' | 'json' | 'rss2json', timeout?: number }[] = [
     { name: 'AllOrigins Raw', url: `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`, type: 'text' },
     { name: 'AllOrigins JSON', url: `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`, type: 'json' },
     { name: 'CorsProxy.io', url: `https://corsproxy.io/?${encodeURIComponent(url)}`, type: 'text' },
@@ -38,15 +38,16 @@ export async function fetchWithProxy(url: string, isRss: boolean = true): Promis
   ];
 
   if (isRss) {
-    proxies.push({ name: 'RSS2JSON', url: `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(url)}`, type: 'rss2json' });
+    proxies.push({ name: 'RSS2JSON', url: `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(url)}`, type: 'rss2json', timeout: 20000 });
   }
 
   let lastError: any;
-  const timeout = 10000; // 10 seconds timeout per proxy
+  const defaultTimeout = 10000; // 10 seconds timeout per proxy
 
   for (let i = 0; i < proxies.length; i++) {
     const proxy = proxies[i];
-    console.log(`Attempting fetch via ${proxy.name} for ${url}`);
+    const timeout = proxy.timeout || defaultTimeout;
+    console.log(`Attempting fetch via ${proxy.name} for ${url} (timeout: ${timeout}ms)`);
     
     let id: any;
     try {
