@@ -186,6 +186,7 @@ function parseRssXml(xmlString: string, feedUrl: string): { feed: Feed; articles
   }
 
   // Helper to get text content from a list of possible tags, including namespaced ones
+  // We keep this for feed-level tags, but bypass it for item-level parsing which is optimized
   function getTagText(element: Element, tags: string[]): string {
     for (const tag of tags) {
       // Try exact match (for namespaced tags in XML mode)
@@ -202,6 +203,17 @@ function parseRssXml(xmlString: string, feedUrl: string): { feed: Feed; articles
     return '';
   }
 
+  // Optimized single-pass text retrieval using a pre-computed tag dictionary
+  function getSingleTagText(tagDict: Record<string, Element[]>, tags: string[]): string {
+    for (let t = 0; t < tags.length; t++) {
+      const elements = tagDict[tags[t].toLowerCase()];
+      if (elements && elements.length > 0 && elements[0].textContent) {
+        return elements[0].textContent.trim();
+      }
+    }
+    return '';
+  }
+
   const isAtom = xmlDoc.getElementsByTagName('feed').length > 0;
   const feedId = uuidv4();
   
@@ -212,25 +224,57 @@ function parseRssXml(xmlString: string, feedUrl: string): { feed: Feed; articles
     const link = feedNode.getElementsByTagName('link')[0]?.getAttribute('href') || '';
     
     const entries = Array.from(xmlDoc.getElementsByTagName('entry'));
-    const articles: Article[] = entries.map(entry => {
-      const content = getTagText(entry, ['content', 'summary', 'description', 'content:encoded']) || '';
-      let entryTitle = getTagText(entry, ['title', 'dc:title']);
+    const articles: Article[] = [];
+    
+    for (let i = 0; i < entries.length; i++) {
+      const entry = entries[i];
+      
+      // Single-pass iteration to build a dictionary of immediate children
+      const tagDict: Record<string, Element[]> = {};
+      const children = entry.children;
+      for (let c = 0; c < children.length; c++) {
+        const child = children[c];
+        const nodeName = child.nodeName.toLowerCase();
+        
+        let elements = tagDict[nodeName];
+        if (!elements) {
+          elements = [];
+          tagDict[nodeName] = elements;
+        }
+        elements.push(child);
+        
+        const colonIndex = nodeName.indexOf(':');
+        if (colonIndex !== -1) {
+          const localName = nodeName.substring(colonIndex + 1);
+          let localElements = tagDict[localName];
+          if (!localElements) {
+            localElements = [];
+            tagDict[localName] = localElements;
+          }
+          localElements.push(child);
+        }
+      }
+
+      const content = getSingleTagText(tagDict, ['content', 'summary', 'description', 'content:encoded']) || '';
+      let entryTitle = getSingleTagText(tagDict, ['title', 'dc:title']);
+      
       if (!entryTitle) {
         const plainText = sanitizeSnippet(decodeHtmlEntities(content));
         entryTitle = plainText.length > 50 ? plainText.substring(0, 50) + '...' : plainText;
         if (!entryTitle) entryTitle = 'Untitled';
       }
-      const entryLink = entry.getElementsByTagName('link')[0]?.getAttribute('href') || '';
-      const pubDateStr = getTagText(entry, ['published', 'updated', 'pubDate']) || new Date().toISOString();
+      
+      const linkElements = tagDict['link'] || [];
+      const entryLink = linkElements.length > 0 ? (linkElements[0].getAttribute('href') || '') : '';
+      const pubDateStr = getSingleTagText(tagDict, ['published', 'updated', 'pubDate']) || new Date().toISOString();
       const pubDate = new Date(pubDateStr).getTime();
       
-      // Try to find an image or media
-      let imageUrl = null;
-      let mediaUrl = null;
-      let mediaType = null;
+      let imageUrl: string | null = null;
+      let mediaUrl: string | null = null;
+      let mediaType: string | null = null;
       
-      const links = Array.from(entry.getElementsByTagName('link'));
-      for (const l of links) {
+      for (let j = 0; j < linkElements.length; j++) {
+        const l = linkElements[j];
         const rel = l.getAttribute('rel');
         const type = l.getAttribute('type');
         const href = l.getAttribute('href');
@@ -244,15 +288,30 @@ function parseRssXml(xmlString: string, feedUrl: string): { feed: Feed; articles
         }
       }
 
-      const mediaContent = entry.getElementsByTagName('media:content')[0];
-      if (mediaContent) {
+      const groupElements = tagDict['media:group'] || tagDict['group'] || [];
+      const mediaContentElements = [...(tagDict['media:content'] || tagDict['content'] || [])];
+      
+      for (let j = 0; j < groupElements.length; j++) {
+        const groupChildren = groupElements[j].children;
+        for (let k = 0; k < groupChildren.length; k++) {
+          const nn = groupChildren[k].nodeName.toLowerCase();
+          if (nn === 'media:content' || nn.endsWith(':content') || nn === 'content') {
+            mediaContentElements.push(groupChildren[k]);
+          }
+        }
+      }
+
+      if (mediaContentElements.length > 0) {
+        const mediaContent = mediaContentElements[0];
         const type = mediaContent.getAttribute('type');
         const url = mediaContent.getAttribute('url');
         if (type?.startsWith('image/')) {
-          if (!imageUrl) imageUrl = url;
+          if (!imageUrl && url) imageUrl = url;
         } else if (type?.startsWith('audio/') || type?.startsWith('video/')) {
-          mediaUrl = url;
-          mediaType = type;
+          if (url) {
+            mediaUrl = url;
+            mediaType = type;
+          }
         } else if (!type && url && (url.endsWith('.jpg') || url.endsWith('.png'))) {
           if (!imageUrl) imageUrl = url;
         }
@@ -262,16 +321,12 @@ function parseRssXml(xmlString: string, feedUrl: string): { feed: Feed; articles
         imageUrl = extractBestImage(content);
       }
 
-      let duration = getTagText(entry, ['itunes:duration', 'duration', 'media:duration']);
-      if (!duration) {
-        // Try to find duration in media:content or enclosure
-        const mediaContent = entry.getElementsByTagName('media:content')[0];
-        if (mediaContent) {
-          duration = mediaContent.getAttribute('duration') || '';
-        }
+      let duration = getSingleTagText(tagDict, ['itunes:duration', 'duration', 'media:duration']);
+      if (!duration && mediaContentElements.length > 0) {
+        duration = mediaContentElements[0].getAttribute('duration') || '';
       }
 
-      return {
+      articles.push({
         id: uuidv4(),
         feedId,
         title: decodeHtmlEntities(entryTitle),
@@ -287,8 +342,8 @@ function parseRssXml(xmlString: string, feedUrl: string): { feed: Feed; articles
         type: mediaType?.startsWith('audio/') ? 'podcast' : 'article',
         contentSnippet: sanitizeSnippet(decodeHtmlEntities(content)),
         content: content,
-      };
-    });
+      });
+    }
 
     return {
       feed: {
@@ -315,28 +370,61 @@ function parseRssXml(xmlString: string, feedUrl: string): { feed: Feed; articles
     const feedImage = itunesFeedImage || channel.getElementsByTagName('image')[0]?.getElementsByTagName('url')[0]?.textContent;
 
     const items = Array.from(xmlDoc.getElementsByTagName('item'));
-    const articles: Article[] = items.map(item => {
-      const content = getTagText(item, ['description', 'content:encoded', 'content', 'summary', 'itunes:summary', 'itunes:subtitle']) || '';
-      let itemTitle = getTagText(item, ['title', 'dc:title']);
+    const articles: Article[] = [];
+    
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      
+      const tagDict: Record<string, Element[]> = {};
+      const children = item.children;
+      for (let c = 0; c < children.length; c++) {
+        const child = children[c];
+        const nodeName = child.nodeName.toLowerCase();
+        
+        let elements = tagDict[nodeName];
+        if (!elements) {
+          elements = [];
+          tagDict[nodeName] = elements;
+        }
+        elements.push(child);
+        
+        const colonIndex = nodeName.indexOf(':');
+        if (colonIndex !== -1) {
+          const localName = nodeName.substring(colonIndex + 1);
+          let localElements = tagDict[localName];
+          if (!localElements) {
+            localElements = [];
+            tagDict[localName] = localElements;
+          }
+          localElements.push(child);
+        }
+      }
+      
+      const content = getSingleTagText(tagDict, ['description', 'content:encoded', 'content', 'summary', 'itunes:summary', 'itunes:subtitle']) || '';
+      let itemTitle = getSingleTagText(tagDict, ['title', 'dc:title']);
       if (!itemTitle) {
         const plainText = sanitizeSnippet(decodeHtmlEntities(content));
         itemTitle = plainText.length > 50 ? plainText.substring(0, 50) + '...' : plainText;
         if (!itemTitle) itemTitle = 'Untitled';
       }
-      const itemLink = getTagText(item, ['link']) || '';
-      const pubDateStr = getTagText(item, ['pubDate', 'published', 'updated']) || new Date().toISOString();
+      
+      const itemLink = getSingleTagText(tagDict, ['link']) || '';
+      const pubDateStr = getSingleTagText(tagDict, ['pubDate', 'published', 'updated']) || new Date().toISOString();
       const pubDate = new Date(pubDateStr).getTime();
       
-      let imageUrl = null;
-      let mediaUrl = null;
-      let mediaType = null;
+      let imageUrl: string | null = null;
+      let mediaUrl: string | null = null;
+      let mediaType: string | null = null;
       
-      // Try itunes:image first for podcasts
-      const itunesImage = item.getElementsByTagName('itunes:image')[0]?.getAttribute('href');
-      if (itunesImage) imageUrl = itunesImage;
+      const itunesImageElements = tagDict['itunes:image'] || tagDict['image'] || [];
+      if (itunesImageElements.length > 0) {
+        const itunesImage = itunesImageElements[0].getAttribute('href');
+        if (itunesImage) imageUrl = itunesImage;
+      }
 
-      const enclosures = Array.from(item.getElementsByTagName('enclosure'));
-      for (const enclosure of enclosures) {
+      const enclosures = tagDict['enclosure'] || [];
+      for (let j = 0; j < enclosures.length; j++) {
+        const enclosure = enclosures[j];
         const type = enclosure.getAttribute('type');
         const url = enclosure.getAttribute('url');
         if (type && url) {
@@ -349,20 +437,32 @@ function parseRssXml(xmlString: string, feedUrl: string): { feed: Feed; articles
         }
       }
       
-      if (!imageUrl) {
-        const mediaContent = item.getElementsByTagName('media:content')[0] || 
-                            item.getElementsByTagName('media:thumbnail')[0];
-        if (mediaContent) {
-          const type = mediaContent.getAttribute('type');
-          const url = mediaContent.getAttribute('url');
-          if (type?.startsWith('image/')) {
-            imageUrl = url;
-          } else if (type?.startsWith('audio/') || type?.startsWith('video/')) {
+      const groupElements = tagDict['media:group'] || tagDict['group'] || [];
+      const mediaContentElements = [...(tagDict['media:content'] || tagDict['content'] || tagDict['media:thumbnail'] || tagDict['thumbnail'] || [])];
+      
+      for (let j = 0; j < groupElements.length; j++) {
+        const groupChildren = groupElements[j].children;
+        for (let k = 0; k < groupChildren.length; k++) {
+          const nn = groupChildren[k].nodeName.toLowerCase();
+          if (nn === 'media:content' || nn.endsWith(':content') || nn === 'content' || nn === 'media:thumbnail' || nn.endsWith(':thumbnail') || nn === 'thumbnail') {
+            mediaContentElements.push(groupChildren[k]);
+          }
+        }
+      }
+
+      if (!imageUrl && mediaContentElements.length > 0) {
+        const mediaContent = mediaContentElements[0];
+        const type = mediaContent.getAttribute('type');
+        const url = mediaContent.getAttribute('url');
+        if (type?.startsWith('image/')) {
+          if (url) imageUrl = url;
+        } else if (type?.startsWith('audio/') || type?.startsWith('video/')) {
+          if (url) {
             mediaUrl = url;
             mediaType = type;
-          } else if (url) {
-            imageUrl = url; // fallback
           }
+        } else if (url) {
+          imageUrl = url;
         }
       }
 
@@ -370,16 +470,12 @@ function parseRssXml(xmlString: string, feedUrl: string): { feed: Feed; articles
         imageUrl = extractBestImage(content);
       }
 
-      let duration = getTagText(item, ['itunes:duration', 'duration', 'media:duration']);
-      if (!duration) {
-        // Try to find duration in media:content or enclosure
-        const mediaContent = item.getElementsByTagName('media:content')[0];
-        if (mediaContent) {
-          duration = mediaContent.getAttribute('duration') || '';
-        }
+      let duration = getSingleTagText(tagDict, ['itunes:duration', 'duration', 'media:duration']);
+      if (!duration && mediaContentElements.length > 0) {
+        duration = mediaContentElements[0].getAttribute('duration') || '';
       }
 
-      return {
+      articles.push({
         id: uuidv4(),
         feedId,
         title: decodeHtmlEntities(itemTitle),
@@ -395,8 +491,8 @@ function parseRssXml(xmlString: string, feedUrl: string): { feed: Feed; articles
         type: mediaType?.startsWith('audio/') ? 'podcast' : 'article',
         contentSnippet: sanitizeSnippet(decodeHtmlEntities(content)),
         content: content,
-      };
-    });
+      });
+    }
 
     return {
       feed: {

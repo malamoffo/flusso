@@ -17,23 +17,31 @@ export function CachedImage({ src, className, fallback, ...props }: CachedImageP
   const [error, setError] = useState(false);
 
   useEffect(() => {
-    console.log('[CachedImage] src:', src);
     let isMounted = true;
+    
+    // Reset state for new src
+    const alreadyLoaded = loadedImages.has(src);
+    setIsLoaded(alreadyLoaded);
+    setError(false);
+    setCurrentSrc(src);
 
     const loadImage = async () => {
-      if (loadedImages.has(src)) {
-        setIsLoaded(true);
-        return;
-      }
+      if (!src || alreadyLoaded) return;
 
       let finalSrc = src;
       if (Capacitor.isNativePlatform()) {
-        finalSrc = await imagePersistence.getLocalUrl(src);
-        if (isMounted) setCurrentSrc(finalSrc);
+        try {
+          finalSrc = await imagePersistence.getLocalUrl(src);
+          if (isMounted) setCurrentSrc(finalSrc);
+        } catch (e) {
+          console.error('[CachedImage] Native load error:', e);
+        }
       }
 
       const img = new Image();
-      img.src = finalSrc;
+      if (props.referrerPolicy) {
+        img.referrerPolicy = props.referrerPolicy;
+      }
       img.onload = () => {
         if (isMounted) {
           loadedImages.add(src);
@@ -41,8 +49,13 @@ export function CachedImage({ src, className, fallback, ...props }: CachedImageP
         }
       };
       img.onerror = () => {
-        if (isMounted) setError(true);
+        if (isMounted) {
+          setError(true);
+          // Even on error, we mark as loaded so the native img tag can try to show it
+          setIsLoaded(true);
+        }
       };
+      img.src = finalSrc;
     };
 
     loadImage();
@@ -58,8 +71,8 @@ export function CachedImage({ src, className, fallback, ...props }: CachedImageP
       src={currentSrc}
       className={cn(
         className,
-        !isLoaded && "opacity-0",
-        isLoaded && "opacity-100 transition-opacity duration-300"
+        !isLoaded && !error && "opacity-0",
+        (isLoaded || error) && "opacity-100 transition-opacity duration-300"
       )}
       {...props}
       // If it's already in our "loaded" set, don't lazy load it again to avoid flicker

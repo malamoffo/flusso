@@ -103,7 +103,7 @@ export const imagePersistence = {
     const chunk_size = 0x8000;
     
     for (let i = 0; i < bytes.length; i += chunk_size) {
-      binary += String.fromCharCode.apply(null, Array.from(bytes.subarray(i, i + chunk_size)));
+      binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk_size) as unknown as number[]);
     }
     return btoa(binary);
   }

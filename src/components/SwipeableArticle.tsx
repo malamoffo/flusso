@@ -284,6 +284,7 @@ export const SwipeableArticle = React.memo(function SwipeableArticle({
         )}>
           {(article.imageUrl || (article.type === 'podcast' && feedImageUrl)) && (article.type === 'podcast' || settings.imageDisplay !== 'none') && (
             <CachedImage 
+              key={`${article.id}-img`}
               src={getSafeUrl(article.imageUrl || feedImageUrl!)}
               alt="" 
               className={cn(

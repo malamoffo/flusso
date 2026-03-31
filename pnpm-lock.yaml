@@ -58,9 +58,6 @@ importers:
       idb-keyval:
         specifier: ^6.2.2
         version: 6.2.2
-      jsdom:
-        specifier: ^29.0.1
-        version: 29.0.1(@noble/hashes@1.8.0)
       lucide-react:
         specifier: ^0.546.0
         version: 0.546.0(react@19.2.4)
@@ -116,6 +113,9 @@ importers:
       autoprefixer:
         specifier: ^10.4.21
         version: 10.4.27(postcss@8.5.8)
+      jsdom:
+        specifier: ^29.0.1
+        version: 29.0.1(@noble/hashes@1.8.0)
       sharp-cli:
         specifier: ^5.2.0
         version: 5.2.0

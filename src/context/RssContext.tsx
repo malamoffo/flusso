@@ -279,6 +279,15 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const results: { feed: Feed; articles: Article[] }[] = [];
       let completed = 0;
       
+      // Precompute the latest article date for each feed for O(1) lookups
+      const latestArticleDateByFeedId = new Map<string, number>();
+      for (const article of cArticles) {
+        const currentLatest = latestArticleDateByFeedId.get(article.feedId) || 0;
+        if (article.pubDate > currentLatest) {
+          latestArticleDateByFeedId.set(article.feedId, article.pubDate);
+        }
+      }
+      
       const queue = [...fToRefresh];
       const workers = Array(Math.min(5, queue.length)).fill(null).map(async () => {
         while (queue.length > 0) {
@@ -286,13 +295,11 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           if (!feed) break;
           try {
             // Find the latest article date for this feed to only fetch newer articles
-            const latestArticle = cArticles
-              .filter(a => a.feedId === feed.id)
-              .sort((a, b) => b.pubDate - a.pubDate)[0];
+            const latestArticleDate = latestArticleDateByFeedId.get(feed.id);
             
             // Use the feed's lastArticleDate if no articles are present (e.g. after cleanup)
             // to avoid re-fetching articles that were already deleted.
-            const sinceDate = latestArticle?.pubDate || feed.lastArticleDate;
+            const sinceDate = latestArticleDate || feed.lastArticleDate;
             
             const data = await storage.fetchFeedData(feed.feedUrl, sinceDate);
             if (data) results.push(data);
