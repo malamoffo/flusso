@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useMemo, useRef } from 'react';
 import { Feed, Article, Settings } from '../types';
 import { storage, defaultSettings } from '../services/storage';
+import packageJson from '../../package.json';
 
 interface ProgressInfo {
   current: number;
@@ -49,9 +50,33 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [updateInfo, setUpdateInfo] = useState<any | null>(null);
   const lastRefresh = useRef(Date.now());
+  const isRefreshing = useRef(false);
 
   const checkUpdates = useCallback(async (force = false) => {
-    // Mock update check
+    try {
+      // Use a proxy to avoid GitHub API rate limits or CORS issues in some environments
+      const response = await fetch('https://api.github.com/repos/malamoffo/flusso/releases/latest');
+      if (response.ok) {
+        const data = await response.json();
+        const latestVersion = data.tag_name.replace('v', '');
+        const currentVersion = packageJson.version;
+        
+        if (latestVersion !== currentVersion) {
+          setUpdateInfo({
+            hasUpdate: true,
+            latestRelease: {
+              version: latestVersion,
+              notes: data.body,
+              url: data.html_url
+            }
+          });
+        } else {
+          setUpdateInfo({ hasUpdate: false });
+        }
+      }
+    } catch (e) {
+      console.error('Failed to check for updates', e);
+    }
   }, []);
 
   const loadData = async () => {
@@ -265,6 +290,8 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   }, []);
 
   const refreshFeeds = useCallback(async (feedsToRefresh?: Feed[], currentArticles?: Article[]) => {
+    if (isRefreshing.current) return;
+    isRefreshing.current = true;
     try {
       setIsLoading(true);
       const fToRefresh = feedsToRefresh || await storage.getFeeds();
@@ -272,6 +299,7 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       
       if (fToRefresh.length === 0) {
         setIsLoading(false);
+        isRefreshing.current = false;
         return;
       }
       
@@ -327,6 +355,7 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     } finally {
       setIsLoading(false);
       setProgress(null);
+      isRefreshing.current = false;
     }
   }, []);
 

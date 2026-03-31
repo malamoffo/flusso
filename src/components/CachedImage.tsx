@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { cn } from '../lib/utils';
 import { imagePersistence } from '../utils/imagePersistence';
 import { Capacitor } from '@capacitor/core';
+import { FileText } from 'lucide-react';
 
 // Global set to track images that have already been loaded in this session
 const loadedImages = new Set<string>();
@@ -23,36 +24,52 @@ export function CachedImage({ src, className, fallback, ...props }: CachedImageP
     const alreadyLoaded = loadedImages.has(src);
     setIsLoaded(alreadyLoaded);
     setError(false);
-    setCurrentSrc(src);
+    
+    // If it's a new src, we might want to clear currentSrc to avoid showing the old image
+    // but only if it's not already loaded to avoid flicker
+    if (!alreadyLoaded) {
+      setCurrentSrc('');
+    } else {
+      setCurrentSrc(src);
+    }
 
     const loadImage = async () => {
-      if (!src || alreadyLoaded) return;
+      if (!src) return;
 
       let finalSrc = src;
       if (Capacitor.isNativePlatform()) {
         try {
-          finalSrc = await imagePersistence.getLocalUrl(src);
-          if (isMounted) setCurrentSrc(finalSrc);
+          const localUrl = await imagePersistence.getLocalUrl(src);
+          if (localUrl) {
+            finalSrc = localUrl;
+          }
         } catch (e) {
           console.error('[CachedImage] Native load error:', e);
         }
       }
 
+      if (alreadyLoaded) {
+        if (isMounted) setCurrentSrc(finalSrc);
+        return;
+      }
+
       const img = new Image();
       if (props.referrerPolicy) {
-        img.referrerPolicy = props.referrerPolicy;
+        img.referrerPolicy = props.referrerPolicy as ReferrerPolicy;
       }
       img.onload = () => {
         if (isMounted) {
           loadedImages.add(src);
+          setCurrentSrc(finalSrc);
           setIsLoaded(true);
         }
       };
       img.onerror = () => {
         if (isMounted) {
           setError(true);
-          // Even on error, we mark as loaded so the native img tag can try to show it
-          setIsLoaded(true);
+          // Don't mark as loaded if there's an error to avoid showing broken icon
+          // unless we want the browser's default error handling
+          setIsLoaded(false);
         }
       };
       img.src = finalSrc;
@@ -62,8 +79,16 @@ export function CachedImage({ src, className, fallback, ...props }: CachedImageP
     return () => { isMounted = false; };
   }, [src]);
 
-  if (error && fallback) {
-    return <>{fallback}</>;
+  if (error) {
+    if (fallback) return <>{fallback}</>;
+    return (
+      <div className={cn(
+        className,
+        "bg-gray-800 flex items-center justify-center text-gray-600"
+      )}>
+        <FileText className="w-1/3 h-1/3 opacity-20" />
+      </div>
+    );
   }
 
   return (
@@ -71,8 +96,8 @@ export function CachedImage({ src, className, fallback, ...props }: CachedImageP
       src={currentSrc}
       className={cn(
         className,
-        !isLoaded && !error && "opacity-0",
-        (isLoaded || error) && "opacity-100 transition-opacity duration-300"
+        !isLoaded && "opacity-0",
+        isLoaded && "opacity-100 transition-opacity duration-300"
       )}
       {...props}
       // If it's already in our "loaded" set, don't lazy load it again to avoid flicker

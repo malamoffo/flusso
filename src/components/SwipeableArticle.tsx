@@ -136,7 +136,7 @@ export const SwipeableArticle = React.memo(function SwipeableArticle({
   const [exitX, setExitX] = React.useState<number | string>(0);
 
   const handleDragEnd = (event: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
-    const threshold = 50;
+    const threshold = 40;
     const isRight = info.offset.x > threshold;
     const isLeft = info.offset.x < -threshold;
 
@@ -146,7 +146,6 @@ export const SwipeableArticle = React.memo(function SwipeableArticle({
       if (isSavedSection) {
         // Set exit direction for AnimatePresence
         setExitX(isRight ? '100%' : '-100%');
-        console.log(`[SWIPE] Removing article ${article.id} from saved section`);
         onRemove?.(article.id);
       } else {
         // Snap back for all actions to give the "bounce" feel
@@ -269,6 +268,7 @@ export const SwipeableArticle = React.memo(function SwipeableArticle({
           left: (isSavedSection || settings.swipeLeftAction !== 'none') ? 0.5 : 0, 
           right: (isSavedSection || settings.swipeRightAction !== 'none') ? 0.5 : 0 
         }}
+        dragPropagation={false}
         dragTransition={{ bounceStiffness: 400, bounceDamping: 25 }}
         onDragEnd={handleDragEnd}
         onClick={handleArticleClick}
