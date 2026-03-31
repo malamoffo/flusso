@@ -21,17 +21,9 @@ export function CachedImage({ src, className, fallback, ...props }: CachedImageP
     let isMounted = true;
     
     // Reset state for new src
-    const alreadyLoaded = loadedImages.has(src);
-    setIsLoaded(alreadyLoaded);
+    setIsLoaded(false);
     setError(false);
-    
-    // If it's a new src, we might want to clear currentSrc to avoid showing the old image
-    // but only if it's not already loaded to avoid flicker
-    if (!alreadyLoaded) {
-      setCurrentSrc(null);
-    } else {
-      setCurrentSrc(src || null);
-    }
+    setCurrentSrc(null);
 
     const loadImage = async () => {
       if (!src) return;
@@ -48,11 +40,6 @@ export function CachedImage({ src, className, fallback, ...props }: CachedImageP
         }
       }
 
-      if (alreadyLoaded) {
-        if (isMounted) setCurrentSrc(finalSrc);
-        return;
-      }
-
       const img = new Image();
       if (props.referrerPolicy) {
         img.referrerPolicy = props.referrerPolicy as ReferrerPolicy;
@@ -67,8 +54,6 @@ export function CachedImage({ src, className, fallback, ...props }: CachedImageP
       img.onerror = () => {
         if (isMounted) {
           setError(true);
-          // Don't mark as loaded if there's an error to avoid showing broken icon
-          // unless we want the browser's default error handling
           setIsLoaded(false);
         }
       };
@@ -93,6 +78,7 @@ export function CachedImage({ src, className, fallback, ...props }: CachedImageP
 
   return (
     <img
+      key={src}
       src={currentSrc || undefined}
       className={cn(
         className,
@@ -100,8 +86,7 @@ export function CachedImage({ src, className, fallback, ...props }: CachedImageP
         isLoaded && "opacity-100 transition-opacity duration-300"
       )}
       {...props}
-      // If it's already in our "loaded" set, don't lazy load it again to avoid flicker
-      loading="eager"
+      loading="lazy"
     />
   );
 }

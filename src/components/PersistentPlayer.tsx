@@ -88,14 +88,14 @@ const PlayerProgressBar = React.memo(function PlayerProgressBar() {
 
   return (
     <div className="flex items-center gap-2 text-[10px] font-medium text-indigo-400 mt-1">
-      <span className="w-8 text-left">{formatTime(progress)}</span>
+      <span className="w-14 flex-shrink-0 text-left whitespace-nowrap">{formatTime(progress)}</span>
       <div className="flex-1 h-1 bg-gray-800 rounded-full overflow-hidden">
         <div 
           className="h-full bg-indigo-500 transition-all duration-200" 
           style={{ width: `${progressPercent}%` }} 
         />
       </div>
-      <span className="w-8 text-right">{formatTime(Math.max(0, duration - progress))}</span>
+      <span className="w-14 flex-shrink-0 text-right whitespace-nowrap">{formatTime(Math.max(0, duration - progress))}</span>
     </div>
   );
 });

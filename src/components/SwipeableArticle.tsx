@@ -370,14 +370,14 @@ const PodcastProgressBar = React.memo(({ article, isCurrentTrack }: { article: A
   return (
     <div className="mt-2">
       <div className="flex items-center gap-2 text-[10px] font-medium text-indigo-400">
-        <span className="w-8 text-left">{formatTime(currentSeconds)}</span>
+        <span className="w-12 flex-shrink-0 text-left whitespace-nowrap">{formatTime(currentSeconds)}</span>
         <div className="flex-1 h-1.5 bg-gray-800 rounded-full overflow-hidden">
           <div 
             className="h-full bg-indigo-500 transition-all duration-300" 
             style={{ width: `${progressPercent}%` }} 
           />
         </div>
-        <span className="w-8 text-right">{formatTime(remainingSeconds)}</span>
+        <span className="w-12 flex-shrink-0 text-right whitespace-nowrap">{formatTime(remainingSeconds)}</span>
       </div>
     </div>
   );
@@ -394,14 +394,14 @@ const LivePodcastProgressBar = ({ article }: { article: Article }) => {
   return (
     <div className="mt-2">
       <div className="flex items-center gap-2 text-[10px] font-medium text-indigo-400">
-        <span className="w-8 text-left">{formatTime(currentSeconds)}</span>
+        <span className="w-12 flex-shrink-0 text-left whitespace-nowrap">{formatTime(currentSeconds)}</span>
         <div className="flex-1 h-1.5 bg-gray-800 rounded-full overflow-hidden">
           <div 
             className="h-full bg-indigo-500 transition-all duration-300" 
             style={{ width: `${progressPercent}%` }} 
           />
         </div>
-        <span className="w-8 text-right">{formatTime(remainingSeconds)}</span>
+        <span className="w-12 flex-shrink-0 text-right whitespace-nowrap">{formatTime(remainingSeconds)}</span>
       </div>
     </div>
   );

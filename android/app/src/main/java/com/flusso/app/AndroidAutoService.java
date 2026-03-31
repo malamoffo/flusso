@@ -47,13 +47,22 @@ public class AndroidAutoService extends MediaBrowserServiceCompat {
                     setSessionToken(mediaSession.getSessionToken());
                     Log.d(TAG, "Successfully attached MediaSessionToken");
                     
-                    // Add a callback to handle play from media id
+                    // We need to delegate standard callbacks to the original ones so standard controls (play/pause) keep working.
+                    Field pluginField = MediaSessionService.class.getDeclaredField("plugin");
+                    pluginField.setAccessible(true);
+                    final Object plugin = pluginField.get(mediaSessionService);
+                    
+                    final Method actionCallbackMethod = plugin.getClass().getDeclaredMethod("actionCallback", String.class);
+                    actionCallbackMethod.setAccessible(true);
+
+                    final Method actionCallbackWithDataMethod = plugin.getClass().getDeclaredMethod("actionCallback", String.class, JSObject.class);
+                    actionCallbackWithDataMethod.setAccessible(true);
+
+                    // Add a callback to handle play from media id and delegate others
                     mediaSession.setCallback(new MediaSessionCompat.Callback() {
                         @Override
                         public void onPlayFromMediaId(String mediaId, Bundle extras) {
                             super.onPlayFromMediaId(mediaId, extras);
-                            // We need to tell the web layer to play this item.
-                            // The easiest way is to fire an event through our plugin.
                             QueuePlugin queuePlugin = QueuePlugin.getInstance();
                             if (queuePlugin != null) {
                                 queuePlugin.triggerPlayRequest(mediaId);
@@ -61,10 +70,50 @@ public class AndroidAutoService extends MediaBrowserServiceCompat {
                                 Log.e(TAG, "QueuePlugin instance is null, cannot send playRequest");
                             }
                         }
-                        
-                        // We should also delegate other standard callbacks to the original ones if possible,
-                        // but for now, just handling playFromMediaId is the most critical missing piece
-                        // for selecting an item from the list.
+
+                        @Override
+                        public void onPlay() {
+                            try { actionCallbackMethod.invoke(plugin, "play"); } catch (Exception e) { Log.e(TAG, "Error invoking play", e); }
+                        }
+
+                        @Override
+                        public void onPause() {
+                            try { actionCallbackMethod.invoke(plugin, "pause"); } catch (Exception e) { Log.e(TAG, "Error invoking pause", e); }
+                        }
+
+                        @Override
+                        public void onSeekTo(long pos) {
+                            try {
+                                JSObject data = new JSObject();
+                                data.put("seekTime", (double) pos / 1000.0);
+                                actionCallbackWithDataMethod.invoke(plugin, "seekto", data);
+                            } catch (Exception e) { Log.e(TAG, "Error invoking seekto", e); }
+                        }
+
+                        @Override
+                        public void onRewind() {
+                            try { actionCallbackMethod.invoke(plugin, "seekbackward"); } catch (Exception e) { Log.e(TAG, "Error invoking seekbackward", e); }
+                        }
+
+                        @Override
+                        public void onFastForward() {
+                            try { actionCallbackMethod.invoke(plugin, "seekforward"); } catch (Exception e) { Log.e(TAG, "Error invoking seekforward", e); }
+                        }
+
+                        @Override
+                        public void onSkipToPrevious() {
+                            try { actionCallbackMethod.invoke(plugin, "previoustrack"); } catch (Exception e) { Log.e(TAG, "Error invoking previoustrack", e); }
+                        }
+
+                        @Override
+                        public void onSkipToNext() {
+                            try { actionCallbackMethod.invoke(plugin, "nexttrack"); } catch (Exception e) { Log.e(TAG, "Error invoking nexttrack", e); }
+                        }
+
+                        @Override
+                        public void onStop() {
+                            try { actionCallbackMethod.invoke(plugin, "stop"); } catch (Exception e) { Log.e(TAG, "Error invoking stop", e); }
+                        }
                     });
                 }
             } catch (Exception e) {

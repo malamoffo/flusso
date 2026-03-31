@@ -28,7 +28,7 @@ export function isSafeUrl(url: string | null | undefined): boolean {
   try {
     // Use the URL constructor for robust protocol validation
     const parsed = new URL(trimmed);
-    return ['http:', 'https:', 'mailto:'].includes(parsed.protocol);
+    return ['http:', 'https:', 'mailto:', 'tel:'].includes(parsed.protocol);
   } catch (e) {
     // If URL parsing fails and it's not a relative path we handle above,
     // we return false to be safe.

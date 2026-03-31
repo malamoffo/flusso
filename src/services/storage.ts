@@ -3,7 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { Feed, Article, Settings } from '../types';
 import { CapacitorHttp } from '@capacitor/core';
 import { fetchWithProxy } from '../utils/proxy';
-import sanitizeHtml from 'sanitize-html';
+import DOMPurify from 'dompurify';
 import { getSafeUrl } from '../lib/utils';
 
 import he from 'he';
@@ -36,7 +36,7 @@ function escapeXml(unsafe: string): string {
 // Helper to sanitize article content into a safe text snippet
 function sanitizeSnippet(input: string): string {
   if (!input) return '';
-  const textOnly = sanitizeHtml(input, { allowedTags: [], allowedAttributes: {} });
+  const textOnly = DOMPurify.sanitize(input, { ALLOWED_TAGS: [], ALLOWED_ATTR: [] });
   return textOnly.trim().substring(0, 200);
 }
 
@@ -318,7 +318,12 @@ function parseRssXml(xmlString: string, feedUrl: string): { feed: Feed; articles
       }
       
       if (!imageUrl) {
-        imageUrl = extractBestImage(sanitizeHtml(content));
+        // We need to allow img tags to extract the best image
+        const sanitizedForImage = DOMPurify.sanitize(content, {
+          ALLOWED_TAGS: ['img', 'figure', 'picture', 'source'],
+          ALLOWED_ATTR: ['src', 'data-src', 'data-lazy-src', 'data-original', 'width', 'height', 'alt', 'srcset', 'data-srcset']
+        });
+        imageUrl = extractBestImage(sanitizedForImage);
       }
 
       let duration = getSingleTagText(tagDict, ['itunes:duration', 'duration', 'media:duration']);
