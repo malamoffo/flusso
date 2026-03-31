@@ -39,8 +39,8 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
   const lastSavedProgressRef = useRef<number>(0);
   const currentTrackRef = useRef<Article | null>(null);
 
-  // Get the current queue
-  const queue = articles.filter(a => a.isQueued);
+  // Get the current queue: favorited podcasts
+  const queue = articles.filter(a => a.isFavorite && a.type === 'podcast');
   const queueRef = useRef<Article[]>([]);
   const { feeds } = useRss();
   
@@ -297,17 +297,15 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
 
       MediaSession.setActionHandler({ action: 'play' }, () => {
         console.log("MediaSession play action handler called");
-        if (audioRef.current) {
-          audioRef.current.play();
-          MediaSession.setPlaybackState({ playbackState: 'playing' }).catch(console.error);
+        if (currentTrack) {
+          play(currentTrack);
+        } else if (queue.length > 0) {
+          play(queue[0]);
         }
       });
       MediaSession.setActionHandler({ action: 'pause' }, () => {
         console.log("MediaSession pause action handler called");
-        if (audioRef.current) {
-          audioRef.current.pause();
-          MediaSession.setPlaybackState({ playbackState: 'paused' }).catch(console.error);
-        }
+        pause();
       });
       MediaSession.setActionHandler({ action: 'seekbackward' }, () => seek(Math.max(0, progress - 10)));
       MediaSession.setActionHandler({ action: 'seekforward' }, () => seek(Math.min(duration, progress + 30)));
@@ -317,7 +315,7 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
       MediaSession.setActionHandler({ action: 'previoustrack' }, () => playPrevious());
       MediaSession.setActionHandler({ action: 'nexttrack' }, () => playNext());
     }
-  }, [currentTrack, progress, duration, playNext, playPrevious, seek, stop, feeds]);
+  }, [currentTrack, progress, duration, playNext, playPrevious, seek, stop, feeds, play, pause, queue]);
 
   // ⚡ Bolt: Memoize state context value
   const stateValue = useMemo(() => ({
