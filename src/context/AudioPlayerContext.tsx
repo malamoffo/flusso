@@ -46,7 +46,20 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
   
   useEffect(() => {
     queueRef.current = queue;
-  }, [queue]);
+    if (Capacitor.isNativePlatform()) {
+      const queueData = queue.map(a => {
+        const feed = feeds.find(f => f.id === a.feedId);
+        return {
+          id: a.id,
+          title: a.title,
+          artist: feed?.title || 'Podcast',
+          album: 'Flusso',
+          artwork: a.imageUrl || feed?.imageUrl
+        };
+      });
+      QueuePlugin.setQueue({ queue: queueData }).catch(console.error);
+    }
+  }, [queue, feeds]);
 
   const playNextRef = useRef<() => void>(() => {});
 
@@ -58,6 +71,7 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
   // Initialize audio element once
   useEffect(() => {
     const audio = new Audio();
+    audio.crossOrigin = 'anonymous';
     audioRef.current = audio;
     
     const handleTimeUpdate = () => {
@@ -282,10 +296,18 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
       }).catch(console.error);
 
       MediaSession.setActionHandler({ action: 'play' }, () => {
-        if (audioRef.current) audioRef.current.play();
+        console.log("MediaSession play action handler called");
+        if (audioRef.current) {
+          audioRef.current.play();
+          MediaSession.setPlaybackState({ playbackState: 'playing' }).catch(console.error);
+        }
       });
       MediaSession.setActionHandler({ action: 'pause' }, () => {
-        if (audioRef.current) audioRef.current.pause();
+        console.log("MediaSession pause action handler called");
+        if (audioRef.current) {
+          audioRef.current.pause();
+          MediaSession.setPlaybackState({ playbackState: 'paused' }).catch(console.error);
+        }
       });
       MediaSession.setActionHandler({ action: 'seekbackward' }, () => seek(Math.max(0, progress - 10)));
       MediaSession.setActionHandler({ action: 'seekforward' }, () => seek(Math.min(duration, progress + 30)));
