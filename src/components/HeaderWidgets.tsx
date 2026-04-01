@@ -5,24 +5,9 @@ import { fetchWithProxy } from '../utils/proxy';
 interface WeatherData {
   temp: number;
   condition: string;
+  lat: number;
+  lon: number;
 }
-
-const Clock = memo(() => {
-  const [time, setTime] = useState(new Date());
-
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setTime(new Date());
-    }, 1000);
-    return () => clearInterval(timer);
-  }, []);
-
-  return (
-    <div className="flex items-center">
-      <span>{time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-    </div>
-  );
-});
 
 const WeatherWidget = memo(({ loading, weather }: { loading: boolean, weather: WeatherData | null }) => {
   const getWeatherIcon = (condition: string) => {
@@ -47,8 +32,16 @@ const WeatherWidget = memo(({ loading, weather }: { loading: boolean, weather: W
 
   if (!weather) return null;
 
+  const handleClick = () => {
+    window.open(`https://www.google.com/search?q=meteo+${weather.lat},${weather.lon}`, '_blank');
+  };
+
   return (
-    <div className="flex items-center gap-1.5">
+    <div 
+      className="flex items-center gap-1.5 cursor-pointer hover:text-gray-700 transition-colors"
+      onClick={handleClick}
+      title="Vedi previsioni meteo"
+    >
       {getWeatherIcon(weather.condition)}
       <span>{weather.temp}°C</span>
     </div>
@@ -70,6 +63,8 @@ export const HeaderWidgets = memo(function HeaderWidgets() {
           setWeather({
             temp: Math.round(data.current_weather.temperature),
             condition: getWeatherCondition(data.current_weather.weathercode),
+            lat,
+            lon
           });
         }
       } catch (error) {
@@ -115,7 +110,6 @@ export const HeaderWidgets = memo(function HeaderWidgets() {
 
   return (
     <div className="flex items-baseline gap-3 text-xl font-bold text-gray-500 tracking-tight">
-      <Clock />
       <WeatherWidget loading={loading} weather={weather} />
     </div>
   );

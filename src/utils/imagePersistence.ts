@@ -27,6 +27,36 @@ export const imagePersistence = {
   },
 
   /**
+   * Checks if an image is already cached locally and returns its URI.
+   * Returns null if not cached.
+   */
+  async getCachedUrl(url: string): Promise<string | null> {
+    if (!Capacitor.isNativePlatform()) return null;
+
+    const filename = this.getFilename(url);
+    const path = `${CACHE_DIR}/${filename}`;
+
+    try {
+      const stat = await Filesystem.stat({
+        path,
+        directory: Directory.Data
+      });
+      
+      if (stat.size > 0) {
+        const uriResult = await Filesystem.getUri({
+          path,
+          directory: Directory.Data
+        });
+        return Capacitor.convertFileSrc(uriResult.uri);
+      }
+    } catch (e) {
+      // File doesn't exist
+      return null;
+    }
+    return null;
+  },
+
+  /**
    * Retrieves an image from the local filesystem or downloads it if not found.
    */
   async getLocalUrl(url: string): Promise<string> {

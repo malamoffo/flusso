@@ -16,53 +16,104 @@ type CachedImageProps = React.ImgHTMLAttributes<HTMLImageElement> & {
 };
 
 export function CachedImage({ src, className, fallback, alt, ...props }: CachedImageProps) {
-  // 1. Initialize with already resolved local URL if available in memory
-  const initialSrc = resolvedLocalUrls.get(src) || src || null;
-  const [currentSrc, setCurrentSrc] = useState<string | null>(initialSrc);
+  const [currentSrc, setCurrentSrc] = useState<string | null>(() => {
+    if (!src) return null;
+    if (resolvedLocalUrls.has(src)) return resolvedLocalUrls.get(src)!;
+    // On native, wait for cache check to avoid flicker from remote -> local switch
+    if (typeof window !== 'undefined' && Capacitor.isNativePlatform()) return null;
+    return src;
+  });
   
-  // 2. Initial load state based on memory cache
-  const [isLoaded, setIsLoaded] = useState(initialSrc ? loadedFinalUrls.has(initialSrc) : false);
+  const [isLoaded, setIsLoaded] = useState(() => {
+    if (!src) return false;
+    if (resolvedLocalUrls.has(src)) {
+      return loadedFinalUrls.has(resolvedLocalUrls.get(src)!);
+    }
+    if (typeof window !== 'undefined' && Capacitor.isNativePlatform()) return false;
+    return loadedFinalUrls.has(src);
+  });
+  
   const [error, setError] = useState(false);
+  const imgRef = React.useRef<HTMLImageElement>(null);
 
-  // 3. Resolve local URL if needed (async)
+  // Sync state with src prop changes
   useEffect(() => {
-    let isMounted = true;
-    
     if (!src) {
       setCurrentSrc(null);
       setIsLoaded(false);
+      setError(false);
       return;
     }
 
-    const resolveUrl = async () => {
-      if (!Capacitor.isNativePlatform()) return;
-      
-      try {
-        const localUrl = await imagePersistence.getLocalUrl(src);
-        if (localUrl && isMounted) {
-          resolvedLocalUrls.set(src, localUrl);
-          if (localUrl !== currentSrc) {
-            setCurrentSrc(localUrl);
-            // If this local URL was already loaded in this session, mark as loaded immediately
-            if (loadedFinalUrls.has(localUrl)) {
-              setIsLoaded(true);
-            }
+    if (resolvedLocalUrls.has(src)) {
+      const local = resolvedLocalUrls.get(src)!;
+      setCurrentSrc(local);
+      setIsLoaded(loadedFinalUrls.has(local));
+      setError(false);
+    } else if (typeof window !== 'undefined' && !Capacitor.isNativePlatform()) {
+      setCurrentSrc(src);
+      setIsLoaded(loadedFinalUrls.has(src));
+      setError(false);
+    } else {
+      // On native, reset to null and wait for the async check
+      setCurrentSrc(null);
+      setIsLoaded(false);
+      setError(false);
+    }
+  }, [src]);
+
+  useEffect(() => {
+    let isMounted = true;
+    
+    if (!src) return;
+    if (resolvedLocalUrls.has(src)) return;
+
+    const initImage = async () => {
+      if (typeof window !== 'undefined' && Capacitor.isNativePlatform()) {
+        try {
+          const cachedUri = await imagePersistence.getCachedUrl(src);
+          if (cachedUri && isMounted) {
+            resolvedLocalUrls.set(src, cachedUri);
+            setCurrentSrc(cachedUri);
+            setIsLoaded(loadedFinalUrls.has(cachedUri));
+          } else if (isMounted) {
+            // Not cached locally yet. Use remote URL to show immediately.
+            setCurrentSrc(src);
+            setIsLoaded(loadedFinalUrls.has(src));
+            
+            // Trigger background download for next time
+            imagePersistence.getLocalUrl(src).then(downloadedUri => {
+              if (downloadedUri) {
+                resolvedLocalUrls.set(src, downloadedUri);
+              }
+            }).catch(e => console.warn('Background cache failed', e));
+          }
+        } catch (e) {
+          if (isMounted) {
+            setCurrentSrc(src);
+            setIsLoaded(loadedFinalUrls.has(src));
           }
         }
-      } catch (e) {
-        console.warn('[IMAGE_CACHE] Failed to resolve local URL:', e);
       }
     };
 
-    resolveUrl();
+    initImage();
     return () => { isMounted = false; };
-  }, [src, currentSrc]);
+  }, [src]);
+
+  // Check if image is already complete on mount or src change
+  useEffect(() => {
+    if (imgRef.current?.complete && currentSrc && !isLoaded) {
+      loadedFinalUrls.add(currentSrc);
+      setIsLoaded(true);
+    }
+  }, [currentSrc, isLoaded]);
 
   const handleLoad = () => {
     if (currentSrc) {
       loadedFinalUrls.add(currentSrc);
-      setIsLoaded(true);
     }
+    setIsLoaded(true);
   };
 
   const handleError = () => {
@@ -88,6 +139,7 @@ export function CachedImage({ src, className, fallback, alt, ...props }: CachedI
 
   return (
     <img
+      ref={imgRef}
       src={currentSrc || undefined}
       alt={alt}
       draggable={false}
