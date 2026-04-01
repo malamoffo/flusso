@@ -69,22 +69,32 @@ export default function App() {
 
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
-  useEffect(() => {
+  const handleFilterChange = (newFilter: 'inbox' | 'saved') => {
+    if (newFilter === filter) return;
+    
+    // Reset scroll and visible count immediately to avoid flickering
     if (scrollRef.current) {
       scrollRef.current.scrollTop = 0;
       isAtTop.current = true;
     }
+    
+    // Batch updates
+    setFilter(newFilter);
     setTypeFilter('all');
     setVisibleCount(PAGE_SIZE);
-  }, [filter]);
+  };
 
-  useEffect(() => {
+  const handleTypeFilterChange = (newType: 'all' | 'article' | 'podcast') => {
+    if (newType === typeFilter) return;
+    
     if (scrollRef.current) {
       scrollRef.current.scrollTop = 0;
       isAtTop.current = true;
     }
+    
+    setTypeFilter(newType);
     setVisibleCount(PAGE_SIZE);
-  }, [typeFilter, searchQuery, sourceFilter, timeFilter, isSearchOpen]);
+  };
 
   useEffect(() => {
     if (selectedArticle) {
@@ -96,12 +106,22 @@ export default function App() {
   }, [articles, selectedArticle]);
 
   useEffect(() => {
+    if (isSearchOpen || searchQuery || sourceFilter !== 'all' || timeFilter !== 'all') {
+      if (scrollRef.current) {
+        scrollRef.current.scrollTop = 0;
+        isAtTop.current = true;
+      }
+      setVisibleCount(PAGE_SIZE);
+    }
+  }, [isSearchOpen, searchQuery, sourceFilter, timeFilter]);
+
+  useEffect(() => {
     const handleBackButton = async ({ canGoBack }: any) => {
       if (selectedArticle) {
         setSelectedArticle(null);
       } else if (isSettingsOpen) {
         setIsSettingsOpen(false);
-        setFilter('inbox');
+        handleFilterChange('inbox');
         setSearchQuery('');
         setIsSearchOpen(false);
       } else if (isSearchOpen) {
@@ -110,7 +130,7 @@ export default function App() {
         setSourceFilter('all');
         setTimeFilter('all');
       } else if (filter !== 'inbox') {
-        setFilter('inbox');
+        handleFilterChange('inbox');
       } else {
         CapacitorApp.exitApp();
       }
@@ -287,7 +307,7 @@ export default function App() {
 
         <div className="px-4 pb-3 flex items-center gap-2 overflow-x-auto scrollbar-hide">
           <button
-            onClick={() => setTypeFilter('all')}
+            onClick={() => handleTypeFilterChange('all')}
             className={twMerge(
               "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap",
               typeFilter === 'all' ? "bg-indigo-600 text-white shadow-sm" : "bg-gray-800 text-gray-400 hover:bg-gray-700"
@@ -296,7 +316,7 @@ export default function App() {
             <Layers className="w-3.5 h-3.5" /> All
           </button>
           <button
-            onClick={() => setTypeFilter('article')}
+            onClick={() => handleTypeFilterChange('article')}
             className={twMerge(
               "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap",
               typeFilter === 'article' ? "bg-indigo-600 text-white shadow-sm" : "bg-gray-800 text-gray-400 hover:bg-gray-700"
@@ -305,7 +325,7 @@ export default function App() {
             <FileText className="w-3.5 h-3.5" /> Articles
           </button>
           <button
-            onClick={() => setTypeFilter('podcast')}
+            onClick={() => handleTypeFilterChange('podcast')}
             className={twMerge(
               "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap",
               typeFilter === 'podcast' ? "bg-indigo-600 text-white shadow-sm" : "bg-gray-800 text-gray-400 hover:bg-gray-700"
@@ -406,7 +426,7 @@ export default function App() {
           </div>
         ) : (
           <div className="flex-1">
-            <AnimatePresence mode="popLayout" initial={false}>
+            <AnimatePresence initial={false}>
               {visibleArticles.map(article => {
                 const feed = feedsMap.get(article.feedId);
                 return (
@@ -441,7 +461,7 @@ export default function App() {
       <div className="fixed bottom-0 left-0 right-0 border-t border-gray-800 flex justify-around pt-3 pb-5 px-3 z-20 transition-colors bg-black">
         <motion.button
           whileTap={{ scale: 0.9 }}
-          onClick={() => setFilter('saved')}
+          onClick={() => handleFilterChange('saved')}
           className={`${filter === 'saved' ? "text-yellow-500" : "text-gray-500"} relative`}
           aria-label="Saved articles"
           aria-pressed={filter === 'saved'}
@@ -455,7 +475,7 @@ export default function App() {
         </motion.button>
         <motion.button
           whileTap={{ scale: 0.9 }}
-          onClick={() => setFilter('inbox')}
+          onClick={() => handleFilterChange('inbox')}
           className={`${filter === 'inbox' ? "text-[var(--theme-color)]" : "text-gray-500"} relative`}
           aria-label="Inbox"
           aria-pressed={filter === 'inbox'}
@@ -552,7 +572,7 @@ export default function App() {
         onClose={() => {
           setIsSettingsOpen(false);
           setSettingsTab(undefined);
-          setFilter('inbox');
+          handleFilterChange('inbox');
           setSearchQuery('');
           setIsSearchOpen(false);
         }} 
