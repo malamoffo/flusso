@@ -1,6 +1,6 @@
 import { get, set } from 'idb-keyval';
 import { v4 as uuidv4 } from 'uuid';
-import { Feed, Article, Settings } from '../types';
+import { Feed, Article, Settings, PodcastChapter } from '../types';
 import { CapacitorHttp } from '@capacitor/core';
 import { fetchWithProxy } from '../utils/proxy';
 import DOMPurify from 'dompurify';
