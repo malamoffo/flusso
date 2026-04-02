@@ -366,11 +366,41 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       
       if (results.length > 0) {
         setProgress(p => p ? { ...p, status: "Saving articles..." } : null);
-        await storage.saveAllFeedData(results);
+        const { updatedFeeds, allNewArticles } = await storage.saveAllFeedData(results, fToRefresh, cArticles);
+        
+        setFeeds(updatedFeeds);
+        
+        if (allNewArticles.length > 0) {
+          setArticles(prev => {
+            // Efficiently merge new articles into the existing sorted list
+            // 1. Sort the new articles (usually a small batch)
+            const sortedNew = [...allNewArticles].sort((a, b) => b.pubDate - a.pubDate);
+            
+            // 2. Merge two sorted arrays in O(N+M)
+            const merged: Article[] = [];
+            let i = 0; // index for prev
+            let j = 0; // index for sortedNew
+            
+            while (i < prev.length && j < sortedNew.length) {
+              if (prev[i].pubDate >= sortedNew[j].pubDate) {
+                merged.push(prev[i]);
+                i++;
+              } else {
+                merged.push(sortedNew[j]);
+                j++;
+              }
+            }
+            
+            // Append remaining
+            while (i < prev.length) merged.push(prev[i]);
+            while (j < sortedNew.length) merged.push(sortedNew[j]);
+            
+            return merged;
+          });
+        }
       }
       
       setProgress(p => p ? { ...p, status: "Finalizing..." } : null);
-      await loadData();
       lastRefresh.current = Date.now();
     } catch (e) {
       setError("Failed to refresh feeds");

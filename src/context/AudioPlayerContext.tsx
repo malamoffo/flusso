@@ -40,13 +40,13 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
   const lastSavedProgressRef = useRef<number>(0);
   const currentTrackRef = useRef<Article | null>(null);
 
-  // Get the current queue: favorited podcasts
-  const queue = articles.filter(a => a.isQueued && a.type === 'podcast');
-  const recentPodcasts = articles
+  // Get the current queue: queued and favorited podcasts
+  const queue = useMemo(() => articles.filter(a => (a.isQueued || a.isFavorite) && a.type === 'podcast'), [articles]);
+  const recentPodcasts = useMemo(() => articles
     .filter(a => a.type === 'podcast')
     .sort((a, b) => b.pubDate - a.pubDate)
-    .slice(0, 20);
-  const favoritePodcasts = articles.filter(a => a.isFavorite && a.type === 'podcast');
+    .slice(0, 20), [articles]);
+  const favoritePodcasts = useMemo(() => articles.filter(a => a.isFavorite && a.type === 'podcast'), [articles]);
   
   const queueRef = useRef<Article[]>([]);
   const { feeds } = useRss();
@@ -257,19 +257,37 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
 
   const playNext = useCallback(() => {
     if (!currentTrackRef.current) return;
-    const currentIndex = queue.findIndex(a => a.id === currentTrackRef.current?.id);
-    if (currentIndex !== -1 && currentIndex < queue.length - 1) {
-      play(queue[currentIndex + 1]);
+    
+    // Determine which list we are currently playing from
+    let currentList = queue;
+    let currentIndex = currentList.findIndex(a => a.id === currentTrackRef.current?.id);
+    
+    if (currentIndex === -1) {
+      currentList = recentPodcasts;
+      currentIndex = currentList.findIndex(a => a.id === currentTrackRef.current?.id);
     }
-  }, [queue, play]);
+    
+    if (currentIndex !== -1 && currentIndex < currentList.length - 1) {
+      play(currentList[currentIndex + 1]);
+    }
+  }, [queue, recentPodcasts, play]);
 
   const playPrevious = useCallback(() => {
     if (!currentTrackRef.current) return;
-    const currentIndex = queue.findIndex(a => a.id === currentTrackRef.current?.id);
-    if (currentIndex > 0) {
-      play(queue[currentIndex - 1]);
+    
+    // Determine which list we are currently playing from
+    let currentList = queue;
+    let currentIndex = currentList.findIndex(a => a.id === currentTrackRef.current?.id);
+    
+    if (currentIndex === -1) {
+      currentList = recentPodcasts;
+      currentIndex = currentList.findIndex(a => a.id === currentTrackRef.current?.id);
     }
-  }, [queue, play]);
+    
+    if (currentIndex > 0) {
+      play(currentList[currentIndex - 1]);
+    }
+  }, [queue, recentPodcasts, play]);
 
   // Update the ref for handleEnded
   useEffect(() => {
@@ -280,7 +298,7 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
   useEffect(() => {
     if (Capacitor.isNativePlatform()) {
       const listener = QueuePlugin.addListener('playRequest', (data) => {
-        const trackToPlay = queue.find(a => a.id === data.id);
+        const trackToPlay = articles.find(a => a.id === data.id);
         if (trackToPlay) {
           play(trackToPlay);
         }
@@ -289,7 +307,7 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
         listener.then(l => l.remove());
       };
     }
-  }, [queue, play]);
+  }, [articles, play]);
 
   const pause = useCallback(() => {
     if (!audioRef.current) return;
