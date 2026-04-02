@@ -36,7 +36,7 @@ export default function App() {
   const {
     articles, feeds, settings, isLoading, error,
     refreshFeeds, toggleRead, markAsRead, markArticlesAsRead,
-    markAllAsRead, searchQuery, setSearchQuery, unreadCount,
+    markAllAsRead, searchQuery, setSearchQuery, unreadCount, savedCount,
     toggleFavorite, toggleQueue, removeFromSaved
   } = useRss();
 
@@ -172,14 +172,19 @@ export default function App() {
       }
       
       return true;
-    }).sort((a, b) => b.pubDate - a.pubDate);
+    });
+    /**
+     * ⚡ Bolt: Removed redundant .sort() call on filteredArticles.
+     * Since RssContext.tsx already ensures the 'articles' array is sorted by 'pubDate', 
+     * and Array.prototype.filter preserves original order, this sorting was unnecessary.
+     * Expected: Reduces CPU time by O(N log N) during every article update (including 
+     * the frequent "mark as read" scroll events).
+     */
   }, [articles, filter, typeFilter, searchQuery, sourceFilter, timeFilter, isSearchOpen]);
 
   const visibleArticles = useMemo(() => {
     return filteredArticles.slice(0, visibleCount);
   }, [filteredArticles, visibleCount]);
-
-  const savedCount = useMemo(() => articles.filter(a => a.isFavorite || a.isQueued).length, [articles]);
 
   const handleTouchStart = (e: React.TouchEvent) => {
     const scrollTop = scrollRef.current?.scrollTop || 0;

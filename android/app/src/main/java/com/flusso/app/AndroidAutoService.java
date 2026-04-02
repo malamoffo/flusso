@@ -199,6 +199,51 @@ public class AndroidAutoService extends MediaBrowserServiceCompat {
         Log.d(TAG, "onCreate - Inizializzazione servizio Android Auto");
         
         proxySession = new MediaSessionCompat(this, TAG);
+        proxySession.setFlags(MediaSessionCompat.FLAG_HANDLES_MEDIA_BUTTONS | MediaSessionCompat.FLAG_HANDLES_TRANSPORT_CONTROLS);
+        
+        // Set a default callback immediately so the session is valid
+        proxySession.setCallback(new MediaSessionCompat.Callback() {
+            @Override
+            public void onPlay() {
+                super.onPlay();
+            }
+            @Override
+            public void onPause() {
+                super.onPause();
+            }
+            @Override
+            public void onPlayFromMediaId(String mediaId, Bundle extras) {
+                super.onPlayFromMediaId(mediaId, extras);
+                Log.d(TAG, "Default onPlayFromMediaId: " + mediaId);
+                startAppWithMediaId(mediaId);
+            }
+            @Override
+            public void onPlayFromSearch(String query, Bundle extras) {
+                super.onPlayFromSearch(query, extras);
+                Log.d(TAG, "Default onPlayFromSearch: " + query);
+            }
+        });
+
+        // Set session activity to launch the app when tapping the player
+        Intent sessionIntent = new Intent(this, MainActivity.class);
+        android.app.PendingIntent sessionActivity = android.app.PendingIntent.getActivity(this, 0, sessionIntent, android.app.PendingIntent.FLAG_IMMUTABLE);
+        proxySession.setSessionActivity(sessionActivity);
+        
+        PlaybackStateCompat state = new PlaybackStateCompat.Builder()
+                .setActions(PlaybackStateCompat.ACTION_PLAY | PlaybackStateCompat.ACTION_PLAY_PAUSE |
+                        PlaybackStateCompat.ACTION_SKIP_TO_NEXT | PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS |
+                        PlaybackStateCompat.ACTION_PAUSE | PlaybackStateCompat.ACTION_STOP |
+                        PlaybackStateCompat.ACTION_PLAY_FROM_MEDIA_ID | PlaybackStateCompat.ACTION_PLAY_FROM_SEARCH)
+                .setState(PlaybackStateCompat.STATE_PAUSED, 0, 1.0f)
+                .build();
+        proxySession.setPlaybackState(state);
+        
+        MediaMetadataCompat metadata = new MediaMetadataCompat.Builder()
+                .putString(MediaMetadataCompat.METADATA_KEY_TITLE, "Flusso")
+                .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, "Flusso")
+                .build();
+        proxySession.setMetadata(metadata);
+        
         proxySession.setActive(true);
         setSessionToken(proxySession.getSessionToken());
         
@@ -235,8 +280,11 @@ public class AndroidAutoService extends MediaBrowserServiceCompat {
     @Override
     public BrowserRoot onGetRoot(@NonNull String clientPackageName, int clientUid, @Nullable Bundle rootHints) {
         Log.d(TAG, "onGetRoot");
-        // Allow all clients to connect, but return a simple root
-        return new BrowserRoot(ROOT_ID, null);
+        Bundle extras = new Bundle();
+        extras.putBoolean(BrowserRoot.EXTRA_RECENT, true);
+        extras.putBoolean(BrowserRoot.EXTRA_OFFLINE, true);
+        extras.putBoolean(BrowserRoot.EXTRA_SUGGESTED, true);
+        return new BrowserRoot(ROOT_ID, extras);
     }
 
     @Override
@@ -286,7 +334,13 @@ public class AndroidAutoService extends MediaBrowserServiceCompat {
                     for (int i = 0; i < queue.length(); i++) {
                         JSONObject item = queue.getJSONObject(i);
                         String id = item.optString("id");
+                        if (id == null || id.isEmpty()) {
+                            id = "unknown_" + i;
+                        }
                         String title = item.optString("title");
+                        if (title == null || title.isEmpty()) {
+                            title = "Sconosciuto";
+                        }
                         String subtitle = item.optString("artist"); // Use artist for subtitle
                         String imageUrl = item.optString("artwork"); // Use artwork for icon
                         String mediaUrl = item.optString("mediaUrl");
@@ -312,5 +366,10 @@ public class AndroidAutoService extends MediaBrowserServiceCompat {
         }
         
         result.sendResult(mediaItems);
+    }
+
+    @Override
+    public void onSearch(@NonNull String query, Bundle extras, @NonNull Result<List<MediaBrowserCompat.MediaItem>> result) {
+        result.sendResult(new ArrayList<>());
     }
 }
