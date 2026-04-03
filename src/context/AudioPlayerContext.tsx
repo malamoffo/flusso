@@ -91,22 +91,14 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
       setProgress(audio.currentTime);
       progressRef.current = audio.currentTime;
       setIsBuffering(false);
-      
-      // Update position state for media session
-      if (audio.duration > 0 && Capacitor.isNativePlatform()) {
-        MediaSession.setPositionState({
-          duration: audio.duration,
-          playbackRate: audio.playbackRate,
-          position: audio.currentTime
-        }).catch(console.error);
-      }
     };
 
     const handleLoadedMetadata = () => {
       setDuration(audio.duration);
       if (Capacitor.isNativePlatform()) {
+        const currentDuration = audio.duration;
         MediaSession.setPositionState({
-          duration: audio.duration,
+          duration: isNaN(currentDuration) ? 0 : currentDuration,
           playbackRate: audio.playbackRate,
           position: audio.currentTime
         }).catch(console.error);
@@ -119,7 +111,15 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
 
     const handlePlaying = () => {
       setIsBuffering(false);
-      if (Capacitor.isNativePlatform()) MediaSession.setPlaybackState({ playbackState: 'playing' }).catch(console.error);
+      if (Capacitor.isNativePlatform()) {
+        MediaSession.setPlaybackState({ playbackState: 'playing' }).catch(console.error);
+        const currentDuration = audio.duration;
+        MediaSession.setPositionState({
+          duration: isNaN(currentDuration) ? 0 : currentDuration,
+          playbackRate: audio.playbackRate,
+          position: audio.currentTime
+        }).catch(console.error);
+      }
     };
 
     const handleEnded = () => {
@@ -313,7 +313,15 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
     if (!audioRef.current) return;
     audioRef.current.pause();
     setIsPlaying(false);
-    if (Capacitor.isNativePlatform()) MediaSession.setPlaybackState({ playbackState: 'paused' }).catch(console.error);
+    if (Capacitor.isNativePlatform()) {
+      MediaSession.setPlaybackState({ playbackState: 'paused' }).catch(console.error);
+      const currentDuration = audioRef.current.duration;
+      MediaSession.setPositionState({
+        duration: isNaN(currentDuration) ? duration : currentDuration,
+        playbackRate: 0,
+        position: audioRef.current.currentTime
+      }).catch(console.error);
+    }
     
     // Save progress on pause
     if (currentTrack && duration > 0) {
@@ -336,13 +344,22 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
     audioRef.current.currentTime = time;
     setProgress(time);
     
+    if (Capacitor.isNativePlatform()) {
+      const currentDuration = audioRef.current.duration;
+      MediaSession.setPositionState({
+        duration: isNaN(currentDuration) ? duration : currentDuration,
+        playbackRate: isPlaying ? audioRef.current.playbackRate : 0,
+        position: time
+      }).catch(console.error);
+    }
+
     // Save progress on seek
     if (currentTrack && duration > 0) {
       const currentProgress = time / duration;
       updateArticle(currentTrack.id, { progress: currentProgress });
       lastSavedProgressRef.current = currentProgress;
     }
-  }, [currentTrack, duration, updateArticle]);
+  }, [currentTrack, duration, updateArticle, isPlaying]);
 
   const stop = useCallback(() => {
     if (!audioRef.current) return;

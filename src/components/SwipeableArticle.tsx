@@ -55,6 +55,11 @@ export const SwipeableArticle = React.memo(function SwipeableArticle({
     rootMargin: '-120px 0px 0px 0px', // Offset for the sticky header
   });
 
+  const hasBeenInView = useRef(false);
+  if (inView) {
+    hasBeenInView.current = true;
+  }
+
   const { ref: prefetchRef, inView: prefetchInView } = useInView({
     threshold: 0,
     rootMargin: '200px 0px', // Trigger prefetch slightly before it enters the screen
@@ -70,7 +75,7 @@ export const SwipeableArticle = React.memo(function SwipeableArticle({
   useEffect(() => {
     // Mark as read when the article exits the top of the screen (past the sticky header)
     // Only apply this logic when in the 'inbox' filter section
-    if (filter === 'inbox' && !inView && entry && entry.boundingClientRect.top < 120 && !article.isRead) {
+    if (filter === 'inbox' && hasBeenInView.current && !inView && entry && entry.boundingClientRect.top < 120 && !article.isRead) {
       onMarkAsRead(article.id);
     }
   }, [inView, entry, article.id, article.isRead, onMarkAsRead, filter]);

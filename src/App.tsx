@@ -327,43 +327,76 @@ export default function App() {
     }
   }, [isLoading, pullProgress]);
 
-  useEffect(() => {
-    if (!inboxBottomRef.current || inboxArticles.slice(0, visibleCountInbox).length === 0) return;
-    const observer = new IntersectionObserver((entries) => {
-      if (entries[0].isIntersecting) {
-        if (visibleCountInbox < inboxArticles.length) {
-          setVisibleCountInbox(prev => Math.min(prev + PAGE_SIZE, inboxArticles.length));
-        } else if (filter === 'inbox') {
-          const toMark = inboxArticles.filter(a => !a.isRead).map(a => a.id);
-          if (toMark.length > 0) {
-            console.log(`[SCROLL] Reached bottom, marking ${toMark.length} articles as read`);
-            markArticlesAsRead(toMark);
-          }
-        }
-      }
-    }, { threshold: 0.1 });
-    observer.observe(inboxBottomRef.current);
-    return () => observer.disconnect();
-  }, [inboxArticles, visibleCountInbox, markArticlesAsRead, filter]);
+  const inboxArticlesRef = useRef(inboxArticles);
+  useEffect(() => { inboxArticlesRef.current = inboxArticles; }, [inboxArticles]);
+
+  const savedArticlesRef = useRef(savedArticles);
+  useEffect(() => { savedArticlesRef.current = savedArticles; }, [savedArticles]);
 
   useEffect(() => {
-    if (!savedBottomRef.current || savedArticles.slice(0, visibleCountSaved).length === 0) return;
+    if (!inboxBottomRef.current || !inboxScrollRef.current) return;
     const observer = new IntersectionObserver((entries) => {
       if (entries[0].isIntersecting) {
-        if (visibleCountSaved < savedArticles.length) {
-          setVisibleCountSaved(prev => Math.min(prev + PAGE_SIZE, savedArticles.length));
-        } else if (filter === 'saved') {
-          const toMark = savedArticles.filter(a => !a.isRead).map(a => a.id);
-          if (toMark.length > 0) {
-            console.log(`[SCROLL] Reached bottom, marking ${toMark.length} articles as read`);
-            markArticlesAsRead(toMark);
-          }
+        if (visibleCountInbox < inboxArticlesRef.current.length) {
+          setVisibleCountInbox(prev => Math.min(prev + PAGE_SIZE, inboxArticlesRef.current.length));
         }
       }
-    }, { threshold: 0.1 });
+    }, { root: inboxScrollRef.current, rootMargin: '100px', threshold: 0.1 });
+    observer.observe(inboxBottomRef.current);
+    return () => observer.disconnect();
+  }, [visibleCountInbox]);
+
+  useEffect(() => {
+    if (!savedBottomRef.current || !savedScrollRef.current) return;
+    const observer = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting) {
+        if (visibleCountSaved < savedArticlesRef.current.length) {
+          setVisibleCountSaved(prev => Math.min(prev + PAGE_SIZE, savedArticlesRef.current.length));
+        }
+      }
+    }, { root: savedScrollRef.current, rootMargin: '100px', threshold: 0.1 });
     observer.observe(savedBottomRef.current);
     return () => observer.disconnect();
-  }, [savedArticles, visibleCountSaved, markArticlesAsRead, filter]);
+  }, [visibleCountSaved]);
+
+  // Handle marking as read when scrolling to bottom
+  useEffect(() => {
+    const inboxContainer = inboxScrollRef.current;
+    if (!inboxContainer) return;
+    
+    const handleScroll = () => {
+      if (filter !== 'inbox') return;
+      const isAtBottom = inboxContainer.scrollHeight - inboxContainer.scrollTop <= inboxContainer.clientHeight + 50;
+      if (isAtBottom && visibleCountInbox >= inboxArticlesRef.current.length) {
+        const toMark = inboxArticlesRef.current.filter(a => !a.isRead).map(a => a.id);
+        if (toMark.length > 0) {
+          markArticlesAsRead(toMark);
+        }
+      }
+    };
+    
+    inboxContainer.addEventListener('scroll', handleScroll);
+    return () => inboxContainer.removeEventListener('scroll', handleScroll);
+  }, [filter, visibleCountInbox, markArticlesAsRead]);
+
+  useEffect(() => {
+    const savedContainer = savedScrollRef.current;
+    if (!savedContainer) return;
+    
+    const handleScroll = () => {
+      if (filter !== 'saved') return;
+      const isAtBottom = savedContainer.scrollHeight - savedContainer.scrollTop <= savedContainer.clientHeight + 50;
+      if (isAtBottom && visibleCountSaved >= savedArticlesRef.current.length) {
+        const toMark = savedArticlesRef.current.filter(a => !a.isRead).map(a => a.id);
+        if (toMark.length > 0) {
+          markArticlesAsRead(toMark);
+        }
+      }
+    };
+    
+    savedContainer.addEventListener('scroll', handleScroll);
+    return () => savedContainer.removeEventListener('scroll', handleScroll);
+  }, [filter, visibleCountSaved, markArticlesAsRead]);
 
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const scrollTop = e.currentTarget.scrollTop;
