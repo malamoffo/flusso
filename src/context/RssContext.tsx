@@ -371,12 +371,17 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 
                 // Inserisci i nuovi articoli uno alla volta nella corretta posizione cronologica
                 if (data.articles && data.articles.length > 0) {
+                  // Ensure articles have the correct feedId from the existing feed
+                  const articlesWithCorrectId = data.articles.map(a => ({ ...a, feedId: feed.id }));
+                  // Update the results array so storage.saveAllFeedData also uses the correct ID
+                  data.articles = articlesWithCorrectId;
+                  
                   setArticles(prev => {
                     const merged = [...prev];
                     let hasNew = false;
                     
-                    for (let i = 0; i < data.articles.length; i++) {
-                      const newArticle = data.articles[i];
+                    for (let i = 0; i < articlesWithCorrectId.length; i++) {
+                      const newArticle = articlesWithCorrectId[i];
                       // Check for duplicate link
                       if (!merged.some(a => a.link === newArticle.link)) {
                         hasNew = true;
