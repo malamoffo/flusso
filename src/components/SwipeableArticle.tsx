@@ -18,7 +18,6 @@ interface SwipeableArticleProps {
   settings: Settings;
   onClick: (article: Article) => void;
   onMarkAsRead: (id: string) => void;
-  onVisibilityChange: (id: string, inView: boolean) => void;
   toggleRead: (id: string) => void;
   toggleFavorite: (id: string) => void;
   toggleQueue: (id: string) => void;
@@ -41,7 +40,6 @@ export const SwipeableArticle = React.memo(function SwipeableArticle({
   settings,
   onClick,
   onMarkAsRead,
-  onVisibilityChange,
   toggleRead,
   toggleFavorite,
   toggleQueue,
@@ -68,18 +66,6 @@ export const SwipeableArticle = React.memo(function SwipeableArticle({
       contentFetcher.enqueue(article.id, article.link);
     }
   }, [prefetchInView, article.id, article.link]);
-
-  useEffect(() => {
-    // Report visibility to parent for batch marking as read
-    if (!article.isRead) {
-      onVisibilityChange(article.id, inView);
-    }
-    
-    // Cleanup on unmount or when article is marked as read
-    return () => {
-      onVisibilityChange(article.id, false);
-    };
-  }, [inView, article.id, article.isRead, onVisibilityChange]);
 
   useEffect(() => {
     // Mark as read when the article exits the top of the screen (past the sticky header)

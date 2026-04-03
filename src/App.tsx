@@ -9,7 +9,7 @@ import { PersistentPlayer } from './components/PersistentPlayer';
 import { HeaderWidgets } from './components/HeaderWidgets';
 import { motion, AnimatePresence, useMotionValue, useTransform, animate } from 'framer-motion';
 import { Loader2, Search, X, Check, Rss, Settings, Star, CheckCircle2, Play, Pause, SkipBack, SkipForward, RefreshCw, Layers, Headphones, FileText, Inbox } from 'lucide-react';
-import { twMerge } from 'tailwind-merge';
+import { cn } from './lib/utils';
 import { Article } from './types';
 import { App as CapacitorApp } from '@capacitor/app';
 
@@ -29,7 +29,6 @@ const ProgressBanner = memo(() => {
 export default function App() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
-  const markedArticles = useRef<Set<string>>(new Set());
   const touchStartY = useRef(0);
   const isAtTop = useRef(true);
 
@@ -41,14 +40,6 @@ export default function App() {
   } = useRss();
 
   const { currentTrack } = useAudioState();
-
-  const handleVisibilityChange = useCallback((id: string, inView: boolean) => {
-    if (inView) {
-      markedArticles.current.add(id);
-    } else {
-      markedArticles.current.delete(id);
-    }
-  }, []);
 
   const [selectedArticle, setSelectedArticle] = useState<Article | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -281,7 +272,7 @@ export default function App() {
         style={{ y: pullProgressTransform, opacity: pullOpacity, z: 0 }}
       >
         <div className="rounded-full p-2 shadow-lg border transition-colors bg-gray-900 border-gray-800">
-          <RefreshCw className={twMerge("w-6 h-6 text-indigo-600 dark:text-indigo-400", isLoading ? "animate-spin" : "")} />
+          <RefreshCw className={cn("w-6 h-6 text-indigo-600 dark:text-indigo-400", isLoading ? "animate-spin" : "")} />
         </div>
       </motion.div>
 
@@ -313,7 +304,7 @@ export default function App() {
         <div className="px-4 pb-3 flex items-center gap-2 overflow-x-auto scrollbar-hide">
           <button
             onClick={() => handleTypeFilterChange('all')}
-            className={twMerge(
+            className={cn(
               "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap",
               typeFilter === 'all' ? "bg-indigo-600 text-white shadow-sm" : "bg-gray-800 text-gray-400 hover:bg-gray-700"
             )}
@@ -322,7 +313,7 @@ export default function App() {
           </button>
           <button
             onClick={() => handleTypeFilterChange('article')}
-            className={twMerge(
+            className={cn(
               "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap",
               typeFilter === 'article' ? "bg-indigo-600 text-white shadow-sm" : "bg-gray-800 text-gray-400 hover:bg-gray-700"
             )}
@@ -331,7 +322,7 @@ export default function App() {
           </button>
           <button
             onClick={() => handleTypeFilterChange('podcast')}
-            className={twMerge(
+            className={cn(
               "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap",
               typeFilter === 'podcast' ? "bg-indigo-600 text-white shadow-sm" : "bg-gray-800 text-gray-400 hover:bg-gray-700"
             )}
@@ -400,7 +391,7 @@ export default function App() {
       </div>
 
       <motion.main
-        className={twMerge(
+        className={cn(
           "flex-1 overflow-y-auto transition-all duration-300 will-change-transform",
           currentTrack ? "pb-48" : "pb-32"
         )}
@@ -443,7 +434,6 @@ export default function App() {
                     settings={settings}
                     onClick={handleArticleClick}
                     onMarkAsRead={markAsRead}
-                    onVisibilityChange={handleVisibilityChange}
                     toggleRead={toggleRead}
                     toggleFavorite={toggleFavorite}
                     toggleQueue={toggleQueue}
@@ -508,7 +498,7 @@ export default function App() {
             initial={{ opacity: 0, scale: 0.8, x: 20 }}
             animate={{ opacity: 1, scale: 1, x: 0 }}
             exit={{ opacity: 0, scale: 0.8, x: 20 }}
-            className={twMerge(
+            className={cn(
               "fixed right-6 flex flex-col gap-4 z-30 items-center transition-all duration-300",
               currentTrack ? "bottom-44" : "bottom-28"
             )}
@@ -520,7 +510,7 @@ export default function App() {
               title="Refresh feeds"
               aria-label="Refresh feeds"
             >
-              <RefreshCw className={twMerge("w-5 h-5", isLoading ? "animate-spin" : "")} aria-hidden="true" />
+              <RefreshCw className={cn("w-5 h-5", isLoading ? "animate-spin" : "")} aria-hidden="true" />
             </motion.button>
             <motion.button
               whileTap={{ scale: 0.9 }}

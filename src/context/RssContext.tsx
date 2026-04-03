@@ -249,8 +249,21 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     });
   }, []);
 
-  const markAsRead = useCallback(async (id: string) => {
-    await markArticlesAsRead([id]);
+  const pendingReadIds = useRef<Set<string>>(new Set());
+  const markAsReadTimeout = useRef<NodeJS.Timeout | null>(null);
+
+  const markAsRead = useCallback((id: string) => {
+    pendingReadIds.current.add(id);
+    if (markAsReadTimeout.current) {
+      clearTimeout(markAsReadTimeout.current);
+    }
+    markAsReadTimeout.current = setTimeout(() => {
+      const idsToMark = Array.from(pendingReadIds.current);
+      pendingReadIds.current.clear();
+      if (idsToMark.length > 0) {
+        markArticlesAsRead(idsToMark);
+      }
+    }, 500);
   }, [markArticlesAsRead]);
 
   const markAllAsRead = useCallback(async () => {
@@ -378,13 +391,15 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                   
                   setArticles(prev => {
                     const merged = [...prev];
+                    const existingLinks = new Set(merged.map(a => a.link));
                     let hasNew = false;
                     
                     for (let i = 0; i < articlesWithCorrectId.length; i++) {
                       const newArticle = articlesWithCorrectId[i];
-                      // Check for duplicate link
-                      if (!merged.some(a => a.link === newArticle.link)) {
+                      // Check for duplicate link using Set for O(1) lookup
+                      if (!existingLinks.has(newArticle.link)) {
                         hasNew = true;
+                        existingLinks.add(newArticle.link);
                         
                         // Ottimizzazione: se è più recente del primo, inserisci in testa
                         if (merged.length === 0 || newArticle.pubDate >= merged[0].pubDate) {
