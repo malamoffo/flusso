@@ -18,6 +18,8 @@ interface AudioPlayerStateContextType {
   stop: () => void;
   playNext: () => void;
   playPrevious: () => void;
+  playbackRate: number;
+  setPlaybackRate: (rate: number) => void;
 }
 
 interface AudioPlayerProgressContextType {
@@ -33,6 +35,7 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
   const [currentTrack, setCurrentTrack] = useState<Article | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isBuffering, setIsBuffering] = useState(false);
+  const [playbackRate, setPlaybackRateState] = useState(1);
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -69,7 +72,11 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
         queue: queue.map(mapTrack),
         recent: recentPodcasts.map(mapTrack),
         favorites: favoritePodcasts.map(mapTrack)
-      }).catch(console.error);
+      }).then(() => console.log("Queue sent to native:", { 
+        queueCount: queue.length, 
+        recentCount: recentPodcasts.length, 
+        favoritesCount: favoritePodcasts.length 
+      })).catch(console.error);
     }
   }, [queue, recentPodcasts, favoritePodcasts, feeds]);
 
@@ -95,6 +102,7 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
 
     const handleLoadedMetadata = () => {
       setDuration(audio.duration);
+      audio.playbackRate = playbackRate;
       if (Capacitor.isNativePlatform()) {
         const currentDuration = audio.duration;
         MediaSession.setPositionState({
@@ -111,6 +119,7 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
 
     const handlePlaying = () => {
       setIsBuffering(false);
+      audio.playbackRate = playbackRate;
       if (Capacitor.isNativePlatform()) {
         MediaSession.setPlaybackState({ playbackState: 'playing' }).catch(console.error);
         const currentDuration = audio.duration;
@@ -176,6 +185,20 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
       return () => clearInterval(interval);
     }
   }, [isPlaying, currentTrack, duration, updateArticle]);
+
+  const setPlaybackRate = useCallback((rate: number) => {
+    setPlaybackRateState(rate);
+    if (audioRef.current) {
+      audioRef.current.playbackRate = rate;
+      if (Capacitor.isNativePlatform() && isPlaying) {
+        MediaSession.setPositionState({
+          duration: audioRef.current.duration || duration,
+          playbackRate: rate,
+          position: audioRef.current.currentTime
+        }).catch(console.error);
+      }
+    }
+  }, [isPlaying, duration]);
 
   const play = useCallback((track: Article) => {
     if (!audioRef.current) return;
@@ -421,8 +444,10 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
     seek,
     stop,
     playNext,
-    playPrevious
-  }), [currentTrack, isPlaying, isBuffering, play, pause, toggle, seek, stop, playNext, playPrevious]);
+    playPrevious,
+    playbackRate,
+    setPlaybackRate
+  }), [currentTrack, isPlaying, isBuffering, play, pause, toggle, seek, stop, playNext, playPrevious, playbackRate, setPlaybackRate]);
 
   // ⚡ Bolt: Memoize progress context value (this will update frequently)
   const progressValue = useMemo(() => ({

@@ -1,5 +1,5 @@
-import React, { useEffect, useState, useRef } from 'react';
-import { ArrowLeft, FileText, AlignLeft, X, Share2, Star, EyeOff, ListPlus, Play, Pause, SkipBack, SkipForward, RotateCcw, RotateCw, ChevronUp, ChevronDown, Clock, Calendar, User, ExternalLink, RefreshCw, Bookmark, List } from 'lucide-react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
+import { ArrowLeft, FileText, AlignLeft, X, Share2, Star, EyeOff, ListPlus, Play, Pause, SkipBack, SkipForward, RotateCcw, RotateCw, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Clock, Calendar, User, ExternalLink, RefreshCw, Bookmark, List } from 'lucide-react';
 import { Article, FullArticleContent, PodcastChapter } from '../types';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRss } from '../context/RssContext';
@@ -28,51 +28,45 @@ interface ArticleReaderProps {
   hasPrev?: boolean;
 }
 
-const PodcastChapters = ({ article, isCurrentTrack }: { article: Article, isCurrentTrack: boolean }) => {
-  const [chapters, setChapters] = useState<PodcastChapter[]>(article.chapters || []);
-  const [loading, setLoading] = useState(false);
+const PodcastChapters = ({ article, chapters, isCurrentTrack, loading, onRefresh }: { article: Article, chapters: PodcastChapter[], isCurrentTrack: boolean, loading: boolean, onRefresh: () => void }) => {
   const { seek } = useAudioState();
   const { progress } = useAudioProgress();
 
-  useEffect(() => {
-    if (article.chapters && article.chapters.length > 0) {
-      setChapters(article.chapters);
-      return;
-    }
-
-    if (article.chaptersUrl) {
-      setLoading(true);
-      fetchWithProxy(article.chaptersUrl, false)
-        .then(text => JSON.parse(text))
-        .then(data => {
-          if (data && data.chapters && Array.isArray(data.chapters)) {
-            const mappedChapters = data.chapters.map((c: any) => ({
-              startTime: Number(c.startTime) || 0,
-              title: c.title || 'Untitled Chapter',
-              url: c.url,
-              imageUrl: c.img || c.image || c.imageUrl
-            }));
-            setChapters(mappedChapters);
-          }
-        })
-        .catch(err => console.error('Failed to fetch chapters:', err))
-        .finally(() => setLoading(false));
-    }
-  }, [article.chapters, article.chaptersUrl]);
+  if (loading) {
+    return (
+      <div className="mt-6 space-y-3">
+        <div className="h-6 bg-gray-800 rounded w-1/4 animate-pulse"></div>
+        {[1, 2, 3].map(i => (
+          <div key={i} className="h-16 bg-gray-800 rounded-xl animate-pulse"></div>
+        ))}
+      </div>
+    );
+  }
 
   if (!chapters || chapters.length === 0) {
-    if (loading) {
-      return <div className="text-sm text-gray-500 animate-pulse mt-4">Loading chapters...</div>;
-    }
-    return null;
+    return (
+      <div className="mt-12 text-center text-gray-500">
+        <List className="w-12 h-12 mx-auto mb-4 opacity-20" />
+        <p className="mb-4">Nessun capitolo disponibile per questo episodio.</p>
+      </div>
+    );
   }
 
   return (
     <div className="mt-6">
-      <h3 className="text-lg font-bold text-white mb-3 flex items-center gap-2">
-        <List className="w-5 h-5" /> Chapters
-      </h3>
-      <div className="space-y-2">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-lg font-bold text-white flex items-center gap-2">
+          <List className="w-5 h-5 text-indigo-400" /> Capitoli
+        </h3>
+        <button 
+          onClick={onRefresh}
+          className="p-2 text-gray-400 hover:text-white transition-colors"
+          title="Ricarica capitoli"
+        >
+          <RefreshCw className="w-4 h-4" />
+        </button>
+      </div>
+      <div className="space-y-2 pb-12">
         {chapters.map((chapter, index) => {
           const isCurrentChapter = isCurrentTrack && progress >= chapter.startTime && (index === chapters.length - 1 || progress < chapters[index + 1].startTime);
           return (
@@ -81,25 +75,41 @@ const PodcastChapters = ({ article, isCurrentTrack }: { article: Article, isCurr
               onClick={() => {
                 if (isCurrentTrack) {
                   seek(chapter.startTime);
+                } else {
+                  // If not playing, we could start playing and then seek, 
+                  // but for now let's just seek if it's the current track
                 }
               }}
               className={cn(
-                "w-full text-left px-4 py-3 rounded-xl transition-colors flex items-center gap-3",
-                isCurrentChapter ? "bg-indigo-900/40 border border-indigo-500/30" : "bg-gray-800/40 hover:bg-gray-800",
-                !isCurrentTrack && "cursor-default"
+                "w-full text-left px-4 py-3 rounded-xl transition-all flex items-center gap-3 group",
+                isCurrentChapter 
+                  ? "bg-indigo-600 text-white shadow-lg shadow-indigo-500/20" 
+                  : "bg-gray-800/40 hover:bg-gray-800 text-gray-300 border border-transparent hover:border-gray-700"
               )}
             >
+              <div className={cn(
+                "w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold flex-shrink-0",
+                isCurrentChapter ? "bg-white/20" : "bg-gray-700"
+              )}>
+                {index + 1}
+              </div>
+              
               {chapter.imageUrl && (
-                <img src={chapter.imageUrl} alt="" className="w-10 h-10 rounded object-cover flex-shrink-0" />
+                <img src={chapter.imageUrl} alt="" className="w-10 h-10 rounded-lg object-cover flex-shrink-0" />
               )}
+              
               <div className="flex-1 min-w-0">
-                <div className={cn("font-medium truncate", isCurrentChapter ? "text-indigo-300" : "text-gray-200")}>
+                <div className={cn("font-bold truncate", isCurrentChapter ? "text-white" : "text-gray-200")}>
                   {chapter.title}
                 </div>
-                <div className="text-xs text-gray-500 mt-0.5">
+                <div className={cn("text-xs mt-0.5", isCurrentChapter ? "text-indigo-100" : "text-gray-500")}>
                   {formatTime(chapter.startTime)}
                 </div>
               </div>
+
+              {isCurrentChapter && (
+                <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
+              )}
             </button>
           );
         })}
@@ -114,10 +124,181 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
   const [articleThemeColor, setArticleThemeColor] = useState<string | null>(null);
   const { settings, feeds, articles, toggleFavorite, toggleQueue, toggleRead, updateArticle } = useRss();
   const feed = feeds.find(f => f.id === article.feedId);
-  const { play, currentTrack, isPlaying, isBuffering, toggle, seek } = useAudioState();
+  const { play, currentTrack, isPlaying, isBuffering, toggle, seek, playbackRate, setPlaybackRate } = useAudioState();
   
+  const [viewMode, setViewMode] = useState<'notes' | 'chapters'>(article.type === 'podcast' ? 'chapters' : 'notes');
+  const [fetchedChapters, setFetchedChapters] = useState<PodcastChapter[]>(article.chapters || []);
+  const [isChaptersLoading, setIsChaptersLoading] = useState(false);
+
   const isCurrentTrack = currentTrack?.id === article.id;
   const isLoadingAudio = isCurrentTrack && isBuffering;
+
+  const fetchExternalChapters = useCallback(async () => {
+    if (!article.chaptersUrl) {
+      console.log('[CHAPTERS] No chaptersUrl for article:', article.title);
+      return false;
+    }
+    
+    console.log('[CHAPTERS] Fetching external chapters from:', article.chaptersUrl);
+    setIsChaptersLoading(true);
+    try {
+      const text = await fetchWithProxy(article.chaptersUrl, false);
+      console.log('[CHAPTERS] Received external chapters data, length:', text.length);
+      console.log('[CHAPTERS] Data snippet:', text.substring(0, 100));
+      
+      // Try JSON first
+      try {
+        const data = JSON.parse(text);
+        console.log('[CHAPTERS] JSON parsed successfully:', !!data);
+        if (data && data.chapters && Array.isArray(data.chapters)) {
+          console.log('[CHAPTERS] Found chapters array, length:', data.chapters.length);
+          const mappedChapters = data.chapters.map((c: any) => {
+            let startTime = 0;
+            if (typeof c.startTime === 'string') {
+              startTime = parseDurationToSeconds(c.startTime);
+            } else {
+              startTime = Number(c.startTime) || 0;
+            }
+            
+            return {
+              startTime,
+              title: c.title || 'Untitled Chapter',
+              url: c.url,
+              imageUrl: c.img || c.image || c.imageUrl
+            };
+          });
+          
+          if (mappedChapters.length > 0) {
+            console.log(`[CHAPTERS] Successfully parsed ${mappedChapters.length} chapters from external JSON`);
+            setFetchedChapters(mappedChapters);
+            updateArticle(article.id, { chapters: mappedChapters });
+            return true;
+          }
+        } else {
+          console.warn('[CHAPTERS] JSON parsed but no chapters array found:', data);
+        }
+      } catch (jsonErr) {
+        console.error('[CHAPTERS] JSON parsing failed:', jsonErr);
+        // Not JSON, try WebVTT
+        if (text.includes('WEBVTT')) {
+          console.log('[CHAPTERS] Attempting to parse WebVTT chapters');
+          const vttChapters: PodcastChapter[] = [];
+          const blocks = text.split(/\r?\n\r?\n/);
+          
+          blocks.forEach(block => {
+            const lines = block.trim().split(/\r?\n/);
+            if (lines.length >= 2) {
+              const timeMatch = lines[0].match(/(\d{2}:\d{2}:\d{2}\.\d{3}) --> (\d{2}:\d{2}:\d{2}\.\d{3})/);
+              if (timeMatch) {
+                const startTimeStr = timeMatch[1];
+                const startTime = parseDurationToSeconds(startTimeStr.split('.')[0]); // Ignore ms for now
+                const title = lines.slice(1).join(' ').trim();
+                if (title) {
+                  vttChapters.push({ startTime, title });
+                }
+              }
+            }
+          });
+          
+          if (vttChapters.length > 0) {
+            console.log(`[CHAPTERS] Successfully parsed ${vttChapters.length} chapters from WebVTT`);
+            setFetchedChapters(vttChapters);
+            updateArticle(article.id, { chapters: vttChapters });
+            return true;
+          }
+        }
+      }
+    } catch (err) {
+      console.error('[CHAPTERS] Failed to fetch or parse external chapters:', err);
+    } finally {
+      setIsChaptersLoading(false);
+    }
+    return false;
+  }, [article.chaptersUrl, article.id, updateArticle]);
+
+  const extractFromContent = useCallback(() => {
+    const content = article.content || '';
+    if (!content) return false;
+    
+    console.log('[CHAPTERS] Attempting to extract chapters from content, length:', content.length);
+    
+    // More robust timestamp regex: handles [01:23], (1:23:45), 01.23.45, etc.
+    // Matches: 00:00, 0:00, 00:00:00, 0:00:00, [00:00], (00:00), 00.00.00
+    const timestampRegex = /(?:^|\s|\[|\()(\d{1,2}[:.]\d{2}(?:[:.]\d{2})?(?:\.\d+)?)(?:\s|$|\]|\))/;
+    
+    // Split by many more separators to find lines with timestamps
+    const lines = content.split(/<p[^>]*>|<\/p>|<div[^>]*>|<\/div>|<br\s*\/?>|\n|\r|<li>|<\/li>|&nbsp;|\t/i);
+    const extractedChapters: PodcastChapter[] = [];
+    
+    lines.forEach(line => {
+      const cleanLine = line.replace(/<[^>]*>/g, '').trim();
+      if (!cleanLine) return;
+      
+      const match = cleanLine.match(timestampRegex);
+      if (match) {
+        const timeStr = match[1].replace(/\./g, ':'); // Normalize dots to colons
+        const startTime = parseDurationToSeconds(timeStr);
+        
+        // Remove the timestamp and any leading/trailing punctuation/spaces
+        const title = cleanLine
+          .replace(match[0], '') // Remove the full match (including brackets if present)
+          .replace(/^[ \-\:\.\)\>\[\]\(\)\*]+/, '')
+          .replace(/[ \-\:\.\(\<\[\]\(\)\*]+$/, '')
+          .trim();
+          
+        if (title || extractedChapters.length === 0) {
+          extractedChapters.push({
+            startTime,
+            title: title ? he.decode(title) : `Capitolo a ${timeStr}`
+          });
+        }
+      }
+    });
+
+    if (extractedChapters.length > 1) {
+      // Sort and remove duplicates
+      extractedChapters.sort((a, b) => a.startTime - b.startTime);
+      
+      // Filter out duplicates with same startTime
+      const uniqueChapters = extractedChapters.filter((c, i) => 
+        i === 0 || c.startTime !== extractedChapters[i-1].startTime
+      );
+
+      if (uniqueChapters.length > 1) {
+        console.log(`[CHAPTERS] Successfully extracted ${uniqueChapters.length} chapters from content`);
+        setFetchedChapters(uniqueChapters);
+        return true;
+      }
+    }
+    
+    console.log('[CHAPTERS] No chapters found in content');
+    return false;
+  }, [article.content, article.id, updateArticle]);
+
+  useEffect(() => {
+    if (article.chapters && article.chapters.length > 0) {
+      setFetchedChapters(article.chapters);
+      return;
+    }
+
+    const loadChapters = async () => {
+      const fetched = await fetchExternalChapters();
+      if (!fetched) {
+        extractFromContent();
+      }
+    };
+
+    loadChapters();
+  }, [article.id, article.chapters, fetchExternalChapters, extractFromContent]);
+
+  const chapters = fetchedChapters;
+  const hasChapters = chapters.length > 0 || !!article.chaptersUrl;
+
+  const { progress } = useAudioProgress();
+  const currentChapterIndex = chapters.findIndex((c, i) => 
+    progress >= c.startTime && (i === chapters.length - 1 || progress < chapters[i + 1].startTime)
+  );
+  const currentChapter = currentChapterIndex !== -1 ? chapters[currentChapterIndex] : null;
 
   // Get queue for navigation
   const queue = articles.filter(a => a.isQueued);
@@ -573,7 +754,51 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
         {article.type === 'podcast' && article.mediaUrl && (
           <div className="mb-8 p-6 bg-gray-900/50 rounded-3xl border border-gray-800 shadow-sm">
             <div className="flex flex-col gap-6">
-              <ReaderProgressBar article={article} isCurrentTrack={isCurrentTrack} />
+              {/* View Toggle Buttons */}
+              <div className="flex items-center">
+                <div className={cn(
+                  "w-full flex items-center rounded-xl border transition-all overflow-hidden",
+                  viewMode === 'chapters'
+                    ? "bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-500/20"
+                    : "bg-gray-800 border-gray-700 text-gray-400"
+                )}>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (viewMode !== 'chapters') setViewMode('chapters');
+                      else if (currentChapterIndex > 0) seek(chapters[currentChapterIndex - 1].startTime);
+                    }}
+                    className="p-3 hover:bg-white/10 transition-colors disabled:opacity-20"
+                    disabled={viewMode === 'chapters' && currentChapterIndex <= 0}
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setViewMode(viewMode === 'chapters' ? 'notes' : 'chapters');
+                    }}
+                    className="flex-1 py-3 px-1 text-center font-bold text-sm truncate"
+                  >
+                    {viewMode === 'chapters' 
+                      ? (currentChapter ? currentChapter.title : (chapters.length > 0 ? 'Capitoli' : 'Nessun capitolo')) 
+                      : (currentChapter ? currentChapter.title : 'Capitoli')}
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (viewMode !== 'chapters') setViewMode('chapters');
+                      else if (currentChapterIndex < chapters.length - 1) seek(chapters[currentChapterIndex + 1].startTime);
+                    }}
+                    className="p-3 hover:bg-white/10 transition-colors disabled:opacity-20"
+                    disabled={viewMode === 'chapters' && currentChapterIndex >= chapters.length - 1}
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+
+              <ReaderProgressBar article={article} isCurrentTrack={isCurrentTrack} chapters={chapters} />
 
               {/* Controls */}
               <div className="flex items-center justify-between">
@@ -636,11 +861,22 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
           </div>
         )}
 
-        {article.type === 'podcast' && (article.chapters || article.chaptersUrl) && (
-          <PodcastChapters article={article} isCurrentTrack={isCurrentTrack} />
-        )}
-
-        {isLoading ? (
+        {viewMode === 'chapters' ? (
+          <PodcastChapters 
+            article={article} 
+            chapters={chapters} 
+            isCurrentTrack={isCurrentTrack} 
+            loading={isChaptersLoading} 
+            onRefresh={() => {
+              console.log('[CHAPTERS] Manual refresh requested');
+              const found = extractFromContent();
+              if (!found) {
+                // Try fetching external again too
+                fetchExternalChapters();
+              }
+            }}
+          />
+        ) : isLoading ? (
           <div className="space-y-4 animate-pulse mt-8">
             <div className="h-4 bg-gray-800 rounded w-3/4"></div>
             <div className="h-4 bg-gray-800 rounded w-full"></div>
@@ -684,9 +920,9 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
 /**
  * ⚡ Bolt: Isolated progress bar for the article reader.
  */
-const ReaderProgressBar = React.memo(function ReaderProgressBar({ article, isCurrentTrack }: { article: Article, isCurrentTrack: boolean }) {
+const ReaderProgressBar = React.memo(function ReaderProgressBar({ article, isCurrentTrack, chapters = [] }: { article: Article, isCurrentTrack: boolean, chapters?: PodcastChapter[] }) {
   if (isCurrentTrack) {
-    return <LiveReaderProgressBar article={article} />;
+    return <LiveReaderProgressBar article={article} chapters={chapters} />;
   }
 
   const totalSeconds = parseDurationToSeconds(article.duration);
@@ -695,20 +931,34 @@ const ReaderProgressBar = React.memo(function ReaderProgressBar({ article, isCur
   const progressPercent = totalSeconds > 0 ? (currentSeconds / totalSeconds) * 100 : 0;
 
   return (
-    <div className="flex items-center gap-4 text-xs font-bold text-indigo-400">
-      <span className="w-14 flex-shrink-0 text-left whitespace-nowrap">{formatTime(currentSeconds)}</span>
-      <div className="relative flex-1 h-2 bg-gray-800 rounded-full overflow-hidden">
-        <div 
-          className="h-full bg-indigo-500 transition-all duration-300" 
-          style={{ width: `${progressPercent}%` }} 
-        />
+    <div className="flex flex-col gap-2">
+      <div className="flex items-center gap-4 text-xs font-bold text-indigo-400">
+        <span className="w-14 flex-shrink-0 text-left whitespace-nowrap">{formatTime(currentSeconds)}</span>
+        <div className="relative flex-1 h-2 bg-gray-800 rounded-full overflow-hidden">
+          <div 
+            className="h-full bg-indigo-500 transition-all duration-300" 
+            style={{ width: `${progressPercent}%` }} 
+          />
+          {/* Chapter Markers */}
+          {chapters.map((chapter, i) => {
+            if (chapter.startTime <= 0 || chapter.startTime >= totalSeconds) return null;
+            const left = (chapter.startTime / totalSeconds) * 100;
+            return (
+              <div 
+                key={i} 
+                className="absolute top-0 bottom-0 w-0.5 bg-black/40 z-10" 
+                style={{ left: `${left}%` }} 
+              />
+            );
+          })}
+        </div>
+        <span className="w-14 flex-shrink-0 text-right whitespace-nowrap">{formatTime(remainingSeconds)}</span>
       </div>
-      <span className="w-14 flex-shrink-0 text-right whitespace-nowrap">{formatTime(remainingSeconds)}</span>
     </div>
   );
 });
 
-const LiveReaderProgressBar = ({ article }: { article: Article }) => {
+const LiveReaderProgressBar = ({ article, chapters = [] }: { article: Article, chapters?: PodcastChapter[] }) => {
   const { progress, duration } = useAudioProgress();
   const { seek } = useAudioState();
   
@@ -718,26 +968,40 @@ const LiveReaderProgressBar = ({ article }: { article: Article }) => {
   const progressPercent = totalSeconds > 0 ? (currentSeconds / totalSeconds) * 100 : 0;
 
   return (
-    <div className="flex items-center gap-4 text-xs font-bold text-indigo-400">
-      <span className="w-14 flex-shrink-0 text-left whitespace-nowrap">{formatTime(currentSeconds)}</span>
-      <div 
-        className="relative flex-1 h-2 bg-gray-800 rounded-full overflow-hidden cursor-pointer"
-        onClick={(e) => {
-          const rect = e.currentTarget.getBoundingClientRect();
-          const x = e.clientX - rect.left;
-          const percent = x / rect.width;
-          seek(percent * totalSeconds);
-        }}
-      >
+    <div className="flex flex-col gap-2">
+      <div className="flex items-center gap-4 text-xs font-bold text-indigo-400">
+        <span className="w-14 flex-shrink-0 text-left whitespace-nowrap">{formatTime(currentSeconds)}</span>
         <div 
-          className="h-full bg-indigo-500 transition-all duration-300" 
-          style={{ width: `${progressPercent}%` }} 
-        />
+          className="relative flex-1 h-2 bg-gray-800 rounded-full overflow-hidden cursor-pointer"
+          onClick={(e) => {
+            const rect = e.currentTarget.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const percent = x / rect.width;
+            seek(percent * totalSeconds);
+          }}
+        >
+          <div 
+            className="h-full bg-indigo-500 transition-all duration-300" 
+            style={{ width: `${progressPercent}%` }} 
+          />
+          {/* Chapter Markers */}
+          {chapters.map((chapter, i) => {
+            if (chapter.startTime <= 0 || chapter.startTime >= totalSeconds) return null;
+            const left = (chapter.startTime / totalSeconds) * 100;
+            return (
+              <div 
+                key={i} 
+                className="absolute top-0 bottom-0 w-0.5 bg-black/40 z-10" 
+                style={{ left: `${left}%` }} 
+              />
+            );
+          })}
+        </div>
+        <span className="w-14 flex-shrink-0 text-right whitespace-nowrap">{formatTime(remainingSeconds)}</span>
       </div>
-      <span className="w-14 flex-shrink-0 text-right whitespace-nowrap">{formatTime(remainingSeconds)}</span>
     </div>
   );
-}
+};
 
 /**
  * ⚡ Bolt: Isolated seek buttons for the article reader.

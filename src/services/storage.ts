@@ -4,7 +4,7 @@ import { Feed, Article, Settings, PodcastChapter } from '../types';
 import { CapacitorHttp } from '@capacitor/core';
 import { fetchWithProxy } from '../utils/proxy';
 import DOMPurify from 'dompurify';
-import { getSafeUrl } from '../lib/utils';
+import { getSafeUrl, resolveUrl } from '../lib/utils';
 
 import he from 'he';
 
@@ -106,10 +106,27 @@ export function extractBestImage(content: string, baseUrl?: string): string | nu
 
 function parseTime(timeStr: string | null): number {
   if (!timeStr) return 0;
-  const parts = timeStr.split(':').reverse();
+  
+  // Handle formats like "1h 23m 45s" or "23m 45s"
+  if (timeStr.includes('h') || timeStr.includes('m') || timeStr.includes('s')) {
+    let totalSeconds = 0;
+    const hMatch = timeStr.match(/(\d+)\s*h/);
+    const mMatch = timeStr.match(/(\d+)\s*m/);
+    const sMatch = timeStr.match(/(\d+)\s*s/);
+    if (hMatch) totalSeconds += parseInt(hMatch[1]) * 3600;
+    if (mMatch) totalSeconds += parseInt(mMatch[1]) * 60;
+    if (sMatch) totalSeconds += parseInt(sMatch[1]);
+    if (totalSeconds > 0) return totalSeconds;
+  }
+
+  // Handle standard HH:MM:SS or MM:SS
+  const parts = timeStr.replace(',', '.').split(':').reverse();
   let seconds = 0;
   for (let i = 0; i < parts.length; i++) {
-    seconds += parseFloat(parts[i]) * Math.pow(60, i);
+    const val = parseFloat(parts[i]);
+    if (!isNaN(val)) {
+      seconds += val * Math.pow(60, i);
+    }
   }
   return seconds;
 }
@@ -234,6 +251,20 @@ function parseRssXml(xmlString: string, feedUrl: string): { feed: Feed; articles
     return '';
   }
 
+  // Helper to get elements by local name regardless of namespace
+  function getElementsByLocalName(parent: Element, localName: string): Element[] {
+    const results: Element[] = [];
+    const all = parent.getElementsByTagName('*');
+    for (let i = 0; i < all.length; i++) {
+      const el = all[i];
+      const nodeName = el.nodeName.toLowerCase();
+      if (nodeName === localName.toLowerCase() || nodeName.endsWith(':' + localName.toLowerCase())) {
+        results.push(el);
+      }
+    }
+    return results;
+  }
+
   const isAtom = xmlDoc.getElementsByTagName('feed').length > 0;
   const feedId = uuidv4();
   
@@ -275,7 +306,7 @@ function parseRssXml(xmlString: string, feedUrl: string): { feed: Feed; articles
         }
       }
 
-      const content = getSingleTagText(tagDict, ['content:encoded', 'content', 'itunes:summary', 'summary', 'description']) || '';
+      const content = getSingleTagText(tagDict, ['content:encoded', 'content', 'description', 'itunes:summary', 'summary', 'itunes:subtitle']) || '';
       let entryTitle = getSingleTagText(tagDict, ['title', 'dc:title']);
       
       if (!entryTitle) {
@@ -285,7 +316,7 @@ function parseRssXml(xmlString: string, feedUrl: string): { feed: Feed; articles
       }
       
       const linkElements = tagDict['link'] || [];
-      const entryLink = linkElements.length > 0 ? (linkElements[0].getAttribute('href') || '') : '';
+      const entryLink = resolveUrl(linkElements.length > 0 ? (linkElements[0].getAttribute('href') || '') : '', feedUrl);
       const pubDateStr = getSingleTagText(tagDict, ['published', 'updated', 'pubDate']) || new Date().toISOString();
       const pubDate = new Date(pubDateStr).getTime();
       
@@ -300,9 +331,9 @@ function parseRssXml(xmlString: string, feedUrl: string): { feed: Feed; articles
         const href = l.getAttribute('href');
         if (rel === 'enclosure' && type && href) {
           if (type.startsWith('image/')) {
-            if (!imageUrl) imageUrl = href;
+            if (!imageUrl) imageUrl = resolveUrl(href, feedUrl);
           } else if (type.startsWith('audio/') || type.startsWith('video/')) {
-            mediaUrl = href;
+            mediaUrl = resolveUrl(href, feedUrl);
             mediaType = type;
           }
         }
@@ -326,14 +357,14 @@ function parseRssXml(xmlString: string, feedUrl: string): { feed: Feed; articles
         const type = mediaContent.getAttribute('type');
         const url = mediaContent.getAttribute('url');
         if (type?.startsWith('image/')) {
-          if (!imageUrl && url) imageUrl = url;
+          if (!imageUrl && url) imageUrl = resolveUrl(url, feedUrl);
         } else if (type?.startsWith('audio/') || type?.startsWith('video/')) {
           if (url) {
-            mediaUrl = url;
+            mediaUrl = resolveUrl(url, feedUrl);
             mediaType = type;
           }
         } else if (!type && url && (url.endsWith('.jpg') || url.endsWith('.png'))) {
-          if (!imageUrl) imageUrl = url;
+          if (!imageUrl) imageUrl = resolveUrl(url, feedUrl);
         }
       }
       
@@ -354,37 +385,56 @@ function parseRssXml(xmlString: string, feedUrl: string): { feed: Feed; articles
       let chapters: PodcastChapter[] | undefined = undefined;
       let chaptersUrl: string | undefined = undefined;
 
-      const pscChaptersElements = tagDict['psc:chapters'] || tagDict['chapters'] || [];
-      if (pscChaptersElements.length > 0) {
-        const children = pscChaptersElements[0].children;
-        if (children.length > 0) {
-          chapters = [];
-          for (let k = 0; k < children.length; k++) {
-            const node = children[k];
-            const nn = node.nodeName.toLowerCase();
-            if (nn === 'psc:chapter' || nn === 'chapter') {
-              const start = node.getAttribute('start');
-              const title = node.getAttribute('title');
-              const href = node.getAttribute('href');
-              const image = node.getAttribute('image');
-              if (start && title) {
-                chapters.push({
-                  startTime: parseTime(start),
-                  title: title,
-                  url: href || undefined,
-                  imageUrl: image || undefined
-                });
-              }
+      // 1. Look for inline chapters (PSC or similar)
+      const chapterContainers = [
+        ...getElementsByLocalName(entry, 'chapters'),
+        ...getElementsByLocalName(entry, 'structure'),
+        ...getElementsByLocalName(entry, 'podcast:chapters')
+      ];
+
+      for (const container of chapterContainers) {
+        // Check if it has a URL (Podcast Index or external PSC)
+        const url = container.getAttribute('url') || container.getAttribute('href');
+        if (url) {
+          chaptersUrl = resolveUrl(url, feedUrl);
+          // If it's a JSON chapters file, we might want to fetch it now or let the UI handle it.
+          // Given the current architecture, let's keep it as chaptersUrl.
+        }
+
+        const chapterNodes = getElementsByLocalName(container, 'chapter');
+        if (chapterNodes.length > 0) {
+          const foundChapters: PodcastChapter[] = [];
+          for (const node of chapterNodes) {
+            const start = node.getAttribute('start') || node.getAttribute('startTime');
+            const title = node.getAttribute('title') || node.getAttribute('text');
+            const href = node.getAttribute('href') || node.getAttribute('url');
+            const image = node.getAttribute('image') || node.getAttribute('img');
+            if (start && title) {
+              foundChapters.push({
+                startTime: parseTime(start),
+                title: title,
+                url: href || undefined,
+                imageUrl: image || undefined
+              });
             }
+          }
+          if (foundChapters.length > 0) {
+            chapters = foundChapters;
           }
         }
       }
 
-      const podcastChaptersElements = tagDict['podcast:chapters'] || [];
-      if (podcastChaptersElements.length > 0) {
-        const url = podcastChaptersElements[0].getAttribute('url');
-        if (url) {
-          chaptersUrl = getSafeUrl(url);
+      // 2. Check for atom:link with rel="chapters"
+      if (!chaptersUrl) {
+        const atomLinks = tagDict['link'] || [];
+        for (const link of atomLinks) {
+          if (link.getAttribute('rel') === 'chapters') {
+            const href = link.getAttribute('href');
+            if (href) {
+              chaptersUrl = resolveUrl(href, feedUrl);
+              break;
+            }
+          }
         }
       }
 
@@ -392,11 +442,11 @@ function parseRssXml(xmlString: string, feedUrl: string): { feed: Feed; articles
         id: uuidv4(),
         feedId,
         title: decodeHtmlEntities(entryTitle),
-        link: getSafeUrl(entryLink),
+        link: resolveUrl(entryLink, feedUrl),
         pubDate,
-        imageUrl: imageUrl ? getSafeUrl(imageUrl) : undefined,
+        imageUrl: imageUrl ? resolveUrl(imageUrl, feedUrl) : undefined,
         duration,
-        mediaUrl: getSafeUrl(mediaUrl, undefined),
+        mediaUrl: mediaUrl ? resolveUrl(mediaUrl, feedUrl) : undefined,
         mediaType,
         isRead: false,
         isFavorite: false,
@@ -464,7 +514,7 @@ function parseRssXml(xmlString: string, feedUrl: string): { feed: Feed; articles
         }
       }
       
-      const content = getSingleTagText(tagDict, ['content:encoded', 'content', 'itunes:summary', 'summary', 'description', 'itunes:subtitle']) || '';
+      const content = getSingleTagText(tagDict, ['content:encoded', 'content', 'description', 'itunes:summary', 'summary', 'itunes:subtitle']) || '';
       let itemTitle = getSingleTagText(tagDict, ['title', 'dc:title']);
       if (!itemTitle) {
         const plainText = sanitizeSnippet(decodeHtmlEntities(content));
@@ -472,7 +522,7 @@ function parseRssXml(xmlString: string, feedUrl: string): { feed: Feed; articles
         if (!itemTitle) itemTitle = 'Untitled';
       }
       
-      const itemLink = getSingleTagText(tagDict, ['link']) || '';
+      const itemLink = resolveUrl(getSingleTagText(tagDict, ['link']) || '', feedUrl);
       const pubDateStr = getSingleTagText(tagDict, ['pubDate', 'published', 'updated']) || new Date().toISOString();
       const pubDate = new Date(pubDateStr).getTime();
       
@@ -483,7 +533,7 @@ function parseRssXml(xmlString: string, feedUrl: string): { feed: Feed; articles
       const itunesImageElements = tagDict['itunes:image'] || tagDict['image'] || [];
       if (itunesImageElements.length > 0) {
         const itunesImage = itunesImageElements[0].getAttribute('href');
-        if (itunesImage) imageUrl = itunesImage;
+        if (itunesImage) imageUrl = resolveUrl(itunesImage, feedUrl);
       }
 
       const enclosures = tagDict['enclosure'] || [];
@@ -493,9 +543,9 @@ function parseRssXml(xmlString: string, feedUrl: string): { feed: Feed; articles
         const url = enclosure.getAttribute('url');
         if (type && url) {
           if (type.startsWith('image/')) {
-            if (!imageUrl) imageUrl = url;
+            if (!imageUrl) imageUrl = resolveUrl(url, feedUrl);
           } else if (type.startsWith('audio/') || type.startsWith('video/')) {
-            mediaUrl = url;
+            mediaUrl = resolveUrl(url, feedUrl);
             mediaType = type;
           }
         }
@@ -519,14 +569,14 @@ function parseRssXml(xmlString: string, feedUrl: string): { feed: Feed; articles
         const type = mediaContent.getAttribute('type');
         const url = mediaContent.getAttribute('url');
         if (type?.startsWith('image/')) {
-          if (url) imageUrl = url;
+          if (url) imageUrl = resolveUrl(url, feedUrl);
         } else if (type?.startsWith('audio/') || type?.startsWith('video/')) {
           if (url) {
-            mediaUrl = url;
+            mediaUrl = resolveUrl(url, feedUrl);
             mediaType = type;
           }
         } else if (url) {
-          imageUrl = url;
+          imageUrl = resolveUrl(url, feedUrl);
         }
       }
 
@@ -542,37 +592,54 @@ function parseRssXml(xmlString: string, feedUrl: string): { feed: Feed; articles
       let chapters: PodcastChapter[] | undefined = undefined;
       let chaptersUrl: string | undefined = undefined;
 
-      const pscChaptersElements = tagDict['psc:chapters'] || tagDict['chapters'] || [];
-      if (pscChaptersElements.length > 0) {
-        const children = pscChaptersElements[0].children;
-        if (children.length > 0) {
-          chapters = [];
-          for (let k = 0; k < children.length; k++) {
-            const node = children[k];
-            const nn = node.nodeName.toLowerCase();
-            if (nn === 'psc:chapter' || nn === 'chapter') {
-              const start = node.getAttribute('start');
-              const title = node.getAttribute('title');
-              const href = node.getAttribute('href');
-              const image = node.getAttribute('image');
-              if (start && title) {
-                chapters.push({
-                  startTime: parseTime(start),
-                  title: title,
-                  url: href || undefined,
-                  imageUrl: image || undefined
-                });
-              }
+      // 1. Look for inline chapters (PSC or similar)
+      const chapterContainers = [
+        ...getElementsByLocalName(item, 'chapters'),
+        ...getElementsByLocalName(item, 'structure'),
+        ...getElementsByLocalName(item, 'podcast:chapters')
+      ];
+
+      for (const container of chapterContainers) {
+        // Check if it has a URL (Podcast Index or external PSC)
+        const url = container.getAttribute('url') || container.getAttribute('href');
+        if (url) {
+          chaptersUrl = resolveUrl(url, feedUrl);
+        }
+
+        const chapterNodes = getElementsByLocalName(container, 'chapter');
+        if (chapterNodes.length > 0) {
+          const foundChapters: PodcastChapter[] = [];
+          for (const node of chapterNodes) {
+            const start = node.getAttribute('start') || node.getAttribute('startTime');
+            const title = node.getAttribute('title') || node.getAttribute('text');
+            const href = node.getAttribute('href') || node.getAttribute('url');
+            const image = node.getAttribute('image') || node.getAttribute('img');
+            if (start && title) {
+              foundChapters.push({
+                startTime: parseTime(start),
+                title: title,
+                url: href || undefined,
+                imageUrl: image || undefined
+              });
             }
+          }
+          if (foundChapters.length > 0) {
+            chapters = foundChapters;
           }
         }
       }
 
-      const podcastChaptersElements = tagDict['podcast:chapters'] || [];
-      if (podcastChaptersElements.length > 0) {
-        const url = podcastChaptersElements[0].getAttribute('url');
-        if (url) {
-          chaptersUrl = getSafeUrl(url);
+      // 2. Check for links with rel="chapters"
+      if (!chaptersUrl) {
+        const rssLinks = getElementsByLocalName(item, 'link');
+        for (const link of rssLinks) {
+          if (link.getAttribute('rel') === 'chapters') {
+            const href = link.getAttribute('href');
+            if (href) {
+              chaptersUrl = resolveUrl(href, feedUrl);
+              break;
+            }
+          }
         }
       }
 
@@ -580,11 +647,11 @@ function parseRssXml(xmlString: string, feedUrl: string): { feed: Feed; articles
         id: uuidv4(),
         feedId,
         title: decodeHtmlEntities(itemTitle),
-        link: getSafeUrl(itemLink),
+        link: resolveUrl(itemLink, feedUrl),
         pubDate,
-        imageUrl: imageUrl ? getSafeUrl(imageUrl) : undefined,
+        imageUrl: imageUrl ? resolveUrl(imageUrl, feedUrl) : undefined,
         duration,
-        mediaUrl: getSafeUrl(mediaUrl, undefined),
+        mediaUrl: mediaUrl ? resolveUrl(mediaUrl, feedUrl) : undefined,
         mediaType,
         isRead: false,
         isFavorite: false,
@@ -774,7 +841,15 @@ export const storage = {
 
     // Web fallback (using CORS proxy to avoid "Failed to fetch" errors in browser preview)
     try {
-      const xmlString = await fetchWithProxy(feedUrl, true, sinceDate, signal);
+      let xmlString = await fetchWithProxy(feedUrl, true, sinceDate, signal);
+      
+      // If failed and URL doesn't end with slash, try adding it (or vice versa)
+      if (!xmlString && !signal?.aborted) {
+        const alternativeUrl = feedUrl.endsWith('/') ? feedUrl.slice(0, -1) : feedUrl + '/';
+        console.log(`[STORAGE] Retrying with alternative URL: ${alternativeUrl}`);
+        xmlString = await fetchWithProxy(alternativeUrl, true, sinceDate, signal);
+      }
+
       if (!xmlString) return null; // 304 or empty
 
       const { feed, articles } = parseRssXml(xmlString, feedUrl);

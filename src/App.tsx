@@ -359,43 +359,102 @@ export default function App() {
     return () => observer.disconnect();
   }, [visibleCountSaved]);
 
+  const inboxTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const savedTimerRef = useRef<NodeJS.Timeout | null>(null);
+
   // Handle marking as read when scrolling to bottom
   useEffect(() => {
     const inboxContainer = inboxScrollRef.current;
     if (!inboxContainer) return;
     
-    const handleScroll = () => {
-      if (filter !== 'inbox') return;
+    const checkAtBottom = () => {
+      if (filter !== 'inbox') {
+        if (inboxTimerRef.current) {
+          clearTimeout(inboxTimerRef.current);
+          inboxTimerRef.current = null;
+        }
+        return;
+      }
+
       const isAtBottom = inboxContainer.scrollHeight - inboxContainer.scrollTop <= inboxContainer.clientHeight + 50;
-      if (isAtBottom && visibleCountInbox >= inboxArticlesRef.current.length) {
-        const toMark = inboxArticlesRef.current.filter(a => !a.isRead).map(a => a.id);
-        if (toMark.length > 0) {
-          markArticlesAsRead(toMark);
+      const allVisible = visibleCountInbox >= inboxArticlesRef.current.length;
+
+      if (isAtBottom && allVisible) {
+        const hasUnread = inboxArticlesRef.current.some(a => !a.isRead);
+        if (hasUnread && !inboxTimerRef.current) {
+          console.log('[SCROLL] Starting 5s timer for inbox mark as read');
+          inboxTimerRef.current = setTimeout(() => {
+            const toMark = inboxArticlesRef.current.filter(a => !a.isRead).map(a => a.id);
+            if (toMark.length > 0) {
+              markArticlesAsRead(toMark);
+            }
+            inboxTimerRef.current = null;
+          }, 5000);
+        }
+      } else {
+        if (inboxTimerRef.current) {
+          console.log('[SCROLL] Clearing inbox timer (not at bottom)');
+          clearTimeout(inboxTimerRef.current);
+          inboxTimerRef.current = null;
         }
       }
     };
     
-    inboxContainer.addEventListener('scroll', handleScroll);
-    return () => inboxContainer.removeEventListener('scroll', handleScroll);
+    inboxContainer.addEventListener('scroll', checkAtBottom);
+    // Also check immediately in case the list is already at the bottom
+    checkAtBottom();
+    
+    return () => {
+      inboxContainer.removeEventListener('scroll', checkAtBottom);
+      if (inboxTimerRef.current) clearTimeout(inboxTimerRef.current);
+    };
   }, [filter, visibleCountInbox, markArticlesAsRead]);
 
   useEffect(() => {
     const savedContainer = savedScrollRef.current;
     if (!savedContainer) return;
     
-    const handleScroll = () => {
-      if (filter !== 'saved') return;
+    const checkAtBottom = () => {
+      if (filter !== 'saved') {
+        if (savedTimerRef.current) {
+          clearTimeout(savedTimerRef.current);
+          savedTimerRef.current = null;
+        }
+        return;
+      }
+
       const isAtBottom = savedContainer.scrollHeight - savedContainer.scrollTop <= savedContainer.clientHeight + 50;
-      if (isAtBottom && visibleCountSaved >= savedArticlesRef.current.length) {
-        const toMark = savedArticlesRef.current.filter(a => !a.isRead).map(a => a.id);
-        if (toMark.length > 0) {
-          markArticlesAsRead(toMark);
+      const allVisible = visibleCountSaved >= savedArticlesRef.current.length;
+
+      if (isAtBottom && allVisible) {
+        const hasUnread = savedArticlesRef.current.some(a => !a.isRead);
+        if (hasUnread && !savedTimerRef.current) {
+          console.log('[SCROLL] Starting 5s timer for saved mark as read');
+          savedTimerRef.current = setTimeout(() => {
+            const toMark = savedArticlesRef.current.filter(a => !a.isRead).map(a => a.id);
+            if (toMark.length > 0) {
+              markArticlesAsRead(toMark);
+            }
+            savedTimerRef.current = null;
+          }, 5000);
+        }
+      } else {
+        if (savedTimerRef.current) {
+          console.log('[SCROLL] Clearing saved timer (not at bottom)');
+          clearTimeout(savedTimerRef.current);
+          savedTimerRef.current = null;
         }
       }
     };
     
-    savedContainer.addEventListener('scroll', handleScroll);
-    return () => savedContainer.removeEventListener('scroll', handleScroll);
+    savedContainer.addEventListener('scroll', checkAtBottom);
+    // Also check immediately in case the list is already at the bottom
+    checkAtBottom();
+    
+    return () => {
+      savedContainer.removeEventListener('scroll', checkAtBottom);
+      if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
+    };
   }, [filter, visibleCountSaved, markArticlesAsRead]);
 
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {

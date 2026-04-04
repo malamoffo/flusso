@@ -57,6 +57,10 @@ export const HeaderWidgets = memo(function HeaderWidgets() {
       try {
         const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true`;
         const text = await fetchWithProxy(url, false);
+        if (!text) {
+          console.log('Weather fetch returned empty (304 or no data)');
+          return;
+        }
         const data = JSON.parse(text);
         
         if (data.current_weather) {

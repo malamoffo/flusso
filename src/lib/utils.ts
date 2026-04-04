@@ -57,6 +57,20 @@ export function getSafeUrl(url: string | null | undefined, fallback: any = ''): 
 }
 
 /**
+ * Resolves a potentially relative URL against a base URL.
+ */
+export function resolveUrl(url: string | null | undefined, base: string | null | undefined): string {
+  if (!url) return '';
+  if (!base) return getSafeUrl(url);
+  
+  try {
+    return new URL(url, base).href;
+  } catch (e) {
+    return getSafeUrl(url);
+  }
+}
+
+/**
  * Parses a duration string (HH:MM:SS, MM:SS, or seconds) into total seconds.
  */
 export function parseDurationToSeconds(durationStr: string | null | undefined): number {
