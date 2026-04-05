@@ -13,6 +13,7 @@ import androidx.media3.common.Player;
 import androidx.media3.exoplayer.ExoPlayer;
 import androidx.media3.session.LibraryResult;
 import androidx.media3.session.MediaLibraryService;
+import androidx.media3.session.MediaLibraryService.LibraryParams;
 import androidx.media3.session.MediaSession;
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.Futures;
@@ -119,8 +120,8 @@ public class Media3Service extends MediaLibraryService {
 
     private class LibrarySessionCallback implements MediaLibrarySession.Callback {
         @Override
-        public ListenableFuture<LibraryResult<MediaItem>> onGetRoot(
-                MediaLibrarySession session, MediaSession.ControllerInfo browser, @Nullable Bundle rootHints) {
+        public ListenableFuture<LibraryResult<MediaItem>> onGetLibraryRoot(
+                MediaLibrarySession session, MediaSession.ControllerInfo browser, @Nullable LibraryParams params) {
             MediaMetadata metadata = new MediaMetadata.Builder()
                     .setIsBrowsable(true)
                     .setIsPlayable(false)
@@ -129,12 +130,12 @@ public class Media3Service extends MediaLibraryService {
                     .setMediaId("root")
                     .setMediaMetadata(metadata)
                     .build();
-            return Futures.immediateFuture(LibraryResult.ofItem(rootItem, null));
+            return Futures.immediateFuture(LibraryResult.ofItem(rootItem, params));
         }
 
         @Override
         public ListenableFuture<LibraryResult<ImmutableList<MediaItem>>> onGetChildren(
-                MediaLibrarySession session, MediaSession.ControllerInfo browser, String parentId, int page, int pageSize, @Nullable Bundle params) {
+                MediaLibrarySession session, MediaSession.ControllerInfo browser, String parentId, int page, int pageSize, @Nullable LibraryParams params) {
             List<MediaItem> children = new ArrayList<>();
             if (parentId.equals("root")) {
                 children.add(createBrowsableItem("favorites", "Preferiti", "I tuoi episodi salvati"));
@@ -158,7 +159,7 @@ public class Media3Service extends MediaLibraryService {
                     Log.e(TAG, "Error parsing " + key, e);
                 }
             }
-            return Futures.immediateFuture(LibraryResult.ofItemList(ImmutableList.copyOf(children), null));
+            return Futures.immediateFuture(LibraryResult.ofItemList(ImmutableList.copyOf(children), params));
         }
 
         @Override
