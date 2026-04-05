@@ -212,7 +212,6 @@ public class AndroidAutoService extends MediaBrowserServiceCompat {
         
         audioFocusRequest = new AudioFocusRequestCompat.Builder(AudioManagerCompat.AUDIOFOCUS_GAIN)
                 .setAudioAttributes(audioAttributes)
-                .setAcceptsDelayedFocusGain(true)
                 .setOnAudioFocusChangeListener(focusChange -> {
                     // Handle focus change
                 })
