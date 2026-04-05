@@ -1090,26 +1090,5 @@ export const storage = {
     opml += '  </body>\n';
     opml += '</opml>';
     return opml;
-  },
-
-  async fetchUrlContent(url: string): Promise<string> {
-    const isNative = typeof window !== 'undefined' && (window as any).Capacitor?.isNativePlatform();
-    if (isNative) {
-      const options = {
-        url,
-        headers: { 
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-        },
-        connectTimeout: 30000,
-        readTimeout: 30000,
-      };
-      const response = await CapacitorHttp.get(options);
-      if (response.status === 200) {
-        return typeof response.data === 'string' ? response.data : JSON.stringify(response.data);
-      }
-      throw new Error(`Fetch failed with status ${response.status}`);
-    }
-    return await fetchWithProxy(url, false);
   }
 };
