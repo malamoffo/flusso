@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { X, Moon, Sun, Monitor, Image as ImageIcon, LayoutList, Maximize, Type, Plus, Trash2, Edit2, AlertCircle, Save, ArrowLeft, ChevronDown, ChevronUp, Github, Info, ExternalLink, RefreshCw, ShieldCheck, Download, CheckCircle2 } from 'lucide-react';
+import { X, Moon, Sun, Monitor, Image as ImageIcon, LayoutList, Maximize, Type, Plus, Trash2, Edit2, AlertCircle, Save, ArrowLeft, ChevronDown, ChevronUp, Github, Info, ExternalLink, RefreshCw, ShieldCheck, Download, CheckCircle2, FileCode, Copy, Check } from 'lucide-react';
 import { useRss } from '../context/RssContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../lib/utils';
 import { SwipeAction, Theme, ImageDisplay, FontSize } from '../types';
 import { AddFeedModal } from './AddFeedModal';
+import { storage } from '../services/storage';
 import packageJson from '../../package.json';
 
 export const SettingsModal = React.memo(function SettingsModal({
@@ -25,14 +26,41 @@ export const SettingsModal = React.memo(function SettingsModal({
   const [editUrl, setEditUrl] = useState('');
   const [selectedFeedId, setSelectedFeedId] = useState<string | null>(null);
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
+  const [isXmlViewOpen, setIsXmlViewOpen] = useState(false);
+  const [xmlContent, setXmlContent] = useState<string | null>(null);
+  const [isLoadingXml, setIsLoadingXml] = useState(false);
+  const [isCopied, setIsCopied] = useState(false);
   
   React.useEffect(() => {
     if (isOpen) {
       setActiveTab(initialTab || 'settings');
       setSelectedFeedId(null);
       setIsConfirmingDelete(false);
+      setIsXmlViewOpen(false);
+      setXmlContent(null);
     }
   }, [isOpen, initialTab]);
+
+  const handleViewXml = async (url: string) => {
+    setIsLoadingXml(true);
+    setIsXmlViewOpen(true);
+    try {
+      const content = await storage.fetchUrlContent(url);
+      setXmlContent(content);
+    } catch (e) {
+      setXmlContent('Failed to fetch XML content.');
+    } finally {
+      setIsLoadingXml(false);
+    }
+  };
+
+  const handleCopyXml = () => {
+    if (xmlContent) {
+      navigator.clipboard.writeText(xmlContent);
+      setIsCopied(true);
+      setTimeout(() => setIsCopied(false), 2000);
+    }
+  };
 
   React.useEffect(() => {
     setIsConfirmingDelete(false);
@@ -138,6 +166,13 @@ export const SettingsModal = React.memo(function SettingsModal({
                 </div>
                 <div className="flex gap-2">
                   <button onClick={() => saveEdit(selectedFeed.id)} className="flex-1 p-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-medium transition-colors">Save Changes</button>
+                  <button 
+                    onClick={() => handleViewXml(selectedFeed.feedUrl)}
+                    className="p-3 bg-gray-800 hover:bg-gray-700 text-white rounded-xl transition-colors flex items-center justify-center"
+                    title="View Raw XML"
+                  >
+                    <FileCode className="w-5 h-5" />
+                  </button>
                   {selectedFeed.link && (
                     <a 
                       href={selectedFeed.link} 
@@ -526,6 +561,66 @@ export const SettingsModal = React.memo(function SettingsModal({
             )}
           </motion.div>
           <AddFeedModal isOpen={isAddModalOpen} onClose={() => setIsAddModalOpen(false)} />
+          
+          {/* XML View Modal */}
+          <AnimatePresence>
+            {isXmlViewOpen && (
+              <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                  className="w-full max-w-4xl h-[80vh] flex flex-col rounded-3xl bg-gray-900 border border-gray-800 shadow-2xl overflow-hidden"
+                >
+                  <div className="p-4 border-b border-gray-800 flex items-center justify-between bg-gray-900/50 backdrop-blur-sm sticky top-0 z-10">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-indigo-500/10 rounded-xl">
+                        <FileCode className="w-5 h-5 text-indigo-400" />
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-white">Feed XML</h3>
+                        <p className="text-[10px] text-gray-500 truncate max-w-[200px] sm:max-w-md">{selectedFeed?.feedUrl}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {xmlContent && (
+                        <button
+                          onClick={handleCopyXml}
+                          className="p-2 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-300 transition-colors flex items-center gap-2 text-xs font-medium"
+                        >
+                          {isCopied ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
+                          {isCopied ? 'Copied!' : 'Copy'}
+                        </button>
+                      )}
+                      <button
+                        onClick={() => setIsXmlViewOpen(false)}
+                        className="p-2 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-300 transition-colors"
+                      >
+                        <X className="w-5 h-5" />
+                      </button>
+                    </div>
+                  </div>
+                  
+                  <div className="flex-1 overflow-auto p-6 font-mono text-xs leading-relaxed bg-black/30">
+                    {isLoadingXml ? (
+                      <div className="h-full flex flex-col items-center justify-center gap-4 text-gray-500">
+                        <RefreshCw className="w-8 h-8 animate-spin text-indigo-500" />
+                        <p className="animate-pulse">Fetching feed XML...</p>
+                      </div>
+                    ) : xmlContent ? (
+                      <pre className="text-gray-300 whitespace-pre-wrap break-all selection:bg-indigo-500/30">
+                        {xmlContent}
+                      </pre>
+                    ) : (
+                      <div className="h-full flex items-center justify-center text-gray-500">
+                        No content available.
+                      </div>
+                    )}
+                  </div>
+                </motion.div>
+              </div>
+            )}
+          </AnimatePresence>
         </>
       )}
     </AnimatePresence>
