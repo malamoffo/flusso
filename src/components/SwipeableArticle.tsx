@@ -201,7 +201,7 @@ export const SwipeableArticle = React.memo(function SwipeableArticle({
         prefetchRef(node);
       }} 
       className={cn(
-        "relative w-full overflow-hidden border-b border-gray-800 will-change-transform"
+        "relative w-full overflow-hidden border border-gray-700 rounded-2xl mb-2 shadow-sm will-change-transform"
       )}
       style={{
         transform: 'translateZ(0)', // GPU acceleration
@@ -257,7 +257,7 @@ export const SwipeableArticle = React.memo(function SwipeableArticle({
         onClick={handleArticleClick}
         exit={{ x: exitX, opacity: 0, transition: { duration: 0.15, ease: "easeOut" } }}
         className={cn(
-          "relative z-20 w-full p-4 cursor-pointer shadow-sm transition-colors bg-black select-none",
+          "relative z-20 w-full p-2.5 cursor-pointer shadow-sm transition-colors bg-black select-none",
           "opacity-100"
         )}
       >
@@ -272,8 +272,8 @@ export const SwipeableArticle = React.memo(function SwipeableArticle({
               alt="" 
               className={cn(
                 "rounded-lg flex-shrink-0 bg-gray-800 transition-opacity",
-                (article.type !== 'podcast' && settings.imageDisplay === 'large') ? 'w-full h-auto min-h-[200px] max-h-[800px] mb-3 object-cover' : 
-                (article.type === 'podcast' ? 'h-16 w-16 object-cover' : 'w-20 h-auto min-h-[80px] max-h-[160px] object-cover')
+                (article.type !== 'podcast' && settings.imageDisplay === 'large') ? 'w-full h-auto mb-3' : 
+                (article.type === 'podcast' ? 'w-16 h-auto' : 'w-20 h-auto')
               )}
               referrerPolicy="no-referrer"
             />

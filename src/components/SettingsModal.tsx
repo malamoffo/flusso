@@ -414,7 +414,7 @@ export const SettingsModal = React.memo(function SettingsModal({
             ) : activeTab === 'subscriptions' ? (
               <section className="space-y-4">
                 <div className="space-y-2">
-                  {feeds.map(feed => (
+                  {[...feeds].sort((a, b) => a.title.localeCompare(b.title)).map(feed => (
                     <div 
                       key={feed.id} 
                       className="group flex items-center justify-between p-4 rounded-2xl bg-gray-800 hover:bg-gray-700 transition-colors cursor-pointer" 
@@ -423,7 +423,7 @@ export const SettingsModal = React.memo(function SettingsModal({
                       <div className="min-w-0 flex-1">
                         <span className="font-medium text-white truncate block" title={feed.title}>{feed.title}</span>
                         <span className="text-xs text-gray-400">
-                          {feed.error ? 'Error' : feed.lastFetched ? `Updated ${new Date(feed.lastFetched).toLocaleDateString()}` : 'Never updated'}
+                          {feed.error ? 'Error' : feed.lastFetched ? `Updated ${new Date(feed.lastFetched).toLocaleString()}` : 'Never updated'}
                         </span>
                       </div>
                       <div className="flex items-center gap-3">

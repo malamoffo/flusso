@@ -836,7 +836,7 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
                     >
                       {viewMode === 'chapters' 
                         ? (currentChapter ? currentChapter.title : 'Capitoli') 
-                        : 'Note episodio'}
+                        : (article.type === 'podcast' ? 'Note episodio' : 'Contenuto')}
                     </button>
                     <button
                       onClick={(e) => {
@@ -935,7 +935,7 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
           <div className="space-y-6">
             {hasChapters && (
               <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                <FileText className="w-5 h-5 text-indigo-400" /> Note episodio
+                <FileText className="w-5 h-5 text-indigo-400" /> {article.type === 'podcast' ? 'Note episodio' : 'Contenuto'}
               </h3>
             )}
             
