@@ -11,6 +11,7 @@ import { CachedImage } from './CachedImage';
 import { cn, getSafeUrl, formatTime, parseDurationToSeconds } from '../lib/utils';
 import { Capacitor, CapacitorHttp } from '@capacitor/core';
 import { Share } from '@capacitor/share';
+import { Browser } from '@capacitor/browser';
 import { imagePersistence } from '../utils/imagePersistence';
 import { Readability } from '@mozilla/readability';
 import { fetchWithProxy } from '../utils/proxy';
@@ -474,12 +475,14 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
 
   const [sanitizedContent, setSanitizedContent] = useState<string>('');
 
-  const handleContentClick = (e: React.MouseEvent<HTMLDivElement>) => {
+  const handleContentClick = async (e: React.MouseEvent<HTMLDivElement>) => {
     const target = e.target as HTMLElement;
-    const link = target.closest('a.podcast-timestamp');
-    if (link) {
+    
+    // Handle podcast timestamps
+    const timestampLink = target.closest('a.podcast-timestamp');
+    if (timestampLink) {
       e.preventDefault();
-      const timeStr = link.getAttribute('data-time');
+      const timeStr = timestampLink.getAttribute('data-time');
       if (timeStr) {
         const timeInSeconds = parseDurationToSeconds(timeStr);
         if (currentTrack?.id === article.id) {
@@ -488,6 +491,19 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
           play(article);
           setTimeout(() => seek(timeInSeconds), 500);
         }
+      }
+      return;
+    }
+
+    // Handle regular links
+    const link = target.closest('a');
+    if (link && link.href) {
+      e.preventDefault();
+      try {
+        await Browser.open({ url: link.href });
+      } catch (err) {
+        console.error('Failed to open link in browser:', err);
+        window.open(link.href, '_blank');
       }
     }
   };
@@ -690,9 +706,19 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
         <h1 className={`${getTitleSize()} font-bold text-white mb-4 leading-tight`}>
           <a 
             href={getSafeUrl(article.link)}
-            target="_blank" 
-            rel="noopener noreferrer" 
-            className="hover:underline"
+            onClick={async (e) => {
+              e.preventDefault();
+              const safeLink = getSafeUrl(article.link);
+              if (safeLink) {
+                try {
+                  await Browser.open({ url: safeLink });
+                } catch (err) {
+                  console.error('Failed to open link in browser:', err);
+                  window.open(safeLink, '_blank');
+                }
+              }
+            }}
+            className="hover:underline cursor-pointer"
             dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(article.title, { FORBID_ATTR: ['id', 'name'] }) }}
           />
         </h1>
@@ -951,9 +977,19 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
                 {article.link && (
                   <a 
                     href={getSafeUrl(article.link)}
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 mt-4 px-4 py-2 bg-indigo-900/30 text-indigo-400 rounded-lg hover:bg-indigo-900/50 transition-colors no-underline"
+                    onClick={async (e) => {
+                      e.preventDefault();
+                      const safeLink = getSafeUrl(article.link);
+                      if (safeLink) {
+                        try {
+                          await Browser.open({ url: safeLink });
+                        } catch (err) {
+                          console.error('Failed to open link in browser:', err);
+                          window.open(safeLink, '_blank');
+                        }
+                      }
+                    }}
+                    className="inline-flex items-center gap-2 mt-4 px-4 py-2 bg-indigo-900/30 text-indigo-400 rounded-lg hover:bg-indigo-900/50 transition-colors no-underline cursor-pointer"
                   >
                     <ExternalLink size={14} />
                     {article.type === 'podcast' ? 'Articolo originale' : 'Read original article'}

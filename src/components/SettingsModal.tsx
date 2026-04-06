@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Browser } from '@capacitor/browser';
 import { X, Moon, Sun, Monitor, Image as ImageIcon, LayoutList, Maximize, Type, Plus, Trash2, Edit2, AlertCircle, Save, ArrowLeft, ChevronDown, ChevronUp, Github, Info, ExternalLink, RefreshCw, ShieldCheck, Download, CheckCircle2, FileCode, Copy, Check } from 'lucide-react';
 import { useRss } from '../context/RssContext';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -174,15 +175,20 @@ export const SettingsModal = React.memo(function SettingsModal({
                     <FileCode className="w-5 h-5" />
                   </button>
                   {selectedFeed.link && (
-                    <a 
-                      href={selectedFeed.link} 
-                      target="_blank" 
-                      rel="noopener noreferrer" 
-                      className="p-3 bg-gray-800 hover:bg-gray-700 text-white rounded-xl transition-colors flex items-center justify-center"
+                    <button 
+                      onClick={async () => {
+                        try {
+                          await Browser.open({ url: selectedFeed.link! });
+                        } catch (err) {
+                          console.error('Failed to open link in browser:', err);
+                          window.open(selectedFeed.link!, '_blank');
+                        }
+                      }}
+                      className="p-3 bg-gray-800 hover:bg-gray-700 text-white rounded-xl transition-colors flex items-center justify-center cursor-pointer"
                       title="Go to source"
                     >
                       <ExternalLink className="w-5 h-5" />
-                    </a>
+                    </button>
                   )}
                 </div>
                 <button 
@@ -422,16 +428,20 @@ export const SettingsModal = React.memo(function SettingsModal({
                       </div>
                       <div className="flex items-center gap-3">
                         {feed.link && (
-                          <a 
-                            href={feed.link} 
-                            target="_blank" 
-                            rel="noopener noreferrer" 
-                            onClick={(e) => e.stopPropagation()}
-                            className="p-2 bg-gray-900 rounded-lg text-gray-400 hover:text-white hover:bg-gray-600 transition-all opacity-0 group-hover:opacity-100"
+                          <button 
+                            onClick={async () => {
+                              try {
+                                await Browser.open({ url: feed.link! });
+                              } catch (err) {
+                                console.error('Failed to open link in browser:', err);
+                                window.open(feed.link!, '_blank');
+                              }
+                            }}
+                            className="p-2 bg-gray-900 rounded-lg text-gray-400 hover:text-white hover:bg-gray-600 transition-all opacity-0 group-hover:opacity-100 cursor-pointer"
                             title="Go to source"
                           >
                             <ExternalLink className="w-4 h-4" />
-                          </a>
+                          </button>
                         )}
                         <span className={cn(
                           "w-2.5 h-2.5 rounded-full shadow-sm",
@@ -493,15 +503,20 @@ export const SettingsModal = React.memo(function SettingsModal({
                       )}
 
                       <div className="grid grid-cols-1 gap-3">
-                        <a 
-                          href={updateInfo.latestRelease?.url} 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="flex items-center justify-center gap-2 p-3 bg-white text-indigo-600 rounded-xl font-bold text-sm hover:bg-indigo-50 transition-colors"
+                        <button 
+                          onClick={async () => {
+                            try {
+                              await Browser.open({ url: updateInfo.latestRelease?.url! });
+                            } catch (err) {
+                              console.error('Failed to open link in browser:', err);
+                              window.open(updateInfo.latestRelease?.url!, '_blank');
+                            }
+                          }}
+                          className="flex items-center justify-center gap-2 p-3 bg-white text-indigo-600 rounded-xl font-bold text-sm hover:bg-indigo-50 transition-colors cursor-pointer"
                         >
                           <Download className="w-4 h-4" />
                           Download Update
-                        </a>
+                        </button>
                       </div>
                     </div>
                   ) : (
@@ -537,18 +552,23 @@ export const SettingsModal = React.memo(function SettingsModal({
                   </div>
 
                   <div className="space-y-2">
-                    <a 
-                      href="https://github.com/malamoffo/flusso" 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="w-full flex items-center justify-between p-4 rounded-2xl bg-gray-900 text-white hover:bg-black transition-colors"
+                    <button 
+                      onClick={async () => {
+                        try {
+                          await Browser.open({ url: 'https://github.com/malamoffo/flusso' });
+                        } catch (err) {
+                          console.error('Failed to open link in browser:', err);
+                          window.open('https://github.com/malamoffo/flusso', '_blank');
+                        }
+                      }}
+                      className="w-full flex items-center justify-between p-4 rounded-2xl bg-gray-900 text-white hover:bg-black transition-colors cursor-pointer"
                     >
                       <div className="flex items-center gap-3">
                         <Github className="w-5 h-5" />
                         <span className="font-medium">GitHub Repository</span>
                       </div>
                       <ExternalLink className="w-4 h-4 opacity-50" />
-                    </a>
+                    </button>
                   </div>
                 </div>
 
