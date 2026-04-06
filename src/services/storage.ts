@@ -899,12 +899,10 @@ export const storage = {
           const dataString = typeof response.data === 'string' ? response.data : JSON.stringify(response.data);
           const { feed, articles } = parseRssXml(dataString, feedUrl, sinceDate);
           
+          // Strictly follow the rule: only articles newer than sinceDate
+          // No arbitrary 7/14 day limit here to respect user request
           const filteredArticles = articles.filter(a => {
-            // When fetching, we use a slightly more generous limit to catch 
-            // articles missed during a weekend or short break.
-            const limit = a.type === 'podcast' ? 14 * 24 * 60 * 60 * 1000 : 7 * 24 * 60 * 60 * 1000;
-            return (Date.now() - a.pubDate) <= limit && 
-                   (!sinceDate || a.pubDate > sinceDate);
+            return !sinceDate || a.pubDate > sinceDate;
           });
 
           return { feed, articles: filteredArticles };
@@ -933,12 +931,9 @@ export const storage = {
 
       const { feed, articles } = parseRssXml(xmlString, feedUrl, sinceDate);
       
+      // Strictly follow the rule: only articles newer than sinceDate
       const filteredArticles = articles.filter(a => {
-        // When fetching, we use a slightly more generous limit to catch 
-        // articles missed during a weekend or short break.
-        const limit = a.type === 'podcast' ? 14 * 24 * 60 * 60 * 1000 : 7 * 24 * 60 * 60 * 1000;
-        return (Date.now() - a.pubDate) <= limit && 
-               (!sinceDate || a.pubDate > sinceDate);
+        return !sinceDate || a.pubDate > sinceDate;
       });
 
       return { feed, articles: filteredArticles };

@@ -374,6 +374,17 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       
       // Precompute the latest article and podcast date for each feed for O(1) lookups
       const latestDateByFeedAndType = new Map<string, number>();
+      
+      // 1. Initialize with dates from the Feed objects (persistent baseline)
+      for (const feed of fToRefresh) {
+        if (feed.lastArticleDate) {
+          // Use lastArticleDate as a baseline for both types
+          latestDateByFeedAndType.set(`${feed.id}_article`, feed.lastArticleDate);
+          latestDateByFeedAndType.set(`${feed.id}_podcast`, feed.lastArticleDate);
+        }
+      }
+
+      // 2. Update with dates from actual articles in DB (more granular if available)
       for (const article of cArticles) {
         const type = article.type || (article.mediaType?.startsWith('audio/') ? 'podcast' : 'article');
         const key = `${article.feedId}_${type}`;
