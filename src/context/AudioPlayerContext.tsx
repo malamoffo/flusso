@@ -357,7 +357,7 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
             return attemptPlay(retries - 1);
           }
           console.error("[AUDIO] Native playback failed after retries:", err);
-          setErrorMessage("Impossibile avviare la riproduzione nativa. Riprova più tardi.");
+          setErrorMessage("Impossibile avviare la riproduzione nativa: " + (err instanceof Error ? err.stack : String(err)));
           setIsBuffering(false);
         }
       };
