@@ -11,11 +11,11 @@ import com.flusso.app.Media3Plugin;
 public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
         Log.d("MainActivity", "Registering plugins...");
         registerPlugin(com.flusso.app.QueuePlugin.class);
         registerPlugin(com.flusso.app.BackgroundPlugin.class);
         registerPlugin(com.flusso.app.Media3Plugin.class);
+        super.onCreate(savedInstanceState);
         Log.d("MainActivity", "Plugins registered.");
     }
 
