@@ -11,12 +11,16 @@ import com.flusso.app.Media3Plugin;
 public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
-        Log.d("MainActivity", "Registering plugins...");
-        registerPlugin(com.flusso.app.QueuePlugin.class);
-        registerPlugin(com.flusso.app.BackgroundPlugin.class);
-        registerPlugin(com.flusso.app.Media3Plugin.class);
         super.onCreate(savedInstanceState);
-        Log.d("MainActivity", "Plugins registered.");
+        Log.d("MainActivity", "Registering plugins directly to bridge...");
+        if (bridge != null) {
+            bridge.registerPlugin(com.flusso.app.QueuePlugin.class);
+            bridge.registerPlugin(com.flusso.app.BackgroundPlugin.class);
+            bridge.registerPlugin(com.flusso.app.Media3Plugin.class);
+            Log.d("MainActivity", "Plugins registered successfully.");
+        } else {
+            Log.e("MainActivity", "Bridge is null, cannot register plugins!");
+        }
     }
 
     @Override
