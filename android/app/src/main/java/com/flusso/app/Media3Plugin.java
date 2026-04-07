@@ -31,12 +31,19 @@ public class Media3Plugin extends Plugin {
     public void load() {
         super.load();
         instance = this;
-        Log.d(TAG, "Media3Plugin loaded");
+        Log.d(TAG, "Media3Plugin loaded successfully. ClassLoader: " + this.getClass().getClassLoader());
+        Log.d(TAG, "Plugin name from annotation: " + this.getPluginHandle().getPluginName());
     }
 
     @PluginMethod
     public void updateMetadata(PluginCall call) {
+        Log.d(TAG, "updateMetadata called");
         String id = call.getString("id");
+        if (id == null) {
+            Log.e(TAG, "updateMetadata: id is null");
+            call.reject("id is required");
+            return;
+        }
         String title = call.getString("title");
         String artist = call.getString("artist");
         String url = call.getString("url");
@@ -48,9 +55,9 @@ public class Media3Plugin extends Plugin {
         if (service != null) {
             service.updateMetadata(id, title, artist, url, image);
         } else {
+            Log.w(TAG, "Media3Service not running yet, starting it...");
             Intent intent = new Intent(getContext(), Media3Service.class);
             getContext().startService(intent);
-            Log.w(TAG, "Media3Service not running yet");
         }
         call.resolve();
     }
