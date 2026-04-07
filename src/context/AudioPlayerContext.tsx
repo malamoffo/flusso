@@ -270,6 +270,8 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
       return;
     }
 
+    setIsBuffering(true);
+
     const isNewTrack = currentTrack?.id !== track.id;
     const isMissingSrcWeb = !Capacitor.isNativePlatform() && (!audioRef.current.src || audioRef.current.src === window.location.href || audioRef.current.src.endsWith('/'));
 
@@ -343,6 +345,7 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
       }).catch(err => {
         if (err.name === 'AbortError') {
           console.log("[AUDIO] Web play aborted (new request)");
+          setIsBuffering(false);
           return;
         }
         
@@ -366,7 +369,6 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
         }
       });
     }
-    setIsBuffering(true);
   }, [currentTrack, feeds, updateArticle]);
 
   // Check for pending media ID from Android Auto

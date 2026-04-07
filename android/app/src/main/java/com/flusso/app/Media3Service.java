@@ -126,7 +126,12 @@ public class Media3Service extends MediaLibraryService {
 
     public void play() {
         Log.d(TAG, "play() called");
-        if (player != null) player.play();
+        if (player != null) {
+            if (player.getPlaybackState() == Player.STATE_IDLE) {
+                player.prepare();
+            }
+            player.play();
+        }
     }
 
     public void pause() {
