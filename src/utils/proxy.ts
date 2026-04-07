@@ -57,7 +57,8 @@ export async function fetchWithProxy(url: string, isRss: boolean = true, sinceDa
     // Note: User-Agent is a forbidden header in browsers, but we keep it for non-browser environments if applicable.
     // In browser, it will likely be ignored or cause a warning, but shouldn't crash.
     const headers: Record<string, string> = {
-      ...(isRss ? { 'Accept': 'application/rss+xml, application/xml, text/xml, */*' } : { 'Accept': 'application/json, text/plain, */*' })
+      ...(isRss ? { 'Accept': 'application/rss+xml, application/xml, text/xml, */*' } : { 'Accept': 'application/json, text/plain, */*' }),
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
     };
 
     if (sinceDate) {

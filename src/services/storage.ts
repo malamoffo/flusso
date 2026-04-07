@@ -78,7 +78,7 @@ export function extractBestImage(content: string, baseUrl?: string): string | nu
       lowerUrl.includes('1x1') ||
       lowerUrl.includes('pixel') ||
       lowerUrl.includes('tracker') ||
-      lowerUrl.includes('feedburner') ||
+      (lowerUrl.includes('feedburner') && lowerUrl.includes('/~4/')) ||
       lowerUrl.includes('stats') ||
       lowerUrl.includes('gravatar') ||
       lowerUrl.includes('avatar') ||
@@ -360,18 +360,21 @@ function parseRssXml(xmlString: string, feedUrl: string, sinceDate?: number): { 
       }
 
       if (mediaContentElements.length > 0) {
-        const mediaContent = mediaContentElements[0];
-        const type = mediaContent.getAttribute('type');
-        const url = mediaContent.getAttribute('url');
-        if (type?.startsWith('image/')) {
-          if (!imageUrl && url) imageUrl = resolveUrl(url, feedUrl);
-        } else if (type?.startsWith('audio/') || type?.startsWith('video/')) {
-          if (url) {
-            mediaUrl = resolveUrl(url, feedUrl);
-            mediaType = type;
+        for (const mediaContent of mediaContentElements) {
+          const type = mediaContent.getAttribute('type');
+          const url = mediaContent.getAttribute('url');
+          if (!url) continue;
+
+          if (type?.startsWith('image/')) {
+            if (!imageUrl) imageUrl = resolveUrl(url, feedUrl);
+          } else if (type?.startsWith('audio/') || type?.startsWith('video/')) {
+            if (!mediaUrl) {
+              mediaUrl = resolveUrl(url, feedUrl);
+              mediaType = type;
+            }
+          } else if (url.match(/\.(jpg|jpeg|png|gif|webp|avif)/i)) {
+            if (!imageUrl) imageUrl = resolveUrl(url, feedUrl);
           }
-        } else if (!type && url && (url.endsWith('.jpg') || url.endsWith('.png'))) {
-          if (!imageUrl) imageUrl = resolveUrl(url, feedUrl);
         }
       }
       
@@ -588,18 +591,21 @@ function parseRssXml(xmlString: string, feedUrl: string, sinceDate?: number): { 
       }
 
       if (!imageUrl && mediaContentElements.length > 0) {
-        const mediaContent = mediaContentElements[0];
-        const type = mediaContent.getAttribute('type');
-        const url = mediaContent.getAttribute('url');
-        if (type?.startsWith('image/')) {
-          if (url) imageUrl = resolveUrl(url, feedUrl);
-        } else if (type?.startsWith('audio/') || type?.startsWith('video/')) {
-          if (url) {
-            mediaUrl = resolveUrl(url, feedUrl);
-            mediaType = type;
+        for (const mediaContent of mediaContentElements) {
+          const type = mediaContent.getAttribute('type');
+          const url = mediaContent.getAttribute('url');
+          if (!url) continue;
+
+          if (type?.startsWith('image/')) {
+            imageUrl = resolveUrl(url, feedUrl);
+          } else if (type?.startsWith('audio/') || type?.startsWith('video/')) {
+            if (!mediaUrl) {
+              mediaUrl = resolveUrl(url, feedUrl);
+              mediaType = type;
+            }
+          } else if (url) {
+            imageUrl = resolveUrl(url, feedUrl);
           }
-        } else if (url) {
-          imageUrl = resolveUrl(url, feedUrl);
         }
       }
 
