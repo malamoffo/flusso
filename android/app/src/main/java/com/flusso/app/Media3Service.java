@@ -124,11 +124,30 @@ public class Media3Service extends MediaLibraryService {
         player.prepare();
     }
 
-    public void play() {
-        Log.d(TAG, "play() called");
+    public void resetAndPlay() {
+        Log.d(TAG, "resetAndPlay() called");
         if (player != null) {
-            if (player.getPlaybackState() == Player.STATE_IDLE) {
-                player.prepare();
+            player.stop();
+            player.prepare();
+            player.addListener(new Player.Listener() {
+                @Override
+                public void onPlaybackStateChanged(int playbackState) {
+                    if (playbackState == Player.STATE_READY) {
+                        player.play();
+                        player.removeListener(this);
+                    }
+                }
+            });
+        }
+    }
+
+    public void play() {
+        Log.d(TAG, "play() called, state: " + player.getPlaybackState());
+        if (player != null) {
+            if (player.getPlaybackState() == Player.STATE_IDLE || player.getPlaybackState() == Player.STATE_BUFFERING) {
+                if (player.getPlaybackState() == Player.STATE_IDLE) {
+                    player.prepare();
+                }
                 player.addListener(new Player.Listener() {
                     @Override
                     public void onPlaybackStateChanged(int playbackState) {

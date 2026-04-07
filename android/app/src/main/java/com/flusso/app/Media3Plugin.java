@@ -50,6 +50,17 @@ public class Media3Plugin extends Plugin {
     }
 
     @PluginMethod
+    public void resetAndPlay(PluginCall call) {
+        Media3Service service = Media3Service.getInstance();
+        if (service != null) {
+            service.resetAndPlay();
+            call.resolve();
+        } else {
+            call.reject("Media3Service not running");
+        }
+    }
+
+    @PluginMethod
     public void play(PluginCall call) {
         Media3Service service = Media3Service.getInstance();
         if (service != null) {

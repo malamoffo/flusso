@@ -39,6 +39,23 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
   const [playbackRate, setPlaybackRateState] = useState(1);
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const ErrorPopup = () => errorMessage ? (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+      <div className="p-6 bg-white rounded-lg shadow-xl max-w-sm w-full">
+        <h3 className="text-lg font-bold mb-2">Errore di riproduzione</h3>
+        <p className="text-gray-700 mb-4">{errorMessage}</p>
+        <button 
+          className="w-full py-2 bg-blue-600 text-white rounded"
+          onClick={() => setErrorMessage(null)}
+        >
+          Chiudi
+        </button>
+      </div>
+    </div>
+  ) : null;
+
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const progressRef = useRef<number>(0);
   const lastSavedProgressRef = useRef<number>(0);
@@ -326,7 +343,10 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
             url: safeMediaUrl,
             image: track.imageUrl || feed?.imageUrl || ''
           });
-          await Media3.play();
+          
+          // Use resetAndPlay for native to ensure a clean state
+          await Media3.resetAndPlay();
+          
           console.log("[AUDIO] Native play success");
           setIsPlaying(true);
           setIsBuffering(false);
@@ -337,6 +357,7 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
             return attemptPlay(retries - 1);
           }
           console.error("[AUDIO] Native playback failed after retries:", err);
+          setErrorMessage("Impossibile avviare la riproduzione nativa. Riprova più tardi.");
           setIsBuffering(false);
         }
       };
@@ -611,6 +632,7 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
     <AudioPlayerStateContext.Provider value={stateValue}>
       <AudioPlayerProgressContext.Provider value={progressValue}>
         {children}
+        <ErrorPopup />
       </AudioPlayerProgressContext.Provider>
     </AudioPlayerStateContext.Provider>
   );
