@@ -255,7 +255,7 @@ export const storage = {
     } catch (e) {
       if (signal?.aborted) return null;
       console.warn(`[STORAGE] Web fetch error for ${feedUrl}:`, e);
-      throw e;
+      return null;
     }
   },
 
@@ -537,9 +537,10 @@ export const storage = {
     try {
       // Clean name (remove r/ or https://reddit.com/r/)
       let cleanName = name.trim();
-      if (cleanName.includes('reddit.com/r/')) {
-        cleanName = cleanName.split('reddit.com/r/')[1].split('/')[0];
-      } else if (cleanName.startsWith('r/')) {
+      const lowerName = cleanName.toLowerCase();
+      if (lowerName.includes('reddit.com/r/')) {
+        cleanName = cleanName.split(/reddit\.com\/r\//i)[1].split('/')[0];
+      } else if (lowerName.startsWith('r/')) {
         cleanName = cleanName.substring(2);
       }
       cleanName = cleanName.replace(/[^a-zA-Z0-9_]/g, '');
@@ -583,9 +584,9 @@ export const storage = {
     }
   },
 
-  async fetchSubredditPosts(subredditName: string, sinceDate?: number, after?: string): Promise<RedditPost[]> {
+  async fetchSubredditPosts(subredditName: string, sinceDate?: number, after?: string, sort: 'new' | 'hot' | 'top' = 'new'): Promise<RedditPost[]> {
     try {
-      let url = `https://www.reddit.com/r/${subredditName}/new.json?limit=25`;
+      let url = `https://www.reddit.com/r/${subredditName}/${sort}.json?limit=25`;
       if (after) {
         url += `&after=t3_${after}`;
       }
@@ -600,9 +601,12 @@ export const storage = {
         if (sinceDate && createdUtc <= sinceDate) return null;
 
         let imageUrl = undefined;
+        // Try to get the highest resolution image
         if (post.preview && post.preview.images && post.preview.images.length > 0) {
-          imageUrl = post.preview.images[0].source.url;
-        } else if (post.url && (post.url.endsWith('.jpg') || post.url.endsWith('.png') || post.url.endsWith('.gif'))) {
+          const preview = post.preview.images[0];
+          // source.url is the original high-res image
+          imageUrl = preview.source.url;
+        } else if (post.url && (post.url.match(/\.(jpg|jpeg|png|gif|webp)$/) || post.url.includes('imgur.com'))) {
           imageUrl = post.url;
         } else if (post.thumbnail && post.thumbnail.startsWith('http')) {
           imageUrl = post.thumbnail;

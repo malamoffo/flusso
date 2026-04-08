@@ -31,6 +31,23 @@ function sanitizeSnippet(input: string): string {
   return textOnly.trim().substring(0, 200);
 }
 
+// Helper to extract all images from HTML content
+export function extractAllImages(content: string, baseUrl?: string): string[] {
+  if (!content) return [];
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(content, 'text/html');
+  const imgTags = doc.getElementsByTagName('img');
+  const images: string[] = [];
+  
+  for (let i = 0; i < imgTags.length; i++) {
+    const url = imgTags[i].getAttribute('src');
+    if (url) {
+      images.push(resolveUrl(url, baseUrl || ''));
+    }
+  }
+  return images;
+}
+
 // Helper to extract the best image from HTML content, avoiding tracking pixels and icons
 export function extractBestImage(content: string, baseUrl?: string): string | null {
   if (!content) return null;
@@ -448,6 +465,8 @@ export function parseRssXml(xmlString: string, feedUrl: string, sinceDate?: numb
         link: resolveUrl(entryLink, feedUrl),
         pubDate,
         imageUrl: imageUrl ? resolveUrl(imageUrl, feedUrl) : undefined,
+        profileImageUrl: undefined, // Placeholder for now, need to find where it is
+        postImageUrls: extractAllImages(content, resolveUrl(entryLink, feedUrl)),
         duration,
         mediaUrl: mediaUrl ? resolveUrl(mediaUrl, feedUrl) : undefined,
         mediaType,
@@ -672,6 +691,8 @@ export function parseRssXml(xmlString: string, feedUrl: string, sinceDate?: numb
         link: resolveUrl(itemLink, feedUrl),
         pubDate,
         imageUrl: imageUrl ? resolveUrl(imageUrl, feedUrl) : undefined,
+        profileImageUrl: undefined, // Placeholder for now
+        postImageUrls: extractAllImages(content, resolveUrl(itemLink, feedUrl)),
         duration,
         mediaUrl: mediaUrl ? resolveUrl(mediaUrl, feedUrl) : undefined,
         mediaType,

@@ -35,8 +35,10 @@ interface RssContextType {
   removeFeed: (id: string) => void;
   removeSubreddit: (id: string) => void;
   refreshFeeds: (feedsToRefresh?: Feed[], currentArticles?: Article[]) => Promise<void>;
-  refreshReddit: (subsToRefresh?: Subreddit[], currentPosts?: RedditPost[]) => Promise<void>;
+  refreshReddit: (subsToRefresh?: Subreddit[], currentPosts?: RedditPost[], sort?: 'new' | 'hot' | 'top') => Promise<void>;
   loadMoreReddit: () => Promise<void>;
+  redditSort: 'new' | 'hot' | 'top';
+  handleRedditSortChange: (sort: 'new' | 'hot' | 'top') => Promise<void>;
   toggleRead: (id: string) => void;
   markAsRead: (id: string) => void;
   markArticlesAsRead: (ids: string[]) => void;
@@ -61,6 +63,7 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [articles, setArticles] = useState<Article[]>([]);
   const [subreddits, setSubreddits] = useState<Subreddit[]>([]);
   const [redditPosts, setRedditPosts] = useState<RedditPost[]>([]);
+  const [redditSort, setRedditSort] = useState<'new' | 'hot' | 'top'>('new');
   const [settings, setSettings] = useState<Settings>(defaultSettings);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [progress, setProgress] = useState<ProgressInfo | null>(null);
@@ -110,9 +113,6 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     try {
       setIsLoading(true);
       
-      // Clear image cache on startup
-      imagePersistence.clearCache().catch(console.error);
-
       const loadedFeeds = await storage.getFeeds();
       const loadedArticles = await storage.getArticles();
       const loadedSubreddits = await storage.getSubreddits();
@@ -186,9 +186,10 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       // Check if it's a subreddit
       let isSubreddit = false;
       let cleanName = url.trim();
-      if (cleanName.includes('reddit.com/r/')) {
+      const lowerName = cleanName.toLowerCase();
+      if (lowerName.includes('reddit.com/r/')) {
         isSubreddit = true;
-      } else if (cleanName.startsWith('r/')) {
+      } else if (lowerName.startsWith('r/')) {
         isSubreddit = true;
       }
 
@@ -439,9 +440,6 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     try {
       setIsLoading(true);
 
-      // Clear image cache on refresh to prevent accumulation
-      imagePersistence.clearCache().catch(console.error);
-
       const fToRefresh = feedsToRefresh || await storage.getFeeds();
       const cArticles = currentArticles || await storage.getArticles();
       
@@ -578,20 +576,21 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   }, []);
 
-  const refreshReddit = useCallback(async (subsToRefresh?: Subreddit[], currentPosts?: RedditPost[]) => {
+  const refreshReddit = useCallback(async (subsToRefresh?: Subreddit[], currentPosts?: RedditPost[], sort?: 'new' | 'hot' | 'top') => {
     try {
       const sToRefresh = subsToRefresh || await storage.getSubreddits();
       const cPosts = currentPosts || await storage.getRedditPosts();
 
       if (sToRefresh.length === 0) return;
 
+      const currentSort = sort || redditSort;
       const results: RedditPost[] = [];
       const threeDaysAgo = Date.now() - (3 * 24 * 60 * 60 * 1000);
 
       // Fetch sequentially or in parallel (parallel is fine for Reddit JSON)
       await Promise.all(sToRefresh.map(async (sub) => {
         try {
-          const posts = await storage.fetchSubredditPosts(sub.name, threeDaysAgo);
+          const posts = await storage.fetchSubredditPosts(sub.name, threeDaysAgo, undefined, currentSort);
           results.push(...posts);
           
           // Update lastFetched
@@ -620,7 +619,11 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           }
 
           if (hasNew) {
-            merged.sort((a, b) => b.createdUtc - a.createdUtc);
+            if (currentSort === 'new') {
+              merged.sort((a, b) => b.createdUtc - a.createdUtc);
+            } else {
+              merged.sort((a, b) => (b.score || 0) - (a.score || 0));
+            }
             storage.saveRedditPosts(merged);
             return merged;
           }
@@ -630,7 +633,7 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     } catch (e) {
       console.error("Failed to refresh reddit", e);
     }
-  }, []);
+  }, [redditSort]);
 
   const loadMoreReddit = useCallback(async () => {
     try {
@@ -653,7 +656,7 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             afterToken = oldestPost.id;
           }
 
-          const posts = await storage.fetchSubredditPosts(sub.name, undefined, afterToken);
+          const posts = await storage.fetchSubredditPosts(sub.name, undefined, afterToken, redditSort);
           results.push(...posts);
         } catch (e) {
           console.error(`Failed to load more for subreddit ${sub.name}`, e);
@@ -675,7 +678,11 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           }
 
           if (hasNew) {
-            merged.sort((a, b) => b.createdUtc - a.createdUtc);
+            if (redditSort === 'new') {
+              merged.sort((a, b) => b.createdUtc - a.createdUtc);
+            } else {
+              merged.sort((a, b) => (b.score || 0) - (a.score || 0));
+            }
             storage.saveRedditPosts(merged);
             return merged;
           }
@@ -687,7 +694,14 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [redditSort]);
+
+  const handleRedditSortChange = useCallback(async (sort: 'new' | 'hot' | 'top') => {
+    setRedditSort(sort);
+    // Clear current posts to show fresh sorted ones
+    setRedditPosts([]);
+    await refreshReddit(undefined, [], sort);
+  }, [refreshReddit]);
 
   /**
    * ⚡ Bolt: Consolidate article counters into a single pass O(N) iteration.
@@ -711,13 +725,15 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     addFeedOrSubreddit, importOpml, toggleRead, markAsRead, markArticlesAsRead,
     toggleFavorite, toggleQueue, removeFromSaved, markAllAsRead, refreshFeeds, refreshReddit, loadMoreReddit, removeFeed, removeSubreddit,
     updateFeed, updateArticle, updateRedditPost, toggleRedditRead, markRedditAsRead, toggleRedditFavorite, updateSettings, exportFeeds,
-    searchQuery, setSearchQuery, unreadCount, savedCount, updateInfo, checkUpdates
+    searchQuery, setSearchQuery, unreadCount, savedCount, updateInfo, checkUpdates,
+    redditSort, handleRedditSortChange
   }), [
     feeds, articles, subreddits, redditPosts, settings, isLoading, progress, error, errorLogs, clearErrorLogs,
     addFeedOrSubreddit, importOpml, toggleRead, markAsRead, markArticlesAsRead,
     toggleFavorite, toggleQueue, removeFromSaved, markAllAsRead, refreshFeeds, refreshReddit, loadMoreReddit, removeFeed, removeSubreddit,
     updateFeed, updateArticle, updateRedditPost, toggleRedditRead, markRedditAsRead, toggleRedditFavorite, updateSettings, exportFeeds,
-    searchQuery, setSearchQuery, unreadCount, savedCount, updateInfo, checkUpdates
+    searchQuery, setSearchQuery, unreadCount, savedCount, updateInfo, checkUpdates,
+    redditSort, handleRedditSortChange
   ]);
 
   return (

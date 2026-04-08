@@ -46,6 +46,8 @@ export interface Article {
   contentSnippet?: string;
   content?: string;
   imageUrl?: string;
+  profileImageUrl?: string; // Added for Bluesky
+  postImageUrls?: string[]; // Added for Bluesky
   duration?: string;
   progress?: number; // 0 to 1
   mediaUrl?: string;

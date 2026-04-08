@@ -21,7 +21,7 @@ const ProgressBanner = memo(() => {
   const { progress } = useRss();
   if (!progress) return null;
   return (
-    <div className="bg-indigo-50 dark:bg-indigo-900/20 px-4 py-2 text-sm text-indigo-800 dark:text-indigo-300 flex items-center justify-between border-t border-indigo-100 dark:border-indigo-900/30">
+    <div className="bg-blue-50 dark:bg-blue-900/20 px-4 py-2 text-sm text-blue-800 dark:text-blue-300 flex items-center justify-between border-t border-blue-100 dark:border-blue-900/30">
       <span>Updating feeds...</span>
       <span className="font-medium">{progress.current} / {progress.total}</span>
     </div>
@@ -83,7 +83,7 @@ const ArticleListView = memo(({
                 <motion.button
                   whileTap={{ scale: 0.95 }}
                   onClick={() => { setSettingsTab('subscriptions'); setIsSettingsOpen(true); }}
-                  className="inline-flex items-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shadow-lg shadow-indigo-500/20 transition-all"
+                  className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-lg shadow-blue-500/20 transition-all"
                 >
                   <Rss className="w-5 h-5" aria-hidden="true" /> Add your first feed
                 </motion.button>
@@ -142,8 +142,19 @@ export default function App() {
     refreshFeeds, refreshReddit, loadMoreReddit, toggleRead, markAsRead, markArticlesAsRead,
     markAllAsRead, searchQuery, setSearchQuery, unreadCount, savedCount,
     toggleFavorite, toggleQueue, removeFromSaved, loadMoreArticles, hasMoreArticles,
-    markRedditAsRead, toggleRedditRead, toggleRedditFavorite
+    markRedditAsRead, toggleRedditRead, toggleRedditFavorite,
+    redditSort, handleRedditSortChange
   } = useRss();
+
+  const sortedSubreddits = useMemo(() => 
+    [...subreddits].sort((a, b) => a.name.localeCompare(b.name)),
+    [subreddits]
+  );
+  
+  const sortedFeeds = useMemo(() => 
+    [...feeds].sort((a, b) => a.title.localeCompare(b.title)),
+    [feeds]
+  );
 
   const deferredSearchQuery = useDeferredValue(searchQuery);
 
@@ -156,8 +167,10 @@ export default function App() {
   const [isMarkAllReadOpen, setIsMarkAllReadOpen] = useState(false);
   
   const [filter, setFilter] = useState<'inbox' | 'saved' | 'reddit'>('inbox');
-  const [inboxTypeFilter, setInboxTypeFilter] = useState<'all' | 'unread' | 'article' | 'podcast'>('all');
+  const [inboxTypeFilter, setInboxTypeFilter] = useState<'all' | 'article' | 'podcast'>('all');
+  const [inboxUnreadOnly, setInboxUnreadOnly] = useState(false);
   const [savedTypeFilter, setSavedTypeFilter] = useState<'all' | 'article' | 'podcast'>('all');
+  const [savedUnreadOnly, setSavedUnreadOnly] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [sourceFilter, setSourceFilter] = useState<string>('all');
   const [timeFilter, setTimeFilter] = useState<string>('all');
@@ -175,15 +188,23 @@ export default function App() {
     setFilter(newFilter);
   };
 
-  const handleTypeFilterChange = (newType: 'all' | 'unread' | 'article' | 'podcast') => {
+  const handleTypeFilterChange = (newType: 'unread' | 'article' | 'podcast') => {
     if (filter === 'inbox') {
-      if (newType === inboxTypeFilter) return;
+      if (newType === 'unread') {
+        setInboxUnreadOnly(!inboxUnreadOnly);
+      } else {
+        const nextType = inboxTypeFilter === newType ? 'all' : newType;
+        setInboxTypeFilter(nextType);
+      }
       if (inboxScrollRef.current) inboxScrollRef.current.scrollTop = 0;
-      setInboxTypeFilter(newType as any);
     } else {
-      if (newType === savedTypeFilter) return;
+      if (newType === 'unread') {
+        setSavedUnreadOnly(!savedUnreadOnly);
+      } else {
+        const nextType = savedTypeFilter === newType ? 'all' : newType;
+        setSavedTypeFilter(nextType);
+      }
       if (savedScrollRef.current) savedScrollRef.current.scrollTop = 0;
-      setSavedTypeFilter(newType as any);
     }
     isAtTop.current = true;
   };
@@ -282,25 +303,21 @@ export default function App() {
 
       // Inbox specific filtering
       let matchesInbox = true;
-      if (inboxTypeFilter === 'unread') {
-        if (article.isRead) matchesInbox = false;
-      } else if (inboxTypeFilter !== 'all' && article.type !== inboxTypeFilter) {
-        matchesInbox = false;
-      }
+      if (inboxUnreadOnly && article.isRead) matchesInbox = false;
+      if (inboxTypeFilter !== 'all' && article.type !== inboxTypeFilter) matchesInbox = false;
       if (matchesInbox) inbox.push(article);
 
       // Saved specific filtering
       if (article.isFavorite || article.isQueued) {
         let matchesSaved = true;
-        if (savedTypeFilter !== 'all' && article.type !== savedTypeFilter) {
-          matchesSaved = false;
-        }
+        if (savedUnreadOnly && article.isRead) matchesSaved = false;
+        if (savedTypeFilter !== 'all' && article.type !== savedTypeFilter) matchesSaved = false;
         if (matchesSaved) saved.push(article);
       }
     }
 
     return { inboxArticles: inbox, savedArticles: saved };
-  }, [articles, inboxTypeFilter, savedTypeFilter, deferredSearchQuery, sourceFilter, timeFilter, isSearchOpen]);
+  }, [articles, inboxTypeFilter, inboxUnreadOnly, savedTypeFilter, savedUnreadOnly, deferredSearchQuery, sourceFilter, timeFilter, isSearchOpen]);
 
   /**
    * ⚡ Bolt: Optimize article navigation by pre-calculating the active list and current index.
@@ -505,7 +522,7 @@ export default function App() {
         style={{ y: pullProgressTransform, opacity: pullOpacity, z: 0 }}
       >
         <div className="rounded-full p-2 shadow-lg border transition-colors bg-gray-900 border-gray-800">
-          <RefreshCw className={cn("w-6 h-6 text-indigo-600 dark:text-indigo-400", isLoading ? "animate-spin" : "")} />
+          <RefreshCw className={cn("w-6 h-6 transition-colors", isLoading ? "animate-spin" : "", filter === 'reddit' ? "text-purple-600 dark:text-purple-400" : "text-blue-600 dark:text-blue-400")} />
         </div>
       </motion.div>
 
@@ -515,8 +532,8 @@ export default function App() {
             className="flex items-center gap-3 cursor-pointer active:opacity-70 transition-opacity"
             onClick={scrollToTop}
           >
-            <div className="w-10 h-10 bg-indigo-100 dark:bg-indigo-900/50 rounded-2xl flex items-center justify-center shadow-inner relative">
-              <Rss className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
+            <div className="w-10 h-10 rounded-2xl flex items-center justify-center shadow-inner relative transition-colors" style={{ backgroundColor: filter === 'reddit' ? 'rgba(147, 51, 234, 0.1)' : 'rgba(37, 99, 235, 0.1)' }}>
+              <Rss className={cn("w-6 h-6 transition-colors", filter === 'reddit' ? "text-purple-600 dark:text-purple-400" : "text-blue-600 dark:text-blue-400")} />
             </div>
             <div className="flex items-baseline gap-4">
               <h1 className="text-xl font-bold text-gray-900 dark:text-white tracking-tight">flusso</h1>
@@ -526,7 +543,10 @@ export default function App() {
             <HeaderWidgets />
             <button 
               onClick={() => setIsSearchOpen(true)}
-              className="p-2 rounded-full hover:bg-indigo-50 dark:hover:bg-indigo-900/30 text-gray-600 dark:text-gray-300"
+              className={cn(
+                "p-2 rounded-full transition-colors text-gray-600 dark:text-gray-300",
+                filter === 'reddit' ? "hover:bg-purple-50 dark:hover:bg-purple-900/30" : "hover:bg-blue-50 dark:hover:bg-blue-900/30"
+              )}
               aria-label="Open search"
             >
               <Search className="w-5 h-5" aria-hidden="true" />
@@ -534,47 +554,69 @@ export default function App() {
           </div>
         </header>
 
+        {filter === 'reddit' && (
+          <div className="px-4 pb-3 flex items-center gap-2 overflow-x-auto scrollbar-hide">
+            <button
+              onClick={() => handleRedditSortChange('new')}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap",
+                redditSort === 'new' ? "bg-purple-600 text-white shadow-sm" : "bg-gray-800 text-gray-400 hover:bg-gray-700"
+              )}
+            >
+              New
+            </button>
+            <button
+              onClick={() => handleRedditSortChange('hot')}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap",
+                redditSort === 'hot' ? "bg-purple-600 text-white shadow-sm" : "bg-gray-800 text-gray-400 hover:bg-gray-700"
+              )}
+            >
+              Trending
+            </button>
+            <button
+              onClick={() => handleRedditSortChange('top')}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap",
+                redditSort === 'top' ? "bg-purple-600 text-white shadow-sm" : "bg-gray-800 text-gray-400 hover:bg-gray-700"
+              )}
+            >
+              Top
+            </button>
+          </div>
+        )}
+
         {filter !== 'reddit' && (
           <div className="px-4 pb-3 flex items-center gap-2 overflow-x-auto scrollbar-hide">
-            {filter === 'inbox' ? (
-              <button
-                onClick={() => handleTypeFilterChange(inboxTypeFilter === 'unread' ? 'all' : 'unread')}
-                className={cn(
-                  "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap bg-indigo-600 text-white shadow-sm"
-                )}
-              >
-                {inboxTypeFilter === 'unread' ? (
-                  <><Inbox className="w-3.5 h-3.5" /> Unread</>
-                ) : (
+            <button
+              onClick={() => handleTypeFilterChange('unread')}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap",
+                (filter === 'inbox' ? inboxUnreadOnly : savedUnreadOnly) ? "bg-blue-600 text-white shadow-sm" : "bg-gray-800 text-gray-400 hover:bg-gray-700"
+              )}
+            >
+              {(filter === 'inbox' ? inboxUnreadOnly : savedUnreadOnly) ? (
+                  <><CheckCircle2 className="w-3.5 h-3.5" /> Unread</>
+              ) : (
                   <><Layers className="w-3.5 h-3.5" /> All</>
-                )}
-              </button>
-            ) : (
-              <button
-                onClick={() => handleTypeFilterChange('all')}
-                className={cn(
-                  "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap",
-                  savedTypeFilter === 'all' ? "bg-indigo-600 text-white shadow-sm" : "bg-gray-800 text-gray-400 hover:bg-gray-700"
-                )}
-              >
-                <Layers className="w-3.5 h-3.5" /> All
-              </button>
-            )}
+              )}
+            </button>
             
             <button
               onClick={() => handleTypeFilterChange('article')}
               className={cn(
                 "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap",
-                (filter === 'inbox' ? inboxTypeFilter : savedTypeFilter) === 'article' ? "bg-indigo-600 text-white shadow-sm" : "bg-gray-800 text-gray-400 hover:bg-gray-700"
+                (filter === 'inbox' ? inboxTypeFilter === 'article' : savedTypeFilter === 'article') ? "bg-blue-600 text-white shadow-sm" : "bg-gray-800 text-gray-400 hover:bg-gray-700"
               )}
             >
               <FileText className="w-3.5 h-3.5" /> Articles
             </button>
+            
             <button
               onClick={() => handleTypeFilterChange('podcast')}
               className={cn(
                 "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap",
-                (filter === 'inbox' ? inboxTypeFilter : savedTypeFilter) === 'podcast' ? "bg-indigo-600 text-white shadow-sm" : "bg-gray-800 text-gray-400 hover:bg-gray-700"
+                (filter === 'inbox' ? inboxTypeFilter === 'podcast' : savedTypeFilter === 'podcast') ? "bg-blue-600 text-white shadow-sm" : "bg-gray-800 text-gray-400 hover:bg-gray-700"
               )}
             >
               <Headphones className="w-3.5 h-3.5" /> Podcasts
@@ -590,9 +632,9 @@ export default function App() {
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search articles..."
+                placeholder={filter === 'reddit' ? "Search Reddit posts..." : "Search articles..."}
                 className="flex-1 bg-transparent text-gray-900 dark:text-white focus:outline-none"
-                aria-label="Search articles"
+                aria-label={filter === 'reddit' ? "Search Reddit posts" : "Search articles"}
                 autoFocus
               />
               <button 
@@ -617,29 +659,31 @@ export default function App() {
                 <option value="all">All Sources</option>
                 {filter === 'reddit' ? (
                   <>
-                    {subreddits.map(s => (
+                    {sortedSubreddits.map(s => (
                       <option key={s.id} value={s.id}>r/{s.name}</option>
                     ))}
-                    {feeds.filter(f => f.feedUrl.includes('reddit.com')).map(f => (
+                    {sortedFeeds.filter(f => f.feedUrl.includes('reddit.com')).map(f => (
                       <option key={f.id} value={f.id}>{f.title}</option>
                     ))}
                   </>
                 ) : (
-                  feeds.filter(f => !f.feedUrl.includes('reddit.com')).map(f => (
+                  sortedFeeds.filter(f => !f.feedUrl.includes('reddit.com')).map(f => (
                     <option key={f.id} value={f.id}>{f.title}</option>
                   ))
                 )}
               </select>
-              <select
-                value={timeFilter}
-                onChange={(e) => setTimeFilter(e.target.value)}
-                className="text-xs bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-full px-3 py-1.5 border-none focus:ring-0 outline-none whitespace-nowrap"
-              >
-                <option value="all">Any Time</option>
-                <option value="today">Past 24 Hours</option>
-                <option value="week">Past Week</option>
-                <option value="month">Past Month</option>
-              </select>
+              {filter !== 'reddit' && (
+                <select
+                  value={timeFilter}
+                  onChange={(e) => setTimeFilter(e.target.value)}
+                  className="text-xs bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-full px-3 py-1.5 border-none focus:ring-0 outline-none whitespace-nowrap"
+                >
+                  <option value="all">Any Time</option>
+                  <option value="today">Past 24 Hours</option>
+                  <option value="week">Past Week</option>
+                  <option value="month">Past Month</option>
+                </select>
+              )}
             </div>
           </div>
         )}
