@@ -52,17 +52,21 @@ export async function fetchWithProxy(url: string, isRss: boolean = true, sinceDa
   const proxies: { name: string, url: string, type: 'text' | 'json' | 'rss2json', timeout?: number }[] = [];
   
   if (isRss) {
-    proxies.push({ name: 'RSS2JSON', url: `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(url)}`, type: 'rss2json', timeout: 20000 });
+    proxies.push({ name: 'RSS2JSON', url: `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(url)}`, type: 'rss2json', timeout: 15000 });
   }
 
+  const cacheBuster = `&_cb=${Date.now()}`;
+  const cacheBusterQuest = `?_cb=${Date.now()}`;
+
   proxies.push(
-    { name: 'CodeTabs', url: `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`, type: 'text' },
-    { name: 'AllOrigins Raw', url: `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`, type: 'text' },
-    { name: 'CorsProxy.io', url: `https://corsproxy.io/?${encodeURIComponent(url)}`, type: 'text' },
-    { name: 'ThingProxy', url: `https://thingproxy.freeboard.io/fetch/${url}`, type: 'text' },
-    { name: 'CorsProxy.org', url: `https://corsproxy.org/?url=${encodeURIComponent(url)}`, type: 'text' },
-    { name: 'Cloudflare Worker', url: `https://cors-anywhere.azm.workers.dev/${url}`, type: 'text' },
-    { name: 'AllOrigins JSON', url: `https://api.allorigins.win/get?url=${encodeURIComponent(url)}&_=${Date.now()}`, type: 'json' }
+    { name: 'CorsProxy.io', url: `https://corsproxy.io/?${encodeURIComponent(url)}`, type: 'text', timeout: 12000 },
+    { name: 'AllOrigins Raw', url: `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}${cacheBuster}`, type: 'text', timeout: 15000 },
+    { name: 'CodeTabs', url: `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`, type: 'text', timeout: 12000 },
+    { name: 'CorsProxy.org', url: `https://corsproxy.org/?url=${encodeURIComponent(url)}`, type: 'text', timeout: 12000 },
+    { name: 'AllOrigins JSON', url: `https://api.allorigins.win/get?url=${encodeURIComponent(url)}${cacheBuster}`, type: 'json', timeout: 15000 },
+    { name: 'YACDN', url: `https://yacdn.org/proxy/${url}`, type: 'text', timeout: 12000 },
+    { name: 'Cloudflare Worker', url: `https://cors-anywhere.azm.workers.dev/${url}`, type: 'text', timeout: 12000 },
+    { name: 'ThingProxy', url: `https://thingproxy.freeboard.io/fetch/${url}`, type: 'text', timeout: 15000 }
   );
 
   let lastError: any;
@@ -97,7 +101,7 @@ export async function fetchWithProxy(url: string, isRss: boolean = true, sinceDa
         let text = '';
         if (proxy.type === 'json') {
           const data = await response.json();
-          text = data.contents || '';
+          text = typeof data.contents === 'string' ? data.contents : JSON.stringify(data.contents);
         } else if (proxy.type === 'rss2json') {
           const data = await response.json();
           if (data.status === 'ok') {
@@ -113,8 +117,8 @@ export async function fetchWithProxy(url: string, isRss: boolean = true, sinceDa
         }
         
         if (text && text.trim().length > 0) {
+          const trimmed = text.trim();
           if (isRss) {
-            const trimmed = text.trim();
             if (trimmed.includes('<rss') || trimmed.includes('<feed') || trimmed.includes('<?xml') || trimmed.includes('<rdf:RDF') || trimmed.startsWith('{')) {
               console.log(`Successfully fetched via ${proxy.name}`);
               return text;
@@ -124,6 +128,12 @@ export async function fetchWithProxy(url: string, isRss: boolean = true, sinceDa
               continue;
             }
           } else {
+            // For non-RSS (likely JSON/API), ensure it doesn't look like HTML
+            if (trimmed.startsWith('<') && (trimmed.toLowerCase().includes('<html') || trimmed.toLowerCase().includes('<body') || trimmed.toLowerCase().includes('<!doctype'))) {
+              lastError = new Error(`Proxy ${proxy.name} returned HTML instead of expected JSON/API response`);
+              console.warn(`${proxy.name} returned HTML for ${url}`);
+              continue;
+            }
             console.log(`Successfully fetched via ${proxy.name}`);
             return text;
           }

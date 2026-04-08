@@ -87,3 +87,14 @@ export function formatTime(seconds: number): string {
   }
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
+
+/**
+ * Resolves a relative URL against a base URL.
+ */
+export function resolveUrl(url: string, baseUrl: string): string {
+  try {
+    return new URL(url, baseUrl).toString();
+  } catch (e) {
+    return url; // Return original if resolution fails
+  }
+}

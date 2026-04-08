@@ -651,11 +651,11 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
         ) : sanitizedContent ? (
           <div 
             onClick={handleContentClick}
-            className={`prose ${getProseSize()} prose-invert max-w-full overflow-hidden ${article.type === 'podcast' ? 'text-left' : 'text-justify'}
+            className={`prose ${getProseSize()} prose-invert max-w-full overflow-hidden ${article.type === 'podcast' ? 'text-left' : 'text-left'}
               prose-img:rounded-xl prose-img:w-full prose-img:object-cover prose-img:max-w-full
               prose-video:w-full prose-video:rounded-xl
               [&_iframe]:w-full [&_iframe]:aspect-video [&_iframe]:rounded-xl [&_iframe]:border-0
-              prose-a:text-indigo-400 prose-headings:font-bold
+              prose-a:text-indigo-400 prose-headings:font-bold prose-headings:tracking-tight prose-p:leading-relaxed
               prose-pre:max-w-full prose-pre:overflow-x-auto`}
             dangerouslySetInnerHTML={{ __html: sanitizedContent }}
           />

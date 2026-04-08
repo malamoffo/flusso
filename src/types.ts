@@ -25,6 +25,8 @@ export interface Feed {
   lastFetched?: number;
   lastArticleDate?: number;
   error?: string;
+  type?: 'article' | 'podcast';
+  lastRefreshStatus?: 'success' | 'error';
 }
 
 export interface PodcastChapter {
@@ -32,6 +34,7 @@ export interface PodcastChapter {
   title: string;
   url?: string;
   imageUrl?: string;
+  img?: string;
 }
 
 export interface Article {
@@ -54,6 +57,14 @@ export interface Article {
   type: 'article' | 'podcast';
   chapters?: PodcastChapter[];
   chaptersUrl?: string;
+  episode?: number;
+}
+
+export interface RefreshLog {
+  timestamp: number;
+  status: 'success' | 'error';
+  message?: string;
+  feedId?: string;
 }
 
 export interface FullArticleContent {
@@ -66,4 +77,40 @@ export interface FullArticleContent {
   dir: string;
   siteName: string;
   lang: string;
+}
+
+export interface Subreddit {
+  id: string;
+  name: string; // e.g., "soloboardgaming"
+  iconUrl?: string;
+  addedAt: number;
+  lastFetched?: number;
+}
+
+export interface RedditPost {
+  id: string; // Reddit's post ID
+  subredditId: string;
+  subredditName: string;
+  title: string;
+  author: string;
+  url: string;
+  permalink: string;
+  score: number;
+  numComments: number;
+  createdUtc: number;
+  selftextHtml?: string;
+  imageUrl?: string;
+  isRead: boolean;
+  readAt?: number;
+  isFavorite: boolean;
+}
+
+export interface RedditComment {
+  id: string;
+  author: string;
+  bodyHtml: string;
+  score: number;
+  createdUtc: number;
+  depth: number;
+  replies?: RedditComment[];
 }

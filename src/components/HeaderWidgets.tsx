@@ -32,15 +32,10 @@ const WeatherWidget = memo(({ loading, weather }: { loading: boolean, weather: W
 
   if (!weather) return null;
 
-  const handleClick = () => {
-    window.open(`https://www.google.com/search?q=meteo+${weather.lat},${weather.lon}`, '_blank');
-  };
-
   return (
     <div 
-      className="flex items-center gap-1.5 cursor-pointer hover:text-gray-700 transition-colors"
-      onClick={handleClick}
-      title="Vedi previsioni meteo"
+      className="flex items-center gap-1.5 transition-colors"
+      title="Meteo attuale"
     >
       {getWeatherIcon(weather.condition)}
       <span>{weather.temp}°C</span>

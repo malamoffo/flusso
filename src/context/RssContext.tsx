@@ -1,9 +1,11 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useMemo, useRef } from 'react';
-import { Feed, Article, Settings } from '../types';
+import { Feed, Article, Settings, Subreddit, RedditPost } from '../types';
 import { storage, defaultSettings } from '../services/storage';
 import packageJson from '../../package.json';
 import { Capacitor } from '@capacitor/core';
 import { BackgroundPlugin } from '../plugins/BackgroundPlugin';
+
+import { imagePersistence } from '../utils/imagePersistence';
 
 interface ProgressInfo {
   current: number;
@@ -14,20 +16,26 @@ interface ProgressInfo {
 interface RssContextType {
   feeds: Feed[];
   articles: Article[];
+  subreddits: Subreddit[];
+  redditPosts: RedditPost[];
   settings: Settings;
   isLoading: boolean;
   progress: ProgressInfo | null;
   error: string | null;
+  errorLogs: string[];
+  clearErrorLogs: () => void;
   searchQuery: string;
   setSearchQuery: (query: string) => void;
   unreadCount: number;
   savedCount: number;
   updateInfo: any | null;
-  addFeed: (url: string) => Promise<void>;
+  addFeedOrSubreddit: (url: string) => Promise<void>;
   importOpml: (file: File | { text: () => Promise<string> }) => Promise<void>;
   exportFeeds: () => Promise<string>;
   removeFeed: (id: string) => void;
+  removeSubreddit: (id: string) => void;
   refreshFeeds: (feedsToRefresh?: Feed[], currentArticles?: Article[]) => Promise<void>;
+  refreshReddit: (subsToRefresh?: Subreddit[], currentPosts?: RedditPost[]) => Promise<void>;
   toggleRead: (id: string) => void;
   markAsRead: (id: string) => void;
   markArticlesAsRead: (ids: string[]) => void;
@@ -37,6 +45,10 @@ interface RssContextType {
   removeFromSaved: (id: string) => void;
   updateFeed: (id: string, updates: Partial<Feed>) => void;
   updateArticle: (id: string, updates: Partial<Article>) => void;
+  updateRedditPost: (id: string, updates: Partial<RedditPost>) => void;
+  toggleRedditRead: (id: string) => void;
+  markRedditAsRead: (id: string) => void;
+  toggleRedditFavorite: (id: string) => void;
   updateSettings: (updates: Partial<Settings>) => void;
   checkUpdates: (force?: boolean) => Promise<void>;
 }
@@ -46,11 +58,22 @@ const RssContext = createContext<RssContextType | undefined>(undefined);
 export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [feeds, setFeeds] = useState<Feed[]>([]);
   const [articles, setArticles] = useState<Article[]>([]);
+  const [subreddits, setSubreddits] = useState<Subreddit[]>([]);
+  const [redditPosts, setRedditPosts] = useState<RedditPost[]>([]);
   const [settings, setSettings] = useState<Settings>(defaultSettings);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [progress, setProgress] = useState<ProgressInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [errorLogs, setErrorLogs] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState<string>("");
+
+  const logError = useCallback((msg: string) => {
+    setErrorLogs(prev => [...prev, `${new Date().toLocaleTimeString()}: ${msg}`]);
+  }, []);
+
+  const clearErrorLogs = useCallback(() => {
+    setErrorLogs([]);
+  }, []);
   const [updateInfo, setUpdateInfo] = useState<any | null>(null);
   const lastRefresh = useRef(Date.now());
   const isRefreshing = useRef(false);
@@ -85,17 +108,25 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const loadData = async () => {
     try {
       setIsLoading(true);
+      
+      // Clear image cache on startup
+      imagePersistence.clearCache().catch(console.error);
+
       const loadedFeeds = await storage.getFeeds();
       const loadedArticles = await storage.getArticles();
+      const loadedSubreddits = await storage.getSubreddits();
+      const loadedRedditPosts = await storage.getRedditPosts();
       const loadedSettings = await storage.getSettings();
       
       setFeeds(loadedFeeds);
       setArticles(loadedArticles.sort((a, b) => b.pubDate - a.pubDate));
+      setSubreddits(loadedSubreddits);
+      setRedditPosts(loadedRedditPosts.sort((a, b) => b.createdUtc - a.createdUtc));
       setSettings(loadedSettings);
       
       return { loadedFeeds, loadedArticles, loadedSettings };
     } catch (err) {
-      setError("Failed to load data");
+      logError("Failed to load data");
       console.error(err);
       return null;
     } finally {
@@ -140,22 +171,52 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     });
   }, []);
 
-  const addFeed = useCallback(async (url: string) => {
+  const addFeedOrSubreddit = useCallback(async (url: string) => {
     try {
       setIsLoading(true);
-      setError(null);
-      const result = await storage.addFeed(url);
-      if (!result) {
-        throw new Error("Could not fetch feed. Please check the URL and try again.");
+      
+      // Check if it's a subreddit
+      let isSubreddit = false;
+      let cleanName = url.trim();
+      if (cleanName.includes('reddit.com/r/')) {
+        isSubreddit = true;
+      } else if (cleanName.startsWith('r/')) {
+        isSubreddit = true;
+      }
+
+      if (isSubreddit) {
+        const result = await storage.addSubreddit(cleanName);
+        if (!result) {
+          throw new Error("Could not fetch subreddit. Please check the name and try again.");
+        }
+        await refreshReddit([result]);
+      } else {
+        const result = await storage.addFeed(url);
+        if (!result) {
+          throw new Error("Could not fetch feed. Please check the URL and try again.");
+        }
       }
       await loadData();
     } catch (err) {
-      setError("Failed to add feed. Please check the URL.");
+      logError("Failed to add feed or subreddit. Please check the URL.");
       console.error(err);
       throw err;
     } finally {
       setIsLoading(false);
     }
+  }, []);
+
+  const removeSubreddit = useCallback(async (id: string) => {
+    setSubreddits(prev => {
+      const updated = prev.filter(s => s.id !== id);
+      storage.saveSubreddits(updated);
+      return updated;
+    });
+    setRedditPosts(prev => {
+      const updated = prev.filter(p => p.subredditId !== id);
+      storage.saveRedditPosts(updated);
+      return updated;
+    });
   }, []);
 
   const importOpml = async (file: File | { text: () => Promise<string> }, append = true) => {
@@ -176,7 +237,7 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       
       const urls = await storage.parseOpml(text);
       if (urls.length === 0) {
-        setError("No valid feed URLs found in the OPML file.");
+        logError("No valid feed URLs found in the OPML file.");
         return;
       }
       
@@ -216,7 +277,7 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setError(null);
       }
     } catch (err) {
-      setError("Failed to parse OPML file.");
+      logError("Failed to parse OPML file.");
       console.error(err);
     } finally {
       setIsLoading(false);
@@ -307,6 +368,38 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     });
   }, []);
 
+  const updateRedditPost = useCallback(async (id: string, updates: Partial<RedditPost>) => {
+    setRedditPosts(prev => {
+      const updated = prev.map(p => p.id === id ? { ...p, ...updates } : p);
+      storage.saveRedditPosts(updated);
+      return updated;
+    });
+  }, []);
+
+  const toggleRedditRead = useCallback(async (id: string) => {
+    setRedditPosts(prev => {
+      const updated = prev.map(p => p.id === id ? { ...p, isRead: !p.isRead, readAt: !p.isRead ? Date.now() : undefined } : p);
+      storage.saveRedditPosts(updated);
+      return updated;
+    });
+  }, []);
+
+  const markRedditAsRead = useCallback(async (id: string) => {
+    setRedditPosts(prev => {
+      const updated = prev.map(p => p.id === id ? { ...p, isRead: true, readAt: Date.now() } : p);
+      storage.saveRedditPosts(updated);
+      return updated;
+    });
+  }, []);
+
+  const toggleRedditFavorite = useCallback(async (id: string) => {
+    setRedditPosts(prev => {
+      const updated = prev.map(p => p.id === id ? { ...p, isFavorite: !p.isFavorite } : p);
+      storage.saveRedditPosts(updated);
+      return updated;
+    });
+  }, []);
+
   const removeFeed = useCallback(async (id: string) => {
     setFeeds(prev => {
       const updated = prev.filter(f => f.id !== id);
@@ -337,6 +430,10 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     isRefreshing.current = true;
     try {
       setIsLoading(true);
+
+      // Clear image cache on refresh to prevent accumulation
+      imagePersistence.clearCache().catch(console.error);
+
       const fToRefresh = feedsToRefresh || await storage.getFeeds();
       const cArticles = currentArticles || await storage.getArticles();
       
@@ -455,11 +552,65 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setProgress(p => p ? { ...p, status: "Finalizing..." } : null);
       lastRefresh.current = Date.now();
     } catch (e) {
-      setError("Failed to refresh feeds");
+      logError("Failed to refresh feeds");
     } finally {
       setIsLoading(false);
       setProgress(null);
       isRefreshing.current = false;
+    }
+  }, []);
+
+  const refreshReddit = useCallback(async (subsToRefresh?: Subreddit[], currentPosts?: RedditPost[]) => {
+    try {
+      const sToRefresh = subsToRefresh || await storage.getSubreddits();
+      const cPosts = currentPosts || await storage.getRedditPosts();
+
+      if (sToRefresh.length === 0) return;
+
+      const results: RedditPost[] = [];
+      const threeDaysAgo = Date.now() - (3 * 24 * 60 * 60 * 1000);
+
+      // Fetch sequentially or in parallel (parallel is fine for Reddit JSON)
+      await Promise.all(sToRefresh.map(async (sub) => {
+        try {
+          const posts = await storage.fetchSubredditPosts(sub.name, threeDaysAgo);
+          results.push(...posts);
+          
+          // Update lastFetched
+          setSubreddits(prev => {
+            const updated = prev.map(s => s.id === sub.id ? { ...s, lastFetched: Date.now() } : s);
+            storage.saveSubreddits(updated);
+            return updated;
+          });
+        } catch (e) {
+          console.error(`Failed to refresh subreddit ${sub.name}`, e);
+        }
+      }));
+
+      if (results.length > 0) {
+        setRedditPosts(prev => {
+          const merged = [...prev];
+          const existingIds = new Set(merged.map(p => p.id));
+          let hasNew = false;
+
+          for (const newPost of results) {
+            if (!existingIds.has(newPost.id)) {
+              hasNew = true;
+              existingIds.add(newPost.id);
+              merged.push(newPost);
+            }
+          }
+
+          if (hasNew) {
+            merged.sort((a, b) => b.createdUtc - a.createdUtc);
+            storage.saveRedditPosts(merged);
+            return merged;
+          }
+          return prev;
+        });
+      }
+    } catch (e) {
+      console.error("Failed to refresh reddit", e);
     }
   }, []);
 
@@ -481,16 +632,16 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   }, [articles]);
 
   const value = useMemo(() => ({
-    feeds, articles, settings, isLoading, progress, error,
-    addFeed, importOpml, toggleRead, markAsRead, markArticlesAsRead,
-    toggleFavorite, toggleQueue, removeFromSaved, markAllAsRead, refreshFeeds, removeFeed,
-    updateFeed, updateArticle, updateSettings, exportFeeds,
+    feeds, articles, subreddits, redditPosts, settings, isLoading, progress, error, errorLogs, clearErrorLogs,
+    addFeedOrSubreddit, importOpml, toggleRead, markAsRead, markArticlesAsRead,
+    toggleFavorite, toggleQueue, removeFromSaved, markAllAsRead, refreshFeeds, refreshReddit, removeFeed, removeSubreddit,
+    updateFeed, updateArticle, updateRedditPost, toggleRedditRead, markRedditAsRead, toggleRedditFavorite, updateSettings, exportFeeds,
     searchQuery, setSearchQuery, unreadCount, savedCount, updateInfo, checkUpdates
   }), [
-    feeds, articles, settings, isLoading, progress, error,
-    addFeed, importOpml, toggleRead, markAsRead, markArticlesAsRead,
-    toggleFavorite, toggleQueue, removeFromSaved, markAllAsRead, refreshFeeds, removeFeed,
-    updateFeed, updateArticle, updateSettings, exportFeeds,
+    feeds, articles, subreddits, redditPosts, settings, isLoading, progress, error, errorLogs, clearErrorLogs,
+    addFeedOrSubreddit, importOpml, toggleRead, markAsRead, markArticlesAsRead,
+    toggleFavorite, toggleQueue, removeFromSaved, markAllAsRead, refreshFeeds, refreshReddit, removeFeed, removeSubreddit,
+    updateFeed, updateArticle, updateRedditPost, toggleRedditRead, markRedditAsRead, toggleRedditFavorite, updateSettings, exportFeeds,
     searchQuery, setSearchQuery, unreadCount, savedCount, updateInfo, checkUpdates
   ]);
 

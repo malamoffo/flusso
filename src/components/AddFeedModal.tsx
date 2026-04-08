@@ -1,14 +1,12 @@
-import React, { useState, useRef } from 'react';
-import { Plus, Upload, X, Rss, RefreshCw } from 'lucide-react';
+import React, { useState } from 'react';
+import { X, Rss, RefreshCw } from 'lucide-react';
 import { useRss } from '../context/RssContext';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export const AddFeedModal = React.memo(function AddFeedModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const [url, setUrl] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [importMode, setImportMode] = useState<'replace' | 'append'>('append');
-  const { addFeed, importOpml, error, progress, settings } = useRss();
+  const { addFeedOrSubreddit, error, progress } = useRss();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -16,29 +14,13 @@ export const AddFeedModal = React.memo(function AddFeedModal({ isOpen, onClose }
     
     setIsSubmitting(true);
     try {
-      await addFeed(url);
+      await addFeedOrSubreddit(url);
       setUrl('');
       onClose();
     } catch (err) {
       // Error is handled in context
     } finally {
       setIsSubmitting(false);
-    }
-  };
-
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setIsSubmitting(true);
-    try {
-      await importOpml(file, importMode === 'append');
-      onClose();
-    } catch (err) {
-      // Error handled in context
-    } finally {
-      setIsSubmitting(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
@@ -61,7 +43,7 @@ export const AddFeedModal = React.memo(function AddFeedModal({ isOpen, onClose }
             className="fixed bottom-0 left-0 right-0 rounded-t-3xl z-50 p-6 pb-8 bg-black"
           >
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-bold text-white">Add RSS Feed</h2>
+              <h2 className="text-xl font-bold text-white">Add Feed or Subreddit</h2>
               <motion.button
                 whileTap={{ scale: 0.9 }}
                 onClick={onClose}
@@ -100,14 +82,13 @@ export const AddFeedModal = React.memo(function AddFeedModal({ isOpen, onClose }
                   <Rss className="h-5 w-5 text-gray-500" aria-hidden="true" />
                 </div>
                 <input
-                  type="url"
-                  inputMode="url"
+                  type="text"
                   value={url}
                   onChange={(e) => setUrl(e.target.value)}
-                  placeholder="https://example.com/feed.xml"
+                  placeholder="https://example.com/feed.xml or r/news"
                   className="block w-full pl-10 pr-3 py-3 border border-gray-700 rounded-xl focus:ring-indigo-500 focus:border-indigo-500 bg-gray-800 text-white placeholder-gray-500"
                   required
-                  aria-label="Feed URL"
+                  aria-label="Feed URL or Subreddit"
                 />
               </div>
               <motion.button
@@ -121,46 +102,9 @@ export const AddFeedModal = React.memo(function AddFeedModal({ isOpen, onClose }
                     <RefreshCw className="w-4 h-4 mr-2 animate-spin" aria-hidden="true" />
                     Adding...
                   </>
-                ) : 'Add Feed'}
+                ) : 'Add Feed / Subreddit'}
               </motion.button>
             </form>
-
-            <div className="relative mb-6">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-800" />
-              </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-2 transition-colors bg-black text-gray-400">Or import from OPML</span>
-              </div>
-            </div>
-
-            <input
-              type="file"
-              accept=".opml,.xml"
-              className="hidden"
-              ref={fileInputRef}
-              onChange={handleFileUpload}
-            />
-            <div className="grid grid-cols-2 gap-3">
-              <motion.button
-                whileTap={{ scale: 0.98 }}
-                onClick={() => { setImportMode('replace'); setTimeout(() => fileInputRef.current?.click(), 0); }}
-                disabled={isSubmitting}
-                className="flex justify-center items-center py-3 px-4 border border-gray-700 rounded-xl shadow-sm text-sm font-medium text-gray-300 bg-gray-800 hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
-              >
-                <Upload className="w-4 h-4 mr-2 text-gray-400" aria-hidden="true" />
-                Import OPML
-              </motion.button>
-              <motion.button
-                whileTap={{ scale: 0.98 }}
-                onClick={() => { setImportMode('append'); setTimeout(() => fileInputRef.current?.click(), 0); }}
-                disabled={isSubmitting}
-                className="flex justify-center items-center py-3 px-4 border border-gray-700 rounded-xl shadow-sm text-sm font-medium text-gray-300 bg-gray-800 hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
-              >
-                <Plus className="w-4 h-4 mr-2 text-gray-400" aria-hidden="true" />
-                Add OPML
-              </motion.button>
-            </div>
           </motion.div>
         </>
       )}

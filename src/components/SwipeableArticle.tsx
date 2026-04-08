@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { motion, useMotionValue, useTransform, PanInfo, animate, useReducedMotion } from 'framer-motion';
 import { format, isToday } from 'date-fns';
 import { Check, Trash2, Headphones, ListPlus, FileText, Bookmark, Star } from 'lucide-react';
@@ -9,6 +9,7 @@ import { CachedImage } from './CachedImage';
 import { cn, getSafeUrl, formatTime, parseDurationToSeconds } from '../lib/utils';
 import { useAudioState, useAudioProgress } from '../context/AudioPlayerContext';
 import DOMPurify from 'dompurify';
+import { getColorSync } from 'colorthief';
 
 interface SwipeableArticleProps {
   key?: React.Key;
@@ -49,6 +50,25 @@ export const SwipeableArticle = React.memo(function SwipeableArticle({
   style
 }: SwipeableArticleProps) {
   const x = useMotionValue(0);
+  const [feedThemeColor, setFeedThemeColor] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (feedImageUrl) {
+      const img = new Image();
+      img.crossOrigin = "Anonymous";
+      img.src = `https://api.allorigins.win/raw?url=${encodeURIComponent(feedImageUrl)}`;
+      img.onload = () => {
+        try {
+          const color = getColorSync(img);
+          if (color) {
+            setFeedThemeColor(color.hex());
+          }
+        } catch (e) {
+          console.error("Failed to extract color:", e);
+        }
+      };
+    }
+  }, [feedImageUrl]);
   
   const { ref, inView, entry } = useInView({
     threshold: 0,
@@ -196,7 +216,7 @@ export const SwipeableArticle = React.memo(function SwipeableArticle({
         prefetchRef(node);
       }} 
       className={cn(
-        "relative w-full overflow-hidden border-b border-gray-800 will-change-transform"
+        "relative w-full overflow-hidden will-change-transform"
       )}
       style={{
         contentVisibility: 'auto',
@@ -254,14 +274,14 @@ export const SwipeableArticle = React.memo(function SwipeableArticle({
         onClick={handleArticleClick}
         exit={{ x: exitX, opacity: 0, transition: { duration: 0.15, ease: "easeOut" } }}
         className={cn(
-          "relative z-20 w-full p-4 cursor-pointer shadow-sm transition-colors bg-black select-none",
+          "relative z-20 w-full p-3 cursor-pointer shadow-sm transition-all bg-black select-none",
+          "mx-auto max-w-full",
           "opacity-100"
         )}
       >
-        <div className={cn(
-          "flex gap-4",
-          (article.type !== 'podcast' && settings.imageDisplay === 'large') ? 'flex-col' : 'items-stretch'
-        )}>
+        <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[90%] h-[1.5px] bg-gradient-to-r from-transparent via-[var(--theme-color)] to-transparent opacity-60 shadow-[0_0_10px_rgba(var(--theme-color-rgb),0.3)]" />
+        <div className={cn("flex gap-3", article.type === 'podcast' ? "flex-row items-start" : "flex-col gap-2")}>
+          {/* Image */}
           {(article.imageUrl || (article.type === 'podcast' && feedImageUrl)) && (article.type === 'podcast' || settings.imageDisplay !== 'none') && (
             <CachedImage 
               key={`${article.id}-${article.imageUrl}`}
@@ -269,14 +289,17 @@ export const SwipeableArticle = React.memo(function SwipeableArticle({
               alt="" 
               className={cn(
                 "rounded-lg flex-shrink-0 bg-gray-800 transition-opacity",
-                (article.type !== 'podcast' && settings.imageDisplay === 'large') ? 'w-full h-auto min-h-[200px] max-h-[800px] mb-3 object-cover' : 
-                (article.type === 'podcast' ? 'h-16 w-16 object-cover' : 'w-20 h-auto min-h-[80px] max-h-[160px] object-cover')
+                article.type === 'podcast' ? 'h-16 w-16 object-cover' : (
+                  settings.imageDisplay === 'large' ? 'w-full h-auto min-h-[200px] mb-2' : 'w-20 h-auto min-h-[80px]'
+                )
               )}
               referrerPolicy="no-referrer"
             />
           )}
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center justify-between mb-1">
+
+          <div className="flex-1 min-w-0 flex flex-col gap-1.5">
+            {/* Source and Time */}
+            <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5 min-w-0">
                 {domain && article.type !== 'podcast' && (
                   <CachedImage 
@@ -294,7 +317,10 @@ export const SwipeableArticle = React.memo(function SwipeableArticle({
                 ) : (
                   <FileText className="w-3.5 h-3.5 text-gray-500" />
                 )}
-                <span className={`text-xs font-medium truncate text-indigo-400`}>
+                <span 
+                  className={`text-xs font-medium truncate ${feedThemeColor ? '' : 'text-indigo-400'}`}
+                  style={{ color: feedThemeColor || undefined }}
+                >
                   {feedName}
                 </span>
               </div>
@@ -312,20 +338,17 @@ export const SwipeableArticle = React.memo(function SwipeableArticle({
                 </span>
               </div>
             </div>
-            <h3 
-              className={`${getTitleSize()} font-semibold leading-tight mb-1 ${article.isRead ? 'text-gray-400' : 'text-gray-100'}`}
-              dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(article.title, { FORBID_ATTR: ['id', 'name'] }) }}
-            />
-            {article.type === 'podcast' ? (
-              <PodcastProgressBar article={article} isCurrentTrack={isCurrentTrack} />
-            ) : (
-              article.contentSnippet && article.contentSnippet.trim() !== '' && (
-                <p 
-                  className={`${getSnippetSize()} text-gray-400 mt-1 line-clamp-3 text-justify`}
-                  dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(article.contentSnippet, { FORBID_ATTR: ['id', 'name'] }) }}
-                />
-              )
-            )}
+
+            {/* Title */}
+            <div className="min-w-0">
+              <h3 
+                className={`${getTitleSize()} font-semibold leading-tight mb-1 ${article.isRead ? 'text-gray-400' : 'text-gray-100'}`}
+                dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(article.title, { FORBID_ATTR: ['id', 'name'] }) }}
+              />
+              {article.type === 'podcast' && (
+                <PodcastProgressBar article={article} isCurrentTrack={isCurrentTrack} />
+              )}
+            </div>
           </div>
         </div>
       </motion.div>

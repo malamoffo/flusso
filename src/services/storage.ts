@@ -1,16 +1,20 @@
 import { get, set } from 'idb-keyval';
 import { v4 as uuidv4 } from 'uuid';
-import { Feed, Article, Settings, PodcastChapter } from '../types';
+import { Feed, Article, Settings, PodcastChapter, FullArticleContent, RefreshLog, Subreddit, RedditPost } from '../types';
 import { CapacitorHttp } from '@capacitor/core';
 import { fetchWithProxy } from '../utils/proxy';
 import DOMPurify from 'dompurify';
-import { getSafeUrl } from '../lib/utils';
+import { getSafeUrl, resolveUrl } from '../lib/utils';
 
 import he from 'he';
 
 const FEEDS_KEY = 'rss_feeds';
 const ARTICLES_KEY = 'rss_articles';
 const SETTINGS_KEY = 'rss_settings';
+const REFRESH_LOGS_KEY = 'rss_refresh_logs';
+const CONTENT_PREFIX = 'article_content_';
+const SUBREDDITS_KEY = 'reddit_subs';
+const REDDIT_POSTS_KEY = 'reddit_posts';
 
 // Helper to decode HTML entities safely
 function decodeHtmlEntities(text: string): string {
@@ -106,16 +110,33 @@ export function extractBestImage(content: string, baseUrl?: string): string | nu
 
 function parseTime(timeStr: string | null): number {
   if (!timeStr) return 0;
-  const parts = timeStr.split(':').reverse();
+  
+  // Handle formats like "1h 23m 45s" or "23m 45s"
+  if (timeStr.includes('h') || timeStr.includes('m') || timeStr.includes('s')) {
+    let totalSeconds = 0;
+    const hMatch = timeStr.match(/(\d+)\s*h/);
+    const mMatch = timeStr.match(/(\d+)\s*m/);
+    const sMatch = timeStr.match(/(\d+)\s*s/);
+    if (hMatch) totalSeconds += parseInt(hMatch[1]) * 3600;
+    if (mMatch) totalSeconds += parseInt(mMatch[1]) * 60;
+    if (sMatch) totalSeconds += parseInt(sMatch[1]);
+    if (totalSeconds > 0) return totalSeconds;
+  }
+
+  // Handle standard HH:MM:SS or MM:SS
+  const parts = timeStr.replace(',', '.').split(':').reverse();
   let seconds = 0;
   for (let i = 0; i < parts.length; i++) {
-    seconds += parseFloat(parts[i]) * Math.pow(60, i);
+    const val = parseFloat(parts[i]);
+    if (!isNaN(val)) {
+      seconds += val * Math.pow(60, i);
+    }
   }
   return seconds;
 }
 
 // Helper to parse RSS/Atom XML using native DOMParser
-function parseRssXml(xmlString: string, feedUrl: string): { feed: Feed; articles: Article[] } {
+function parseRssXml(xmlString: string, feedUrl: string, sinceDate?: number): { feed: Feed; articles: Article[] } {
   if (typeof xmlString !== 'string') {
     xmlString = JSON.stringify(xmlString);
   }
@@ -154,6 +175,8 @@ function parseRssXml(xmlString: string, feedUrl: string): { feed: Feed; articles
             if (isNaN(pubDate)) pubDate = Date.now();
           }
 
+          if (sinceDate && pubDate <= sinceDate) return null;
+
           return {
             id: uuidv4(),
             feedId,
@@ -169,7 +192,9 @@ function parseRssXml(xmlString: string, feedUrl: string): { feed: Feed; articles
             type: mediaType?.startsWith('audio/') ? 'podcast' : 'article',
             contentSnippet: sanitizeSnippet(decodeHtmlEntities(item.content || item.description || '')),
           };
-        });
+        }).filter(Boolean) as Article[];
+
+        const isPodcast = articles.some(a => a.type === 'podcast');
 
         return {
           feed: {
@@ -179,7 +204,9 @@ function parseRssXml(xmlString: string, feedUrl: string): { feed: Feed; articles
             link: getSafeUrl(data.feed.link),
             feedUrl: getSafeUrl(feedUrl),
             imageUrl: getSafeUrl(data.feed.image, undefined),
-            lastFetched: Date.now()
+            lastFetched: Date.now(),
+            lastRefreshStatus: 'success',
+            type: isPodcast ? 'podcast' : 'article'
           },
           articles
         };
@@ -234,6 +261,20 @@ function parseRssXml(xmlString: string, feedUrl: string): { feed: Feed; articles
     return '';
   }
 
+  // Helper to get elements by local name regardless of namespace
+  function getElementsByLocalName(parent: Element, localName: string): Element[] {
+    const results: Element[] = [];
+    const all = parent.getElementsByTagName('*');
+    for (let i = 0; i < all.length; i++) {
+      const el = all[i];
+      const nodeName = el.nodeName.toLowerCase();
+      if (nodeName === localName.toLowerCase() || nodeName.endsWith(':' + localName.toLowerCase())) {
+        results.push(el);
+      }
+    }
+    return results;
+  }
+
   const isAtom = xmlDoc.getElementsByTagName('feed').length > 0;
   const feedId = uuidv4();
   
@@ -249,9 +290,9 @@ function parseRssXml(xmlString: string, feedUrl: string): { feed: Feed; articles
     for (let i = 0; i < entries.length; i++) {
       const entry = entries[i];
       
-      // Single-pass iteration to build a dictionary of immediate children
+      // Single-pass iteration to build a dictionary of all descendant elements
       const tagDict: Record<string, Element[]> = {};
-      const children = entry.children;
+      const children = entry.getElementsByTagName('*');
       for (let c = 0; c < children.length; c++) {
         const child = children[c];
         const nodeName = child.nodeName.toLowerCase();
@@ -275,7 +316,7 @@ function parseRssXml(xmlString: string, feedUrl: string): { feed: Feed; articles
         }
       }
 
-      const content = getSingleTagText(tagDict, ['content:encoded', 'content', 'itunes:summary', 'summary', 'description']) || '';
+      const content = getSingleTagText(tagDict, ['content:encoded', 'content', 'description', 'itunes:summary', 'summary', 'itunes:subtitle']) || '';
       let entryTitle = getSingleTagText(tagDict, ['title', 'dc:title']);
       
       if (!entryTitle) {
@@ -285,9 +326,11 @@ function parseRssXml(xmlString: string, feedUrl: string): { feed: Feed; articles
       }
       
       const linkElements = tagDict['link'] || [];
-      const entryLink = linkElements.length > 0 ? (linkElements[0].getAttribute('href') || '') : '';
+      const entryLink = resolveUrl(linkElements.length > 0 ? (linkElements[0].getAttribute('href') || '') : '', feedUrl);
       const pubDateStr = getSingleTagText(tagDict, ['published', 'updated', 'pubDate']) || new Date().toISOString();
       const pubDate = new Date(pubDateStr).getTime();
+      
+      if (sinceDate && pubDate <= sinceDate) continue;
       
       let imageUrl: string | null = null;
       let mediaUrl: string | null = null;
@@ -300,9 +343,9 @@ function parseRssXml(xmlString: string, feedUrl: string): { feed: Feed; articles
         const href = l.getAttribute('href');
         if (rel === 'enclosure' && type && href) {
           if (type.startsWith('image/')) {
-            if (!imageUrl) imageUrl = href;
+            if (!imageUrl) imageUrl = resolveUrl(href, feedUrl);
           } else if (type.startsWith('audio/') || type.startsWith('video/')) {
-            mediaUrl = href;
+            mediaUrl = resolveUrl(href, feedUrl);
             mediaType = type;
           }
         }
@@ -326,14 +369,14 @@ function parseRssXml(xmlString: string, feedUrl: string): { feed: Feed; articles
         const type = mediaContent.getAttribute('type');
         const url = mediaContent.getAttribute('url');
         if (type?.startsWith('image/')) {
-          if (!imageUrl && url) imageUrl = url;
+          if (!imageUrl && url) imageUrl = resolveUrl(url, feedUrl);
         } else if (type?.startsWith('audio/') || type?.startsWith('video/')) {
           if (url) {
-            mediaUrl = url;
+            mediaUrl = resolveUrl(url, feedUrl);
             mediaType = type;
           }
         } else if (!type && url && (url.endsWith('.jpg') || url.endsWith('.png'))) {
-          if (!imageUrl) imageUrl = url;
+          if (!imageUrl) imageUrl = resolveUrl(url, feedUrl);
         }
       }
       
@@ -353,38 +396,65 @@ function parseRssXml(xmlString: string, feedUrl: string): { feed: Feed; articles
 
       let chapters: PodcastChapter[] | undefined = undefined;
       let chaptersUrl: string | undefined = undefined;
+      let episode: number | undefined = undefined;
 
-      const pscChaptersElements = tagDict['psc:chapters'] || tagDict['chapters'] || [];
-      if (pscChaptersElements.length > 0) {
-        const children = pscChaptersElements[0].children;
-        if (children.length > 0) {
-          chapters = [];
-          for (let k = 0; k < children.length; k++) {
-            const node = children[k];
-            const nn = node.nodeName.toLowerCase();
-            if (nn === 'psc:chapter' || nn === 'chapter') {
-              const start = node.getAttribute('start');
-              const title = node.getAttribute('title');
-              const href = node.getAttribute('href');
-              const image = node.getAttribute('image');
-              if (start && title) {
-                chapters.push({
-                  startTime: parseTime(start),
-                  title: title,
-                  url: href || undefined,
-                  imageUrl: image || undefined
-                });
-              }
+      const episodeText = getSingleTagText(tagDict, ['itunes:episode', 'podcast:episode', 'episode']);
+      if (episodeText) {
+        const epNum = parseInt(episodeText, 10);
+        if (!isNaN(epNum)) episode = epNum;
+      }
+
+      // 1. Look for inline chapters (PSC or similar)
+      const chapterContainers = [
+        ...(tagDict['chapters'] || []),
+        ...(tagDict['podcast:chapters'] || []),
+        ...(tagDict['structure'] || [])
+      ];
+
+      for (const container of chapterContainers) {
+        // Check if it has a URL (Podcast Index or external PSC)
+        const url = container.getAttribute('url') || container.getAttribute('href');
+        if (url) {
+          chaptersUrl = resolveUrl(url, feedUrl);
+          // If it's a JSON chapters file, we might want to fetch it now or let the UI handle it.
+          // Given the current architecture, let's keep it as chaptersUrl.
+        }
+
+        const chapterNodes = getElementsByLocalName(container, 'chapter');
+        if (chapterNodes.length > 0) {
+          const foundChapters: PodcastChapter[] = [];
+          for (const node of chapterNodes) {
+            const start = node.getAttribute('start') || node.getAttribute('startTime');
+            const title = node.getAttribute('title') || node.getAttribute('text');
+            const href = node.getAttribute('href') || node.getAttribute('url');
+            const image = node.getAttribute('image') || node.getAttribute('img');
+            if (start && title) {
+              foundChapters.push({
+                startTime: parseTime(start),
+                title: title,
+                url: href || undefined,
+                imageUrl: image || undefined,
+                img: image || undefined
+              });
             }
+          }
+          if (foundChapters.length > 0) {
+            chapters = foundChapters;
           }
         }
       }
 
-      const podcastChaptersElements = tagDict['podcast:chapters'] || [];
-      if (podcastChaptersElements.length > 0) {
-        const url = podcastChaptersElements[0].getAttribute('url');
-        if (url) {
-          chaptersUrl = getSafeUrl(url);
+      // 2. Check for atom:link with rel="chapters"
+      if (!chaptersUrl) {
+        const atomLinks = tagDict['link'] || [];
+        for (const link of atomLinks) {
+          if (link.getAttribute('rel') === 'chapters') {
+            const href = link.getAttribute('href');
+            if (href) {
+              chaptersUrl = resolveUrl(href, feedUrl);
+              break;
+            }
+          }
         }
       }
 
@@ -392,11 +462,11 @@ function parseRssXml(xmlString: string, feedUrl: string): { feed: Feed; articles
         id: uuidv4(),
         feedId,
         title: decodeHtmlEntities(entryTitle),
-        link: getSafeUrl(entryLink),
+        link: resolveUrl(entryLink, feedUrl),
         pubDate,
-        imageUrl: imageUrl ? getSafeUrl(imageUrl) : undefined,
+        imageUrl: imageUrl ? resolveUrl(imageUrl, feedUrl) : undefined,
         duration,
-        mediaUrl: getSafeUrl(mediaUrl, undefined),
+        mediaUrl: mediaUrl ? resolveUrl(mediaUrl, feedUrl) : undefined,
         mediaType,
         isRead: false,
         isFavorite: false,
@@ -404,10 +474,13 @@ function parseRssXml(xmlString: string, feedUrl: string): { feed: Feed; articles
         type: mediaType?.startsWith('audio/') ? 'podcast' : 'article',
         chapters,
         chaptersUrl,
+        episode,
         contentSnippet: sanitizeSnippet(decodeHtmlEntities(content)),
         content: content,
       });
     }
+
+    const isPodcast = articles.some(a => a.type === 'podcast');
 
     return {
       feed: {
@@ -416,13 +489,19 @@ function parseRssXml(xmlString: string, feedUrl: string): { feed: Feed; articles
         description,
         link: getSafeUrl(link),
         feedUrl: getSafeUrl(feedUrl),
-        lastFetched: Date.now()
+        lastFetched: Date.now(),
+        lastRefreshStatus: 'success',
+        type: isPodcast ? 'podcast' : 'article'
       },
       articles
     };
   } else {
     // Assume RSS 2.0
-    const channel = xmlDoc.getElementsByTagName('channel')[0];
+    let channel = xmlDoc.getElementsByTagName('channel')[0];
+    if (!channel) {
+      // Try to find RSS 1.0 (RDF)
+      channel = xmlDoc.getElementsByTagName('rdf:RDF')[0] || xmlDoc.getElementsByTagName('RDF')[0];
+    }
     if (!channel) throw new Error('Invalid RSS feed: missing <channel>');
     
     const title = getTagText(channel, ['title', 'dc:title']) || 'Untitled RSS Feed';
@@ -440,7 +519,7 @@ function parseRssXml(xmlString: string, feedUrl: string): { feed: Feed; articles
       const item = items[i];
       
       const tagDict: Record<string, Element[]> = {};
-      const children = item.children;
+      const children = item.getElementsByTagName('*');
       for (let c = 0; c < children.length; c++) {
         const child = children[c];
         const nodeName = child.nodeName.toLowerCase();
@@ -464,7 +543,7 @@ function parseRssXml(xmlString: string, feedUrl: string): { feed: Feed; articles
         }
       }
       
-      const content = getSingleTagText(tagDict, ['content:encoded', 'content', 'itunes:summary', 'summary', 'description', 'itunes:subtitle']) || '';
+      const content = getSingleTagText(tagDict, ['content:encoded', 'content', 'description', 'itunes:summary', 'summary', 'itunes:subtitle']) || '';
       let itemTitle = getSingleTagText(tagDict, ['title', 'dc:title']);
       if (!itemTitle) {
         const plainText = sanitizeSnippet(decodeHtmlEntities(content));
@@ -472,9 +551,11 @@ function parseRssXml(xmlString: string, feedUrl: string): { feed: Feed; articles
         if (!itemTitle) itemTitle = 'Untitled';
       }
       
-      const itemLink = getSingleTagText(tagDict, ['link']) || '';
+      const itemLink = resolveUrl(getSingleTagText(tagDict, ['link']) || '', feedUrl);
       const pubDateStr = getSingleTagText(tagDict, ['pubDate', 'published', 'updated']) || new Date().toISOString();
       const pubDate = new Date(pubDateStr).getTime();
+      
+      if (sinceDate && pubDate <= sinceDate) continue;
       
       let imageUrl: string | null = null;
       let mediaUrl: string | null = null;
@@ -483,7 +564,7 @@ function parseRssXml(xmlString: string, feedUrl: string): { feed: Feed; articles
       const itunesImageElements = tagDict['itunes:image'] || tagDict['image'] || [];
       if (itunesImageElements.length > 0) {
         const itunesImage = itunesImageElements[0].getAttribute('href');
-        if (itunesImage) imageUrl = itunesImage;
+        if (itunesImage) imageUrl = resolveUrl(itunesImage, feedUrl);
       }
 
       const enclosures = tagDict['enclosure'] || [];
@@ -493,9 +574,9 @@ function parseRssXml(xmlString: string, feedUrl: string): { feed: Feed; articles
         const url = enclosure.getAttribute('url');
         if (type && url) {
           if (type.startsWith('image/')) {
-            if (!imageUrl) imageUrl = url;
+            if (!imageUrl) imageUrl = resolveUrl(url, feedUrl);
           } else if (type.startsWith('audio/') || type.startsWith('video/')) {
-            mediaUrl = url;
+            mediaUrl = resolveUrl(url, feedUrl);
             mediaType = type;
           }
         }
@@ -519,14 +600,14 @@ function parseRssXml(xmlString: string, feedUrl: string): { feed: Feed; articles
         const type = mediaContent.getAttribute('type');
         const url = mediaContent.getAttribute('url');
         if (type?.startsWith('image/')) {
-          if (url) imageUrl = url;
+          if (url) imageUrl = resolveUrl(url, feedUrl);
         } else if (type?.startsWith('audio/') || type?.startsWith('video/')) {
           if (url) {
-            mediaUrl = url;
+            mediaUrl = resolveUrl(url, feedUrl);
             mediaType = type;
           }
         } else if (url) {
-          imageUrl = url;
+          imageUrl = resolveUrl(url, feedUrl);
         }
       }
 
@@ -541,38 +622,65 @@ function parseRssXml(xmlString: string, feedUrl: string): { feed: Feed; articles
 
       let chapters: PodcastChapter[] | undefined = undefined;
       let chaptersUrl: string | undefined = undefined;
+      let episode: number | undefined = undefined;
 
-      const pscChaptersElements = tagDict['psc:chapters'] || tagDict['chapters'] || [];
-      if (pscChaptersElements.length > 0) {
-        const children = pscChaptersElements[0].children;
-        if (children.length > 0) {
-          chapters = [];
-          for (let k = 0; k < children.length; k++) {
-            const node = children[k];
-            const nn = node.nodeName.toLowerCase();
-            if (nn === 'psc:chapter' || nn === 'chapter') {
-              const start = node.getAttribute('start');
-              const title = node.getAttribute('title');
-              const href = node.getAttribute('href');
-              const image = node.getAttribute('image');
-              if (start && title) {
-                chapters.push({
-                  startTime: parseTime(start),
-                  title: title,
-                  url: href || undefined,
-                  imageUrl: image || undefined
-                });
-              }
+      const episodeText = getSingleTagText(tagDict, ['itunes:episode', 'podcast:episode', 'episode']);
+      if (episodeText) {
+        const epNum = parseInt(episodeText, 10);
+        if (!isNaN(epNum)) episode = epNum;
+      }
+
+      // 1. Look for inline chapters (PSC or similar)
+      const chapterContainers = [
+        ...(tagDict['chapters'] || []),
+        ...(tagDict['podcast:chapters'] || []),
+        ...(tagDict['structure'] || [])
+      ];
+
+      for (const container of chapterContainers) {
+        // Check if it has a URL (Podcast Index or external PSC)
+        const url = container.getAttribute('url') || container.getAttribute('href');
+        console.log('[CHAPTERS] Found potential chapter container:', container.tagName, 'URL:', url);
+        if (url) {
+          chaptersUrl = resolveUrl(url, feedUrl);
+          console.log('[CHAPTERS] Resolved chaptersUrl:', chaptersUrl);
+        }
+
+        const chapterNodes = getElementsByLocalName(container, 'chapter');
+        if (chapterNodes.length > 0) {
+          const foundChapters: PodcastChapter[] = [];
+          for (const node of chapterNodes) {
+            const start = node.getAttribute('start') || node.getAttribute('startTime');
+            const title = node.getAttribute('title') || node.getAttribute('text');
+            const href = node.getAttribute('href') || node.getAttribute('url');
+            const image = node.getAttribute('image') || node.getAttribute('img');
+            if (start && title) {
+              foundChapters.push({
+                startTime: parseTime(start),
+                title: title,
+                url: href || undefined,
+                imageUrl: image || undefined,
+                img: image || undefined
+              });
             }
+          }
+          if (foundChapters.length > 0) {
+            chapters = foundChapters;
           }
         }
       }
 
-      const podcastChaptersElements = tagDict['podcast:chapters'] || [];
-      if (podcastChaptersElements.length > 0) {
-        const url = podcastChaptersElements[0].getAttribute('url');
-        if (url) {
-          chaptersUrl = getSafeUrl(url);
+      // 2. Check for links with rel="chapters"
+      if (!chaptersUrl) {
+        const rssLinks = getElementsByLocalName(item, 'link');
+        for (const link of rssLinks) {
+          if (link.getAttribute('rel') === 'chapters') {
+            const href = link.getAttribute('href');
+            if (href) {
+              chaptersUrl = resolveUrl(href, feedUrl);
+              break;
+            }
+          }
         }
       }
 
@@ -580,11 +688,11 @@ function parseRssXml(xmlString: string, feedUrl: string): { feed: Feed; articles
         id: uuidv4(),
         feedId,
         title: decodeHtmlEntities(itemTitle),
-        link: getSafeUrl(itemLink),
+        link: resolveUrl(itemLink, feedUrl),
         pubDate,
-        imageUrl: imageUrl ? getSafeUrl(imageUrl) : undefined,
+        imageUrl: imageUrl ? resolveUrl(imageUrl, feedUrl) : undefined,
         duration,
-        mediaUrl: getSafeUrl(mediaUrl, undefined),
+        mediaUrl: mediaUrl ? resolveUrl(mediaUrl, feedUrl) : undefined,
         mediaType,
         isRead: false,
         isFavorite: false,
@@ -592,10 +700,13 @@ function parseRssXml(xmlString: string, feedUrl: string): { feed: Feed; articles
         type: mediaType?.startsWith('audio/') ? 'podcast' : 'article',
         chapters,
         chaptersUrl,
+        episode,
         contentSnippet: sanitizeSnippet(decodeHtmlEntities(content)),
         content: content,
       });
     }
+
+    const isPodcast = articles.some(a => a.type === 'podcast');
 
     return {
       feed: {
@@ -605,7 +716,9 @@ function parseRssXml(xmlString: string, feedUrl: string): { feed: Feed; articles
         link: getSafeUrl(link),
         feedUrl: getSafeUrl(feedUrl),
         imageUrl: getSafeUrl(feedImage, undefined),
-        lastFetched: Date.now()
+        lastFetched: Date.now(),
+        lastRefreshStatus: 'success',
+        type: isPodcast ? 'podcast' : 'article'
       },
       articles
     };
@@ -642,10 +755,13 @@ export const storage = {
     await set(FEEDS_KEY, feeds);
   },
 
-  async getArticles(): Promise<Article[]> {
+  async getArticles(offset = 0, limit = 0): Promise<Article[]> {
     const articles = (await get<Article[]>(ARTICLES_KEY)) || [];
     if (articles.length === 0) return [];
 
+    // If limit is 0, return all (for internal use or legacy support)
+    // But we still want to apply the cleanup logic if it's the first load
+    
     const THREE_DAYS = 3 * 24 * 60 * 60 * 1000;
     const SEVEN_DAYS = 7 * 24 * 60 * 60 * 1000;
     const now = Date.now();
@@ -660,21 +776,20 @@ export const storage = {
       if (a.isFavorite || a.isQueued) {
         keep = true;
       } else {
-        const limit = !a.isRead 
-          ? (a.type === 'podcast' ? 30 * 24 * 60 * 60 * 1000 : 14 * 24 * 60 * 60 * 1000)
-          : (a.type === 'podcast' ? SEVEN_DAYS : THREE_DAYS);
+        const limitTime = a.type === 'podcast' ? SEVEN_DAYS : THREE_DAYS;
         
         const referenceTime = (a.isRead && a.readAt) ? a.readAt : a.pubDate;
-        if ((now - referenceTime) <= limit) {
+        if ((now - referenceTime) <= limitTime) {
           keep = true;
         }
       }
 
       if (keep) {
-        // Normalize only if necessary to avoid object creation
-        if (a.type === undefined || a.isQueued === undefined) {
+        // Normalize and ensure content is NOT in the main list
+        if (a.content || a.type === undefined || a.isQueued === undefined) {
+          const { content, ...lightArticle } = a;
           validArticles.push({
-            ...a,
+            ...lightArticle,
             type: a.type || (a.mediaType?.startsWith('audio/') ? 'podcast' : 'article'),
             isQueued: a.isQueued || false
           });
@@ -690,10 +805,54 @@ export const storage = {
     if (hasChanged) {
       await this.saveArticles(validArticles);
       // Also trigger a cleanup of orphaned content in the background
-      this.cleanupOrphanedContent(validArticles).catch(err => console.error('Failed to cleanup orphaned content', err));
+      // Use a small delay to not block the main thread during initial load
+      setTimeout(() => {
+        this.cleanupOrphanedContent(validArticles).catch(err => console.error('Failed to cleanup orphaned content', err));
+      }, 2000);
+    }
+    
+    // Sort by date descending
+    validArticles.sort((a, b) => b.pubDate - a.pubDate);
+
+    if (limit > 0) {
+      return validArticles.slice(offset, offset + limit);
     }
     
     return validArticles;
+  },
+
+  async cleanUpOldArticles(): Promise<void> {
+    // This is essentially what getArticles(0, 0) does now, 
+    // but we can make it more explicit and run it in background
+    console.log('[STORAGE] Running garbage collection...');
+    await this.getArticles(0, 0);
+  },
+
+  async getArticleContent(id: string): Promise<string | null> {
+    const fullContent = await get<FullArticleContent>(`${CONTENT_PREFIX}${id}`);
+    return fullContent?.content || null;
+  },
+
+  async saveArticleContent(id: string, content: string): Promise<void> {
+    // We only save if it's not already there or we want to update it
+    // Usually handled by contentFetcher, but good to have here
+    const existing = await get<FullArticleContent>(`${CONTENT_PREFIX}${id}`);
+    if (existing) {
+      await set(`${CONTENT_PREFIX}${id}`, { ...existing, content });
+    } else {
+      // Create a minimal FullArticleContent if it doesn't exist
+      await set(`${CONTENT_PREFIX}${id}`, { 
+        title: '', 
+        content, 
+        textContent: '', 
+        length: content.length, 
+        excerpt: '', 
+        byline: '', 
+        dir: '', 
+        siteName: '', 
+        lang: '' 
+      });
+    }
   },
 
   async cleanupOrphanedContent(validArticles: Article[]): Promise<void> {
@@ -738,8 +897,8 @@ export const storage = {
         const options = {
           url: feedUrl,
           headers,
-          connectTimeout: 15000,
-          readTimeout: 15000,
+          connectTimeout: 25000,
+          readTimeout: 25000,
         };
         
         const response = await CapacitorHttp.get(options);
@@ -751,46 +910,50 @@ export const storage = {
 
         if (response.status === 200) {
           const dataString = typeof response.data === 'string' ? response.data : JSON.stringify(response.data);
-          const { feed, articles } = parseRssXml(dataString, feedUrl);
+          const { feed, articles } = parseRssXml(dataString, feedUrl, sinceDate);
           
+          // Strictly follow the rule: only articles newer than sinceDate
+          // No arbitrary 7/14 day limit here to respect user request
           const filteredArticles = articles.filter(a => {
-            // When fetching, we use a slightly more generous limit to catch 
-            // articles missed during a weekend or short break.
-            const limit = a.type === 'podcast' ? 14 * 24 * 60 * 60 * 1000 : 7 * 24 * 60 * 60 * 1000;
-            return (Date.now() - a.pubDate) <= limit && 
-                   (!sinceDate || a.pubDate > sinceDate);
+            return !sinceDate || a.pubDate > sinceDate;
           });
 
           return { feed, articles: filteredArticles };
         } else {
-          console.warn(`Feed fetch failed with status ${response.status} for ${feedUrl}`);
-          return null;
+          throw new Error(`Feed fetch failed with status ${response.status}`);
         }
       } catch (e) {
+        if (signal?.aborted) return null;
         console.warn(`[STORAGE] Native direct fetch failed for ${feedUrl}:`, e);
-        return null;
+        throw e;
       }
     }
 
     // Web fallback (using CORS proxy to avoid "Failed to fetch" errors in browser preview)
     try {
-      const xmlString = await fetchWithProxy(feedUrl, true, sinceDate, signal);
+      let xmlString = await fetchWithProxy(feedUrl, true, sinceDate, signal);
+      
+      // If failed and URL doesn't end with slash, try adding it (or vice versa)
+      if (!xmlString && !signal?.aborted) {
+        const alternativeUrl = feedUrl.endsWith('/') ? feedUrl.slice(0, -1) : feedUrl + '/';
+        console.log(`[STORAGE] Retrying with alternative URL: ${alternativeUrl}`);
+        xmlString = await fetchWithProxy(alternativeUrl, true, sinceDate, signal);
+      }
+
       if (!xmlString) return null; // 304 or empty
 
-      const { feed, articles } = parseRssXml(xmlString, feedUrl);
+      const { feed, articles } = parseRssXml(xmlString, feedUrl, sinceDate);
       
+      // Strictly follow the rule: only articles newer than sinceDate
       const filteredArticles = articles.filter(a => {
-        // When fetching, we use a slightly more generous limit to catch 
-        // articles missed during a weekend or short break.
-        const limit = a.type === 'podcast' ? 14 * 24 * 60 * 60 * 1000 : 7 * 24 * 60 * 60 * 1000;
-        return (Date.now() - a.pubDate) <= limit && 
-               (!sinceDate || a.pubDate > sinceDate);
+        return !sinceDate || a.pubDate > sinceDate;
       });
 
       return { feed, articles: filteredArticles };
     } catch (e) {
+      if (signal?.aborted) return null;
       console.warn(`[STORAGE] Web fetch error for ${feedUrl}:`, e);
-      return null;
+      throw e;
     }
   },
 
@@ -811,27 +974,50 @@ export const storage = {
     
     let updatedFeeds = [...feeds];
     let allNewArticles: Article[] = [];
+    let articlesModified = false;
     
     for (const { feed, articles: newArticles } of results) {
       const existingFeedIndex = updatedFeeds.findIndex(f => f.feedUrl === feed.feedUrl);
+      const isNewFeed = existingFeedIndex === -1;
+      const feedId = isNewFeed ? feed.id : updatedFeeds[existingFeedIndex].id;
       
-      // Calculate the latest article date from the new articles using reduce for performance
-      const latestFromNew = newArticles.length > 0 
-        ? newArticles.reduce((max, a) => Math.max(max, a.pubDate), 0)
-        : 0;
+      let latestFromNew = 0;
       
-      if (existingFeedIndex === -1) {
+      for (const a of newArticles) {
+        if (a.pubDate > latestFromNew) {
+          latestFromNew = a.pubDate;
+        }
+
+        if (!existingLinks.has(a.link)) {
+          const { content, ...lightArticle } = a;
+          if (content) {
+            this.saveArticleContent(a.id, content).catch(err => console.error('Failed to save article content', err));
+          }
+          if (isNewFeed) {
+            allNewArticles.push(lightArticle as Article);
+          } else {
+            allNewArticles.push({
+              ...lightArticle,
+              feedId
+            } as Article);
+          }
+        } else if (!isNewFeed && a.chaptersUrl) {
+          // Update existing articles if they are missing chaptersUrl
+          const idx = articles.findIndex(ex => ex.link === a.link);
+          if (idx !== -1 && !articles[idx].chaptersUrl) {
+            articles[idx] = { ...articles[idx], chaptersUrl: a.chaptersUrl };
+            articlesModified = true;
+          }
+        }
+      }
+
+      if (isNewFeed) {
         updatedFeeds.push({
           ...feed,
           lastArticleDate: latestFromNew
         });
-        // Still check for duplicates even for new feeds
-        const trulyNewArticles = newArticles.filter(a => !existingLinks.has(a.link));
-        allNewArticles.push(...trulyNewArticles);
       } else {
-        const feedId = updatedFeeds[existingFeedIndex].id;
         const currentLastArticleDate = updatedFeeds[existingFeedIndex].lastArticleDate || 0;
-        
         updatedFeeds[existingFeedIndex] = {
           ...updatedFeeds[existingFeedIndex],
           lastFetched: Date.now(),
@@ -839,17 +1025,10 @@ export const storage = {
           title: feed.title,
           imageUrl: feed.imageUrl || updatedFeeds[existingFeedIndex].imageUrl
         };
-        
-        const trulyNewArticles = newArticles.filter(a => !existingLinks.has(a.link)).map(a => ({
-          ...a,
-          feedId
-        }));
-        
-        allNewArticles.push(...trulyNewArticles);
       }
     }
     
-    if (allNewArticles.length > 0) {
+    if (allNewArticles.length > 0 || articlesModified) {
       await this.saveArticles([...articles, ...allNewArticles]);
     }
     await this.saveFeeds(updatedFeeds);
@@ -994,5 +1173,176 @@ export const storage = {
     opml += '  </body>\n';
     opml += '</opml>';
     return opml;
+  },
+
+  async getRefreshLogs(): Promise<RefreshLog[]> {
+    return (await get<RefreshLog[]>(REFRESH_LOGS_KEY)) || [];
+  },
+
+  // --- REDDIT METHODS ---
+  
+  async fetchJsonWithProxy(url: string, signal?: AbortSignal): Promise<any> {
+    const response = await fetchWithProxy(url, false, undefined, signal);
+    if (!response || response.trim() === '') return null;
+    
+    let trimmed = response.trim();
+    
+    // Some proxies might prepend garbage or wrap in something, try to find the first { or [
+    const firstBrace = trimmed.indexOf('{');
+    const firstBracket = trimmed.indexOf('[');
+    let startIndex = -1;
+    
+    if (firstBrace !== -1 && (firstBracket === -1 || firstBrace < firstBracket)) {
+      startIndex = firstBrace;
+    } else if (firstBracket !== -1) {
+      startIndex = firstBracket;
+    }
+    
+    if (startIndex === -1) {
+      // If it's HTML, it's likely a proxy error page or a redirect
+      throw new Error(`Invalid JSON response (starts with ${trimmed.substring(0, 5)}). The service might be temporarily unavailable via proxy.`);
+    }
+    
+    if (startIndex > 0) {
+      trimmed = trimmed.substring(startIndex);
+    }
+    
+    try {
+      return JSON.parse(trimmed);
+    } catch (e) {
+      console.error(`Failed to parse JSON from ${url}:`, e);
+      throw new Error(`Malformed JSON response from ${url}`);
+    }
+  },
+
+  async getSubreddits(): Promise<Subreddit[]> {
+    return (await get<Subreddit[]>(SUBREDDITS_KEY)) || [];
+  },
+
+  async saveSubreddits(subs: Subreddit[]): Promise<void> {
+    await set(SUBREDDITS_KEY, subs);
+  },
+
+  async getRedditPosts(): Promise<RedditPost[]> {
+    return (await get<RedditPost[]>(REDDIT_POSTS_KEY)) || [];
+  },
+
+  async saveRedditPosts(posts: RedditPost[]): Promise<void> {
+    await set(REDDIT_POSTS_KEY, posts);
+  },
+
+  async addSubreddit(name: string): Promise<Subreddit | null> {
+    try {
+      // Clean name (remove r/ or https://reddit.com/r/)
+      let cleanName = name.trim();
+      if (cleanName.includes('reddit.com/r/')) {
+        cleanName = cleanName.split('reddit.com/r/')[1].split('/')[0];
+      } else if (cleanName.startsWith('r/')) {
+        cleanName = cleanName.substring(2);
+      }
+      cleanName = cleanName.replace(/[^a-zA-Z0-9_]/g, '');
+
+      if (!cleanName) return null;
+
+      // Fetch about.json to verify and get icon
+      const url = `https://www.reddit.com/r/${cleanName}/about.json`;
+      const data = await this.fetchJsonWithProxy(url);
+
+      if (!data || data.error || !data.data) {
+        console.error('Subreddit not found or error:', data);
+        return null;
+      }
+
+      const subData = data.data;
+      let iconUrl = subData.icon_img || subData.community_icon || undefined;
+      if (iconUrl) {
+        // Reddit icons often have query params that break them, clean it up
+        iconUrl = iconUrl.split('?')[0];
+        iconUrl = he.decode(iconUrl);
+      }
+
+      const newSub: Subreddit = {
+        id: uuidv4(),
+        name: subData.display_name || cleanName,
+        iconUrl,
+        addedAt: Date.now(),
+      };
+
+      const subs = await this.getSubreddits();
+      if (!subs.find(s => s.name.toLowerCase() === newSub.name.toLowerCase())) {
+        subs.push(newSub);
+        await this.saveSubreddits(subs);
+      }
+
+      return newSub;
+    } catch (e) {
+      console.error('Failed to add subreddit:', e);
+      return null;
+    }
+  },
+
+  async fetchSubredditPosts(subredditName: string, sinceDate?: number): Promise<RedditPost[]> {
+    try {
+      const url = `https://www.reddit.com/r/${subredditName}/new.json?limit=25`;
+      const data = await this.fetchJsonWithProxy(url);
+
+      if (!data || !data.data || !data.data.children) return [];
+
+      const posts: RedditPost[] = data.data.children.map((child: any) => {
+        const post = child.data;
+        const createdUtc = post.created_utc * 1000;
+
+        if (sinceDate && createdUtc <= sinceDate) return null;
+
+        let imageUrl = undefined;
+        if (post.url && (post.url.endsWith('.jpg') || post.url.endsWith('.png') || post.url.endsWith('.gif'))) {
+          imageUrl = post.url;
+        } else if (post.thumbnail && post.thumbnail.startsWith('http')) {
+          imageUrl = post.thumbnail;
+        }
+
+        return {
+          id: post.id,
+          subredditId: post.subreddit_id,
+          subredditName: post.subreddit,
+          title: he.decode(post.title),
+          author: post.author,
+          url: post.url,
+          permalink: post.permalink,
+          score: post.score,
+          numComments: post.num_comments,
+          createdUtc,
+          selftextHtml: post.selftext_html ? he.decode(post.selftext_html) : undefined,
+          imageUrl: imageUrl ? he.decode(imageUrl) : undefined,
+          isRead: false,
+          isFavorite: false,
+        };
+      }).filter(Boolean) as RedditPost[];
+
+      return posts;
+    } catch (e) {
+      console.error(`Failed to fetch posts for r/${subredditName}:`, e);
+      return [];
+    }
+  },
+
+  async fetchRedditComments(permalink: string): Promise<any[]> {
+    try {
+      // permalink already includes leading slash, e.g., /r/soloboardgaming/comments/...
+      const url = `https://www.reddit.com${permalink}.json`;
+      const data = await this.fetchJsonWithProxy(url);
+
+      // data is an array: [0] is the post, [1] is the comments
+      if (!data || !Array.isArray(data) || data.length < 2) return [];
+
+      return data[1].data.children;
+    } catch (e) {
+      console.error(`Failed to fetch comments for ${permalink}:`, e);
+      return [];
+    }
+  },
+
+  async saveRefreshLogs(logs: RefreshLog[]): Promise<void> {
+    await set(REFRESH_LOGS_KEY, logs);
   }
 };

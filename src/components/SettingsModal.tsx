@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Moon, Sun, Monitor, Image as ImageIcon, LayoutList, Maximize, Type, Plus, Trash2, Edit2, AlertCircle, Save, ArrowLeft, ChevronDown, ChevronUp, Github, Info, ExternalLink, RefreshCw, ShieldCheck, Download, CheckCircle2 } from 'lucide-react';
+import { X, Moon, Sun, Monitor, Image as ImageIcon, LayoutList, Maximize, Type, Plus, Trash2, Edit2, AlertCircle, Save, ArrowLeft, ChevronDown, ChevronUp, Github, Info, ExternalLink, RefreshCw, ShieldCheck, Download, CheckCircle2, FileText, Headphones, Upload, MessageSquare } from 'lucide-react';
 import { useRss } from '../context/RssContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../lib/utils';
@@ -16,7 +16,7 @@ export const SettingsModal = React.memo(function SettingsModal({
   onClose: () => void;
   initialTab?: 'settings' | 'subscriptions' | 'about';
 }) {
-  const { settings, updateSettings, feeds, removeFeed, updateFeed, progress, updateInfo, checkUpdates } = useRss();
+  const { settings, updateSettings, feeds, subreddits, removeFeed, removeSubreddit, updateFeed, progress, updateInfo, checkUpdates, exportFeeds, importOpml, errorLogs, clearErrorLogs } = useRss();
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
   const [activeTab, setActiveTab] = useState<'settings' | 'subscriptions' | 'about'>('settings');
@@ -25,6 +25,20 @@ export const SettingsModal = React.memo(function SettingsModal({
   const [editUrl, setEditUrl] = useState('');
   const [selectedFeedId, setSelectedFeedId] = useState<string | null>(null);
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
+  const [showImportOptions, setShowImportOptions] = useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const [importMode, setImportMode] = useState<'replace' | 'append'>('append');
+  
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
+
+  const toggleSection = (section: string) => {
+    setExpandedSections(prev => {
+      const next = new Set(prev);
+      if (next.has(section)) next.delete(section);
+      else next.add(section);
+      return next;
+    });
+  };
   
   React.useEffect(() => {
     if (isOpen) {
@@ -48,6 +62,19 @@ export const SettingsModal = React.memo(function SettingsModal({
     await updateFeed(feedId, { title: editTitle, feedUrl: editUrl });
     setEditingFeedId(null);
     setSelectedFeedId(null);
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      await importOpml(file, importMode === 'append');
+    } catch (err) {
+      console.error('Import failed:', err);
+    } finally {
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      setShowImportOptions(false);
+    }
   };
 
   const selectedFeed = feeds.find(f => f.id === selectedFeedId);
@@ -334,44 +361,260 @@ export const SettingsModal = React.memo(function SettingsModal({
               </div>
             ) : activeTab === 'subscriptions' ? (
               <section className="space-y-4">
-                <div className="space-y-2">
-                  {feeds.map(feed => (
-                    <div 
-                      key={feed.id} 
-                      className="group flex items-center justify-between p-4 rounded-2xl bg-gray-800 hover:bg-gray-700 transition-colors cursor-pointer" 
-                      onClick={() => { setSelectedFeedId(feed.id); setEditTitle(feed.title); setEditUrl(feed.feedUrl); }}
-                    >
-                      <div className="min-w-0 flex-1">
-                        <span className="font-medium text-white truncate block" title={feed.title}>{feed.title}</span>
-                        <span className="text-xs text-gray-400">
-                          {feed.error ? 'Error' : feed.lastFetched ? `Updated ${new Date(feed.lastFetched).toLocaleDateString()}` : 'Never updated'}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        {feed.link && (
-                          <a 
-                            href={feed.link} 
-                            target="_blank" 
-                            rel="noopener noreferrer" 
-                            onClick={(e) => e.stopPropagation()}
-                            className="p-2 bg-gray-900 rounded-lg text-gray-400 hover:text-white hover:bg-gray-600 transition-all opacity-0 group-hover:opacity-100"
-                            title="Go to source"
-                          >
-                            <ExternalLink className="w-4 h-4" />
-                          </a>
-                        )}
-                        <span className={`w-2 h-2 rounded-full ${feed.error ? 'bg-red-500' : 'bg-green-500'}`} />
-                      </div>
-                    </div>
-                  ))}
+                {/* Articles Section */}
+                <div className="border border-gray-800 rounded-2xl overflow-hidden">
+                  <button 
+                    onClick={() => toggleSection('articles')}
+                    className="w-full flex items-center justify-between p-4 bg-gray-900/50 hover:bg-gray-800 transition-colors"
+                  >
+                    <h3 className="text-sm font-semibold text-gray-300 uppercase tracking-wider flex items-center gap-2">
+                      <FileText className="w-4 h-4" />
+                      Articles
+                    </h3>
+                    {expandedSections.has('articles') ? <ChevronUp className="w-4 h-4 text-gray-500" /> : <ChevronDown className="w-4 h-4 text-gray-500" />}
+                  </button>
+                  <AnimatePresence>
+                    {expandedSections.has('articles') && (
+                      <motion.div 
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        className="overflow-hidden"
+                      >
+                        <div className="p-2 space-y-1 bg-black">
+                          {feeds.filter(f => f.type !== 'podcast').map(feed => {
+                            const domain = feed.link ? new URL(feed.link).hostname : '';
+                            return (
+                              <div 
+                                key={feed.id} 
+                                className="group flex items-center justify-between p-3 rounded-xl hover:bg-gray-800 transition-all cursor-pointer" 
+                                onClick={() => { setSelectedFeedId(feed.id); setEditTitle(feed.title); setEditUrl(feed.feedUrl); }}
+                              >
+                                <div className="flex items-center gap-3 min-w-0 flex-1">
+                                  {domain && (
+                                    <img 
+                                      src={`https://icons.duckduckgo.com/ip3/${domain}.ico`} 
+                                      alt="" 
+                                      className="w-4 h-4 rounded-sm flex-shrink-0"
+                                      referrerPolicy="no-referrer"
+                                      onError={(e) => {
+                                        const img = e.target as HTMLImageElement;
+                                        img.src = `https://www.google.com/s2/favicons?domain=${domain}&sz=32`;
+                                      }}
+                                    />
+                                  )}
+                                  <div className="min-w-0">
+                                    <span className="text-sm font-medium text-white truncate block">{feed.title}</span>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className={`w-1.5 h-1.5 rounded-full ${feed.error ? 'bg-red-500' : 'bg-green-500'}`} />
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
-                <button
-                  onClick={() => setIsAddModalOpen(true)}
-                  className="w-full flex items-center justify-center gap-2 p-4 rounded-2xl bg-indigo-900/30 text-indigo-100 hover:bg-indigo-900/50 transition-colors font-medium"
-                >
-                  <Plus className="w-5 h-5" aria-hidden="true" />
-                  Add New Feed or Import OPML
-                </button>
+
+                {/* Podcasts Section */}
+                <div className="border border-gray-800 rounded-2xl overflow-hidden">
+                  <button 
+                    onClick={() => toggleSection('podcasts')}
+                    className="w-full flex items-center justify-between p-4 bg-gray-900/50 hover:bg-gray-800 transition-colors"
+                  >
+                    <h3 className="text-sm font-semibold text-gray-300 uppercase tracking-wider flex items-center gap-2">
+                      <Headphones className="w-4 h-4" />
+                      Podcasts
+                    </h3>
+                    {expandedSections.has('podcasts') ? <ChevronUp className="w-4 h-4 text-gray-500" /> : <ChevronDown className="w-4 h-4 text-gray-500" />}
+                  </button>
+                  <AnimatePresence>
+                    {expandedSections.has('podcasts') && (
+                      <motion.div 
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        className="overflow-hidden"
+                      >
+                        <div className="p-3 bg-black">
+                          <div className="grid grid-cols-4 gap-2">
+                            {feeds.filter(f => f.type === 'podcast').map(feed => (
+                              <div 
+                                key={feed.id} 
+                                className="group relative aspect-square rounded-xl overflow-hidden bg-gray-800 border border-gray-700 hover:border-indigo-500 transition-all cursor-pointer" 
+                                onClick={() => { setSelectedFeedId(feed.id); setEditTitle(feed.title); setEditUrl(feed.feedUrl); }}
+                              >
+                                {feed.imageUrl ? (
+                                  <img 
+                                    src={feed.imageUrl} 
+                                    alt={feed.title} 
+                                    className="w-full h-full object-cover"
+                                    referrerPolicy="no-referrer"
+                                  />
+                                ) : (
+                                  <div className="w-full h-full flex items-center justify-center">
+                                    <Headphones className="w-5 h-5 text-gray-500" />
+                                  </div>
+                                )}
+                                <div className="absolute inset-0 bg-black/40 flex items-end p-1">
+                                  <span className="text-[8px] font-bold text-white truncate w-full">{feed.title}</span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+
+                {/* Subreddits Section */}
+                <div className="border border-gray-800 rounded-2xl overflow-hidden">
+                  <button 
+                    onClick={() => toggleSection('subreddits')}
+                    className="w-full flex items-center justify-between p-4 bg-gray-900/50 hover:bg-gray-800 transition-colors"
+                  >
+                    <h3 className="text-sm font-semibold text-gray-300 uppercase tracking-wider flex items-center gap-2">
+                      <MessageSquare className="w-4 h-4" />
+                      Subreddits
+                    </h3>
+                    {expandedSections.has('subreddits') ? <ChevronUp className="w-4 h-4 text-gray-500" /> : <ChevronDown className="w-4 h-4 text-gray-500" />}
+                  </button>
+                  <AnimatePresence>
+                    {expandedSections.has('subreddits') && (
+                      <motion.div 
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        className="overflow-hidden"
+                      >
+                        <div className="p-2 space-y-1 bg-black">
+                          {subreddits.map(sub => (
+                            <div 
+                              key={sub.id} 
+                              className="group flex items-center justify-between p-3 rounded-xl hover:bg-gray-800 transition-all" 
+                            >
+                              <div className="flex items-center gap-3 min-w-0 flex-1">
+                                {sub.iconUrl ? (
+                                  <img 
+                                    src={sub.iconUrl} 
+                                    alt="" 
+                                    className="w-6 h-6 rounded-full flex-shrink-0 object-cover bg-gray-900 shadow-[0_0_8px_rgba(168,85,247,0.4)]"
+                                    referrerPolicy="no-referrer"
+                                  />
+                                ) : (
+                                  <div className="w-6 h-6 rounded-full flex-shrink-0 bg-purple-500/20 flex items-center justify-center shadow-[0_0_8px_rgba(168,85,247,0.4)]">
+                                    <MessageSquare className="w-3 h-3 text-purple-400" />
+                                  </div>
+                                )}
+                                <div className="min-w-0">
+                                  <span className="text-sm font-medium text-white truncate block">r/{sub.name}</span>
+                                </div>
+                              </div>
+                              <button
+                                onClick={() => removeSubreddit(sub.id)}
+                                className="p-2 text-gray-500 hover:text-red-400 transition-colors"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+
+                {/* Intelligent Import OPML Button */}
+                <div className="space-y-3">
+                  <button
+                    onClick={() => setIsAddModalOpen(true)}
+                    className="w-full flex items-center justify-center gap-2 p-4 rounded-2xl bg-[var(--theme-color)] text-white hover:bg-opacity-90 transition-colors font-medium shadow-lg shadow-[var(--theme-color)]/20"
+                  >
+                    <Plus className="w-5 h-5" />
+                    Add Feed / Subreddit
+                  </button>
+
+                  <input
+                    type="file"
+                    accept=".opml,.xml"
+                    className="hidden"
+                    ref={fileInputRef}
+                    onChange={handleFileUpload}
+                  />
+                  
+                  {!showImportOptions ? (
+                    <button
+                      onClick={() => {
+                        if (feeds.length > 0) {
+                          setShowImportOptions(true);
+                        } else {
+                          setImportMode('append');
+                          fileInputRef.current?.click();
+                        }
+                      }}
+                      className="w-full flex items-center justify-center gap-2 p-4 rounded-2xl bg-indigo-900/20 text-indigo-100 hover:bg-indigo-900/30 border border-indigo-500/20 transition-colors font-medium"
+                    >
+                      <Upload className="w-5 h-5" />
+                      Import OPML
+                    </button>
+                  ) : (
+                    <div className="p-4 rounded-2xl bg-indigo-900/10 border border-indigo-500/20 space-y-3 animate-in fade-in slide-in-from-bottom-2">
+                      <p className="text-sm text-center text-indigo-200 font-medium">You have existing subscriptions.</p>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          onClick={() => {
+                            setImportMode('replace');
+                            fileInputRef.current?.click();
+                          }}
+                          className="flex flex-col items-center justify-center p-3 rounded-xl bg-red-900/20 text-red-400 border border-red-500/20 hover:bg-red-900/30 transition-colors"
+                        >
+                          <Trash2 className="w-4 h-4 mb-1" />
+                          <span className="text-[10px] font-bold uppercase tracking-wider">Replace All</span>
+                        </button>
+                        <button
+                          onClick={() => {
+                            setImportMode('append');
+                            fileInputRef.current?.click();
+                          }}
+                          className="flex flex-col items-center justify-center p-3 rounded-xl bg-indigo-900/20 text-indigo-400 border border-indigo-500/20 hover:bg-indigo-900/30 transition-colors"
+                        >
+                          <Plus className="w-4 h-4 mb-1" />
+                          <span className="text-[10px] font-bold uppercase tracking-wider">Add to List</span>
+                        </button>
+                      </div>
+                      <button 
+                        onClick={() => setShowImportOptions(false)}
+                        className="w-full py-2 text-xs text-gray-500 hover:text-gray-400 transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Export OPML Button - Styled like the Import button */}
+                  <button
+                    onClick={async () => {
+                      const opml = await exportFeeds();
+                      const blob = new Blob([opml], { type: 'text/xml' });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = 'flusso-subscriptions.opml';
+                      document.body.appendChild(a);
+                      a.click();
+                      document.body.removeChild(a);
+                      URL.revokeObjectURL(url);
+                    }}
+                    className="w-full flex items-center justify-center gap-2 p-4 rounded-2xl bg-indigo-900/20 text-indigo-100 hover:bg-indigo-900/30 border border-indigo-500/20 transition-colors font-medium"
+                  >
+                    <Download className="w-5 h-5" />
+                    Export Subscriptions (OPML)
+                  </button>
+                </div>
               </section>
             ) : (
               <section className="space-y-8">
@@ -457,6 +700,30 @@ export const SettingsModal = React.memo(function SettingsModal({
                       It features full article extraction, swipe gestures, and OPML support.
                     </p>
                   </div>
+
+                  {errorLogs.length > 0 && (
+                    <div className="p-4 rounded-2xl bg-red-900/10 border border-red-500/20">
+                      <div className="flex justify-between items-center mb-3">
+                        <h4 className="text-sm font-semibold text-red-400 flex items-center gap-2">
+                          <AlertCircle className="w-4 h-4" />
+                          Error Logs
+                        </h4>
+                        <button 
+                          onClick={clearErrorLogs}
+                          className="text-[10px] font-bold uppercase tracking-widest text-red-500 hover:text-red-400"
+                        >
+                          Clear Logs
+                        </button>
+                      </div>
+                      <div className="max-h-40 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
+                        {errorLogs.map((log, i) => (
+                          <div key={i} className="text-[10px] font-mono text-red-300/70 border-b border-red-500/10 pb-1">
+                            {log}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   <div className="space-y-2">
                     <a 
