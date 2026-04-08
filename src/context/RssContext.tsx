@@ -3,7 +3,7 @@ import { Feed, Article, Settings, Subreddit, RedditPost } from '../types';
 import { storage, defaultSettings } from '../services/storage';
 import packageJson from '../../package.json';
 import { Capacitor } from '@capacitor/core';
-import { BackgroundPlugin } from '../plugins/BackgroundPlugin.ts';
+import { BackgroundPlugin } from '../plugins/BackgroundPlugin';
 
 import { imagePersistence } from '../utils/imagePersistence';
 
