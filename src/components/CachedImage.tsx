@@ -117,10 +117,13 @@ export function CachedImage({ src, className, fallback, alt, ...props }: CachedI
   };
 
   const handleError = () => {
+    console.warn(`[CachedImage] Error loading image: ${currentSrc}`);
     // If local URL failed, try falling back to original src
     if (currentSrc !== src) {
+      console.log(`[CachedImage] Retrying with original src: ${src}`);
       setCurrentSrc(src);
     } else {
+      console.error(`[CachedImage] Failed to load image: ${src}`);
       setError(true);
     }
   };

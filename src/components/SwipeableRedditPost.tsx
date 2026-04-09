@@ -5,6 +5,7 @@ import { Check, Trash2, Bookmark, MessageSquare } from 'lucide-react';
 import { RedditPost, Settings } from '../types';
 import { useInView } from 'react-intersection-observer';
 import { cn, getSafeUrl } from '../lib/utils';
+import { CachedImage } from './CachedImage';
 import DOMPurify from 'dompurify';
 
 interface SwipeableRedditPostProps {
@@ -159,7 +160,7 @@ export const SwipeableRedditPost = React.memo(function SwipeableRedditPost({
         <div className="flex flex-col gap-2">
           {/* Image at the top */}
           {post.imageUrl && (
-            <img 
+            <CachedImage 
               src={getSafeUrl(post.imageUrl)}
               alt="" 
               className="rounded-lg flex-shrink-0 bg-gray-800 transition-opacity w-full h-auto min-h-[120px] object-cover mb-1"

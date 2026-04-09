@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo, memo, useDefe
 import { useRss } from './context/RssContext';
 import { useAudioState } from './context/AudioPlayerContext.tsx';
 import { SwipeableArticle } from './components/SwipeableArticle';
+import { LazyRender } from './components/LazyRender';
 import { ArticleReader } from './components/ArticleReader';
 import { SettingsModal } from './components/SettingsModal';
 import { PersistentPlayer } from './components/PersistentPlayer';
@@ -100,21 +101,22 @@ const ArticleListView = memo(({
             {articles.map((article: Article) => {
               const feed = feedsMap.get(article.feedId);
               return (
-                <SwipeableArticle
-                  key={article.id}
-                  article={article}
-                  feedName={feed?.title || 'Unknown Feed'}
-                  feedImageUrl={feed?.imageUrl}
-                  settings={settings}
-                  onClick={handleArticleClick}
-                  onMarkAsRead={markAsRead}
-                  toggleRead={toggleRead}
-                  toggleFavorite={toggleFavorite}
-                  toggleQueue={toggleQueue}
-                  isSavedSection={isSavedSection}
-                  filter={isSavedSection ? 'saved' : 'inbox'}
-                  onRemove={handleRemoveArticle}
-                />
+                <LazyRender key={article.id} height="150px">
+                  <SwipeableArticle
+                    article={article}
+                    feedName={feed?.title || 'Unknown Feed'}
+                    feedImageUrl={feed?.imageUrl}
+                    settings={settings}
+                    onClick={handleArticleClick}
+                    onMarkAsRead={markAsRead}
+                    toggleRead={toggleRead}
+                    toggleFavorite={toggleFavorite}
+                    toggleQueue={toggleQueue}
+                    isSavedSection={isSavedSection}
+                    filter={isSavedSection ? 'saved' : 'inbox'}
+                    onRemove={handleRemoveArticle}
+                  />
+                </LazyRender>
               );
             })}
           </AnimatePresence>
