@@ -372,16 +372,6 @@ export const SettingsModal = React.memo(function SettingsModal({
                     </div>
                   </div>
                 </section>
-
-                <section className="pt-4 border-t border-gray-800">
-                  <div className="p-4 rounded-2xl bg-gray-800 border border-gray-700">
-                    <h4 className="text-sm font-semibold text-white mb-2">App Information</h4>
-                    <p className="text-sm text-gray-400 leading-relaxed">
-                      Flusso is a minimalist, mobile-first RSS reader designed for speed and focus. 
-                      It features full article extraction, swipe gestures, and OPML support.
-                    </p>
-                  </div>
-                </section>
               </div>
             ) : activeTab === 'subscriptions' ? (
               <section className="space-y-4">

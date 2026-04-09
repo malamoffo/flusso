@@ -532,9 +532,11 @@ export default function App() {
 
       <div className="sticky top-0 z-20 shadow-sm transition-colors bg-black">
         <header className="px-4 py-3 flex items-center justify-between">
-          <div 
-            className="flex items-center gap-3 cursor-pointer active:opacity-70 transition-opacity"
+           <motion.button 
+            whileTap={{ scale: 0.95 }}
             onClick={scrollToTop}
+            className="flex items-center gap-3 active:opacity-70 transition-opacity focus-visible:ring-2 focus-visible:ring-indigo-500 rounded-lg px-1 outline-none"
+            aria-label="Scroll to top"
           >
             <div className="w-10 h-10 rounded-2xl flex items-center justify-center shadow-inner relative transition-colors" style={{ backgroundColor: filter === 'reddit' ? 'rgba(147, 51, 234, 0.1)' : 'rgba(37, 99, 235, 0.1)' }}>
               <Rss className={cn("w-6 h-6 transition-colors", filter === 'reddit' ? "text-purple-600 dark:text-purple-400" : "text-blue-600 dark:text-blue-400")} />
@@ -542,7 +544,7 @@ export default function App() {
             <div className="flex items-baseline gap-4">
               <h1 className="text-xl font-bold text-gray-900 dark:text-white tracking-tight">flusso</h1>
             </div>
-          </div>
+          </motion.button>
           <div className="flex items-center gap-2">
             <HeaderWidgets />
             <button 

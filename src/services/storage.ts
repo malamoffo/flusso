@@ -7,20 +7,707 @@ import DOMPurify from 'dompurify';
 import { getSafeUrl, resolveUrl } from '../lib/utils';
 
 import he from 'he';
-import { parseRssXml, escapeXml, extractBestImage } from './rssParser';
 
 const FEEDS_KEY = 'rss_feeds';
 const ARTICLES_KEY = 'rss_articles';
 const SETTINGS_KEY = 'rss_settings';
-const REFRESH_LOGS_KEY = 'rss_refresh_logs';
 const CONTENT_PREFIX = 'article_content_';
+const REFRESH_LOGS_KEY = 'rss_refresh_logs';
 const SUBREDDITS_KEY = 'reddit_subs';
 const REDDIT_POSTS_KEY = 'reddit_posts';
 
+// Helper to decode HTML entities safely
+function decodeHtmlEntities(text: string): string {
+  if (!text) return '';
+  return he.decode(text);
+}
 
+// Helper to escape XML special characters
+function escapeXml(unsafe: string): string {
+  if (!unsafe) return '';
+  return unsafe.replace(/[<>&"']/g, (c) => {
+    switch (c) {
+      case '<': return '&lt;';
+      case '>': return '&gt;';
+      case '&': return '&amp;';
+      case '"': return '&quot;';
+      case "'": return '&apos;';
+      default: return c;
+    }
+  });
+}
+
+// Helper to sanitize article content into a safe text snippet
+function sanitizeSnippet(input: string): string {
+  if (!input) return '';
+  const textOnly = DOMPurify.sanitize(input, { ALLOWED_TAGS: [], ALLOWED_ATTR: [] });
+  return textOnly.trim().substring(0, 200);
+}
+
+// Helper to extract the best image from HTML content, avoiding tracking pixels and icons
+export function extractBestImage(content: string, baseUrl?: string): string | null {
+  if (!content) return null;
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(content, 'text/html');
+  
+  const resolveUrl = (url: string | null): string | null => {
+    if (!url) return null;
+    if (!baseUrl) return url;
+    try {
+      return new URL(url, baseUrl).href;
+    } catch (e) {
+      return url;
+    }
+  };
+
+  // Try og:image
+  const ogImage = doc.querySelector('meta[property="og:image"]')?.getAttribute('content');
+  if (ogImage) return resolveUrl(ogImage);
+
+  const imgTags = doc.getElementsByTagName('img');
+  
+  for (let i = 0; i < imgTags.length; i++) {
+    const imgTag = imgTags[i];
+    const url = imgTag.getAttribute('data-src') || 
+                imgTag.getAttribute('data-lazy-src') ||
+                imgTag.getAttribute('data-original') ||
+                imgTag.getAttribute('src');
+    if (!url) continue;
+    
+    // Skip likely tracking pixels or icons based on URL
+    const lowerUrl = url.toLowerCase();
+    if (
+      lowerUrl.includes('1x1') ||
+      lowerUrl.includes('pixel') ||
+      lowerUrl.includes('tracker') ||
+      lowerUrl.includes('feedburner') ||
+      lowerUrl.includes('stats') ||
+      lowerUrl.includes('gravatar') ||
+      lowerUrl.includes('avatar') ||
+      lowerUrl.includes('favicon') ||
+      lowerUrl.includes('icon') ||
+      lowerUrl.includes('logo') ||
+      lowerUrl.includes('wp-includes/images/smilies') ||
+      lowerUrl.includes('share') ||
+      lowerUrl.includes('button') ||
+      lowerUrl.includes('badge')
+    ) {
+      continue;
+    }
+
+    // Check for width/height attributes that suggest a 1x1 pixel
+    const width = parseInt(imgTag.getAttribute('width') || '0', 10);
+    const height = parseInt(imgTag.getAttribute('height') || '0', 10);
+    if (width > 0 && width <= 10) continue;
+    if (height > 0 && height <= 10) continue;
+
+    // First valid image found
+    return resolveUrl(url);
+  }
+  
+  return null;
+}
+
+function parseTime(timeStr: string | null): number {
+  if (!timeStr) return 0;
+  
+  // Handle formats like "1h 23m 45s" or "23m 45s"
+  if (timeStr.includes('h') || timeStr.includes('m') || timeStr.includes('s')) {
+    let totalSeconds = 0;
+    const hMatch = timeStr.match(/(\d+)\s*h/);
+    const mMatch = timeStr.match(/(\d+)\s*m/);
+    const sMatch = timeStr.match(/(\d+)\s*s/);
+    if (hMatch) totalSeconds += parseInt(hMatch[1]) * 3600;
+    if (mMatch) totalSeconds += parseInt(mMatch[1]) * 60;
+    if (sMatch) totalSeconds += parseInt(sMatch[1]);
+    if (totalSeconds > 0) return totalSeconds;
+  }
+
+  // Handle standard HH:MM:SS or MM:SS
+  const parts = timeStr.replace(',', '.').split(':').reverse();
+  let seconds = 0;
+  for (let i = 0; i < parts.length; i++) {
+    const val = parseFloat(parts[i]);
+    if (!isNaN(val)) {
+      seconds += val * Math.pow(60, i);
+    }
+  }
+  return seconds;
+}
 
 // Helper to parse RSS/Atom XML using native DOMParser
+function parseRssXml(xmlString: string, feedUrl: string, sinceDate?: number): { feed: Feed; articles: Article[] } {
+  if (typeof xmlString !== 'string') {
+    xmlString = JSON.stringify(xmlString);
+  }
+  if (!xmlString || xmlString.trim() === '') {
+    throw new Error('Received empty response from the feed URL.');
+  }
 
+  // Check if it's a JSON response from rss2json fallback
+  if (xmlString.trim().startsWith('{')) {
+    try {
+      const data = JSON.parse(xmlString);
+      if (data.status === 'ok' && data.feed && data.items) {
+        const feedId = uuidv4();
+        const articles: Article[] = data.items.map((item: any) => {
+          let imageUrl = item.thumbnail || null;
+          let mediaUrl = null;
+          let mediaType = null;
+          if (item.enclosure && item.enclosure.link && item.enclosure.type) {
+            if (item.enclosure.type.startsWith('image/')) {
+              if (!imageUrl) imageUrl = item.enclosure.link;
+            } else if (item.enclosure.type.startsWith('audio/') || item.enclosure.type.startsWith('video/')) {
+              mediaUrl = item.enclosure.link;
+              mediaType = item.enclosure.type;
+            }
+          }
+          if (!imageUrl) {
+            const content = item.content || item.description || '';
+            imageUrl = extractBestImage(content);
+          }
+
+          let pubDate = Date.now();
+          if (item.pubDate) {
+            // rss2json returns dates like "2026-03-22 07:01:18" which might need parsing
+            pubDate = new Date(item.pubDate.replace(' ', 'T') + 'Z').getTime();
+            if (isNaN(pubDate)) pubDate = new Date(item.pubDate).getTime();
+            if (isNaN(pubDate)) pubDate = Date.now();
+          }
+
+          if (sinceDate && pubDate <= sinceDate) return null;
+
+          return {
+            id: uuidv4(),
+            feedId,
+            title: decodeHtmlEntities(item.title || 'Untitled'),
+            link: getSafeUrl(item.link),
+            pubDate,
+            imageUrl: imageUrl ? getSafeUrl(imageUrl) : undefined,
+            mediaUrl: getSafeUrl(mediaUrl, undefined),
+            mediaType,
+            isRead: false,
+            isFavorite: false,
+            isQueued: false,
+            type: mediaType?.startsWith('audio/') ? 'podcast' : 'article',
+            contentSnippet: sanitizeSnippet(decodeHtmlEntities(item.content || item.description || '')),
+          };
+        }).filter(Boolean) as Article[];
+
+        return {
+          feed: {
+            id: feedId,
+            title: data.feed.title || 'Untitled Feed',
+            description: data.feed.description || '',
+            link: getSafeUrl(data.feed.link),
+            feedUrl: getSafeUrl(feedUrl),
+            imageUrl: getSafeUrl(data.feed.image, undefined),
+            lastFetched: Date.now()
+          },
+          articles
+        };
+      }
+    } catch (e) {
+      // Fall through to XML parsing if JSON parsing fails
+    }
+  }
+
+  const parser = new DOMParser();
+  let xmlDoc = parser.parseFromString(xmlString, 'text/xml');
+  
+  // Check for parsing errors
+  let parserError = xmlDoc.getElementsByTagName('parsererror')[0];
+  if (parserError) {
+    console.warn('XML parsing failed, trying HTML mode:', parserError.textContent);
+    xmlDoc = parser.parseFromString(xmlString, 'text/html');
+  }
+  
+  // Check again for parsing errors
+  parserError = xmlDoc.getElementsByTagName('parsererror')[0];
+  if (parserError) {
+    throw new Error('Failed to parse XML: ' + parserError.textContent);
+  }
+
+  // Helper to get text content from a list of possible tags, including namespaced ones
+  // We keep this for feed-level tags, but bypass it for item-level parsing which is optimized
+  function getTagText(element: Element, tags: string[]): string {
+    for (const tag of tags) {
+      // Try exact match (for namespaced tags in XML mode)
+      let el = element.getElementsByTagName(tag)[0];
+      
+      // If not found and tag contains a colon, try local name (for HTML mode or different prefix handling)
+      if (!el && tag.includes(':')) {
+        const localName = tag.split(':')[1];
+        el = element.getElementsByTagName(localName)[0];
+      }
+      
+      if (el && el.textContent) return el.textContent.trim();
+    }
+    return '';
+  }
+
+  // Optimized single-pass text retrieval using a pre-computed tag dictionary
+  function getSingleTagText(tagDict: Record<string, Element[]>, tags: string[]): string {
+    for (let t = 0; t < tags.length; t++) {
+      const elements = tagDict[tags[t].toLowerCase()];
+      if (elements && elements.length > 0 && elements[0].textContent) {
+        return elements[0].textContent.trim();
+      }
+    }
+    return '';
+  }
+
+  // Helper to get elements by local name regardless of namespace
+  function getElementsByLocalName(parent: Element, localName: string): Element[] {
+    const results: Element[] = [];
+    const all = parent.getElementsByTagName('*');
+    for (let i = 0; i < all.length; i++) {
+      const el = all[i];
+      const nodeName = el.nodeName.toLowerCase();
+      if (nodeName === localName.toLowerCase() || nodeName.endsWith(':' + localName.toLowerCase())) {
+        results.push(el);
+      }
+    }
+    return results;
+  }
+
+  const isAtom = xmlDoc.getElementsByTagName('feed').length > 0;
+  const feedId = uuidv4();
+  
+  if (isAtom) {
+    const feedNode = xmlDoc.getElementsByTagName('feed')[0];
+    const title = getTagText(feedNode, ['title', 'dc:title']) || 'Untitled Atom Feed';
+    const description = getTagText(feedNode, ['subtitle', 'description', 'summary']) || '';
+    const link = feedNode.getElementsByTagName('link')[0]?.getAttribute('href') || '';
+    
+    const entries = Array.from(xmlDoc.getElementsByTagName('entry'));
+    const articles: Article[] = [];
+    
+    for (let i = 0; i < entries.length; i++) {
+      const entry = entries[i];
+      
+      // Single-pass iteration to build a dictionary of all descendant elements
+      const tagDict: Record<string, Element[]> = {};
+      const children = entry.getElementsByTagName('*');
+      for (let c = 0; c < children.length; c++) {
+        const child = children[c];
+        const nodeName = child.nodeName.toLowerCase();
+        
+        let elements = tagDict[nodeName];
+        if (!elements) {
+          elements = [];
+          tagDict[nodeName] = elements;
+        }
+        elements.push(child);
+        
+        const colonIndex = nodeName.indexOf(':');
+        if (colonIndex !== -1) {
+          const localName = nodeName.substring(colonIndex + 1);
+          let localElements = tagDict[localName];
+          if (!localElements) {
+            localElements = [];
+            tagDict[localName] = localElements;
+          }
+          localElements.push(child);
+        }
+      }
+
+      const content = getSingleTagText(tagDict, ['content:encoded', 'content', 'description', 'itunes:summary', 'summary', 'itunes:subtitle']) || '';
+      let entryTitle = getSingleTagText(tagDict, ['title', 'dc:title']);
+      
+      if (!entryTitle) {
+        const plainText = sanitizeSnippet(decodeHtmlEntities(content));
+        entryTitle = plainText.length > 50 ? plainText.substring(0, 50) + '...' : plainText;
+        if (!entryTitle) entryTitle = 'Untitled';
+      }
+      
+      const linkElements = tagDict['link'] || [];
+      const entryLink = resolveUrl(linkElements.length > 0 ? (linkElements[0].getAttribute('href') || '') : '', feedUrl);
+      const pubDateStr = getSingleTagText(tagDict, ['published', 'updated', 'pubDate']) || new Date().toISOString();
+      const pubDate = new Date(pubDateStr).getTime();
+      
+      if (sinceDate && pubDate <= sinceDate) continue;
+      
+      let imageUrl: string | null = null;
+      let mediaUrl: string | null = null;
+      let mediaType: string | null = null;
+      
+      for (let j = 0; j < linkElements.length; j++) {
+        const l = linkElements[j];
+        const rel = l.getAttribute('rel');
+        const type = l.getAttribute('type');
+        const href = l.getAttribute('href');
+        if (rel === 'enclosure' && type && href) {
+          if (type.startsWith('image/')) {
+            if (!imageUrl) imageUrl = resolveUrl(href, feedUrl);
+          } else if (type.startsWith('audio/') || type.startsWith('video/')) {
+            mediaUrl = resolveUrl(href, feedUrl);
+            mediaType = type;
+          }
+        }
+      }
+
+      const groupElements = tagDict['media:group'] || tagDict['group'] || [];
+      const mediaContentElements = [...(tagDict['media:content'] || tagDict['content'] || [])];
+      
+      for (let j = 0; j < groupElements.length; j++) {
+        const groupChildren = groupElements[j].children;
+        for (let k = 0; k < groupChildren.length; k++) {
+          const nn = groupChildren[k].nodeName.toLowerCase();
+          if (nn === 'media:content' || nn.endsWith(':content') || nn === 'content') {
+            mediaContentElements.push(groupChildren[k]);
+          }
+        }
+      }
+
+      if (mediaContentElements.length > 0) {
+        const mediaContent = mediaContentElements[0];
+        const type = mediaContent.getAttribute('type');
+        const url = mediaContent.getAttribute('url');
+        if (type?.startsWith('image/')) {
+          if (!imageUrl && url) imageUrl = resolveUrl(url, feedUrl);
+        } else if (type?.startsWith('audio/') || type?.startsWith('video/')) {
+          if (url) {
+            mediaUrl = resolveUrl(url, feedUrl);
+            mediaType = type;
+          }
+        } else if (!type && url && (url.endsWith('.jpg') || url.endsWith('.png'))) {
+          if (!imageUrl) imageUrl = resolveUrl(url, feedUrl);
+        }
+      }
+      
+      if (!imageUrl) {
+        // We need to allow img tags to extract the best image
+        const sanitizedForImage = DOMPurify.sanitize(content, {
+          ALLOWED_TAGS: ['img', 'figure', 'picture', 'source'],
+          ALLOWED_ATTR: ['src', 'data-src', 'data-lazy-src', 'data-original', 'width', 'height', 'alt', 'srcset', 'data-srcset']
+        });
+        imageUrl = extractBestImage(sanitizedForImage, entryLink);
+      }
+
+      let duration = getSingleTagText(tagDict, ['itunes:duration', 'duration', 'media:duration']);
+      if (!duration && mediaContentElements.length > 0) {
+        duration = mediaContentElements[0].getAttribute('duration') || '';
+      }
+
+      let chapters: PodcastChapter[] | undefined = undefined;
+      let chaptersUrl: string | undefined = undefined;
+      let episode: number | undefined = undefined;
+
+      const episodeText = getSingleTagText(tagDict, ['itunes:episode', 'podcast:episode', 'episode']);
+      if (episodeText) {
+        const epNum = parseInt(episodeText, 10);
+        if (!isNaN(epNum)) episode = epNum;
+      }
+
+      // 1. Look for inline chapters (PSC or similar)
+      const chapterContainers = [
+        ...(tagDict['chapters'] || []),
+        ...(tagDict['podcast:chapters'] || []),
+        ...(tagDict['structure'] || [])
+      ];
+
+      for (const container of chapterContainers) {
+        // Check if it has a URL (Podcast Index or external PSC)
+        const url = container.getAttribute('url') || container.getAttribute('href');
+        if (url) {
+          chaptersUrl = resolveUrl(url, feedUrl);
+          // If it's a JSON chapters file, we might want to fetch it now or let the UI handle it.
+          // Given the current architecture, let's keep it as chaptersUrl.
+        }
+
+        const chapterNodes = getElementsByLocalName(container, 'chapter');
+        if (chapterNodes.length > 0) {
+          const foundChapters: PodcastChapter[] = [];
+          for (const node of chapterNodes) {
+            const start = node.getAttribute('start') || node.getAttribute('startTime');
+            const title = node.getAttribute('title') || node.getAttribute('text');
+            const href = node.getAttribute('href') || node.getAttribute('url');
+            const image = node.getAttribute('image') || node.getAttribute('img');
+            if (start && title) {
+              foundChapters.push({
+                startTime: parseTime(start),
+                title: title,
+                url: href || undefined,
+                imageUrl: image || undefined,
+                img: image || undefined
+              });
+            }
+          }
+          if (foundChapters.length > 0) {
+            chapters = foundChapters;
+          }
+        }
+      }
+
+      // 2. Check for atom:link with rel="chapters"
+      if (!chaptersUrl) {
+        const atomLinks = tagDict['link'] || [];
+        for (const link of atomLinks) {
+          if (link.getAttribute('rel') === 'chapters') {
+            const href = link.getAttribute('href');
+            if (href) {
+              chaptersUrl = resolveUrl(href, feedUrl);
+              break;
+            }
+          }
+        }
+      }
+
+      articles.push({
+        id: uuidv4(),
+        feedId,
+        title: decodeHtmlEntities(entryTitle),
+        link: resolveUrl(entryLink, feedUrl),
+        pubDate,
+        imageUrl: imageUrl ? resolveUrl(imageUrl, feedUrl) : undefined,
+        duration,
+        mediaUrl: mediaUrl ? resolveUrl(mediaUrl, feedUrl) : undefined,
+        mediaType,
+        isRead: false,
+        isFavorite: false,
+        isQueued: false,
+        type: mediaType?.startsWith('audio/') ? 'podcast' : 'article',
+        chapters,
+        chaptersUrl,
+        episode,
+        contentSnippet: sanitizeSnippet(decodeHtmlEntities(content)),
+        content: content,
+      });
+    }
+
+    return {
+      feed: {
+        id: feedId,
+        title,
+        description,
+        link: getSafeUrl(link),
+        feedUrl: getSafeUrl(feedUrl),
+        lastFetched: Date.now()
+      },
+      articles
+    };
+  } else {
+    // Assume RSS 2.0
+    const channel = xmlDoc.getElementsByTagName('channel')[0];
+    if (!channel) throw new Error('Invalid RSS feed: missing <channel>');
+    
+    const title = getTagText(channel, ['title', 'dc:title']) || 'Untitled RSS Feed';
+    const description = getTagText(channel, ['description', 'subtitle', 'summary']) || '';
+    const link = getTagText(channel, ['link']) || '';
+    
+    // Try itunes:image first for feed image, fallback to image/url
+    const itunesFeedImage = channel.getElementsByTagName('itunes:image')[0]?.getAttribute('href');
+    const feedImage = itunesFeedImage || channel.getElementsByTagName('image')[0]?.getElementsByTagName('url')[0]?.textContent;
+
+    const items = Array.from(xmlDoc.getElementsByTagName('item'));
+    const articles: Article[] = [];
+    
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      
+      const tagDict: Record<string, Element[]> = {};
+      const children = item.getElementsByTagName('*');
+      for (let c = 0; c < children.length; c++) {
+        const child = children[c];
+        const nodeName = child.nodeName.toLowerCase();
+        
+        let elements = tagDict[nodeName];
+        if (!elements) {
+          elements = [];
+          tagDict[nodeName] = elements;
+        }
+        elements.push(child);
+        
+        const colonIndex = nodeName.indexOf(':');
+        if (colonIndex !== -1) {
+          const localName = nodeName.substring(colonIndex + 1);
+          let localElements = tagDict[localName];
+          if (!localElements) {
+            localElements = [];
+            tagDict[localName] = localElements;
+          }
+          localElements.push(child);
+        }
+      }
+      
+      const content = getSingleTagText(tagDict, ['content:encoded', 'content', 'description', 'itunes:summary', 'summary', 'itunes:subtitle']) || '';
+      let itemTitle = getSingleTagText(tagDict, ['title', 'dc:title']);
+      if (!itemTitle) {
+        const plainText = sanitizeSnippet(decodeHtmlEntities(content));
+        itemTitle = plainText.length > 50 ? plainText.substring(0, 50) + '...' : plainText;
+        if (!itemTitle) itemTitle = 'Untitled';
+      }
+      
+      const itemLink = resolveUrl(getSingleTagText(tagDict, ['link']) || '', feedUrl);
+      const pubDateStr = getSingleTagText(tagDict, ['pubDate', 'published', 'updated']) || new Date().toISOString();
+      const pubDate = new Date(pubDateStr).getTime();
+      
+      if (sinceDate && pubDate <= sinceDate) continue;
+      
+      let imageUrl: string | null = null;
+      let mediaUrl: string | null = null;
+      let mediaType: string | null = null;
+      
+      const itunesImageElements = tagDict['itunes:image'] || tagDict['image'] || [];
+      if (itunesImageElements.length > 0) {
+        const itunesImage = itunesImageElements[0].getAttribute('href');
+        if (itunesImage) imageUrl = resolveUrl(itunesImage, feedUrl);
+      }
+
+      const enclosures = tagDict['enclosure'] || [];
+      for (let j = 0; j < enclosures.length; j++) {
+        const enclosure = enclosures[j];
+        const type = enclosure.getAttribute('type');
+        const url = enclosure.getAttribute('url');
+        if (type && url) {
+          if (type.startsWith('image/')) {
+            if (!imageUrl) imageUrl = resolveUrl(url, feedUrl);
+          } else if (type.startsWith('audio/') || type.startsWith('video/')) {
+            mediaUrl = resolveUrl(url, feedUrl);
+            mediaType = type;
+          }
+        }
+      }
+      
+      const groupElements = tagDict['media:group'] || tagDict['group'] || [];
+      const mediaContentElements = [...(tagDict['media:content'] || tagDict['content'] || tagDict['media:thumbnail'] || tagDict['thumbnail'] || [])];
+      
+      for (let j = 0; j < groupElements.length; j++) {
+        const groupChildren = groupElements[j].children;
+        for (let k = 0; k < groupChildren.length; k++) {
+          const nn = groupChildren[k].nodeName.toLowerCase();
+          if (nn === 'media:content' || nn.endsWith(':content') || nn === 'content' || nn === 'media:thumbnail' || nn.endsWith(':thumbnail') || nn === 'thumbnail') {
+            mediaContentElements.push(groupChildren[k]);
+          }
+        }
+      }
+
+      if (!imageUrl && mediaContentElements.length > 0) {
+        const mediaContent = mediaContentElements[0];
+        const type = mediaContent.getAttribute('type');
+        const url = mediaContent.getAttribute('url');
+        if (type?.startsWith('image/')) {
+          if (url) imageUrl = resolveUrl(url, feedUrl);
+        } else if (type?.startsWith('audio/') || type?.startsWith('video/')) {
+          if (url) {
+            mediaUrl = resolveUrl(url, feedUrl);
+            mediaType = type;
+          }
+        } else if (url) {
+          imageUrl = resolveUrl(url, feedUrl);
+        }
+      }
+
+      if (!imageUrl) {
+        imageUrl = extractBestImage(content, itemLink);
+      }
+
+      let duration = getSingleTagText(tagDict, ['itunes:duration', 'duration', 'media:duration']);
+      if (!duration && mediaContentElements.length > 0) {
+        duration = mediaContentElements[0].getAttribute('duration') || '';
+      }
+
+      let chapters: PodcastChapter[] | undefined = undefined;
+      let chaptersUrl: string | undefined = undefined;
+      let episode: number | undefined = undefined;
+
+      const episodeText = getSingleTagText(tagDict, ['itunes:episode', 'podcast:episode', 'episode']);
+      if (episodeText) {
+        const epNum = parseInt(episodeText, 10);
+        if (!isNaN(epNum)) episode = epNum;
+      }
+
+      // 1. Look for inline chapters (PSC or similar)
+      const chapterContainers = [
+        ...(tagDict['chapters'] || []),
+        ...(tagDict['podcast:chapters'] || []),
+        ...(tagDict['structure'] || [])
+      ];
+
+      for (const container of chapterContainers) {
+        // Check if it has a URL (Podcast Index or external PSC)
+        const url = container.getAttribute('url') || container.getAttribute('href');
+        console.log('[CHAPTERS] Found potential chapter container:', container.tagName, 'URL:', url);
+        if (url) {
+          chaptersUrl = resolveUrl(url, feedUrl);
+          console.log('[CHAPTERS] Resolved chaptersUrl:', chaptersUrl);
+        }
+
+        const chapterNodes = getElementsByLocalName(container, 'chapter');
+        if (chapterNodes.length > 0) {
+          const foundChapters: PodcastChapter[] = [];
+          for (const node of chapterNodes) {
+            const start = node.getAttribute('start') || node.getAttribute('startTime');
+            const title = node.getAttribute('title') || node.getAttribute('text');
+            const href = node.getAttribute('href') || node.getAttribute('url');
+            const image = node.getAttribute('image') || node.getAttribute('img');
+            if (start && title) {
+              foundChapters.push({
+                startTime: parseTime(start),
+                title: title,
+                url: href || undefined,
+                imageUrl: image || undefined,
+                img: image || undefined
+              });
+            }
+          }
+          if (foundChapters.length > 0) {
+            chapters = foundChapters;
+          }
+        }
+      }
+
+      // 2. Check for links with rel="chapters"
+      if (!chaptersUrl) {
+        const rssLinks = getElementsByLocalName(item, 'link');
+        for (const link of rssLinks) {
+          if (link.getAttribute('rel') === 'chapters') {
+            const href = link.getAttribute('href');
+            if (href) {
+              chaptersUrl = resolveUrl(href, feedUrl);
+              break;
+            }
+          }
+        }
+      }
+
+      articles.push({
+        id: uuidv4(),
+        feedId,
+        title: decodeHtmlEntities(itemTitle),
+        link: resolveUrl(itemLink, feedUrl),
+        pubDate,
+        imageUrl: imageUrl ? resolveUrl(imageUrl, feedUrl) : undefined,
+        duration,
+        mediaUrl: mediaUrl ? resolveUrl(mediaUrl, feedUrl) : undefined,
+        mediaType,
+        isRead: false,
+        isFavorite: false,
+        isQueued: false,
+        type: mediaType?.startsWith('audio/') ? 'podcast' : 'article',
+        chapters,
+        chaptersUrl,
+        episode,
+        contentSnippet: sanitizeSnippet(decodeHtmlEntities(content)),
+        content: content,
+      });
+    }
+
+    return {
+      feed: {
+        id: feedId,
+        title,
+        description,
+        link: getSafeUrl(link),
+        feedUrl: getSafeUrl(feedUrl),
+        imageUrl: getSafeUrl(feedImage, undefined),
+        lastFetched: Date.now()
+      },
+      articles
+    };
+  }
+}
 
 export const defaultSettings: Settings = {
   swipeLeftAction: 'toggleFavorite',
@@ -73,7 +760,9 @@ export const storage = {
       if (a.isFavorite || a.isQueued) {
         keep = true;
       } else {
-        const limitTime = a.type === 'podcast' ? SEVEN_DAYS : THREE_DAYS;
+        const limitTime = !a.isRead 
+          ? (a.type === 'podcast' ? 30 * 24 * 60 * 60 * 1000 : 14 * 24 * 60 * 60 * 1000)
+          : (a.type === 'podcast' ? SEVEN_DAYS : THREE_DAYS);
         
         const referenceTime = (a.isRead && a.readAt) ? a.readAt : a.pubDate;
         if ((now - referenceTime) <= limitTime) {
@@ -96,11 +785,6 @@ export const storage = {
         }
       } else {
         hasChanged = true;
-      }
-      
-      // Yield to main thread every 500 articles to keep UI responsive
-      if (i % 500 === 0) {
-        await new Promise(resolve => setTimeout(resolve, 0));
       }
     }
     
@@ -214,20 +898,22 @@ export const storage = {
           const dataString = typeof response.data === 'string' ? response.data : JSON.stringify(response.data);
           const { feed, articles } = parseRssXml(dataString, feedUrl, sinceDate);
           
-          // Strictly follow the rule: only articles newer than sinceDate
-          // No arbitrary 7/14 day limit here to respect user request
           const filteredArticles = articles.filter(a => {
-            return !sinceDate || a.pubDate > sinceDate;
+            // When fetching, we use a slightly more generous limit to catch 
+            // articles missed during a weekend or short break.
+            const limit = a.type === 'podcast' ? 14 * 24 * 60 * 60 * 1000 : 7 * 24 * 60 * 60 * 1000;
+            return (Date.now() - a.pubDate) <= limit && 
+                   (!sinceDate || a.pubDate > sinceDate);
           });
 
           return { feed, articles: filteredArticles };
         } else {
-          throw new Error(`Feed fetch failed with status ${response.status}`);
+          console.warn(`Feed fetch failed with status ${response.status} for ${feedUrl}`);
+          return null;
         }
       } catch (e) {
-        if (signal?.aborted) return null;
         console.warn(`[STORAGE] Native direct fetch failed for ${feedUrl}:`, e);
-        throw e;
+        return null;
       }
     }
 
@@ -246,14 +932,16 @@ export const storage = {
 
       const { feed, articles } = parseRssXml(xmlString, feedUrl, sinceDate);
       
-      // Strictly follow the rule: only articles newer than sinceDate
       const filteredArticles = articles.filter(a => {
-        return !sinceDate || a.pubDate > sinceDate;
+        // When fetching, we use a slightly more generous limit to catch 
+        // articles missed during a weekend or short break.
+        const limit = a.type === 'podcast' ? 14 * 24 * 60 * 60 * 1000 : 7 * 24 * 60 * 60 * 1000;
+        return (Date.now() - a.pubDate) <= limit && 
+               (!sinceDate || a.pubDate > sinceDate);
       });
 
       return { feed, articles: filteredArticles };
     } catch (e) {
-      if (signal?.aborted) return null;
       console.warn(`[STORAGE] Web fetch error for ${feedUrl}:`, e);
       return null;
     }
@@ -280,54 +968,60 @@ export const storage = {
     
     for (const { feed, articles: newArticles } of results) {
       const existingFeedIndex = updatedFeeds.findIndex(f => f.feedUrl === feed.feedUrl);
-      const isNewFeed = existingFeedIndex === -1;
-      const feedId = isNewFeed ? feed.id : updatedFeeds[existingFeedIndex].id;
       
-      let latestFromNew = 0;
+      // Calculate the latest article date from the new articles using reduce for performance
+      const latestFromNew = newArticles.length > 0 
+        ? newArticles.reduce((max, a) => Math.max(max, a.pubDate), 0)
+        : 0;
       
-      for (const a of newArticles) {
-        if (a.pubDate > latestFromNew) {
-          latestFromNew = a.pubDate;
-        }
-
-        if (!existingLinks.has(a.link)) {
-          const { content, ...lightArticle } = a;
-          if (content) {
-            this.saveArticleContent(a.id, content).catch(err => console.error('Failed to save article content', err));
-          }
-          if (isNewFeed) {
-            allNewArticles.push(lightArticle as Article);
-          } else {
-            allNewArticles.push({
-              ...lightArticle,
-              feedId
-            } as Article);
-          }
-        } else if (!isNewFeed && a.chaptersUrl) {
-          // Update existing articles if they are missing chaptersUrl
-          const idx = articles.findIndex(ex => ex.link === a.link);
-          if (idx !== -1 && !articles[idx].chaptersUrl) {
-            articles[idx] = { ...articles[idx], chaptersUrl: a.chaptersUrl };
-            articlesModified = true;
-          }
-        }
-      }
-
-      if (isNewFeed) {
+      if (existingFeedIndex === -1) {
         updatedFeeds.push({
           ...feed,
           lastArticleDate: latestFromNew
         });
+        
+        // Process new articles: separate content and keep lightweight version
+        for (const a of newArticles) {
+          if (!existingLinks.has(a.link)) {
+            const { content, ...lightArticle } = a;
+            if (content) {
+              // Save content separately in background
+              this.saveArticleContent(a.id, content).catch(err => console.error('Failed to save article content', err));
+            }
+            allNewArticles.push(lightArticle as Article);
+          }
+        }
       } else {
+        const feedId = updatedFeeds[existingFeedIndex].id;
         const currentLastArticleDate = updatedFeeds[existingFeedIndex].lastArticleDate || 0;
+        
         updatedFeeds[existingFeedIndex] = {
           ...updatedFeeds[existingFeedIndex],
           lastFetched: Date.now(),
           lastArticleDate: Math.max(currentLastArticleDate, latestFromNew),
           title: feed.title,
-          imageUrl: feed.imageUrl || updatedFeeds[existingFeedIndex].imageUrl,
-          type: feed.type || updatedFeeds[existingFeedIndex].type
+          imageUrl: feed.imageUrl || updatedFeeds[existingFeedIndex].imageUrl
         };
+        
+        for (const a of newArticles) {
+          if (!existingLinks.has(a.link)) {
+            const { content, ...lightArticle } = a;
+            if (content) {
+              this.saveArticleContent(a.id, content).catch(err => console.error('Failed to save article content', err));
+            }
+            allNewArticles.push({
+              ...lightArticle,
+              feedId
+            } as Article);
+          } else if (a.chaptersUrl) {
+            // Update existing articles if they are missing chaptersUrl
+            const idx = articles.findIndex(ex => ex.link === a.link);
+            if (idx !== -1 && !articles[idx].chaptersUrl) {
+              articles[idx] = { ...articles[idx], chaptersUrl: a.chaptersUrl };
+              articlesModified = true;
+            }
+          }
+        }
       }
     }
     
@@ -611,8 +1305,6 @@ export const storage = {
           imageUrl = post.url;
         } else if (post.thumbnail && post.thumbnail.startsWith('http')) {
           imageUrl = post.thumbnail;
-        } else {
-          console.log('No image found for post:', post.title, post.preview);
         }
 
         return {
