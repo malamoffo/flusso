@@ -117,6 +117,7 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const loadedFeeds = await storage.getFeeds();
       const loadedArticles = await storage.getArticles();
       const loadedSubreddits = await storage.getSubreddits();
+      logError(`Loaded subreddits: ${loadedSubreddits.length}`);
       const loadedRedditPosts = await storage.getRedditPosts();
       const loadedSettings = await storage.getSettings();
       
@@ -578,7 +579,11 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   }, []);
 
   const refreshReddit = useCallback(async (subsToRefresh?: Subreddit[], currentPosts?: RedditPost[], sort?: 'new' | 'hot' | 'top') => {
-    if (isRefreshingReddit.current) return;
+    logError(`refreshReddit called, subs: ${subsToRefresh?.length || 'undefined'}`);
+    if (isRefreshingReddit.current) {
+        console.warn('[RSS] Already refreshing reddit');
+        return;
+    }
     isRefreshingReddit.current = true;
     try {
       setIsLoading(true);
@@ -586,6 +591,7 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const cPosts = currentPosts !== undefined ? currentPosts : redditPosts;
 
       if (sToRefresh.length === 0) {
+        console.warn('[RSS] No subreddits to refresh');
         setIsLoading(false);
         isRefreshingReddit.current = false;
         return;
