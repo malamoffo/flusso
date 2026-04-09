@@ -194,11 +194,6 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
 
   useEffect(() => {
     const fetchFullContent = async () => {
-      if (article.type === 'podcast') {
-        setIsLoading(false);
-        return;
-      }
-      
       try {
         setIsLoading(true);
         setFullContent(null); // Reset content when article changes
@@ -207,6 +202,23 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
         const cached = await contentFetcher.getCachedContent(article.id);
         if (cached) {
           setFullContent(cached);
+          setIsLoading(false);
+          return;
+        }
+
+        if (article.type === 'podcast') {
+          // For podcasts, use the article description as content if full content is not available in cache
+          setFullContent({
+            title: article.title,
+            content: article.content || '',
+            textContent: article.contentSnippet || article.title,
+            length: article.content?.length || 0,
+            excerpt: article.contentSnippet || '',
+            byline: '',
+            dir: 'ltr',
+            siteName: feed?.title || '',
+            lang: 'it'
+          });
           setIsLoading(false);
           return;
         }
@@ -292,7 +304,8 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
     const processContent = async () => {
       let contentToSanitize = fullContent?.content;
       
-      if (!contentToSanitize && article.content) {
+      // If fullContent doesn't have content, try fallback to article.content
+      if ((contentToSanitize === undefined || contentToSanitize === null || contentToSanitize === '') && article.content) {
         contentToSanitize = he.decode(article.content);
       }
       

@@ -250,8 +250,12 @@ function parseRssXml(xmlString: string, feedUrl: string, sinceDate?: number): { 
   function getSingleTagText(tagDict: Record<string, Element[]>, tags: string[]): string {
     for (let t = 0; t < tags.length; t++) {
       const elements = tagDict[tags[t].toLowerCase()];
-      if (elements && elements.length > 0 && elements[0].textContent) {
-        return elements[0].textContent.trim();
+      if (elements && elements.length > 0) {
+        for (const el of elements) {
+          if (el.textContent && el.textContent.trim().length > 0) {
+            return el.textContent.trim();
+          }
+        }
       }
     }
     return '';
@@ -498,7 +502,9 @@ function parseRssXml(xmlString: string, feedUrl: string, sinceDate?: number): { 
     
     // Try itunes:image first for feed image, fallback to image/url
     const itunesFeedImage = channel.getElementsByTagName('itunes:image')[0]?.getAttribute('href');
-    const feedImage = itunesFeedImage || channel.getElementsByTagName('image')[0]?.getElementsByTagName('url')[0]?.textContent;
+    const mediaContent = channel.getElementsByTagName('media:content')[0]?.getAttribute('url');
+    const mediaThumbnail = channel.getElementsByTagName('media:thumbnail')[0]?.getAttribute('url');
+    const feedImage = itunesFeedImage || mediaContent || mediaThumbnail || channel.getElementsByTagName('image')[0]?.getElementsByTagName('url')[0]?.textContent;
 
     const items = Array.from(xmlDoc.getElementsByTagName('item'));
     const articles: Article[] = [];
@@ -531,7 +537,7 @@ function parseRssXml(xmlString: string, feedUrl: string, sinceDate?: number): { 
         }
       }
       
-      const content = getSingleTagText(tagDict, ['content:encoded', 'content', 'description', 'itunes:summary', 'summary', 'itunes:subtitle']) || '';
+      const content = getSingleTagText(tagDict, ['content:encoded', 'content', 'podcast:content', 'description', 'itunes:summary', 'summary', 'itunes:subtitle']) || '';
       let itemTitle = getSingleTagText(tagDict, ['title', 'dc:title']);
       if (!itemTitle) {
         const plainText = sanitizeSnippet(decodeHtmlEntities(content));
@@ -622,6 +628,7 @@ function parseRssXml(xmlString: string, feedUrl: string, sinceDate?: number): { 
       const chapterContainers = [
         ...(tagDict['chapters'] || []),
         ...(tagDict['podcast:chapters'] || []),
+        ...(tagDict['psc:chapters'] || []),
         ...(tagDict['structure'] || [])
       ];
 
@@ -977,11 +984,13 @@ export const storage = {
         for (const a of newArticles) {
           if (!existingLinks.has(a.link)) {
             const { content, ...lightArticle } = a;
-            if (content) {
+            if (content !== undefined) {
               // Save content separately in background
               this.saveArticleContent(a.id, content).catch(err => console.error('Failed to save article content', err));
             }
-            allNewArticles.push(lightArticle as Article);
+            // For podcasts, keep the content in the light article as well for immediate access
+            const articleToSave = a.type === 'podcast' ? a : lightArticle;
+            allNewArticles.push(articleToSave as Article);
           }
         }
       } else {
@@ -999,19 +1008,40 @@ export const storage = {
         for (const a of newArticles) {
           if (!existingLinks.has(a.link)) {
             const { content, ...lightArticle } = a;
-            if (content) {
+            if (content !== undefined) {
               this.saveArticleContent(a.id, content).catch(err => console.error('Failed to save article content', err));
             }
+            // For podcasts, keep the content in the light article as well for immediate access
+            const articleToSave = a.type === 'podcast' ? a : lightArticle;
             allNewArticles.push({
-              ...lightArticle,
+              ...articleToSave,
               feedId
             } as Article);
-          } else if (a.chaptersUrl) {
-            // Update existing articles if they are missing chaptersUrl
+          } else {
+            // Update existing articles if they are missing content or chapters
             const idx = articles.findIndex(ex => ex.link === a.link);
-            if (idx !== -1 && !articles[idx].chaptersUrl) {
-              articles[idx] = { ...articles[idx], chaptersUrl: a.chaptersUrl };
-              articlesModified = true;
+            if (idx !== -1) {
+              let modified = false;
+              
+              if (!articles[idx].chaptersUrl && a.chaptersUrl) {
+                articles[idx] = { ...articles[idx], chaptersUrl: a.chaptersUrl };
+                modified = true;
+              }
+              
+              // If it's a podcast and content is missing in the main object, add it
+              if (a.type === 'podcast' && !articles[idx].content && a.content) {
+                articles[idx] = { ...articles[idx], content: a.content };
+                modified = true;
+              }
+
+              if (modified) {
+                articlesModified = true;
+              }
+              
+              // Also ensure content is in cache if we have it now
+              if (a.content) {
+                this.saveArticleContent(articles[idx].id, a.content).catch(() => {});
+              }
             }
           }
         }
