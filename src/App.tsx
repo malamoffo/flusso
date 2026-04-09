@@ -82,7 +82,7 @@ const ArticleListView = memo(({
                 <p>You haven't added any feeds yet.</p>
                 <motion.button
                   whileTap={{ scale: 0.95 }}
-                  onClick={() => { setSettingsTab('subscriptions'); setIsSettingsOpen(true); }}
+                  onClick={() => { setSettingsTab(undefined); setIsSettingsOpen(true); }}
                   className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-lg shadow-blue-500/20 transition-all"
                 >
                   <Rss className="w-5 h-5" aria-hidden="true" /> Add your first feed

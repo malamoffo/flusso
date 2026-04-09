@@ -1,12 +1,11 @@
 import React, { useState } from 'react';
-import { motion, useMotionValue, useTransform, PanInfo, animate, useReducedMotion, AnimatePresence } from 'framer-motion';
+import { motion, useMotionValue, useTransform, PanInfo, animate, useReducedMotion } from 'framer-motion';
 import { format, isToday } from 'date-fns';
-import { Check, Trash2, Bookmark, MessageSquare, X } from 'lucide-react';
+import { Check, Trash2, Bookmark, MessageSquare } from 'lucide-react';
 import { RedditPost, Settings } from '../types';
 import { useInView } from 'react-intersection-observer';
 import { cn, getSafeUrl } from '../lib/utils';
 import DOMPurify from 'dompurify';
-import { CachedImage } from './CachedImage';
 
 interface SwipeableRedditPostProps {
   post: RedditPost;
@@ -63,7 +62,6 @@ export const SwipeableRedditPost = React.memo(function SwipeableRedditPost({
   const backgroundTransform = useTransform(x, [-100, 0, 100], [leftBackground, middleBackground, rightBackground]);
 
   const [exitX, setExitX] = useState<number | string>(0);
-  const [isFullScreenImage, setIsFullScreenImage] = useState(false);
 
   const handleDragEnd = (event: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
     const threshold = 40;
@@ -156,22 +154,19 @@ export const SwipeableRedditPost = React.memo(function SwipeableRedditPost({
         exit={{ x: exitX, opacity: 0, transition: { duration: 0.15, ease: "easeOut" } }}
         className={cn(
           "relative z-20 w-full p-3 cursor-pointer transition-all bg-black select-none",
-          "mx-auto max-w-full"
+          "mx-auto max-w-full",
+          post.isRead ? "opacity-60" : "opacity-100"
         )}
       >
         <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[90%] h-[1.5px] bg-gradient-to-r from-transparent via-purple-500 to-transparent opacity-60 shadow-[0_0_10px_rgba(168,85,247,0.5)]" />
         <div className="flex flex-col gap-2">
           {/* Image at the top */}
           {post.imageUrl && (
-            <CachedImage 
+            <img 
               src={getSafeUrl(post.imageUrl)}
               alt="" 
-              className="rounded-lg flex-shrink-0 bg-gray-800 transition-opacity w-full h-auto min-h-[120px] object-cover mb-1 cursor-pointer"
+              className="rounded-lg flex-shrink-0 bg-gray-800 transition-opacity w-full h-auto min-h-[120px] object-cover mb-1"
               referrerPolicy="no-referrer"
-              onClick={(e) => {
-                e.stopPropagation();
-                setIsFullScreenImage(true);
-              }}
             />
           )}
 
@@ -193,7 +188,7 @@ export const SwipeableRedditPost = React.memo(function SwipeableRedditPost({
           <div className="flex-1 min-w-0">
             <h3 
               className="text-base font-semibold leading-tight mb-1 text-gray-100"
-              dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(post.title) }}
+              dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(post.title, { FORBID_ATTR: ['id', 'name'] }) }}
             />
             <div className="flex items-center gap-3 mt-2 text-xs text-gray-500 font-medium">
               <span className="flex items-center gap-1"><span className="text-purple-400 shadow-[0_0_5px_rgba(168,85,247,0.3)]">↑</span> {post.score}</span>
@@ -203,31 +198,6 @@ export const SwipeableRedditPost = React.memo(function SwipeableRedditPost({
           </div>
         </div>
       </motion.div>
-
-      <AnimatePresence>
-        {isFullScreenImage && post.imageUrl && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[60] bg-black/95 flex items-center justify-center p-4 backdrop-blur-sm"
-            onClick={(e) => { e.stopPropagation(); setIsFullScreenImage(false); }}
-          >
-            <button 
-              className="absolute top-4 right-4 p-2 bg-gray-800/50 rounded-full text-white hover:bg-gray-700 transition-colors"
-              onClick={(e) => { e.stopPropagation(); setIsFullScreenImage(false); }}
-            >
-              <X className="w-6 h-6" />
-            </button>
-            <img 
-              src={getSafeUrl(post.imageUrl)} 
-              alt="Fullscreen" 
-              className="max-w-full max-h-full object-contain"
-              referrerPolicy="no-referrer"
-            />
-          </motion.div>
-        )}
-      </AnimatePresence>
     </motion.div>
   );
 });

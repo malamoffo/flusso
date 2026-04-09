@@ -65,6 +65,11 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
         };
       };
 
+      console.log('Setting queue:', { 
+        queue: queue.map(mapTrack),
+        recent: recentPodcasts.map(mapTrack),
+        favorites: favoritePodcasts.map(mapTrack)
+      });
       QueuePlugin.setQueue({ 
         queue: queue.map(mapTrack),
         recent: recentPodcasts.map(mapTrack),

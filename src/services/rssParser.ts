@@ -75,6 +75,7 @@ export function extractBestImage(content: string, baseUrl?: string): string | nu
     const url = imgTag.getAttribute('data-src') || 
                 imgTag.getAttribute('data-lazy-src') ||
                 imgTag.getAttribute('data-original') ||
+                imgTag.getAttribute('srcset')?.split(',')[0].split(' ')[0] ||
                 imgTag.getAttribute('src');
     if (!url) continue;
     

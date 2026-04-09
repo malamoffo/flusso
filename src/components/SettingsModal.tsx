@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Moon, Sun, Monitor, Image as ImageIcon, LayoutList, Maximize, Type, Plus, Trash2, Edit2, AlertCircle, Save, ArrowLeft, ChevronDown, ChevronUp, Github, Info, ExternalLink, RefreshCw, ShieldCheck, Download, CheckCircle2, FileText, Headphones, Upload, MessageSquare } from 'lucide-react';
+import { X, Moon, Sun, Monitor, Image as ImageIcon, LayoutList, Maximize, Type, Plus, Trash2, Edit2, AlertCircle, Save, ArrowLeft, ChevronDown, ChevronUp, Github, Info, ExternalLink, RefreshCw, ShieldCheck, Download, CheckCircle2, FileText, Headphones, Upload, MessageSquare, Settings } from 'lucide-react';
 import { useRss } from '../context/RssContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../lib/utils';
@@ -15,12 +15,12 @@ export const SettingsModal = React.memo(function SettingsModal({
 }: {
   isOpen: boolean;
   onClose: () => void;
-  initialTab?: 'settings' | 'subscriptions' | 'about';
+  initialTab?: 'main' | 'general' | 'subscriptions' | 'about';
 }) {
   const { settings, updateSettings, feeds, subreddits, removeFeed, removeSubreddit, updateFeed, progress, updateInfo, checkUpdates, exportFeeds, importOpml, errorLogs, clearErrorLogs } = useRss();
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
-  const [activeTab, setActiveTab] = useState<'settings' | 'subscriptions' | 'about'>('settings');
+  const [activeTab, setActiveTab] = useState<'main' | 'general' | 'subscriptions' | 'about'>('main');
   const [editingFeedId, setEditingFeedId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState('');
   const [editUrl, setEditUrl] = useState('');
@@ -43,9 +43,12 @@ export const SettingsModal = React.memo(function SettingsModal({
   
   React.useEffect(() => {
     if (isOpen) {
-      setActiveTab(initialTab || 'settings');
+      setActiveTab(initialTab || 'main');
       setSelectedFeedId(null);
+      setEditingFeedId(null);
       setIsConfirmingDelete(false);
+      setExpandedSections(new Set());
+      setShowImportOptions(false);
     }
   }, [isOpen, initialTab]);
 
@@ -102,10 +105,10 @@ export const SettingsModal = React.memo(function SettingsModal({
               
               <div className="flex justify-between items-center">
                 <div className="flex items-center gap-3">
-                  {(activeTab !== 'settings' || selectedFeed) && (
+                  {(activeTab !== 'main' || selectedFeed) && (
                     <motion.button
                       whileTap={{ scale: 0.9 }}
-                      onClick={() => selectedFeed ? setSelectedFeedId(null) : setActiveTab('settings')}
+                      onClick={() => selectedFeed ? setSelectedFeedId(null) : setActiveTab('main')}
                       className="p-2 -ml-2 rounded-full hover:bg-gray-800 transition-colors"
                       aria-label="Go back"
                     >
@@ -114,7 +117,8 @@ export const SettingsModal = React.memo(function SettingsModal({
                   )}
                   <h2 className="text-2xl font-bold text-white">
                     {selectedFeed ? 'Feed Details' : 
-                     activeTab === 'settings' ? 'Settings' : 
+                     activeTab === 'main' ? 'Settings' :
+                     activeTab === 'general' ? 'General' : 
                      activeTab === 'subscriptions' ? 'Subscriptions' : 'About Flusso'}
                   </h2>
                 </div>
@@ -207,21 +211,43 @@ export const SettingsModal = React.memo(function SettingsModal({
                   </p>
                 )}
               </div>
-            ) : activeTab === 'settings' ? (
-              <div className="space-y-8">
-                <section>
-                  <button
-                    onClick={() => setActiveTab('subscriptions')}
-                    className="w-full flex items-center justify-between p-4 rounded-2xl bg-gray-800 text-white hover:bg-gray-700 transition-colors font-medium"
-                  >
-                    <div className="flex items-center gap-3">
-                      <LayoutList className="w-5 h-5 text-gray-500" />
-                      <span>Manage Subscriptions</span>
-                    </div>
-                    <span className="text-gray-500">→</span>
-                  </button>
-                </section>
+            ) : activeTab === 'main' ? (
+              <div className="space-y-4">
+                <button
+                  onClick={() => setActiveTab('subscriptions')}
+                  className="w-full flex items-center justify-between p-5 rounded-2xl bg-gray-800 text-white hover:bg-gray-700 transition-colors font-semibold text-lg"
+                >
+                  <div className="flex items-center gap-4">
+                    <LayoutList className="w-6 h-6 text-indigo-400" />
+                    <span>Subscriptions</span>
+                  </div>
+                  <span className="text-gray-500">→</span>
+                </button>
+                
+                <button
+                  onClick={() => setActiveTab('general')}
+                  className="w-full flex items-center justify-between p-5 rounded-2xl bg-gray-800 text-white hover:bg-gray-700 transition-colors font-semibold text-lg"
+                >
+                  <div className="flex items-center gap-4">
+                    <Settings className="w-6 h-6 text-indigo-400" />
+                    <span>General Settings</span>
+                  </div>
+                  <span className="text-gray-500">→</span>
+                </button>
 
+                <button
+                  onClick={() => setActiveTab('about')}
+                  className="w-full flex items-center justify-between p-5 rounded-2xl bg-gray-800 text-white hover:bg-gray-700 transition-colors font-semibold text-lg"
+                >
+                  <div className="flex items-center gap-4">
+                    <Info className="w-6 h-6 text-indigo-400" />
+                    <span>About Flusso</span>
+                  </div>
+                  <span className="text-gray-500">→</span>
+                </button>
+              </div>
+            ) : activeTab === 'general' ? (
+              <div className="space-y-8">
                 {/* Font Size Settings */}
                 <section>
                   <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Font Size</h3>
@@ -348,16 +374,13 @@ export const SettingsModal = React.memo(function SettingsModal({
                 </section>
 
                 <section className="pt-4 border-t border-gray-800">
-                  <button
-                    onClick={() => setActiveTab('about')}
-                    className="w-full flex items-center justify-between p-4 rounded-2xl bg-gray-800 text-white hover:bg-gray-700 transition-colors font-medium"
-                  >
-                    <div className="flex items-center gap-3">
-                      <Info className="w-5 h-5 text-gray-500" />
-                      <span>About Flusso</span>
-                    </div>
-                    <span className="text-gray-500">→</span>
-                  </button>
+                  <div className="p-4 rounded-2xl bg-gray-800 border border-gray-700">
+                    <h4 className="text-sm font-semibold text-white mb-2">App Information</h4>
+                    <p className="text-sm text-gray-400 leading-relaxed">
+                      Flusso is a minimalist, mobile-first RSS reader designed for speed and focus. 
+                      It features full article extraction, swipe gestures, and OPML support.
+                    </p>
+                  </div>
                 </section>
               </div>
             ) : activeTab === 'subscriptions' ? (

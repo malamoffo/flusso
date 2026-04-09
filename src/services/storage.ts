@@ -611,6 +611,8 @@ export const storage = {
           imageUrl = post.url;
         } else if (post.thumbnail && post.thumbnail.startsWith('http')) {
           imageUrl = post.thumbnail;
+        } else {
+          console.log('No image found for post:', post.title, post.preview);
         }
 
         return {
