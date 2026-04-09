@@ -1205,7 +1205,14 @@ export const storage = {
   },
 
   async getSubreddits(): Promise<Subreddit[]> {
-    const subs = await get<Subreddit[]>(SUBREDDITS_KEY);
+    let subs = await get<Subreddit[]>(SUBREDDITS_KEY);
+    if (!subs) {
+        subs = await get<Subreddit[]>('subreddits');
+        if (subs) {
+            console.warn('[STORAGE] Found subreddits under old key "subreddits"');
+            await this.saveSubreddits(subs);
+        }
+    }
     console.warn(`[STORAGE] getSubreddits: ${JSON.stringify(subs)}`);
     return subs || [];
   },

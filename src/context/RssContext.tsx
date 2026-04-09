@@ -757,9 +757,21 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const handleRedditSortChange = useCallback(async (sort: 'new' | 'hot' | 'top') => {
     setRedditSort(sort);
-    // Clear current posts to show fresh sorted ones
-    setRedditPosts([]);
-    await refreshReddit(undefined, [], sort);
+    
+    // Sort existing posts
+    setRedditPosts(prev => {
+        const sorted = [...prev];
+        if (sort === 'new') {
+            sorted.sort((a, b) => b.createdUtc - a.createdUtc);
+        } else {
+            sorted.sort((a, b) => (b.score || 0) - (a.score || 0));
+        }
+        storage.saveRedditPosts(sorted);
+        return sorted;
+    });
+    
+    // Refresh new posts
+    await refreshReddit(undefined, undefined, sort);
   }, [refreshReddit]);
 
   /**
