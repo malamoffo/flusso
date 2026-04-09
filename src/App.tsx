@@ -534,7 +534,16 @@ export default function App() {
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
     >
-      {/* Pull to refresh indicator - REMOVED */}
+      {filter !== 'reddit' && (
+        <motion.div 
+          className="absolute top-0 left-0 right-0 flex justify-center py-2 pointer-events-none z-30"
+          style={{ y: pullProgressTransform, opacity: pullOpacity }}
+        >
+          <div className="bg-gray-900 rounded-full p-2 shadow-lg border border-gray-800">
+            <RefreshCw className={cn("w-5 h-5 text-blue-500", isLoading ? "animate-spin" : "")} />
+          </div>
+        </motion.div>
+      )}
 
       <div className="sticky top-0 z-20 shadow-sm transition-colors bg-black">
         <header className="px-4 py-3 flex items-center justify-between">

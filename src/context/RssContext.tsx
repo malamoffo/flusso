@@ -387,14 +387,7 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     let mounted = true;
     loadData().then(data => {
       if (mounted && data) {
-        const promises = [];
-        if (data.loadedFeeds.length > 0) {
-          promises.push(refreshFeeds(data.loadedFeeds, data.loadedArticles));
-        }
-        if (data.loadedSubreddits && data.loadedSubreddits.length > 0) {
-          promises.push(refreshReddit(data.loadedSubreddits, data.loadedRedditPosts));
-        }
-        Promise.all(promises).catch(console.error);
+        // Automatic refresh removed to improve initial load performance
       }
     });
     return () => { mounted = false; };
