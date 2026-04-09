@@ -1205,10 +1205,13 @@ export const storage = {
   },
 
   async getSubreddits(): Promise<Subreddit[]> {
-    return (await get<Subreddit[]>(SUBREDDITS_KEY)) || [];
+    const subs = await get<Subreddit[]>(SUBREDDITS_KEY);
+    console.warn(`[STORAGE] getSubreddits: ${JSON.stringify(subs)}`);
+    return subs || [];
   },
 
   async saveSubreddits(subs: Subreddit[]): Promise<void> {
+    console.warn(`[STORAGE] saveSubreddits: ${JSON.stringify(subs)}`);
     await set(SUBREDDITS_KEY, subs);
   },
 

@@ -347,7 +347,7 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
       if (results.length > 0 || sort) {
         setRedditPosts(prev => {
-          const base = sort ? [] : prev;
+          const base = prev;
           const merged = [...base];
           const existingIds = new Set(merged.map(p => p.id));
           let hasNew = false;
