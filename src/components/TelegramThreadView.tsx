@@ -13,6 +13,8 @@ interface TelegramThreadViewProps {
 export const TelegramThreadView = memo(({ channel, messages, onClose }: TelegramThreadViewProps) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const isInitialMount = useRef(true);
+  const isLoading = messages === undefined;
+  const isEmpty = messages && messages.length === 0;
 
   const scrollToBottom = (behavior: ScrollBehavior = 'auto') => {
     if (scrollRef.current) {
@@ -25,7 +27,7 @@ export const TelegramThreadView = memo(({ channel, messages, onClose }: Telegram
 
   // Scroll to bottom on initial load and when new messages arrive
   useEffect(() => {
-    if (messages.length > 0) {
+    if (messages && messages.length > 0) {
       if (isInitialMount.current) {
         // Use a small timeout to ensure DOM is fully rendered and images have started loading
         const timer = setTimeout(() => {
@@ -37,7 +39,7 @@ export const TelegramThreadView = memo(({ channel, messages, onClose }: Telegram
         scrollToBottom('smooth');
       }
     }
-  }, [messages.length]);
+  }, [messages?.length]);
 
   return (
     <motion.div
@@ -68,29 +70,40 @@ export const TelegramThreadView = memo(({ channel, messages, onClose }: Telegram
         ref={scrollRef}
         className="flex-1 overflow-y-auto p-4 max-w-3xl mx-auto w-full"
       >
-        {messages.map(message => (
-          <div key={message.id} className="mb-4 p-3 bg-gray-900 rounded-lg">
-            <p className="text-gray-300 whitespace-pre-wrap">{message.text}</p>
-            {message.imageUrl && (
-              <img 
-                src={message.imageUrl} 
-                alt="" 
-                className="mt-2 rounded-lg max-h-96 w-full object-cover" 
-                referrerPolicy="no-referrer"
-                onLoad={() => {
-                  // If we are still at the bottom (or near it), scroll again when image loads
-                  if (scrollRef.current) {
-                    const isNearBottom = scrollRef.current.scrollHeight - scrollRef.current.scrollTop - scrollRef.current.clientHeight < 100;
-                    if (isNearBottom || isInitialMount.current) {
-                      scrollToBottom(isInitialMount.current ? 'auto' : 'smooth');
-                    }
-                  }
-                }}
-              />
-            )}
-            <p className="text-xs text-gray-500 mt-2">{format(message.date, 'HH:mm dd/MM/yy')}</p>
+        {isLoading ? (
+          <div className="flex flex-col items-center justify-center h-full text-gray-500 space-y-4">
+            <div className="w-8 h-8 border-2 border-green-500 border-t-transparent rounded-full animate-spin shadow-[0_0_10px_rgba(34,197,94,0.4)]" />
+            <p className="text-sm font-medium">Caricamento messaggi...</p>
           </div>
-        ))}
+        ) : isEmpty ? (
+          <div className="flex flex-col items-center justify-center h-full text-gray-500 space-y-2">
+            <p className="text-sm font-medium">Nessun messaggio trovato</p>
+          </div>
+        ) : (
+          messages.map(message => (
+            <div key={message.id} className="mb-4 p-3 bg-gray-900 rounded-lg">
+              <p className="text-gray-300 whitespace-pre-wrap">{message.text}</p>
+              {message.imageUrl && (
+                <img 
+                  src={message.imageUrl} 
+                  alt="" 
+                  className="mt-2 rounded-lg max-h-96 w-full object-cover" 
+                  referrerPolicy="no-referrer"
+                  onLoad={() => {
+                    // If we are still at the bottom (or near it), scroll again when image loads
+                    if (scrollRef.current) {
+                      const isNearBottom = scrollRef.current.scrollHeight - scrollRef.current.scrollTop - scrollRef.current.clientHeight < 100;
+                      if (isNearBottom || isInitialMount.current) {
+                        scrollToBottom(isInitialMount.current ? 'auto' : 'smooth');
+                      }
+                    }
+                  }}
+                />
+              )}
+              <p className="text-xs text-gray-500 mt-2">{format(message.date, 'HH:mm dd/MM/yy')}</p>
+            </div>
+          ))
+        )}
       </div>
     </motion.div>
   );

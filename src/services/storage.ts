@@ -719,22 +719,17 @@ export const storage = {
   },
 
   async getTelegramMessages(channelId: string): Promise<TelegramMessage[]> {
-    const allMessages = (await get<TelegramMessage[]>(TELEGRAM_MESSAGES_KEY)) || [];
-    return allMessages.filter(m => m.channelId === channelId);
+    return (await get<TelegramMessage[]>(`${TELEGRAM_MESSAGES_KEY}_${channelId}`)) || [];
   },
 
-  async saveTelegramMessages(messages: TelegramMessage[]): Promise<void> {
-    // This is a simple implementation, might need optimization for large message counts
-    const allMessages = (await get<TelegramMessage[]>(TELEGRAM_MESSAGES_KEY)) || [];
-    const messageMap = new Map(allMessages.map(m => [m.id, m]));
-    messages.forEach(m => messageMap.set(m.id, m));
-    await set(TELEGRAM_MESSAGES_KEY, Array.from(messageMap.values()));
+  async saveTelegramMessages(channelId: string, messages: TelegramMessage[]): Promise<void> {
+    await set(`${TELEGRAM_MESSAGES_KEY}_${channelId}`, messages);
   },
 
   async removeTelegramChannel(channelId: string): Promise<void> {
     const channels = await this.getTelegramChannels();
     await this.saveTelegramChannels(channels.filter(c => c.id !== channelId));
-    const allMessages = (await get<TelegramMessage[]>(TELEGRAM_MESSAGES_KEY)) || [];
-    await set(TELEGRAM_MESSAGES_KEY, allMessages.filter(m => m.channelId !== channelId));
+    const { del } = await import('idb-keyval');
+    await del(`${TELEGRAM_MESSAGES_KEY}_${channelId}`);
   }
 };

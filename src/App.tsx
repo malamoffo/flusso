@@ -145,11 +145,17 @@ export default function App() {
   const {
     articles, feeds, subreddits, redditPosts, telegramChannels, telegramMessages, settings, isLoading, error,
     refreshFeeds, refreshReddit, loadMoreReddit, toggleRead, markAsRead, markArticlesAsRead,
-    markAllAsRead, markAllTelegramAsRead, markTelegramChannelAsRead, searchQuery, setSearchQuery, unreadCount, savedCount,
-    toggleFavorite, toggleQueue, removeFromSaved, loadMoreArticles, hasMoreArticles,
+    markAllAsRead, markAllTelegramAsRead, markTelegramChannelAsRead, loadTelegramMessages, searchQuery, setSearchQuery, unreadCount, savedCount,
+    toggleFavorite, toggleQueue, removeFromSaved,
     markRedditAsRead, toggleRedditRead, toggleRedditFavorite,
     redditSort, handleRedditSortChange
   } = useRss();
+
+  const [visibleCount, setVisibleCount] = useState(30);
+
+  const loadMoreArticles = useCallback(() => {
+    setVisibleCount(prev => prev + PAGE_SIZE);
+  }, []);
 
   const deferredSearchQuery = useDeferredValue(searchQuery);
 
@@ -192,6 +198,10 @@ export default function App() {
   const [sourceFilter, setSourceFilter] = useState<string>('all');
   const [timeFilter, setTimeFilter] = useState<string>('all');
   
+  useEffect(() => {
+    setVisibleCount(30);
+  }, [filter, deferredSearchQuery, inboxUnreadOnly, savedUnreadOnly, inboxTypeFilter, savedTypeFilter, sourceFilter, timeFilter]);
+
   const PULL_THRESHOLD = 80;
   const pullProgress = useMotionValue(0);
   const pullProgressTransform = useTransform(pullProgress, v => v - 40);
@@ -341,6 +351,13 @@ export default function App() {
    * This avoids repeated O(N) findIndex calls on every render and navigation event.
    */
   const activeArticles = useMemo(() => (filter === 'inbox' ? inboxArticles : savedArticles), [filter, inboxArticles, savedArticles]);
+  
+  const hasMoreArticles = useMemo(() => {
+    return visibleCount < activeArticles.length;
+  }, [activeArticles.length, visibleCount]);
+
+  const visibleArticles = useMemo(() => activeArticles.slice(0, visibleCount), [activeArticles, visibleCount]);
+
   const activeIndex = useMemo(() => {
     if (!selectedArticle) return -1;
     return activeArticles.findIndex(a => a.id === selectedArticle.id);
@@ -355,7 +372,7 @@ export default function App() {
     const scrollTop = activeScrollRef?.current?.scrollTop || 0;
     isAtTop.current = scrollTop <= 0;
     touchStartY.current = e.touches[0].clientY;
-    if (isAtTop.current && !isSettingsOpen) {
+    if (isAtTop.current && !isSettingsOpen && filter !== 'reddit' && filter !== 'telegram') {
       setIsPulling(true);
     }
   };
@@ -778,7 +795,7 @@ export default function App() {
       <div className="flex-1 relative overflow-hidden">
         <ArticleListView
           isActive={filter === 'inbox'}
-          articles={inboxArticles}
+          articles={visibleArticles}
           scrollRef={inboxScrollRef}
           handleScroll={handleScroll}
           currentTrack={currentTrack}
@@ -800,7 +817,7 @@ export default function App() {
         />
         <ArticleListView
           isActive={filter === 'saved'}
-          articles={savedArticles}
+          articles={visibleArticles}
           scrollRef={savedScrollRef}
           handleScroll={handleScroll}
           currentTrack={currentTrack}
@@ -842,6 +859,7 @@ export default function App() {
           onChannelClick={(channel) => {
             setSelectedTelegramChannel(channel);
             markTelegramChannelAsRead(channel.id);
+            loadTelegramMessages(channel.id);
           }}
           onMarkAllAsRead={markAllTelegramAsRead}
           filter={telegramFilter}
@@ -1017,7 +1035,7 @@ export default function App() {
         {selectedTelegramChannel && (
           <TelegramThreadView
             channel={selectedTelegramChannel}
-            messages={telegramMessages[selectedTelegramChannel.id] || []}
+            messages={telegramMessages[selectedTelegramChannel.id]}
             onClose={() => setSelectedTelegramChannel(null)}
           />
         )}
