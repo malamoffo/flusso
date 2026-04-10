@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useMemo, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
-import { fetchTelegramMessages } from '../services/telegramParser';
+import { fetchTelegramMessages, fetchTelegramChannelInfo } from '../services/telegramParser';
 import { Feed, Article, Settings, Subreddit, RedditPost, TelegramChannel, TelegramMessage } from '../types';
 import { storage, defaultSettings } from '../services/storage';
 import packageJson from '../../package.json';
@@ -27,6 +27,7 @@ interface RssContextType {
   isLoading: boolean;
   progress: ProgressInfo | null;
   error: string | null;
+  setError: (error: string | null) => void;
   errorLogs: string[];
   clearErrorLogs: () => void;
   searchQuery: string;
@@ -423,6 +424,7 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const addFeedOrSubreddit = useCallback(async (url: string): Promise<'article' | 'podcast' | 'reddit' | 'subreddit' | void> => {
     try {
       setIsLoading(true);
+      setError(null);
       
       // Check if it's a subreddit
       let isSubreddit = false;
@@ -455,8 +457,10 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         }
         return result.feed.type as 'article' | 'podcast';
       }
-    } catch (err) {
-      logError("Failed to add feed or subreddit. Please check the URL.");
+    } catch (err: any) {
+      const errMsg = err.message || "Failed to add feed or subreddit. Please check the URL.";
+      setError(errMsg);
+      logError(errMsg);
       console.error(err);
       throw err;
     } finally {
@@ -769,8 +773,20 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     
     for (const channel of channels) {
       try {
-        const messages = await fetchTelegramMessages(channel.username);
+        const [messages, info] = await Promise.all([
+          fetchTelegramMessages(channel.username),
+          fetchTelegramChannelInfo(channel.username)
+        ]);
         
+        // Update channel info if changed
+        if (info.name !== channel.name || info.imageUrl !== channel.imageUrl) {
+          setTelegramChannels(prev => {
+            const updated = prev.map(c => c.id === channel.id ? { ...c, name: info.name, imageUrl: info.imageUrl } : c);
+            storage.saveTelegramChannels(updated);
+            return updated;
+          });
+        }
+
         const { merged, hasNew } = await new Promise<{ merged: TelegramMessage[], hasNew: boolean }>((resolve) => {
           const requestId = uuidv4();
           const handler = (e: MessageEvent) => {
@@ -802,11 +818,17 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const addTelegramChannel = useCallback(async (username: string) => {
     try {
-      const messages = await fetchTelegramMessages(username);
+      setError(null);
+      const [messages, info] = await Promise.all([
+        fetchTelegramMessages(username),
+        fetchTelegramChannelInfo(username)
+      ]);
+      
       const channel: TelegramChannel = {
         id: uuidv4(),
-        name: username,
+        name: info.name,
         username,
+        imageUrl: info.imageUrl,
         lastMessageDate: messages.length > 0 ? messages[0].date : Date.now(),
         lastChecked: Date.now(),
         unreadCount: messages.length,
@@ -818,8 +840,10 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setTelegramMessages(prev => ({ ...prev, [channel.id]: messages }));
       storage.saveTelegramMessages(messages);
       return 'telegram';
-    } catch (e) {
-      throw new Error("Preview channel non esistente");
+    } catch (e: any) {
+      const errMsg = "Canale Telegram non trovato o non accessibile";
+      setError(errMsg);
+      throw new Error(errMsg);
     }
   }, []);
 
@@ -851,14 +875,14 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   }, [articles]);
 
   const value = useMemo(() => ({
-    feeds, articles, subreddits, redditPosts, telegramChannels, telegramMessages, settings, isLoading, progress, error, errorLogs, clearErrorLogs,
+    feeds, articles, subreddits, redditPosts, telegramChannels, telegramMessages, settings, isLoading, progress, error, setError, errorLogs, clearErrorLogs,
     addFeedOrSubreddit, addTelegramChannel, removeTelegramChannel, importOpml, toggleRead, markAsRead, markArticlesAsRead,
     toggleFavorite, toggleQueue, removeFromSaved, markAllAsRead, markAllTelegramAsRead, refreshFeeds, refreshReddit, refreshTelegramChannels, loadMoreReddit, removeFeed, removeSubreddit,
     updateFeed, updateArticle, updateRedditPost, toggleRedditRead, markRedditAsRead, toggleRedditFavorite, updateSettings, exportFeeds,
     searchQuery, setSearchQuery, unreadCount, savedCount, updateInfo, checkUpdates,
     redditSort, handleRedditSortChange
   }), [
-    feeds, articles, subreddits, redditPosts, telegramChannels, telegramMessages, settings, isLoading, progress, error, errorLogs, clearErrorLogs,
+    feeds, articles, subreddits, redditPosts, telegramChannels, telegramMessages, settings, isLoading, progress, error, setError, errorLogs, clearErrorLogs,
     addFeedOrSubreddit, addTelegramChannel, removeTelegramChannel, importOpml, toggleRead, markAsRead, markArticlesAsRead,
     toggleFavorite, toggleQueue, removeFromSaved, markAllAsRead, markAllTelegramAsRead, refreshFeeds, refreshReddit, refreshTelegramChannels, loadMoreReddit, removeFeed, removeSubreddit,
     updateFeed, updateArticle, updateRedditPost, toggleRedditRead, markRedditAsRead, toggleRedditFavorite, updateSettings, exportFeeds,

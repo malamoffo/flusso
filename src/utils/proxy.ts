@@ -124,8 +124,9 @@ export async function fetchWithProxy(url: string, isRss: boolean = true, sinceDa
               continue;
             }
           } else {
-            // For non-RSS (likely JSON/API), ensure it doesn't look like HTML
-            if (trimmed.startsWith('<') && (trimmed.toLowerCase().includes('<html') || trimmed.toLowerCase().includes('<body') || trimmed.toLowerCase().includes('<!doctype'))) {
+            // For non-RSS (likely JSON/API), ensure it doesn't look like HTML unless it's a known HTML source like Telegram
+            const isTelegram = url.includes('t.me/');
+            if (!isTelegram && trimmed.startsWith('<') && (trimmed.toLowerCase().includes('<html') || trimmed.toLowerCase().includes('<body') || trimmed.toLowerCase().includes('<!doctype'))) {
               lastError = new Error(`Proxy ${proxy.name} returned HTML instead of expected JSON/API response`);
               console.warn(`${proxy.name} returned HTML for ${url}`);
               continue;

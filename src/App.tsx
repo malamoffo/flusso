@@ -13,7 +13,7 @@ import { TelegramThreadView } from './components/TelegramThreadView';
 import { TelegramChannel, TelegramMessage } from './types';
 import { ImageViewer } from './components/ImageViewer';
 import { motion, AnimatePresence, useMotionValue, useTransform, animate } from 'framer-motion';
-import { Loader2, Search, X, Check, Rss, Settings, Star, CheckCircle2, RefreshCw, Layers, Headphones, FileText, Inbox, MessageSquare, ChevronDown } from 'lucide-react';
+import { Loader2, Search, X, Check, Rss, Settings, Star, CheckCircle2, RefreshCw, Layers, Headphones, FileText, Inbox, MessageSquare, ChevronDown, Clock, Flame } from 'lucide-react';
 import { useInView } from 'react-intersection-observer';
 import { cn } from './lib/utils';
 import { Article } from './types';
@@ -182,11 +182,12 @@ export default function App() {
   const [settingsTab, setSettingsTab] = useState<string | undefined>(undefined);
   const [isMarkAllReadOpen, setIsMarkAllReadOpen] = useState(false);
   
-  const [filter, setFilter] = useState<'inbox' | 'saved' | 'reddit'>('inbox');
+  const [filter, setFilter] = useState<'inbox' | 'saved' | 'reddit' | 'telegram'>('inbox');
   const [inboxTypeFilter, setInboxTypeFilter] = useState<'all' | 'article' | 'podcast'>('all');
   const [inboxUnreadOnly, setInboxUnreadOnly] = useState(false);
   const [savedTypeFilter, setSavedTypeFilter] = useState<'all' | 'article' | 'podcast'>('all');
   const [savedUnreadOnly, setSavedUnreadOnly] = useState(false);
+  const [telegramFilter, setTelegramFilter] = useState<'all' | 'unread'>('all');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [sourceFilter, setSourceFilter] = useState<string>('all');
   const [timeFilter, setTimeFilter] = useState<string>('all');
@@ -616,7 +617,7 @@ export default function App() {
                 redditSort === 'new' ? "bg-purple-600 text-white shadow-sm" : "bg-gray-800 text-gray-400 hover:bg-gray-700"
               )}
             >
-              New
+              <Clock className="w-3.5 h-3.5" /> New
             </button>
             <button
               onClick={() => handleRedditSortChange('hot')}
@@ -625,7 +626,25 @@ export default function App() {
                 redditSort === 'hot' ? "bg-purple-600 text-white shadow-sm" : "bg-gray-800 text-gray-400 hover:bg-gray-700"
               )}
             >
-              Trending
+              <Flame className="w-3.5 h-3.5" /> Trending
+            </button>
+          </div>
+        )}
+
+        {filter === 'telegram' && (
+          <div className="px-4 pb-3 flex items-center gap-2 overflow-x-auto scrollbar-hide">
+            <button
+              onClick={() => setTelegramFilter(telegramFilter === 'unread' ? 'all' : 'unread')}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap",
+                telegramFilter === 'unread' ? "bg-green-600 text-white shadow-sm" : "bg-gray-800 text-gray-400 hover:bg-gray-700"
+              )}
+            >
+              {telegramFilter === 'unread' ? (
+                <><Check className="w-3.5 h-3.5" /> Unread</>
+              ) : (
+                <><MessageSquare className="w-3.5 h-3.5" /> All</>
+              )}
             </button>
           </div>
         )}
@@ -636,7 +655,9 @@ export default function App() {
               onClick={() => handleTypeFilterChange('unread')}
               className={cn(
                 "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap",
-                (filter === 'inbox' ? inboxUnreadOnly : savedUnreadOnly) ? "bg-blue-600 text-white shadow-sm" : "bg-gray-800 text-gray-400 hover:bg-gray-700"
+                (filter === 'inbox' ? inboxUnreadOnly : savedUnreadOnly) 
+                  ? (filter === 'inbox' ? "bg-blue-600" : "bg-yellow-600") + " text-white shadow-sm" 
+                  : "bg-gray-800 text-gray-400 hover:bg-gray-700"
               )}
             >
               {(filter === 'inbox' ? inboxUnreadOnly : savedUnreadOnly) ? (
@@ -650,7 +671,9 @@ export default function App() {
               onClick={() => handleTypeFilterChange('article')}
               className={cn(
                 "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap",
-                (filter === 'inbox' ? inboxTypeFilter === 'article' : savedTypeFilter === 'article') ? "bg-blue-600 text-white shadow-sm" : "bg-gray-800 text-gray-400 hover:bg-gray-700"
+                (filter === 'inbox' ? inboxTypeFilter === 'article' : savedTypeFilter === 'article') 
+                  ? (filter === 'inbox' ? "bg-blue-600" : "bg-yellow-600") + " text-white shadow-sm" 
+                  : "bg-gray-800 text-gray-400 hover:bg-gray-700"
               )}
             >
               <FileText className="w-3.5 h-3.5" /> Articles
@@ -660,7 +683,9 @@ export default function App() {
               onClick={() => handleTypeFilterChange('podcast')}
               className={cn(
                 "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap",
-                (filter === 'inbox' ? inboxTypeFilter === 'podcast' : savedTypeFilter === 'podcast') ? "bg-blue-600 text-white shadow-sm" : "bg-gray-800 text-gray-400 hover:bg-gray-700"
+                (filter === 'inbox' ? inboxTypeFilter === 'podcast' : savedTypeFilter === 'podcast') 
+                  ? (filter === 'inbox' ? "bg-blue-600" : "bg-yellow-600") + " text-white shadow-sm" 
+                  : "bg-gray-800 text-gray-400 hover:bg-gray-700"
               )}
             >
               <Headphones className="w-3.5 h-3.5" /> Podcasts
@@ -721,7 +746,7 @@ export default function App() {
                       ))
                     )}
                   </select>
-                  <ChevronDown className="w-3 h-3 absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
+                  <ChevronDown className="w-3.5 h-3.5 absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none z-10" />
                 </div>
                 {filter !== 'reddit' && filter !== 'telegram' && (
                   <div className="relative">
@@ -735,7 +760,7 @@ export default function App() {
                       <option value="week">Past Week</option>
                       <option value="month">Past Month</option>
                     </select>
-                    <ChevronDown className="w-3 h-3 absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
+                    <ChevronDown className="w-3.5 h-3.5 absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none z-10" />
                   </div>
                 )}
             </div>
@@ -816,6 +841,7 @@ export default function App() {
           channels={telegramChannels}
           onChannelClick={setSelectedTelegramChannel}
           onMarkAllAsRead={markAllTelegramAsRead}
+          filter={telegramFilter}
         />
       </div>
 
@@ -831,7 +857,7 @@ export default function App() {
           aria-label="Saved articles"
           aria-pressed={filter === 'saved'}
         >
-          <Star className="w-6 h-6" aria-hidden="true" />
+          <Star className={cn("w-6 h-6", filter === 'saved' && "shadow-[0_0_15px_rgba(234,179,8,0.5)]")} aria-hidden="true" />
           {savedCount > 0 && (
             <span className="absolute -top-1 -right-1 bg-yellow-500 text-black text-[10px] font-bold px-1.5 py-0.5 rounded-full border-2 border-black">
               {savedCount > 99 ? '99+' : savedCount}
@@ -841,11 +867,11 @@ export default function App() {
         <motion.button
           whileTap={{ scale: 0.9 }}
           onClick={() => handleFilterChange('inbox')}
-          className={`${filter === 'inbox' ? "text-[var(--theme-color)]" : "text-gray-500"} relative`}
+          className={`${filter === 'inbox' ? "text-blue-500" : "text-gray-500"} relative`}
           aria-label="Inbox"
           aria-pressed={filter === 'inbox'}
         >
-          <Inbox className="w-6 h-6" aria-hidden="true" />
+          <Inbox className={cn("w-6 h-6", filter === 'inbox' && "shadow-[0_0_15px_rgba(59,130,246,0.5)]")} aria-hidden="true" />
           {unreadCount > 0 && (
             <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full border-2 border-black">
               {unreadCount > 99 ? '99+' : unreadCount}

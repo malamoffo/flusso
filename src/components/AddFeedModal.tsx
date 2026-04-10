@@ -6,7 +6,13 @@ import { motion, AnimatePresence } from 'framer-motion';
 export const AddFeedModal = React.memo(function AddFeedModal({ isOpen, onClose, onFeedAdded }: { isOpen: boolean; onClose: () => void; onFeedAdded?: (type: string) => void }) {
   const [url, setUrl] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const { addFeedOrSubreddit, error, progress } = useRss();
+  const { addFeedOrSubreddit, error, setError, progress } = useRss();
+
+  React.useEffect(() => {
+    if (isOpen) {
+      setError(null);
+    }
+  }, [isOpen, setError]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -21,10 +27,15 @@ export const AddFeedModal = React.memo(function AddFeedModal({ isOpen, onClose, 
       }
       onClose();
     } catch (err) {
-      // Error is handled in context
+      // Error is handled in context and displayed via the error state
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setUrl(e.target.value);
+    if (error) setError(null);
   };
 
   return (
@@ -87,7 +98,7 @@ export const AddFeedModal = React.memo(function AddFeedModal({ isOpen, onClose, 
                 <input
                   type="text"
                   value={url}
-                  onChange={(e) => setUrl(e.target.value)}
+                  onChange={handleUrlChange}
                   placeholder="https://example.com/feed.xml, r/news or channel_username"
                   className="block w-full pl-10 pr-3 py-3 border border-gray-700 rounded-xl focus:ring-indigo-500 focus:border-indigo-500 bg-gray-800 text-white placeholder-gray-500"
                   required
@@ -105,7 +116,7 @@ export const AddFeedModal = React.memo(function AddFeedModal({ isOpen, onClose, 
                     <RefreshCw className="w-4 h-4 mr-2 animate-spin" aria-hidden="true" />
                     Adding...
                   </>
-                ) : 'Add Feed / Subreddit'}
+                ) : '+ Add Feed / Subreddit / Channel'}
               </motion.button>
             </form>
           </motion.div>

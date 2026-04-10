@@ -9,11 +9,10 @@ interface TelegramListViewProps {
   channels: TelegramChannel[];
   onChannelClick: (channel: TelegramChannel) => void;
   onMarkAllAsRead: () => void;
+  filter: 'all' | 'unread';
 }
 
-export const TelegramListView = memo(({ isActive, channels, onChannelClick, onMarkAllAsRead }: TelegramListViewProps) => {
-  const [filter, setFilter] = React.useState<'all' | 'unread'>('all');
-
+export const TelegramListView = memo(({ isActive, channels, onChannelClick, onMarkAllAsRead, filter }: TelegramListViewProps) => {
   const filteredChannels = React.useMemo(() => {
     if (filter === 'unread') {
       return channels.filter(c => c.unreadCount > 0);
@@ -29,22 +28,6 @@ export const TelegramListView = memo(({ isActive, channels, onChannelClick, onMa
       )}
       initial={false}
     >
-      <div className="px-4 pb-3 pt-2 flex items-center gap-2 overflow-x-auto scrollbar-hide">
-        <button
-          onClick={() => setFilter(filter === 'unread' ? 'all' : 'unread')}
-          className={cn(
-            "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap",
-            filter === 'unread' ? "bg-green-600 text-white shadow-sm" : "bg-gray-800 text-gray-400 hover:bg-gray-700"
-          )}
-        >
-          {filter === 'unread' ? (
-            <><Check className="w-3.5 h-3.5" /> Unread</>
-          ) : (
-            <><MessageSquare className="w-3.5 h-3.5" /> All</>
-          )}
-        </button>
-      </div>
-
       {filteredChannels.length === 0 ? (
         <div className="flex flex-col items-center justify-center h-64 text-gray-500 px-6 text-center">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-16 h-16 mb-4 text-green-500/40 shadow-[0_0_20px_rgba(34,197,94,0.2)]">
@@ -63,14 +46,26 @@ export const TelegramListView = memo(({ isActive, channels, onChannelClick, onMa
               className="p-4 border-b border-gray-800 flex items-center gap-4 cursor-pointer hover:bg-gray-900"
             >
               {channel.imageUrl ? (
-                <img src={channel.imageUrl} alt={channel.name} className="w-12 h-12 rounded-full" />
+                <img 
+                  src={channel.imageUrl} 
+                  alt={channel.name} 
+                  className="w-12 h-12 rounded-full object-cover" 
+                  referrerPolicy="no-referrer"
+                />
               ) : (
                 <div className="w-12 h-12 rounded-full bg-green-900 flex items-center justify-center text-green-300 font-bold">
                   {channel.name[0]}
                 </div>
               )}
               <div className="flex-1 min-w-0">
-                <h3 className="font-semibold text-white truncate">{channel.name}</h3>
+                <div className="flex items-baseline justify-between gap-2">
+                  <h3 className="font-semibold text-white truncate">{channel.name}</h3>
+                  {channel.lastMessageDate && (
+                    <span className="text-[10px] text-gray-500 whitespace-nowrap">
+                      {new Date(channel.lastMessageDate).toLocaleString([], { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  )}
+                </div>
                 <p className="text-sm text-gray-400 truncate">@{channel.username}</p>
               </div>
               {channel.unreadCount > 0 && (
