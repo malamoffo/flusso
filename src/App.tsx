@@ -70,7 +70,7 @@ const ArticleListView = memo(({
         isActive ? "z-10 opacity-100 pointer-events-auto" : "z-0 opacity-0 pointer-events-none"
       )}
       ref={scrollRef}
-      onScroll={handleScroll}
+      onScroll={(e) => handleScroll(e, isSavedSection ? 'saved' : 'inbox')}
       initial={false}
     >
       {articles.length === 0 && !isLoading ? (
@@ -485,10 +485,38 @@ export default function App() {
     };
   }, [filter, hasMoreArticles, markArticlesAsRead]);
 
-  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
-    const scrollTop = e.currentTarget.scrollTop;
-    isAtTop.current = scrollTop <= 0;
-  };
+  const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>, filterType: 'inbox' | 'saved') => {
+    const container = e.currentTarget;
+    isAtTop.current = container.scrollTop <= 0;
+
+    // Throttle the bottom check
+    requestAnimationFrame(() => {
+      const isAtBottom = container.scrollHeight - container.scrollTop <= container.clientHeight + 50;
+      const allVisible = !hasMoreArticles;
+
+      if (isAtBottom && allVisible) {
+        const articlesRef = filterType === 'inbox' ? inboxArticlesRef : savedArticlesRef;
+        const timerRef = filterType === 'inbox' ? inboxTimerRef : savedTimerRef;
+
+        const hasUnread = articlesRef.current.some(a => !a.isRead);
+        if (hasUnread && !timerRef.current) {
+          timerRef.current = setTimeout(() => {
+            const toMark = articlesRef.current.filter(a => !a.isRead).map(a => a.id);
+            if (toMark.length > 0) {
+              markArticlesAsRead(toMark);
+            }
+            timerRef.current = null;
+          }, 5000);
+        }
+      } else {
+        const timerRef = filterType === 'inbox' ? inboxTimerRef : savedTimerRef;
+        if (timerRef.current) {
+          clearTimeout(timerRef.current);
+          timerRef.current = null;
+        }
+      }
+    });
+  }, [hasMoreArticles, markArticlesAsRead]);
 
   const handleArticleClick = useCallback((article: Article) => {
     setSelectedArticle(article);
@@ -767,7 +795,7 @@ export default function App() {
           toggleRead={toggleRedditRead}
           toggleFavorite={toggleRedditFavorite}
           scrollRef={redditScrollRef}
-          handleScroll={handleScroll}
+          handleScroll={(e) => handleScroll(e, 'reddit')}
         />
       </div>
 

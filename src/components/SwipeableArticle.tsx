@@ -8,7 +8,6 @@ import { contentFetcher } from '../utils/contentFetcher';
 import { CachedImage } from './CachedImage';
 import { cn, getSafeUrl, formatTime, parseDurationToSeconds } from '../lib/utils';
 import { useAudioState, useAudioProgress } from '../context/AudioPlayerContext.tsx';
-import DOMPurify from 'dompurify';
 import { getColorSync } from 'colorthief';
 
 // Global cache for feed colors to avoid repeated fetches and re-renders
@@ -94,11 +93,16 @@ export const SwipeableArticle = React.memo(function SwipeableArticle({
     triggerOnce: true,
   });
 
+  const prevTop = useRef(0);
   useEffect(() => {
-    if (prefetchInView) {
-      contentFetcher.enqueue(article.id, article.link);
+    if (prefetchInView && entry) {
+      const isScrollingDown = entry.boundingClientRect.top < prevTop.current;
+      if (isScrollingDown) {
+        contentFetcher.enqueue(article.id, article.link);
+      }
+      prevTop.current = entry.boundingClientRect.top;
     }
-  }, [prefetchInView, article.id, article.link]);
+  }, [prefetchInView, entry, article.id, article.link]);
 
   useEffect(() => {
     // Mark as read when the article exits the top of the screen (past the sticky header)
@@ -354,7 +358,7 @@ export const SwipeableArticle = React.memo(function SwipeableArticle({
             <div className="min-w-0">
               <h3 
                 className={`${getTitleSize()} font-semibold leading-tight mb-1 ${article.isRead ? 'text-gray-400' : 'text-gray-100'}`}
-                dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(article.title, { FORBID_ATTR: ['id', 'name'] }) }}
+                dangerouslySetInnerHTML={{ __html: article.title }}
               />
               {article.type === 'podcast' && (
                 <PodcastProgressBar article={article} isCurrentTrack={isCurrentTrack} />

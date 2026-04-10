@@ -261,7 +261,15 @@ export const storage = {
     const articles = existingArticles || await this.getArticles();
     
     // Create a set of all existing links for fast lookup
-    const existingLinks = new Set(articles.map(a => a.link));
+    // Create a set of all existing links for fast lookup and a Map for index retrieval
+    // Optimization: using for loops instead of .map() to avoid intermediate array allocations
+    const existingLinks = new Set<string>();
+    const articleByLinkMap = new Map<string, number>();
+    for (let i = 0; i < articles.length; i++) {
+      const link = articles[i].link;
+      existingLinks.add(link);
+      articleByLinkMap.set(link, i);
+    }
     
     let updatedFeeds = [...feeds];
     let allNewArticles: Article[] = [];
@@ -320,7 +328,8 @@ export const storage = {
             } as Article);
           } else {
             // Update existing articles if they are missing content or chapters
-            const idx = articles.findIndex(ex => ex.link === a.link);
+            // Optimization: O(1) Map lookup instead of O(N) findIndex
+            const idx = articleByLinkMap.get(a.link) ?? -1;
             if (idx !== -1) {
               let modified = false;
               

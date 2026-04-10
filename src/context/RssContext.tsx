@@ -4,6 +4,7 @@ import { storage, defaultSettings } from '../services/storage';
 import packageJson from '../../package.json';
 import { Capacitor } from '@capacitor/core';
 import { BackgroundPlugin } from '../plugins/BackgroundPlugin';
+import DataWorker from '../workers/dataProcessor.worker?worker';
 
 import { imagePersistence } from '../utils/imagePersistence';
 
@@ -70,6 +71,13 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [error, setError] = useState<string | null>(null);
   const [errorLogs, setErrorLogs] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState<string>("");
+  const articlesRef = useRef<Article[]>([]);
+  const redditPostsRef = useRef<RedditPost[]>([]);
+
+  useEffect(() => {
+    articlesRef.current = articles;
+    redditPostsRef.current = redditPosts;
+  }, [articles, redditPosts]);
 
   const logError = useCallback((msg: string) => {
     setErrorLogs(prev => [...prev, `${new Date().toLocaleTimeString()}: ${msg}`]);
@@ -82,6 +90,12 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const lastRefresh = useRef(Date.now());
   const isRefreshing = useRef(false);
   const isRefreshingReddit = useRef(false);
+  const worker = useRef<Worker>();
+
+  useEffect(() => {
+    worker.current = new DataWorker();
+    return () => worker.current?.terminate();
+  }, []);
 
   const checkUpdates = useCallback(async (force = false) => {
     try {
@@ -121,7 +135,7 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const loadedSettings = await storage.getSettings();
       
       setFeeds(loadedFeeds);
-      setArticles(loadedArticles.sort((a, b) => b.pubDate - a.pubDate));
+      setArticles(loadedArticles);      
       setSubreddits(loadedSubreddits);
       setRedditPosts(loadedRedditPosts.sort((a, b) => b.createdUtc - a.createdUtc));
       setSettings(loadedSettings);
@@ -198,41 +212,20 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                   // Update the results array so storage.saveAllFeedData also uses the correct ID
                   data.articles = articlesWithCorrectId;
                   
-                  setArticles(prev => {
-                    const merged = [...prev];
-                    const existingLinks = new Set(merged.map(a => a.link));
-                    let hasNew = false;
-                    
-                    for (const newArticle of articlesWithCorrectId) {
-                      // Check for duplicate link using Set for O(1) lookup
-                      if (!existingLinks.has(newArticle.link)) {
-                        hasNew = true;
-                        existingLinks.add(newArticle.link);
-                        
-                        // Ottimizzazione: se è più recente del primo, inserisci in testa
-                        if (merged.length === 0 || newArticle.pubDate >= merged[0].pubDate) {
-                          merged.unshift(newArticle);
-                          continue;
+                    const { merged, hasNew } = await new Promise<{ merged: Article[], hasNew: boolean }>((resolve) => {
+                      const handler = (e: MessageEvent) => {
+                        if (e.data.type === 'mergedArticles') {
+                          worker.current!.removeEventListener('message', handler);
+                          resolve(e.data);
                         }
+                      };
+                      worker.current!.addEventListener('message', handler);
+                      worker.current!.postMessage({ type: 'mergeArticles', prev: articlesRef.current, incoming: articlesWithCorrectId });
+                    });
 
-                        // Ricerca Binaria per trovare la posizione corretta (O(log n))
-                        // Partendo dal "più recente" (inizio lista) in modo efficiente
-                        let low = 0;
-                        let high = merged.length;
-                        while (low < high) {
-                          const mid = (low + high) >>> 1;
-                          if (merged[mid].pubDate > newArticle.pubDate) {
-                            low = mid + 1;
-                          } else {
-                            high = mid;
-                          }
-                        }
-                        merged.splice(low, 0, newArticle);
-                      }
+                    if (hasNew) {
+                      setArticles(merged);
                     }
-                    
-                    return hasNew ? merged : prev;
-                  });
                 }
               }
             } finally {
@@ -308,58 +301,24 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             subsChanged = true;
             
             setRedditPosts(prev => {
-              const merged = [...prev];
-              const existingIds = new Set(merged.map(p => p.id));
-              let hasNew = false;
-
-              for (const newPost of posts) {
-                if (!existingIds.has(newPost.id)) {
-                  hasNew = true;
-                  existingIds.add(newPost.id);
-                  
-                  if (currentSort === 'new') {
-                    if (merged.length === 0 || newPost.createdUtc >= merged[0].createdUtc) {
-                      merged.unshift(newPost);
-                      continue;
-                    }
-                    let low = 0;
-                    let high = merged.length;
-                    while (low < high) {
-                      const mid = (low + high) >>> 1;
-                      if (merged[mid].createdUtc > newPost.createdUtc) {
-                        low = mid + 1;
-                      } else {
-                        high = mid;
-                      }
-                    }
-                    merged.splice(low, 0, newPost);
-                  } else {
-                    // For hot/top, sort by score
-                    if (merged.length === 0 || (newPost.score || 0) >= (merged[0].score || 0)) {
-                      merged.unshift(newPost);
-                      continue;
-                    }
-                    let low = 0;
-                    let high = merged.length;
-                    while (low < high) {
-                      const mid = (low + high) >>> 1;
-                      if ((merged[mid].score || 0) > (newPost.score || 0)) {
-                        low = mid + 1;
-                      } else {
-                        high = mid;
-                      }
-                    }
-                    merged.splice(low, 0, newPost);
-                  }
-                }
-              }
-
-              if (hasNew) {
-                storage.saveRedditPosts(merged);
-                return merged;
-              }
+              // This is now handled by the worker
               return prev;
             });
+            
+            const { merged, hasNew } = await new Promise<{ merged: RedditPost[], hasNew: boolean }>((resolve) => {
+              const handler = (e: MessageEvent) => {
+                if (e.data.type === 'mergedRedditPosts') {
+                  worker.current!.removeEventListener('message', handler);
+                  resolve(e.data);
+                }
+              };
+              worker.current!.addEventListener('message', handler);
+              worker.current!.postMessage({ type: 'mergeRedditPosts', prev: redditPostsRef.current, incoming: posts, sort: currentSort });
+            });
+
+            if (hasNew) {
+              setRedditPosts(merged);
+            }
           }
         } catch (e) {
           console.error(`Failed to refresh subreddit ${sub.name}`, e);
@@ -735,30 +694,20 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
           const posts = await storage.fetchSubredditPosts(sub.name, undefined, afterToken, redditSort);
           if (posts.length > 0) {
-            setRedditPosts(prev => {
-              const merged = [...prev];
-              const existingIds = new Set(merged.map(p => p.id));
-              let hasNew = false;
-
-              for (const newPost of posts) {
-                if (!existingIds.has(newPost.id)) {
-                  hasNew = true;
-                  existingIds.add(newPost.id);
-                  merged.push(newPost);
+            const { merged, hasNew } = await new Promise<{ merged: RedditPost[], hasNew: boolean }>((resolve) => {
+              const handler = (e: MessageEvent) => {
+                if (e.data.type === 'mergedRedditPosts') {
+                  worker.current!.removeEventListener('message', handler);
+                  resolve(e.data);
                 }
-              }
-
-              if (hasNew) {
-                if (redditSort === 'new') {
-                  merged.sort((a, b) => b.createdUtc - a.createdUtc);
-                } else {
-                  merged.sort((a, b) => (b.score || 0) - (a.score || 0));
-                }
-                storage.saveRedditPosts(merged);
-                return merged;
-              }
-              return prev;
+              };
+              worker.current!.addEventListener('message', handler);
+              worker.current!.postMessage({ type: 'mergeRedditPosts', prev: redditPostsRef.current, incoming: posts, sort: redditSort });
             });
+
+            if (hasNew) {
+              setRedditPosts(merged);
+            }
           }
         } catch (e) {
           console.error(`Failed to load more for subreddit ${sub.name}`, e);
