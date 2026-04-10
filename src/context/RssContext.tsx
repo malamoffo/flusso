@@ -187,55 +187,43 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       
       const queue = [...fToRefresh];
       let queueIndex = 0;
-      const FEED_TIMEOUT = 25000; // 25 seconds max per feed total
+      const FEED_TIMEOUT = 15000; // Reduced from 25s
+      const CONCURRENCY = Math.min(10, queue.length); // Increased from 6
       
-      const workers = Array(Math.min(6, queue.length)).fill(null).map(async () => {
-        while (queueIndex < queue.length) {
+      const allNewArticles: Article[] = [];
+      const updatedFeeds: Feed[] = [];
+      
+      const workers = Array(CONCURRENCY).fill(null).map(async () => {
+        while (true) {
           const feed = queue[queueIndex++];
           if (!feed) break;
           
           try {
-            // Find the latest article date for this feed to only fetch newer articles
             const latestArticleDate = latestArticleDateByFeedId.get(feed.id);
-            
             const THREE_DAYS = 3 * 24 * 60 * 60 * 1000;
             const TWO_WEEKS = 14 * 24 * 60 * 60 * 1000;
             const hardSinceDate = Date.now() - (feed.type === 'podcast' ? TWO_WEEKS : THREE_DAYS);
-            
             const sinceDate = Math.max(latestArticleDate || feed.lastArticleDate || 0, hardSinceDate);
             
-            // Global timeout for this specific feed fetch
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), FEED_TIMEOUT);
             
             try {
               const data = await storage.fetchFeedData(feed.feedUrl, sinceDate, controller.signal);
               if (data) {
-                results.push(data);
-                
-                // Inserisci i nuovi articoli uno alla volta nella corretta posizione cronologica
-                if (data.articles && data.articles.length > 0) {
-                  // Ensure articles have the correct feedId from the existing feed
-                  const articlesWithCorrectId = data.articles.map(a => ({ ...a, feedId: feed.id }));
-                  // Update the results array so storage.saveAllFeedData also uses the correct ID
-                  data.articles = articlesWithCorrectId;
-                  
-                    const { merged, hasNew } = await new Promise<{ merged: Article[], hasNew: boolean }>((resolve) => {
-                      const requestId = uuidv4();
-                      const handler = (e: MessageEvent) => {
-                        if (e.data.type === 'mergedArticles' && e.data.requestId === requestId) {
-                          worker.current!.removeEventListener('message', handler);
-                          resolve(e.data);
-                        }
-                      };
-                      worker.current!.addEventListener('message', handler);
-                      worker.current!.postMessage({ type: 'mergeArticles', prev: articlesRef.current, incoming: articlesWithCorrectId, requestId });
-                    });
-
-                    if (hasNew) {
-                      setArticles(merged);
-                    }
+                const articlesWithCorrectId = (data.articles || []).map(a => ({ ...a, feedId: feed.id }));
+                if (articlesWithCorrectId.length > 0) {
+                  allNewArticles.push(...articlesWithCorrectId);
                 }
+                
+                updatedFeeds.push({
+                  ...feed,
+                  ...data.feed,
+                  id: feed.id,
+                  lastFetched: Date.now(),
+                  lastArticleDate: articlesWithCorrectId.length > 0 ? Math.max(...articlesWithCorrectId.map(a => a.pubDate)) : feed.lastArticleDate,
+                  lastRefreshStatus: 'success'
+                });
               }
             } finally {
               clearTimeout(timeoutId);
@@ -246,6 +234,7 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             } else {
               console.warn(`Skipping feed ${feed.feedUrl} due to error:`, e);
             }
+            updatedFeeds.push({ ...feed, lastRefreshStatus: 'error' });
           } finally {
             completed++;
             setProgress(p => p ? { ...p, current: completed } : { current: completed, total: fToRefresh.length });
@@ -255,11 +244,39 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       
       await Promise.all(workers);
       
-      if (results.length > 0) {
-        setProgress(p => p ? { ...p, status: "Saving articles..." } : null);
-        const { updatedFeeds } = await storage.saveAllFeedData(results, fToRefresh, cArticles);
+      if (allNewArticles.length > 0) {
+        setProgress(p => p ? { ...p, status: "Merging articles..." } : null);
+        const { merged } = await new Promise<{ merged: Article[] }>((resolve) => {
+          const requestId = uuidv4();
+          const handler = (e: MessageEvent) => {
+            if (e.data.type === 'mergedArticles' && e.data.requestId === requestId) {
+              worker.current!.removeEventListener('message', handler);
+              resolve(e.data);
+            }
+          };
+          worker.current!.addEventListener('message', handler);
+          worker.current!.postMessage({ 
+            type: 'mergeArticles', 
+            prev: articlesRef.current, 
+            incoming: allNewArticles, 
+            requestId 
+          });
+        });
         
-        setFeeds(updatedFeeds);
+        setArticles(merged);
+        await storage.saveArticles(merged);
+      }
+
+      if (updatedFeeds.length > 0) {
+        setFeeds(prev => {
+          const next = [...prev];
+          updatedFeeds.forEach(uf => {
+            const idx = next.findIndex(f => f.id === uf.id);
+            if (idx !== -1) next[idx] = uf;
+          });
+          storage.saveFeeds(next);
+          return next;
+        });
       }
       
       setProgress(p => p ? { ...p, status: "Finalizing..." } : null);
@@ -299,69 +316,64 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
       const sinceDate = currentSort === 'new' ? Date.now() - (3 * 24 * 60 * 60 * 1000) : undefined;
 
-      const updatedSubs = [...sToRefresh];
-      let subsChanged = false;
-
-      await Promise.all(sToRefresh.map(async (sub, index) => {
-        try {
-          const posts = await storage.fetchSubredditPosts(sub.name, sinceDate, undefined, currentSort);
-          if (posts.length > 0) {
-            updatedSubs[index] = { ...sub, lastFetched: Date.now() };
-            subsChanged = true;
-            
-            setRedditPosts(prev => {
-              // This is now handled by the worker
-              return prev;
-            });
-            
-            const { merged, hasNew } = await new Promise<{ merged: RedditPost[], hasNew: boolean }>((resolve) => {
-              const requestId = uuidv4();
-              const handler = (e: MessageEvent) => {
-                if (e.data.type === 'mergedRedditPosts' && e.data.requestId === requestId) {
-                  worker.current!.removeEventListener('message', handler);
-                  resolve(e.data);
-                }
-              };
-              worker.current!.addEventListener('message', handler);
-              worker.current!.postMessage({ type: 'mergeRedditPosts', prev: redditPostsRef.current, incoming: posts, sort: currentSort, requestId });
-            });
-
-            if (hasNew) {
-              setRedditPosts(merged);
+      const queue = [...sToRefresh];
+      let queueIndex = 0;
+      const CONCURRENCY = Math.min(5, queue.length);
+      
+      const allNewPosts: RedditPost[] = [];
+      const updatedSubs: Subreddit[] = [];
+      
+      const workers = Array(CONCURRENCY).fill(null).map(async () => {
+        while (true) {
+          const sub = queue[queueIndex++];
+          if (!sub) break;
+          
+          try {
+            const posts = await storage.fetchSubredditPosts(sub.name, sinceDate, undefined, currentSort);
+            if (posts.length > 0) {
+              allNewPosts.push(...posts);
+              updatedSubs.push({ ...sub, lastFetched: Date.now() });
             }
+          } catch (e) {
+            console.error(`Failed to refresh subreddit ${sub.name}`, e);
           }
-        } catch (e) {
-          console.error(`Failed to refresh subreddit ${sub.name}`, e);
         }
-      }));
+      });
 
-      if (subsChanged) {
-        setSubreddits(prev => {
-          // Merge updated subs into current state
-          const newSubs = [...prev];
-          updatedSubs.forEach(updated => {
-            const idx = newSubs.findIndex(s => s.id === updated.id);
-            if (idx !== -1) {
-              newSubs[idx] = updated;
-            } else {
-              newSubs.push(updated);
+      await Promise.all(workers);
+
+      if (allNewPosts.length > 0) {
+        const { merged } = await new Promise<{ merged: RedditPost[] }>((resolve) => {
+          const requestId = uuidv4();
+          const handler = (e: MessageEvent) => {
+            if (e.data.type === 'mergedRedditPosts' && e.data.requestId === requestId) {
+              worker.current!.removeEventListener('message', handler);
+              resolve(e.data);
             }
+          };
+          worker.current!.addEventListener('message', handler);
+          worker.current!.postMessage({ 
+            type: 'mergeRedditPosts', 
+            prev: redditPostsRef.current, 
+            incoming: allNewPosts, 
+            sort: currentSort, 
+            requestId 
           });
-          storage.saveSubreddits(newSubs);
-          return newSubs;
         });
+        
+        setRedditPosts(merged);
+        await storage.saveRedditPosts(merged);
       }
 
-      if (sort) {
-        setRedditPosts(prev => {
-          const merged = [...prev];
-          if (currentSort === 'new') {
-            merged.sort((a, b) => b.createdUtc - a.createdUtc);
-          } else {
-            merged.sort((a, b) => (b.score || 0) - (a.score || 0));
-          }
-          storage.saveRedditPosts(merged);
-          return merged;
+      if (updatedSubs.length > 0) {
+        setSubreddits(prev => {
+          const next = [...prev];
+          updatedSubs.forEach(us => {
+            const idx = next.findIndex(s => s.id === us.id);
+            if (idx !== -1) next[idx] = us;
+          });
+          storage.saveSubreddits(next);
+          return next;
         });
       }
     } catch (e) {
@@ -771,48 +783,76 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const refreshTelegramChannels = useCallback(async (channelsToRefresh?: TelegramChannel[]) => {
     const channels = channelsToRefresh || telegramChannels;
     
-    for (const channel of channels) {
-      try {
-        const [messages, info] = await Promise.all([
-          fetchTelegramMessages(channel.username),
-          fetchTelegramChannelInfo(channel.username)
-        ]);
+    const queue = [...channels];
+    let queueIndex = 0;
+    const CONCURRENCY = Math.min(3, queue.length);
+    
+    const updatedChannels: TelegramChannel[] = [];
+    const allNewMessages: Record<string, TelegramMessage[]> = {};
+    
+    const workers = Array(CONCURRENCY).fill(null).map(async () => {
+      while (true) {
+        const channel = queue[queueIndex++];
+        if (!channel) break;
         
-        // Update channel info if changed
-        if (info.name !== channel.name || info.imageUrl !== channel.imageUrl) {
-          setTelegramChannels(prev => {
-            const updated = prev.map(c => c.id === channel.id ? { ...c, name: info.name, imageUrl: info.imageUrl } : c);
-            storage.saveTelegramChannels(updated);
-            return updated;
-          });
-        }
+        try {
+          const [messages, info] = await Promise.all([
+            fetchTelegramMessages(channel.username),
+            fetchTelegramChannelInfo(channel.username)
+          ]);
+          
+          if (info.name !== channel.name || info.imageUrl !== channel.imageUrl) {
+            updatedChannels.push({ ...channel, name: info.name, imageUrl: info.imageUrl });
+          } else {
+            updatedChannels.push(channel);
+          }
 
-        const { merged, hasNew } = await new Promise<{ merged: TelegramMessage[], hasNew: boolean }>((resolve) => {
-          const requestId = uuidv4();
-          const handler = (e: MessageEvent) => {
-            if (e.data.type === 'mergedTelegramMessages' && e.data.requestId === requestId) {
-              worker.current!.removeEventListener('message', handler);
-              resolve(e.data);
-            }
-          };
-          worker.current!.addEventListener('message', handler);
-          worker.current!.postMessage({ 
-            type: 'mergeTelegramMessages', 
-            prev: telegramMessages[channel.id] || [], 
-            incoming: messages,
-            requestId
+          const { merged } = await new Promise<{ merged: TelegramMessage[] }>((resolve) => {
+            const requestId = uuidv4();
+            const handler = (e: MessageEvent) => {
+              if (e.data.type === 'mergedTelegramMessages' && e.data.requestId === requestId) {
+                worker.current!.removeEventListener('message', handler);
+                resolve(e.data);
+              }
+            };
+            worker.current!.addEventListener('message', handler);
+            worker.current!.postMessage({ 
+              type: 'mergeTelegramMessages', 
+              prev: telegramMessages[channel.id] || [], 
+              incoming: messages,
+              requestId
+            });
           });
-        });
-        
-        const cleaned = cleanupTelegramMessages(channel, merged);
-        
-        if (hasNew || cleaned.length !== merged.length) {
-          setTelegramMessages(prev => ({ ...prev, [channel.id]: cleaned }));
-          storage.saveTelegramMessages(cleaned);
+          
+          const cleaned = cleanupTelegramMessages(channel, merged);
+          allNewMessages[channel.id] = cleaned;
+        } catch (e) {
+          console.error(`Failed to refresh channel ${channel.name}`, e);
         }
-      } catch (e) {
-        console.error(`Failed to refresh channel ${channel.name}`, e);
       }
+    });
+
+    await Promise.all(workers);
+
+    if (Object.keys(allNewMessages).length > 0) {
+      setTelegramMessages(prev => {
+        const next = { ...prev, ...allNewMessages };
+        // Save each updated channel's messages
+        Object.values(allNewMessages).forEach(msgs => storage.saveTelegramMessages(msgs));
+        return next;
+      });
+    }
+
+    if (updatedChannels.length > 0) {
+      setTelegramChannels(prev => {
+        const next = [...prev];
+        updatedChannels.forEach(uc => {
+          const idx = next.findIndex(c => c.id === uc.id);
+          if (idx !== -1) next[idx] = uc;
+        });
+        storage.saveTelegramChannels(next);
+        return next;
+      });
     }
   }, [telegramChannels, telegramMessages, cleanupTelegramMessages]);
 

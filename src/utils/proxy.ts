@@ -69,18 +69,18 @@ export async function fetchWithProxy(url: string, isRss: boolean = true, sinceDa
   );
 
   let lastError: any;
-  const defaultTimeout = 10000; // 10 seconds timeout per proxy
+  const defaultTimeout = 8000; // Reduced from 10s to 8s per proxy
 
   for (let i = 0; i < proxies.length; i++) {
     if (externalSignal?.aborted) throw new Error('Aborted');
     
     const proxy = proxies[i];
-    const timeout = proxy.timeout || defaultTimeout;
+    const timeout = proxy.timeout ? Math.min(proxy.timeout, 10000) : defaultTimeout;
     
     let id: any;
     try {
       if (i > 0) {
-        await new Promise(resolve => setTimeout(resolve, 500)); // 500ms delay between retries
+        await new Promise(resolve => setTimeout(resolve, 200)); // Reduced from 500ms to 200ms delay
       }
       
       const controller = new AbortController();
