@@ -1,91 +1,91 @@
 
 // src/workers/dataProcessor.worker.ts
-import DOMPurify from 'dompurify';
 
 self.onmessage = (e) => {
-  const { type, prev, incoming, requestId } = e.data;
+  try {
+    const { type, prev, incoming, requestId } = e.data;
 
-  if (type === 'mergeArticles') {
-    const merged = [...prev];
-    const existingLinks = new Set<string>();
-    for (let i = 0; i < merged.length; i++) {
-      existingLinks.add(merged[i].link);
-    }
-    let hasNew = false;
+    if (type === 'mergeArticles') {
+      const merged = [...prev];
+      const existingLinks = new Set<string>();
+      for (let i = 0; i < merged.length; i++) {
+        existingLinks.add(merged[i].link);
+      }
+      let hasNew = false;
 
-    for (const newArticle of incoming) {
-      if (!existingLinks.has(newArticle.link)) {
-        hasNew = true;
-        
-        // Sanitize title in the worker
-        newArticle.title = DOMPurify.sanitize(newArticle.title, { FORBID_ATTR: ['id', 'name'] });
-        
-        existingLinks.add(newArticle.link);
+      for (const newArticle of incoming) {
+        if (!existingLinks.has(newArticle.link)) {
+          hasNew = true;
+          existingLinks.add(newArticle.link);
 
-        // Binary Search for correct position
-        if (merged.length === 0 || newArticle.pubDate >= merged[0].pubDate) {
-          merged.unshift(newArticle);
-          continue;
-        }
-
-        let low = 0;
-        let high = merged.length;
-        while (low < high) {
-          const mid = (low + high) >>> 1;
-          if (merged[mid].pubDate > newArticle.pubDate) {
-            low = mid + 1;
-          } else {
-            high = mid;
+          // Binary Search for correct position
+          if (merged.length === 0 || newArticle.pubDate >= merged[0].pubDate) {
+            merged.unshift(newArticle);
+            continue;
           }
+
+          let low = 0;
+          let high = merged.length;
+          while (low < high) {
+            const mid = (low + high) >>> 1;
+            if (merged[mid].pubDate > newArticle.pubDate) {
+              low = mid + 1;
+            } else {
+              high = mid;
+            }
+          }
+          merged.splice(low, 0, newArticle);
         }
-        merged.splice(low, 0, newArticle);
       }
-    }
-    self.postMessage({ type: 'mergedArticles', merged, hasNew, requestId });
-  } else if (type === 'mergeRedditPosts') {
-    const { sort } = e.data;
-    const merged = [...prev];
-    const existingIds = new Set<string>();
-    for (let i = 0; i < merged.length; i++) {
-      existingIds.add(merged[i].id);
-    }
-    let hasNew = false;
-
-    for (const newPost of incoming) {
-      if (!existingIds.has(newPost.id)) {
-        hasNew = true;
-        existingIds.add(newPost.id);
-        merged.push(newPost);
+      self.postMessage({ type: 'mergedArticles', merged, hasNew, requestId });
+    } else if (type === 'mergeRedditPosts') {
+      const { sort } = e.data;
+      const merged = [...prev];
+      const existingIds = new Set<string>();
+      for (let i = 0; i < merged.length; i++) {
+        existingIds.add(merged[i].id);
       }
-    }
+      let hasNew = false;
 
-    if (hasNew || sort) {
-      if (sort === 'new') {
-        merged.sort((a, b) => b.createdUtc - a.createdUtc);
-      } else {
-        merged.sort((a, b) => (b.score || 0) - (a.score || 0));
+      for (const newPost of incoming) {
+        if (!existingIds.has(newPost.id)) {
+          hasNew = true;
+          existingIds.add(newPost.id);
+          merged.push(newPost);
+        }
       }
-    }
-    self.postMessage({ type: 'mergedRedditPosts', merged, hasNew, requestId });
-  } else if (type === 'mergeTelegramMessages') {
-    const merged = [...prev];
-    const existingIds = new Set<string>();
-    for (let i = 0; i < merged.length; i++) {
-      existingIds.add(merged[i].id);
-    }
-    let hasNew = false;
 
-    for (const newMessage of incoming) {
-      if (!existingIds.has(newMessage.id)) {
-        hasNew = true;
-        existingIds.add(newMessage.id);
-        merged.push(newMessage);
+      if (hasNew || sort) {
+        if (sort === 'new') {
+          merged.sort((a, b) => b.createdUtc - a.createdUtc);
+        } else {
+          merged.sort((a, b) => (b.score || 0) - (a.score || 0));
+        }
       }
-    }
+      self.postMessage({ type: 'mergedRedditPosts', merged, hasNew, requestId });
+    } else if (type === 'mergeTelegramMessages') {
+      const merged = [...prev];
+      const existingIds = new Set<string>();
+      for (let i = 0; i < merged.length; i++) {
+        existingIds.add(merged[i].id);
+      }
+      let hasNew = false;
 
-    if (hasNew) {
-      merged.sort((a, b) => b.date - a.date);
+      for (const newMessage of incoming) {
+        if (!existingIds.has(newMessage.id)) {
+          hasNew = true;
+          existingIds.add(newMessage.id);
+          merged.push(newMessage);
+        }
+      }
+
+      if (hasNew) {
+        merged.sort((a, b) => b.date - a.date);
+      }
+      self.postMessage({ type: 'mergedTelegramMessages', merged, hasNew, requestId });
     }
-    self.postMessage({ type: 'mergedTelegramMessages', merged, hasNew, requestId });
+  } catch (error) {
+    self.postMessage({ type: 'error', error: String(error), requestId: e.data.requestId });
   }
 };
+

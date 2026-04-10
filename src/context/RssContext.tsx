@@ -50,6 +50,7 @@ interface RssContextType {
   markArticlesAsRead: (ids: string[]) => void;
   markAllAsRead: () => void;
   markAllTelegramAsRead: () => void;
+  markTelegramChannelAsRead: (id: string) => void;
   toggleFavorite: (id: string) => void;
   toggleQueue: (id: string) => void;
   removeFromSaved: (id: string) => void;
@@ -61,6 +62,9 @@ interface RssContextType {
   toggleRedditFavorite: (id: string) => void;
   updateSettings: (updates: Partial<Settings>) => void;
   checkUpdates: (force?: boolean) => Promise<void>;
+  addTelegramChannel: (username: string) => Promise<void>;
+  removeTelegramChannel: (id: string) => Promise<void>;
+  refreshTelegramChannels: (channelsToRefresh?: TelegramChannel[]) => Promise<void>;
 }
 
 const RssContext = createContext<RssContextType | undefined>(undefined);
@@ -149,14 +153,30 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const loadedSubreddits = await storage.getSubreddits();
       const loadedRedditPosts = await storage.getRedditPosts();
       const loadedSettings = await storage.getSettings();
+      const loadedTelegramChannels = await storage.getTelegramChannels();
+      const loadedTelegramMessages: Record<string, TelegramMessage[]> = {};
+      
+      for (const channel of loadedTelegramChannels) {
+        loadedTelegramMessages[channel.id] = await storage.getTelegramMessages(channel.id);
+      }
       
       setFeeds(loadedFeeds);
       setArticles(loadedArticles);      
       setSubreddits(loadedSubreddits);
       setRedditPosts(loadedRedditPosts.sort((a, b) => b.createdUtc - a.createdUtc));
+      setTelegramChannels(loadedTelegramChannels);
+      setTelegramMessages(loadedTelegramMessages);
       setSettings(loadedSettings);
       
-      return { loadedFeeds, loadedArticles, loadedSubreddits, loadedRedditPosts, loadedSettings };
+      return { 
+        loadedFeeds, 
+        loadedArticles, 
+        loadedSubreddits, 
+        loadedRedditPosts, 
+        loadedSettings,
+        loadedTelegramChannels,
+        loadedTelegramMessages
+      };
     } catch (err) {
       console.error(err);
       return null;
@@ -196,7 +216,7 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const queue = [...fToRefresh];
       let queueIndex = 0;
       const FEED_TIMEOUT = 12000; // Reduced from 15s to 12s
-      const CONCURRENCY = Math.min(10, queue.length);
+      const CONCURRENCY = Math.min(6, queue.length); // Reduced from 10 to 6 to prevent stalling
       
       let mergeChain = Promise.resolve();
       
@@ -631,6 +651,14 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     });
   }, []);
 
+  const markTelegramChannelAsRead = useCallback(async (id: string) => {
+    setTelegramChannels(prev => {
+      const updated = prev.map(c => c.id === id ? { ...c, unreadCount: 0 } : c);
+      storage.saveTelegramChannels(updated);
+      return updated;
+    });
+  }, []);
+
   const toggleFavorite = useCallback(async (id: string) => {
     setArticles(prev => {
       const updated = prev.map(a => a.id === id ? { ...a, isFavorite: !a.isFavorite } : a);
@@ -854,7 +882,8 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 name: info.name, 
                 imageUrl: info.imageUrl,
                 lastChecked: Date.now(),
-                lastMessageDate: messages.length > 0 ? messages[0].date : channel.lastMessageDate
+                lastMessageDate: messages.length > 0 ? messages[0].date : channel.lastMessageDate,
+                unreadCount: (channel.unreadCount || 0) + messages.length
               };
             }
             return next;
@@ -931,14 +960,14 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const value = useMemo(() => ({
     feeds, articles, subreddits, redditPosts, telegramChannels, telegramMessages, settings, isLoading, progress, error, setError, errorLogs, clearErrorLogs,
     addFeedOrSubreddit, addTelegramChannel, removeTelegramChannel, importOpml, toggleRead, markAsRead, markArticlesAsRead,
-    toggleFavorite, toggleQueue, removeFromSaved, markAllAsRead, markAllTelegramAsRead, refreshFeeds, refreshReddit, refreshTelegramChannels, loadMoreReddit, removeFeed, removeSubreddit,
+    toggleFavorite, toggleQueue, removeFromSaved, markAllAsRead, markAllTelegramAsRead, markTelegramChannelAsRead, refreshFeeds, refreshReddit, refreshTelegramChannels, loadMoreReddit, removeFeed, removeSubreddit,
     updateFeed, updateArticle, updateRedditPost, toggleRedditRead, markRedditAsRead, toggleRedditFavorite, updateSettings, exportFeeds,
     searchQuery, setSearchQuery, unreadCount, savedCount, updateInfo, checkUpdates,
     redditSort, handleRedditSortChange
   }), [
     feeds, articles, subreddits, redditPosts, telegramChannels, telegramMessages, settings, isLoading, progress, error, setError, errorLogs, clearErrorLogs,
     addFeedOrSubreddit, addTelegramChannel, removeTelegramChannel, importOpml, toggleRead, markAsRead, markArticlesAsRead,
-    toggleFavorite, toggleQueue, removeFromSaved, markAllAsRead, markAllTelegramAsRead, refreshFeeds, refreshReddit, refreshTelegramChannels, loadMoreReddit, removeFeed, removeSubreddit,
+    toggleFavorite, toggleQueue, removeFromSaved, markAllAsRead, markAllTelegramAsRead, markTelegramChannelAsRead, refreshFeeds, refreshReddit, refreshTelegramChannels, loadMoreReddit, removeFeed, removeSubreddit,
     updateFeed, updateArticle, updateRedditPost, toggleRedditRead, markRedditAsRead, toggleRedditFavorite, updateSettings, exportFeeds,
     searchQuery, setSearchQuery, unreadCount, savedCount, updateInfo, checkUpdates,
     redditSort, handleRedditSortChange

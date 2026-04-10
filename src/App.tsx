@@ -145,7 +145,7 @@ export default function App() {
   const {
     articles, feeds, subreddits, redditPosts, telegramChannels, telegramMessages, settings, isLoading, error,
     refreshFeeds, refreshReddit, loadMoreReddit, toggleRead, markAsRead, markArticlesAsRead,
-    markAllAsRead, markAllTelegramAsRead, searchQuery, setSearchQuery, unreadCount, savedCount,
+    markAllAsRead, markAllTelegramAsRead, markTelegramChannelAsRead, searchQuery, setSearchQuery, unreadCount, savedCount,
     toggleFavorite, toggleQueue, removeFromSaved, loadMoreArticles, hasMoreArticles,
     markRedditAsRead, toggleRedditRead, toggleRedditFavorite,
     redditSort, handleRedditSortChange
@@ -375,7 +375,7 @@ export default function App() {
 
   const handleTouchEnd = () => {
     if (isPulling && pullProgress.get() >= PULL_THRESHOLD) {
-      if (filter !== 'reddit') {
+      if (filter !== 'reddit' && filter !== 'telegram') {
         refreshFeeds();
       }
     } else {
@@ -567,7 +567,7 @@ export default function App() {
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
     >
-      {filter !== 'reddit' && (
+      {filter !== 'reddit' && filter !== 'telegram' && (
         <motion.div 
           className="absolute top-0 left-0 right-0 flex justify-center py-2 pointer-events-none z-30"
           style={{ y: pullProgressTransform, opacity: pullOpacity }}
@@ -839,7 +839,10 @@ export default function App() {
         <TelegramListView
           isActive={filter === 'telegram'}
           channels={telegramChannels}
-          onChannelClick={setSelectedTelegramChannel}
+          onChannelClick={(channel) => {
+            setSelectedTelegramChannel(channel);
+            markTelegramChannelAsRead(channel.id);
+          }}
           onMarkAllAsRead={markAllTelegramAsRead}
           filter={telegramFilter}
         />
