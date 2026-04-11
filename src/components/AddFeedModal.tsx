@@ -46,7 +46,7 @@ export const AddFeedModal = React.memo(function AddFeedModal({ isOpen, onClose, 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 z-40 backdrop-blur-sm"
+            className="fixed inset-0 bg-black/60 z-[60] backdrop-blur-md"
             onClick={onClose}
           />
           <motion.div 
@@ -54,7 +54,7 @@ export const AddFeedModal = React.memo(function AddFeedModal({ isOpen, onClose, 
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className="fixed bottom-0 left-0 right-0 rounded-t-3xl z-50 p-6 pb-8 bg-black"
+            className="fixed bottom-0 left-0 right-0 rounded-t-3xl z-[70] p-6 pb-8 bg-black border-t border-gray-800 shadow-[0_-8px_30px_rgb(0,0,0,0.5)]"
           >
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-xl font-bold text-white">Add Item</h2>
@@ -82,6 +82,17 @@ export const AddFeedModal = React.memo(function AddFeedModal({ isOpen, onClose, 
                   />
                 </div>
               </div>
+            )}
+
+            {error && (
+              <motion.div 
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="mb-4 p-3 bg-red-900/30 text-red-400 rounded-xl text-sm border border-red-800/50 flex items-center gap-2"
+              >
+                <div className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />
+                {error}
+              </motion.div>
             )}
 
             <form onSubmit={handleSubmit} className="mb-6">

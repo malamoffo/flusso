@@ -95,7 +95,10 @@ export function extractBestImage(content: string, baseUrl?: string): string | nu
       lowerUrl.includes('wp-includes/images/smilies') ||
       lowerUrl.includes('share') ||
       lowerUrl.includes('button') ||
-      lowerUrl.includes('badge')
+      lowerUrl.includes('badge') ||
+      lowerUrl.includes('advert') ||
+      lowerUrl.includes('spinner') ||
+      lowerUrl.includes('loading')
     ) {
       continue;
     }
@@ -530,18 +533,39 @@ export function parseRssXml(xmlString: string, feedUrl: string, sinceDate?: numb
     for (const imgEl of imageElements) {
       const href = imgEl.getAttribute('href') || imgEl.getAttribute('url');
       if (href) {
-        feedImage = resolveUrl(href, feedUrl);
-        break;
+        const resolved = resolveUrl(href, feedUrl);
+        if (!resolved.toLowerCase().includes('favicon') && !resolved.toLowerCase().includes('icon')) {
+          feedImage = resolved;
+          break;
+        }
       }
       const urlChild = getElementsByLocalName(imgEl, 'url')[0];
       if (urlChild?.textContent) {
-        feedImage = resolveUrl(urlChild.textContent.trim(), feedUrl);
-        break;
+        const resolved = resolveUrl(urlChild.textContent.trim(), feedUrl);
+        if (!resolved.toLowerCase().includes('favicon') && !resolved.toLowerCase().includes('icon')) {
+          feedImage = resolved;
+          break;
+        }
       }
     }
 
     if (!feedImage) {
-      feedImage = getTagText(channel, ['itunes:image', 'image', 'logo', 'icon']);
+      const itunesImage = getTagText(channel, ['itunes:image', 'logo', 'icon']);
+      if (itunesImage && !itunesImage.toLowerCase().includes('favicon') && !itunesImage.toLowerCase().includes('icon')) {
+        feedImage = itunesImage;
+      }
+    }
+
+    if (!feedImage) {
+      // Try media:thumbnail or media:content at channel level
+      const mediaElements = [...getElementsByLocalName(channel, 'content'), ...getElementsByLocalName(channel, 'thumbnail')];
+      for (const mediaEl of mediaElements) {
+        const url = mediaEl.getAttribute('url');
+        if (url && (url.match(/\.(jpg|jpeg|png|gif|webp)/i))) {
+          feedImage = resolveUrl(url, feedUrl);
+          break;
+        }
+      }
     }
     
     const feedDescription = getTagText(channel, ['itunes:summary', 'description', 'subtitle', 'summary', 'itunes:subtitle']) || '';
@@ -610,17 +634,26 @@ export function parseRssXml(xmlString: string, feedUrl: string, sinceDate?: numb
       for (const imgEl of itunesImageElements) {
         const href = imgEl.getAttribute('href') || imgEl.getAttribute('url');
         if (href) {
-          imageUrl = resolveUrl(href, feedUrl);
-          break;
+          const resolved = resolveUrl(href, feedUrl);
+          if (!resolved.toLowerCase().includes('favicon') && !resolved.toLowerCase().includes('icon')) {
+            imageUrl = resolved;
+            break;
+          }
         }
         const urlChild = getElementsByLocalName(imgEl, 'url')[0];
         if (urlChild?.textContent) {
-          imageUrl = resolveUrl(urlChild.textContent.trim(), feedUrl);
-          break;
+          const resolved = resolveUrl(urlChild.textContent.trim(), feedUrl);
+          if (!resolved.toLowerCase().includes('favicon') && !resolved.toLowerCase().includes('icon')) {
+            imageUrl = resolved;
+            break;
+          }
         }
         if (imgEl.textContent && imgEl.textContent.trim().startsWith('http')) {
-          imageUrl = resolveUrl(imgEl.textContent.trim(), feedUrl);
-          break;
+          const resolved = resolveUrl(imgEl.textContent.trim(), feedUrl);
+          if (!resolved.toLowerCase().includes('favicon') && !resolved.toLowerCase().includes('icon')) {
+            imageUrl = resolved;
+            break;
+          }
         }
       }
 
@@ -631,8 +664,11 @@ export function parseRssXml(xmlString: string, feedUrl: string, sinceDate?: numb
           const medium = mediaEl.getAttribute('medium');
           const url = mediaEl.getAttribute('url');
           if (url && (type?.startsWith('image/') || medium === 'image' || url.match(/\.(jpg|jpeg|png|gif|webp)/i))) {
-            imageUrl = resolveUrl(url, feedUrl);
-            break;
+            const resolved = resolveUrl(url, feedUrl);
+            if (!resolved.toLowerCase().includes('favicon') && !resolved.toLowerCase().includes('icon')) {
+              imageUrl = resolved;
+              break;
+            }
           }
         }
       }
@@ -644,7 +680,12 @@ export function parseRssXml(xmlString: string, feedUrl: string, sinceDate?: numb
         const url = enclosure.getAttribute('url');
         if (type && url) {
           if (type.startsWith('image/')) {
-            if (!imageUrl) imageUrl = resolveUrl(url, feedUrl);
+            if (!imageUrl) {
+              const resolved = resolveUrl(url, feedUrl);
+              if (!resolved.toLowerCase().includes('favicon') && !resolved.toLowerCase().includes('icon')) {
+                imageUrl = resolved;
+              }
+            }
           } else if (type.startsWith('audio/') || type.startsWith('video/')) {
             mediaUrl = resolveUrl(url, feedUrl);
             mediaType = type;

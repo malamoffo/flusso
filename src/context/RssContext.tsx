@@ -288,9 +288,11 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                   const next = [...prev];
                   const idx = next.findIndex(f => f.id === feed.id);
                   if (idx !== -1) {
+                    const existingFeed = next[idx];
                     next[idx] = {
-                      ...feed,
+                      ...existingFeed,
                       ...data.feed,
+                      title: existingFeed.title, // Preserve user-defined title
                       id: feed.id,
                       lastFetched: Date.now(),
                       lastArticleDate: articlesWithCorrectId.length > 0 ? Math.max(...articlesWithCorrectId.map(a => a.pubDate)) : feed.lastArticleDate,
