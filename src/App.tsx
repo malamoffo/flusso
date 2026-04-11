@@ -12,6 +12,7 @@ import { TelegramListView } from './components/TelegramListView';
 import { TelegramThreadView } from './components/TelegramThreadView';
 import { TelegramChannel, TelegramMessage } from './types';
 import { ImageViewer } from './components/ImageViewer';
+import { ErrorNotification } from './components/ErrorNotification';
 import { motion, AnimatePresence, useMotionValue, useTransform, animate } from 'framer-motion';
 import { Loader2, Search, X, Check, Rss, Settings, Star, CheckCircle2, RefreshCw, Layers, Headphones, FileText, Inbox, MessageSquare, ChevronDown, Clock, Flame } from 'lucide-react';
 import { useInView } from 'react-intersection-observer';
@@ -143,7 +144,7 @@ export default function App() {
   const isAtTop = useRef(true);
 
   const {
-    articles, feeds, subreddits, redditPosts, telegramChannels, telegramMessages, settings, isLoading, error,
+    articles, feeds, subreddits, redditPosts, telegramChannels, telegramMessages, settings, isLoading, error, setError,
     refreshFeeds, refreshReddit, refreshTelegramChannels, loadMoreReddit, toggleRead, markAsRead, markArticlesAsRead,
     markAllAsRead, markAllTelegramAsRead, markTelegramChannelAsRead, loadTelegramMessages, searchQuery, setSearchQuery, unreadCount, savedCount,
     toggleFavorite, toggleQueue, removeFromSaved,
@@ -192,9 +193,6 @@ export default function App() {
   const filteredRedditPosts = useMemo(() => {
     const query = deferredSearchQuery.toLowerCase();
     return redditPosts.filter(post => {
-      if (isSearchOpen && sourceFilter !== 'all') {
-        if (post.subredditId !== sourceFilter && post.feedId !== sourceFilter) return false;
-      }
       if (query) {
         const matchesQuery = post.title.toLowerCase().includes(query) || 
                             (post.subredditName?.toLowerCase().includes(query) ?? false) ||
@@ -203,14 +201,11 @@ export default function App() {
       }
       return true;
     });
-  }, [redditPosts, deferredSearchQuery, isSearchOpen, sourceFilter]);
+  }, [redditPosts, deferredSearchQuery]);
 
   const filteredTelegramChannels = useMemo(() => {
     const query = deferredSearchQuery.toLowerCase();
     return telegramChannels.filter(channel => {
-      if (isSearchOpen && sourceFilter !== 'all') {
-        if (channel.id !== sourceFilter) return false;
-      }
       if (query) {
         const matchesQuery = channel.name.toLowerCase().includes(query) || 
                             (channel.username?.toLowerCase().includes(query) ?? false);
@@ -218,7 +213,7 @@ export default function App() {
       }
       return true;
     });
-  }, [telegramChannels, deferredSearchQuery, isSearchOpen, sourceFilter]);
+  }, [telegramChannels, deferredSearchQuery]);
   
   useEffect(() => {
     setVisibleCount(30);
@@ -238,6 +233,11 @@ export default function App() {
   const pullProgressTransform = useTransform(pullProgress, v => v - 40);
   const pullOpacity = useTransform(pullProgress, v => v / PULL_THRESHOLD);
   const [isPulling, setIsPulling] = useState(false);
+
+  useEffect(() => {
+    setSourceFilter('all');
+    setTimeFilter('all');
+  }, [filter]);
 
   const handleFilterChange = (newFilter: 'inbox' | 'saved' | 'reddit' | 'telegram') => {
     if (newFilter === filter) return;
@@ -768,53 +768,42 @@ export default function App() {
               </button>
             </div>
             <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide">
-                <div className="relative">
-                  <select
-                    value={sourceFilter}
-                    onChange={(e) => setSourceFilter(e.target.value)}
-                    className="appearance-none text-xs bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-full pl-3 pr-8 py-1.5 border-none focus:ring-0 outline-none whitespace-nowrap"
-                  >
-                    <option value="all">All Sources</option>
-                    {filter === 'reddit' && sortedSubreddits.map(s => (
-                      <option key={s.id} value={s.id}>r/{s.name}</option>
-                    ))}
-                    {filter === 'reddit' && sortedFeeds.filter(f => f.feedUrl.includes('reddit.com')).map(f => (
-                      <option key={f.id} value={f.id}>{f.title}</option>
-                    ))}
-                    {filter === 'telegram' && telegramChannels.map(c => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
-                    ))}
-                    {filter !== 'reddit' && filter !== 'telegram' && sortedFeeds.filter(f => !f.feedUrl.includes('reddit.com')).map(f => (
-                      <option key={f.id} value={f.id}>{f.title}</option>
-                    ))}
-                  </select>
-                  <ChevronDown className="w-3.5 h-3.5 absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none z-10" />
-                </div>
                 {filter !== 'reddit' && filter !== 'telegram' && (
-                  <div className="relative">
-                    <select
-                      value={timeFilter}
-                      onChange={(e) => setTimeFilter(e.target.value)}
-                      className="appearance-none text-xs bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-full pl-3 pr-8 py-1.5 border-none focus:ring-0 outline-none whitespace-nowrap"
-                    >
-                      <option value="all">Any Time</option>
-                      <option value="today">Past 24 Hours</option>
-                      <option value="week">Past Week</option>
-                      <option value="month">Past Month</option>
-                    </select>
-                    <ChevronDown className="w-3.5 h-3.5 absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none z-10" />
-                  </div>
+                  <>
+                    <div className="relative">
+                      <select
+                        value={sourceFilter}
+                        onChange={(e) => setSourceFilter(e.target.value)}
+                        className="appearance-none text-xs bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-full pl-3 pr-8 py-1.5 border-none focus:ring-0 outline-none whitespace-nowrap"
+                      >
+                        <option value="all">All Sources</option>
+                        {sortedFeeds.filter(f => !f.feedUrl.includes('reddit.com')).map(f => (
+                          <option key={f.id} value={f.id}>{f.title}</option>
+                        ))}
+                      </select>
+                      <ChevronDown className="w-3.5 h-3.5 absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none z-10" />
+                    </div>
+                    <div className="relative">
+                      <select
+                        value={timeFilter}
+                        onChange={(e) => setTimeFilter(e.target.value)}
+                        className="appearance-none text-xs bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-full pl-3 pr-8 py-1.5 border-none focus:ring-0 outline-none whitespace-nowrap"
+                      >
+                        <option value="all">Any Time</option>
+                        <option value="today">Past 24 Hours</option>
+                        <option value="week">Past Week</option>
+                        <option value="month">Past Month</option>
+                      </select>
+                      <ChevronDown className="w-3.5 h-3.5 absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none z-10" />
+                    </div>
+                  </>
                 )}
             </div>
           </div>
         )}
 
         <ProgressBanner />
-        {error && (
-          <div className="bg-red-50 dark:bg-red-900/20 px-4 py-2 text-sm text-red-800 dark:text-red-300 border-t border-red-100 dark:border-red-900/30">
-            {error}
-          </div>
-        )}
+        <ErrorNotification error={error} onClear={() => setError(null)} />
       </div>
 
       <div className="flex-1 relative overflow-hidden">

@@ -84,12 +84,6 @@ export const AddFeedModal = React.memo(function AddFeedModal({ isOpen, onClose, 
               </div>
             )}
 
-            {error && (
-              <div className="mb-4 p-3 bg-red-900/30 text-red-400 rounded-lg text-sm">
-                {error}
-              </div>
-            )}
-
             <form onSubmit={handleSubmit} className="mb-6">
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">

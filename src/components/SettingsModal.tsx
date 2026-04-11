@@ -944,6 +944,7 @@ export const SettingsModal = React.memo(function SettingsModal({
               if (type === 'article') setExpandedSections(prev => new Set(prev).add('articles'));
               else if (type === 'podcast') setExpandedSections(prev => new Set(prev).add('podcasts'));
               else if (type === 'subreddit' || type === 'reddit') setExpandedSections(prev => new Set(prev).add('subreddits'));
+              else if (type === 'telegram') setExpandedSections(prev => new Set(prev).add('telegram'));
             }}
           />
         </>

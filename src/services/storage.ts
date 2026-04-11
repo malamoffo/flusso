@@ -600,7 +600,7 @@ export const storage = {
       }
 
       const newSub: Subreddit = {
-        id: uuidv4(),
+        id: subData.name, // Reddit internal ID (e.g., t5_...)
         name: subData.display_name || cleanName,
         iconUrl,
         addedAt: Date.now(),

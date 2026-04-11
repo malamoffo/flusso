@@ -26,14 +26,17 @@ export const fetchTelegramChannelInfo = async (channelUsername: string): Promise
     const parser = new DOMParser();
     const doc = parser.parseFromString(htmlData, 'text/html');
     
-    const name = doc.querySelector('.tgme_channel_info_header_title')?.textContent?.trim() || channelUsername;
+    const name = doc.querySelector('.tgme_channel_info_header_title')?.textContent?.trim();
+    if (!name) {
+      throw new Error('Canale non trovato');
+    }
     const imageUrl = doc.querySelector('.tgme_page_photo_image img')?.getAttribute('src') || 
                      doc.querySelector('meta[property="og:image"]')?.getAttribute('content') || undefined;
 
     return { name, imageUrl };
   } catch (error) {
     console.error('Error fetching Telegram channel info:', error);
-    return { name: channelUsername };
+    throw error;
   }
 };
 

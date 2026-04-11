@@ -143,16 +143,12 @@ function parseTime(timeStr: string | null): number {
 // Helper to get text content from a list of possible tags, including namespaced ones
 function getTagText(element: Element, tags: string[]): string {
   for (const tag of tags) {
-    // Try exact match (for namespaced tags in XML mode)
-    let el = element.getElementsByTagName(tag)[0];
+    const localName = tag.includes(':') ? tag.split(':')[1] : tag;
+    const elements = getElementsByLocalName(element, localName);
     
-    // If not found and tag contains a colon, try local name (for HTML mode or different prefix handling)
-    if (!el && tag.includes(':')) {
-      const localName = tag.split(':')[1];
-      el = element.getElementsByTagName(localName)[0];
+    for (const el of elements) {
+      if (el.textContent) return el.textContent.trim();
     }
-    
-    if (el && el.textContent) return el.textContent.trim();
   }
   return '';
 }
@@ -529,8 +525,25 @@ export function parseRssXml(xmlString: string, feedUrl: string, sinceDate?: numb
     const link = getTagText(channel, ['link']) || '';
     
     // Try itunes:image first for feed image, fallback to image/url
-    const itunesFeedImage = (channel.getElementsByTagName('itunes:image')[0]?.getAttribute('href') || '').trim();
-    const feedImage = itunesFeedImage || channel.getElementsByTagName('image')[0]?.getElementsByTagName('url')[0]?.textContent?.trim();
+    const imageElements = getElementsByLocalName(channel, 'image');
+    let feedImage = '';
+    for (const imgEl of imageElements) {
+      const href = imgEl.getAttribute('href') || imgEl.getAttribute('url');
+      if (href) {
+        feedImage = resolveUrl(href, feedUrl);
+        break;
+      }
+      const urlChild = getElementsByLocalName(imgEl, 'url')[0];
+      if (urlChild?.textContent) {
+        feedImage = resolveUrl(urlChild.textContent.trim(), feedUrl);
+        break;
+      }
+    }
+
+    if (!feedImage) {
+      feedImage = getTagText(channel, ['itunes:image', 'image', 'logo', 'icon']);
+    }
+    
     const feedDescription = getTagText(channel, ['itunes:summary', 'description', 'subtitle', 'summary', 'itunes:subtitle']) || '';
 
     const items = Array.from(xmlDoc.getElementsByTagName('item'));
@@ -592,21 +605,35 @@ export function parseRssXml(xmlString: string, feedUrl: string, sinceDate?: numb
       let mediaType: string | null = null;
       
       // Prioritize itunes:image or any image tag with an href (common in podcasts)
-      const itunesImageElements = tagDict['itunes:image'] || [];
-      const anyImageElements = tagDict['image'] || [];
-      const allImageElements = [...itunesImageElements, ...anyImageElements];
+      const itunesImageElements = getElementsByLocalName(item, 'image');
       
-      for (const imgEl of allImageElements) {
-        const href = imgEl.getAttribute('href');
+      for (const imgEl of itunesImageElements) {
+        const href = imgEl.getAttribute('href') || imgEl.getAttribute('url');
         if (href) {
           imageUrl = resolveUrl(href, feedUrl);
           break;
         }
-        // Fallback for standard RSS image tag with <url> child (rare in items but possible)
-        const urlChild = imgEl.getElementsByTagName('url')[0];
+        const urlChild = getElementsByLocalName(imgEl, 'url')[0];
         if (urlChild?.textContent) {
           imageUrl = resolveUrl(urlChild.textContent.trim(), feedUrl);
           break;
+        }
+        if (imgEl.textContent && imgEl.textContent.trim().startsWith('http')) {
+          imageUrl = resolveUrl(imgEl.textContent.trim(), feedUrl);
+          break;
+        }
+      }
+
+      if (!imageUrl) {
+        const mediaElements = [...getElementsByLocalName(item, 'content'), ...getElementsByLocalName(item, 'thumbnail')];
+        for (const mediaEl of mediaElements) {
+          const type = mediaEl.getAttribute('type');
+          const medium = mediaEl.getAttribute('medium');
+          const url = mediaEl.getAttribute('url');
+          if (url && (type?.startsWith('image/') || medium === 'image' || url.match(/\.(jpg|jpeg|png|gif|webp)/i))) {
+            imageUrl = resolveUrl(url, feedUrl);
+            break;
+          }
         }
       }
 

@@ -37,7 +37,7 @@ interface RssContextType {
   hasMoreArticles: boolean;
   loadMoreArticles: () => Promise<void>;
   updateInfo: any | null;
-  addFeedOrSubreddit: (url: string) => Promise<'article' | 'podcast' | 'reddit' | 'subreddit' | void>;
+  addFeedOrSubreddit: (url: string) => Promise<'article' | 'podcast' | 'reddit' | 'subreddit' | 'telegram' | void>;
   importOpml: (file: File | { text: () => Promise<string> }) => Promise<void>;
   exportFeeds: () => Promise<string>;
   removeFeed: (id: string) => void;
@@ -492,7 +492,40 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     });
   }, []);
 
-  const addFeedOrSubreddit = useCallback(async (url: string): Promise<'article' | 'podcast' | 'reddit' | 'subreddit' | void> => {
+  const addTelegramChannel = useCallback(async (username: string) => {
+    try {
+      setError(null);
+      const cleanUsername = username.replace('@', '').replace('https://t.me/', '').split('/')[0].trim();
+      
+      const [messages, info] = await Promise.all([
+        fetchTelegramMessages(cleanUsername),
+        fetchTelegramChannelInfo(cleanUsername)
+      ]);
+      
+      const channel: TelegramChannel = {
+        id: uuidv4(),
+        name: info.name,
+        username: cleanUsername,
+        imageUrl: info.imageUrl,
+        lastMessageDate: messages.length > 0 ? messages[0].date : Date.now(),
+        lastChecked: Date.now(),
+        unreadCount: messages.length,
+        lastOpened: Date.now(),
+        retentionDays: 30,
+      };
+      await storage.addTelegramChannel(channel);
+      setTelegramChannels(prev => [...prev, channel]);
+      setTelegramMessages(prev => ({ ...prev, [channel.id]: messages }));
+      storage.saveTelegramMessages(channel.id, messages);
+      return 'telegram';
+    } catch (e: any) {
+      const errMsg = e.message || "Canale Telegram non trovato o non accessibile";
+      setError(errMsg);
+      throw new Error(errMsg);
+    }
+  }, []);
+
+  const addFeedOrSubreddit = useCallback(async (url: string): Promise<'article' | 'podcast' | 'reddit' | 'subreddit' | 'telegram' | void> => {
     try {
       setIsLoading(true);
       setError(null);
@@ -501,26 +534,38 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       let isSubreddit = false;
       let cleanName = url.trim();
       const lowerName = cleanName.toLowerCase();
+      
       if (lowerName.includes('reddit.com/r/')) {
         isSubreddit = true;
       } else if (lowerName.startsWith('r/')) {
         isSubreddit = true;
+      } else if (!url.includes('://') && !url.includes('.') && !url.includes(' ')) {
+        // If it's a single word without dots or protocol, it could be a subreddit or telegram
+        // We'll try to detect if it's meant for telegram by checking if it's a common telegram username pattern
+        // but for now let's assume if it doesn't start with r/ it might be telegram.
+        // Actually, let's check if it's a telegram URL
+        if (lowerName.includes('t.me/')) {
+          await addTelegramChannel(cleanName);
+          return 'telegram';
+        }
       }
 
       if (isSubreddit) {
         const result = await storage.addSubreddit(cleanName);
         if (!result) {
-          throw new Error("Could not fetch subreddit. Please check the name and try again.");
+          throw new Error("Impossibile trovare il subreddit. Controlla il nome.");
         }
         await refreshReddit([result]);
         await loadData();
         return 'subreddit';
-      } else if (!url.includes('://') && !lowerName.startsWith('r/')) {
-        return await addTelegramChannel(cleanName);
+      } else if (!url.includes('://') && (lowerName.includes('t.me/') || (!lowerName.startsWith('r/') && !url.includes('.')))) {
+        // Likely a telegram channel if no protocol and no dots (or explicit t.me)
+        await addTelegramChannel(cleanName);
+        return 'telegram';
       } else {
         const result = await storage.addFeed(url);
         if (!result) {
-          throw new Error("Could not fetch feed. Please check the URL and try again.");
+          throw new Error("Impossibile caricare il feed. Controlla l'URL.");
         }
         await loadData();
         if (result.feed.feedUrl.includes('reddit.com')) {
@@ -529,7 +574,7 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         return result.feed.type as 'article' | 'podcast';
       }
     } catch (err: any) {
-      const errMsg = err.message || "Failed to add feed or subreddit. Please check the URL.";
+      const errMsg = err.message || "Errore durante l'aggiunta. Riprova.";
       setError(errMsg);
       logError(errMsg);
       console.error(err);
@@ -537,7 +582,7 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [addTelegramChannel, refreshReddit, loadData, logError]);
 
   const removeSubreddit = useCallback(async (id: string) => {
     setSubreddits(prev => {
@@ -948,39 +993,6 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     await mergeChain;
     await storage.saveTelegramChannels(telegramChannelsRef.current);
   }, [telegramChannels, telegramMessages, cleanupTelegramMessages]);
-
-  const addTelegramChannel = useCallback(async (username: string) => {
-    try {
-      setError(null);
-      const cleanUsername = username.replace('@', '').replace('https://t.me/', '').split('/')[0].trim();
-      
-      const [messages, info] = await Promise.all([
-        fetchTelegramMessages(cleanUsername),
-        fetchTelegramChannelInfo(cleanUsername)
-      ]);
-      
-      const channel: TelegramChannel = {
-        id: uuidv4(),
-        name: info.name,
-        username: cleanUsername,
-        imageUrl: info.imageUrl,
-        lastMessageDate: messages.length > 0 ? messages[0].date : Date.now(),
-        lastChecked: Date.now(),
-        unreadCount: messages.length,
-        lastOpened: Date.now(),
-        retentionDays: 30,
-      };
-      await storage.addTelegramChannel(channel);
-      setTelegramChannels(prev => [...prev, channel]);
-      setTelegramMessages(prev => ({ ...prev, [channel.id]: messages }));
-      storage.saveTelegramMessages(channel.id, messages);
-      return 'telegram';
-    } catch (e: any) {
-      const errMsg = "Canale Telegram non trovato o non accessibile";
-      setError(errMsg);
-      throw new Error(errMsg);
-    }
-  }, []);
 
   const removeTelegramChannel = useCallback(async (id: string) => {
     await storage.removeTelegramChannel(id);
