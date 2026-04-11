@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
-import { X, Moon, Sun, Monitor, Image as ImageIcon, LayoutList, Maximize, Type, Plus, Trash2, Edit2, AlertCircle, Save, ArrowLeft, ChevronDown, ChevronUp, Github, Info, ExternalLink, RefreshCw, ShieldCheck, Download, CheckCircle2, FileText, Headphones, Upload, MessageSquare, Settings } from 'lucide-react';
+import { X, Moon, Sun, Monitor, Image as ImageIcon, LayoutList, Maximize, Type, Plus, Trash2, Edit2, AlertCircle, Save, ArrowLeft, ChevronDown, ChevronUp, Github, Info, ExternalLink, RefreshCw, ShieldCheck, Download, CheckCircle2, FileText, Headphones, Upload, MessageSquare, Settings, Search } from 'lucide-react';
 import { useRss } from '../context/RssContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../lib/utils';
 import { SwipeAction, Theme, ImageDisplay, FontSize } from '../types';
 import { AddFeedModal } from './AddFeedModal';
+import { PodcastSearchModal } from './PodcastSearchModal';
+import { PodcastDetailsModal } from './PodcastDetailsModal';
 import packageJson from '../../package.json';
 import { CachedImage } from './CachedImage';
 
@@ -19,6 +21,8 @@ export const SettingsModal = React.memo(function SettingsModal({
 }) {
   const { settings, updateSettings, feeds, subreddits, telegramChannels, removeFeed, removeSubreddit, removeTelegramChannel, updateFeed, progress, updateInfo, checkUpdates, exportFeeds, importOpml, errorLogs, clearErrorLogs } = useRss();
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isPodcastSearchOpen, setIsPodcastSearchOpen] = useState(false);
+  const [selectedPodcastForDetails, setSelectedPodcastForDetails] = useState<string | null>(null);
   const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
   const [activeTab, setActiveTab] = useState<'main' | 'general' | 'subscriptions' | 'about'>('main');
   const [editingFeedId, setEditingFeedId] = useState<string | null>(null);
@@ -27,6 +31,7 @@ export const SettingsModal = React.memo(function SettingsModal({
   const [selectedFeedId, setSelectedFeedId] = useState<string | null>(null);
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
   const [showImportOptions, setShowImportOptions] = useState(false);
+  const [showExportOptions, setShowExportOptions] = useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const [importMode, setImportMode] = useState<'replace' | 'append'>('append');
   
@@ -49,6 +54,9 @@ export const SettingsModal = React.memo(function SettingsModal({
       setIsConfirmingDelete(false);
       setExpandedSections(new Set());
       setShowImportOptions(false);
+      setShowExportOptions(false);
+      setIsPodcastSearchOpen(false);
+      setSelectedPodcastForDetails(null);
     }
   }, [isOpen, initialTab]);
 
@@ -68,6 +76,18 @@ export const SettingsModal = React.memo(function SettingsModal({
     setSelectedFeedId(null);
   };
 
+  const downloadOpml = (opml: string, filename: string) => {
+    const blob = new Blob([opml], { type: 'text/xml' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -82,6 +102,7 @@ export const SettingsModal = React.memo(function SettingsModal({
   };
 
   const selectedFeed = feeds.find(f => f.id === selectedFeedId);
+  const selectedPodcastFeed = feeds.find(f => f.id === selectedPodcastForDetails) || null;
 
   return (
     <AnimatePresence>
@@ -482,7 +503,14 @@ export const SettingsModal = React.memo(function SettingsModal({
                         exit={{ height: 0, opacity: 0 }}
                         className="overflow-hidden"
                       >
-                        <div className="p-3 bg-black">
+                        <div className="p-4 bg-black">
+                          <button
+                            onClick={() => setIsPodcastSearchOpen(true)}
+                            className="w-full mb-4 py-3 bg-indigo-900/20 text-indigo-400 hover:bg-indigo-900/40 border border-indigo-500/20 rounded-xl font-medium flex items-center justify-center gap-2 transition-colors"
+                          >
+                            <Search className="w-4 h-4" />
+                            Search & Add Podcast
+                          </button>
                           <div className="grid grid-cols-4 gap-2">
                             {feeds
                               .filter(f => f.type === 'podcast')
@@ -491,7 +519,7 @@ export const SettingsModal = React.memo(function SettingsModal({
                               <div 
                                 key={feed.id} 
                                 className="group relative aspect-square rounded-xl overflow-hidden bg-gray-800 border border-gray-700 hover:border-indigo-500 transition-all cursor-pointer" 
-                                onClick={() => { setSelectedFeedId(feed.id); setEditTitle(feed.title); setEditUrl(feed.feedUrl); }}
+                                onClick={() => setSelectedPodcastForDetails(feed.id)}
                               >
                                 {feed.imageUrl ? (
                                   <CachedImage 
@@ -784,24 +812,60 @@ export const SettingsModal = React.memo(function SettingsModal({
                   )}
 
                   {/* Export OPML Button - Styled like the Import button */}
-                  <button
-                    onClick={async () => {
-                      const opml = await exportFeeds();
-                      const blob = new Blob([opml], { type: 'text/xml' });
-                      const url = URL.createObjectURL(blob);
-                      const a = document.createElement('a');
-                      a.href = url;
-                      a.download = 'flusso-subscriptions.opml';
-                      document.body.appendChild(a);
-                      a.click();
-                      document.body.removeChild(a);
-                      URL.revokeObjectURL(url);
-                    }}
-                    className="w-full flex items-center justify-center gap-2 p-4 rounded-2xl bg-indigo-900/20 text-indigo-100 hover:bg-indigo-900/30 border border-indigo-500/20 transition-colors font-medium"
-                  >
-                    <Download className="w-5 h-5" />
-                    Export Subscriptions (OPML)
-                  </button>
+                  {!showExportOptions ? (
+                    <button
+                      onClick={() => setShowExportOptions(true)}
+                      className="w-full flex items-center justify-center gap-2 p-4 rounded-2xl bg-indigo-900/20 text-indigo-100 hover:bg-indigo-900/30 border border-indigo-500/20 transition-colors font-medium"
+                    >
+                      <Download className="w-5 h-5" />
+                      Export Subscriptions (OPML)
+                    </button>
+                  ) : (
+                    <div className="p-4 rounded-2xl bg-indigo-900/10 border border-indigo-500/20 space-y-3 animate-in fade-in slide-in-from-bottom-2">
+                      <p className="text-sm text-center text-indigo-200 font-medium">What would you like to export?</p>
+                      <div className="grid grid-cols-1 gap-2">
+                        <button
+                          onClick={async () => {
+                            const opml = await exportFeeds(['article']);
+                            downloadOpml(opml, 'flusso-articles.opml');
+                            setShowExportOptions(false);
+                          }}
+                          className="flex items-center justify-center gap-2 p-3 rounded-xl bg-indigo-900/20 text-indigo-400 border border-indigo-500/20 hover:bg-indigo-900/30 transition-colors"
+                        >
+                          <FileText className="w-4 h-4" />
+                          <span className="text-xs font-bold uppercase tracking-wider">Articles Only</span>
+                        </button>
+                        <button
+                          onClick={async () => {
+                            const opml = await exportFeeds(['podcast']);
+                            downloadOpml(opml, 'flusso-podcasts.opml');
+                            setShowExportOptions(false);
+                          }}
+                          className="flex items-center justify-center gap-2 p-3 rounded-xl bg-indigo-900/20 text-indigo-400 border border-indigo-500/20 hover:bg-indigo-900/30 transition-colors"
+                        >
+                          <Headphones className="w-4 h-4" />
+                          <span className="text-xs font-bold uppercase tracking-wider">Podcasts Only</span>
+                        </button>
+                        <button
+                          onClick={async () => {
+                            const opml = await exportFeeds();
+                            downloadOpml(opml, 'flusso-all-subscriptions.opml');
+                            setShowExportOptions(false);
+                          }}
+                          className="flex items-center justify-center gap-2 p-3 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
+                        >
+                          <CheckCircle2 className="w-4 h-4" />
+                          <span className="text-xs font-bold uppercase tracking-wider">Export All</span>
+                        </button>
+                      </div>
+                      <button 
+                        onClick={() => setShowExportOptions(false)}
+                        className="w-full py-2 text-xs text-gray-500 hover:text-gray-400 transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  )}
                 </div>
               </section>
             ) : (
@@ -945,6 +1009,20 @@ export const SettingsModal = React.memo(function SettingsModal({
               else if (type === 'podcast') setExpandedSections(prev => new Set(prev).add('podcasts'));
               else if (type === 'subreddit' || type === 'reddit') setExpandedSections(prev => new Set(prev).add('subreddits'));
               else if (type === 'telegram') setExpandedSections(prev => new Set(prev).add('telegram'));
+            }}
+          />
+          <PodcastSearchModal
+            isOpen={isPodcastSearchOpen}
+            onClose={() => setIsPodcastSearchOpen(false)}
+            onPodcastAdded={() => setExpandedSections(prev => new Set(prev).add('podcasts'))}
+          />
+          <PodcastDetailsModal
+            isOpen={!!selectedPodcastForDetails}
+            onClose={() => setSelectedPodcastForDetails(null)}
+            podcast={selectedPodcastFeed}
+            onRemove={(id) => {
+              removeFeed(id);
+              setSelectedPodcastForDetails(null);
             }}
           />
         </>

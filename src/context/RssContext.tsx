@@ -299,6 +299,7 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                       lastRefreshStatus: 'success'
                     };
                   }
+                  feedsRef.current = next; // Update ref synchronously
                   return next;
                 });
               }
@@ -318,6 +319,7 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
               if (idx !== -1) {
                 next[idx] = { ...next[idx], lastRefreshStatus: 'error' };
               }
+              feedsRef.current = next; // Update ref synchronously
               return next;
             });
           } finally {
@@ -332,7 +334,18 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
       // Save final state to storage once at the end for performance
       await storage.saveArticles(articlesRef.current);
-      await storage.saveFeeds(feedsRef.current);
+      // Fetch latest feeds from storage to avoid overwriting newly added ones
+      const currentFeedsInStorage = await storage.getFeeds();
+      const updatedFeeds = currentFeedsInStorage.map(f => {
+        const refreshed = feedsRef.current.find(r => r.id === f.id);
+        if (refreshed) {
+          return refreshed;
+        }
+        return f;
+      });
+      await storage.saveFeeds(updatedFeeds);
+      setFeeds(updatedFeeds);
+      feedsRef.current = updatedFeeds;
       
       setProgress(p => p ? { ...p, status: "Finalizing..." } : null);
       lastRefresh.current = Date.now();
@@ -423,6 +436,7 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 if (idx !== -1) {
                   next[idx] = { ...sub, lastFetched: Date.now() };
                 }
+                subredditsRef.current = next; // Update ref synchronously to avoid race conditions
                 return next;
               });
             }
@@ -436,7 +450,19 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       await mergeChain;
 
       await storage.saveRedditPosts(redditPostsRef.current);
-      await storage.saveSubreddits(subredditsRef.current);
+      
+      // Fetch latest subreddits from storage to avoid overwriting newly added ones
+      const currentSubsInStorage = await storage.getSubreddits();
+      const updatedSubs = currentSubsInStorage.map(s => {
+        const refreshed = sToRefresh.find(r => r.id === s.id);
+        if (refreshed) {
+          return { ...s, lastFetched: Date.now() };
+        }
+        return s;
+      });
+      await storage.saveSubreddits(updatedSubs);
+      setSubreddits(updatedSubs);
+      subredditsRef.current = updatedSubs;
     } catch (e) {
       logError("Failed to refresh reddit");
       console.error("Failed to refresh reddit", e);
@@ -509,7 +535,7 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         name: info.name,
         username: cleanUsername,
         imageUrl: info.imageUrl,
-        lastMessageDate: messages.length > 0 ? messages[0].date : Date.now(),
+        lastMessageDate: messages.length > 0 ? messages[messages.length - 1].date : Date.now(),
         lastChecked: Date.now(),
         unreadCount: messages.length,
         lastOpened: Date.now(),
@@ -832,8 +858,8 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     });
   }, []);
 
-  const exportFeeds = useCallback(async () => {
-    return await storage.exportOpml();
+  const exportFeeds = useCallback(async (types?: ('article' | 'podcast')[]) => {
+    return await storage.exportOpml(types);
   }, []);
 
 
@@ -925,7 +951,7 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         
         try {
           const currentMessages = telegramMessagesRef.current[channel.id] || [];
-          const sinceDate = currentMessages.length > 0 ? currentMessages[0].date : undefined;
+          const sinceDate = currentMessages.length > 0 ? currentMessages[currentMessages.length - 1].date : undefined;
 
           const [messages, info] = await Promise.all([
             fetchTelegramMessages(channel.username, sinceDate),
@@ -979,7 +1005,7 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 name: info.name, 
                 imageUrl: info.imageUrl,
                 lastChecked: Date.now(),
-                lastMessageDate: messages.length > 0 ? messages[0].date : channel.lastMessageDate,
+                lastMessageDate: messages.length > 0 ? messages[messages.length - 1].date : channel.lastMessageDate,
                 unreadCount: (channel.unreadCount || 0) + messages.length
               };
             }

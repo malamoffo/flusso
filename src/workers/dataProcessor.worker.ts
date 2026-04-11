@@ -80,7 +80,7 @@ self.onmessage = (e) => {
       }
 
       if (hasNew) {
-        merged.sort((a, b) => b.date - a.date);
+        merged.sort((a, b) => a.date - b.date);
       }
       self.postMessage({ type: 'mergedTelegramMessages', merged, hasNew, requestId });
     }

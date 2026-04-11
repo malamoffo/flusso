@@ -486,15 +486,17 @@ export const storage = {
     return uniqueUrls;
   },
 
-  async exportOpml(): Promise<string> {
+  async exportOpml(types?: ('article' | 'podcast')[]): Promise<string> {
     const feeds = await this.getFeeds();
+    const filteredFeeds = types ? feeds.filter(f => types.includes(f.type as any)) : feeds;
+    
     let opml = '<?xml version="1.0" encoding="UTF-8"?>\n';
     opml += '<opml version="1.0">\n';
     opml += '  <head>\n';
     opml += '    <title>Flusso Feeds</title>\n';
     opml += '  </head>\n';
     opml += '  <body>\n';
-    feeds.forEach(feed => {
+    filteredFeeds.forEach(feed => {
       const title = escapeXml(feed.title || 'Untitled');
       const xmlUrl = escapeXml(feed.feedUrl || '');
       const htmlUrl = escapeXml(feed.link || '');
