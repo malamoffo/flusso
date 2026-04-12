@@ -64,6 +64,7 @@ export interface Article {
 }
 
 export interface RefreshLog {
+  id: string;
   timestamp: number;
   status: 'success' | 'error';
   message?: string;

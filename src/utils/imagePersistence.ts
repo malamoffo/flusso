@@ -16,7 +16,7 @@ export const imagePersistence = {
   async init() {
     if (this.isInitialized) return;
     try {
-      const savedMap = await db.settings.get('image_cache_map');
+      const savedMap = await db.kv.get('image_cache_map');
       if (savedMap && savedMap.value) {
         this.resolvedLocalUrls = new Map(JSON.parse(savedMap.value));
       }
@@ -28,7 +28,7 @@ export const imagePersistence = {
 
   async saveMap() {
     try {
-      await db.settings.put({ id: 'image_cache_map', value: JSON.stringify(Array.from(this.resolvedLocalUrls.entries())) } as any);
+      await db.kv.put({ id: 'image_cache_map', value: JSON.stringify(Array.from(this.resolvedLocalUrls.entries())) });
     } catch (e) {
       // Ignore save errors
     }
