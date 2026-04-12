@@ -294,7 +294,7 @@ export const SwipeableArticle = React.memo(function SwipeableArticle({
           "opacity-100"
         )}
       >
-        <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[90%] h-[1.5px] bg-gradient-to-r from-transparent via-[var(--theme-color)] to-transparent opacity-60 shadow-[0_0_10px_rgba(var(--theme-color-rgb),0.3)]" />
+        <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[90%] h-[1.5px] bg-gradient-to-r from-transparent via-blue-500 to-transparent opacity-60 shadow-[0_0_10px_rgba(59,130,246,0.5)]" />
         <div className={cn("flex gap-2", article.type === 'podcast' ? "flex-row items-start" : "flex-col gap-1.5")}>
           {/* Image */}
           {(article.imageUrl || (article.type === 'podcast' && feedImageUrl)) && (article.type === 'podcast' || settings.imageDisplay !== 'none') && (

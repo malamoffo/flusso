@@ -121,6 +121,7 @@ export const TelegramThreadView = memo(({ channel, messages, onClose, onRefresh 
                 />
               )}
               <p className="text-xs text-gray-500 mt-2">{format(message.date, 'HH:mm dd/MM/yy')}</p>
+              <div className="mt-4 w-[90%] h-[1.5px] mx-auto bg-gradient-to-r from-transparent via-green-500 to-transparent opacity-60 shadow-[0_0_10px_rgba(34,197,94,0.5)]" />
             </div>
           ))
         )}

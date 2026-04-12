@@ -98,6 +98,10 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const telegramMessagesRef = useRef<Record<string, TelegramMessage[]>>({});
 
   useEffect(() => {
+    loadData();
+  }, []);
+
+  useEffect(() => {
     articlesRef.current = articles;
     feedsRef.current = feeds;
     subredditsRef.current = subreddits;
@@ -525,6 +529,11 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setError(null);
       const cleanUsername = username.replace('@', '').replace('https://t.me/', '').split('/')[0].trim();
       
+      const existing = telegramChannels.find(c => c.username.toLowerCase() === cleanUsername.toLowerCase());
+      if (existing) {
+        throw new Error("Sei già iscritto a questo canale Telegram.");
+      }
+      
       const [messages, info] = await Promise.all([
         fetchTelegramMessages(cleanUsername),
         fetchTelegramChannelInfo(cleanUsername)
@@ -579,6 +588,10 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
 
       if (isSubreddit) {
+        const existing = subreddits.find(s => s.name.toLowerCase() === cleanName.toLowerCase());
+        if (existing) {
+          throw new Error("Sei già iscritto a questo subreddit.");
+        }
         const result = await storage.addSubreddit(cleanName);
         if (!result) {
           throw new Error("Impossibile trovare il subreddit. Controlla il nome.");
