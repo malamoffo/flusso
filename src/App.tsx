@@ -203,21 +203,31 @@ export default function App() {
     });
   }, [redditPosts, deferredSearchQuery]);
 
-  const filteredTelegramChannels = useMemo(() => {
+  const sortedTelegramChannels = useMemo(() => {
     const query = deferredSearchQuery.toLowerCase();
-    return telegramChannels.filter(channel => {
-      if (query) {
-        const matchesQuery = channel.name.toLowerCase().includes(query) || 
-                            (channel.username?.toLowerCase().includes(query) ?? false);
-        if (!matchesQuery) return false;
-      }
-      return true;
-    });
+    return [...telegramChannels]
+      .sort((a, b) => (b.lastMessageDate || 0) - (a.lastMessageDate || 0))
+      .filter(channel => {
+        if (query) {
+          const matchesQuery = channel.name.toLowerCase().includes(query) || 
+                              (channel.username?.toLowerCase().includes(query) ?? false);
+          if (!matchesQuery) return false;
+        }
+        return true;
+      });
   }, [telegramChannels, deferredSearchQuery]);
   
   useEffect(() => {
     setVisibleCount(30);
   }, [filter, deferredSearchQuery, inboxUnreadOnly, savedUnreadOnly, inboxTypeFilter, savedTypeFilter, sourceFilter, timeFilter]);
+
+  useEffect(() => {
+    if (filter === 'reddit' && subreddits.length > 0) {
+      refreshReddit();
+    } else if (filter === 'telegram' && telegramChannels.length > 0) {
+      refreshTelegramChannels();
+    }
+  }, [filter]);
 
   useEffect(() => {
     if (selectedTelegramChannel) {
@@ -286,7 +296,9 @@ export default function App() {
 
   useEffect(() => {
     const handleBackButton = async ({ canGoBack }: any) => {
-      if (selectedArticle) {
+      if (selectedTelegramChannel) {
+        setSelectedTelegramChannel(null);
+      } else if (selectedArticle) {
         setSelectedArticle(null);
       } else if (selectedRedditPost) {
         setSelectedRedditPost(null);
@@ -869,7 +881,7 @@ export default function App() {
         />
         <TelegramListView
           isActive={filter === 'telegram'}
-          channels={filteredTelegramChannels}
+          channels={sortedTelegramChannels}
           onChannelClick={(channel) => {
             setSelectedTelegramChannel(channel);
             markTelegramChannelAsRead(channel.id);

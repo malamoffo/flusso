@@ -324,8 +324,8 @@ public class AndroidAutoService extends MediaBrowserServiceCompat {
                     mediaItems.add(new MediaBrowserCompat.MediaItem(
                             new MediaDescriptionCompat.Builder()
                                     .setMediaId(QUEUE_ID)
-                                    .setTitle("Coda")
-                                    .setSubtitle("I podcast in coda")
+                                    .setTitle("In riproduzione")
+                                    .setSubtitle("L'episodio in riproduzione")
                                     .build(), 
                             MediaBrowserCompat.MediaItem.FLAG_BROWSABLE));
                             

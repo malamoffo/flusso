@@ -300,7 +300,7 @@ export const SwipeableArticle = React.memo(function SwipeableArticle({
           {(article.imageUrl || (article.type === 'podcast' && feedImageUrl)) && (article.type === 'podcast' || settings.imageDisplay !== 'none') && (
             <CachedImage 
               key={`${article.id}-${article.imageUrl}`}
-              src={getSafeUrl(article.imageUrl || feedImageUrl!)}
+              src={getSafeUrl(article.imageUrl || (article.type === 'podcast' ? feedImageUrl! : ''))}
               alt="" 
               className={cn(
                 "rounded-lg flex-shrink-0 bg-gray-800 transition-opacity",

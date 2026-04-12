@@ -34,8 +34,12 @@ export const TelegramListView = memo(({ isActive, channels, onChannelClick, onMa
             <path d="M21.5 2L2 11.5l6.5 2.5 2 6.5L14 17l5.5 4.5L21.5 2z"></path>
             <path d="M21.5 2L8.5 14"></path>
           </svg>
-          <p className="text-lg font-medium text-white mb-1">No Telegram channels</p>
-          <p className="text-sm">Add a channel in settings to see messages here.</p>
+          <p className="text-lg font-medium text-white mb-1">
+            {filter === 'unread' ? "No unread messages" : "No Telegram channels"}
+          </p>
+          <p className="text-sm">
+            {filter === 'unread' ? "You're all caught up!" : "Add a channel in settings to see messages here."}
+          </p>
         </div>
       ) : (
         <div className="flex-1 max-w-3xl mx-auto px-1 py-1">

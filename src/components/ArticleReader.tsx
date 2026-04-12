@@ -112,6 +112,7 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
   const [fullContent, setFullContent] = useState<FullArticleContent | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [articleThemeColor, setArticleThemeColor] = useState<string | null>(null);
+  const [readerImageUrl, setReaderImageUrl] = useState<string | null>(article.imageUrl || null);
   const { settings, feeds, articles, toggleFavorite, toggleQueue, toggleRead, updateArticle } = useRss();
   const feed = feeds.find(f => f.id === article.feedId);
   const { play, currentTrack, isPlaying, isBuffering, toggle, seek } = useAudioState();
@@ -131,14 +132,16 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
   useEffect(() => {
     setIsFavorite(article.isFavorite);
     setIsQueued(article.isQueued);
-  }, [article.isFavorite, article.isQueued]);
+    setReaderImageUrl(article.imageUrl || null);
+  }, [article.id, article.isFavorite, article.isQueued, article.imageUrl]);
 
   useEffect(() => {
-    if (article.imageUrl) {
+    const displayImage = readerImageUrl || (article.type === 'podcast' ? feed?.imageUrl : null);
+    if (displayImage) {
       const img = new Image();
       img.crossOrigin = "Anonymous";
       // Use proxy to bypass CORS for image color extraction
-      img.src = `https://api.allorigins.win/raw?url=${encodeURIComponent(article.imageUrl)}`;
+      img.src = `https://api.allorigins.win/raw?url=${encodeURIComponent(displayImage)}`;
       img.onload = () => {
         try {
           const color = getColorSync(img);
@@ -151,8 +154,8 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
       };
       img.onerror = () => {
         // Fallback to direct URL if proxy fails (might work if CORS is allowed)
-        if (img.src !== article.imageUrl) {
-          img.src = article.imageUrl;
+        if (img.src !== displayImage) {
+          img.src = displayImage;
         } else {
           setArticleThemeColor(null);
         }
@@ -160,7 +163,7 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
     } else {
       setArticleThemeColor(null);
     }
-  }, [article.imageUrl]);
+  }, [readerImageUrl, article.type, feed?.imageUrl]);
 
   const readTime = fullContent?.textContent ? Math.max(1, Math.ceil(fullContent.textContent.split(/\s+/).length / 200)) : 1;
   const formattedDate = new Date(article.pubDate).toLocaleString('it-IT', {
@@ -259,12 +262,12 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
             contentFetcher.setCachedContent(article.id, contentToSave);
             
             // If the article doesn't have an image, try to extract one from the full content
-            if (!article.imageUrl && contentToSave.content) {
+            if (!readerImageUrl && contentToSave.content) {
               const newImageUrl = extractBestImage(contentToSave.content, article.link);
               if (newImageUrl) {
                 const safeUrl = getSafeUrl(newImageUrl, '');
                 if (safeUrl) {
-                  updateArticle(article.id, { imageUrl: safeUrl });
+                  setReaderImageUrl(safeUrl);
                 }
               }
             }
@@ -478,10 +481,10 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
 
       {/* Article Content */}
       <div className="relative z-10 flex-1 px-4 pt-6 pb-12 max-w-3xl mx-auto w-full">
-        {(article.imageUrl || (article.type === 'podcast' && feed?.imageUrl)) && (
+        {(readerImageUrl || (article.type === 'podcast' && feed?.imageUrl)) && (
           <CachedImage 
-            key={`${article.id}-${article.imageUrl}`}
-            src={getSafeUrl(article.imageUrl || (article.type === 'podcast' ? feed?.imageUrl : '') || '')}
+            key={`${article.id}-${readerImageUrl || feed?.imageUrl}`}
+            src={getSafeUrl(readerImageUrl || (article.type === 'podcast' ? feed?.imageUrl : '') || '')}
             alt="" 
             className="w-full h-auto rounded-2xl mb-4 object-contain max-h-[80vh]"
             referrerPolicy="no-referrer"

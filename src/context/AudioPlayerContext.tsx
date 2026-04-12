@@ -66,12 +66,12 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
       };
 
       QueuePlugin.setQueue({ 
-        queue: queue.map(mapTrack),
+        queue: currentTrack ? [mapTrack(currentTrack)] : [],
         recent: recentPodcasts.map(mapTrack),
         favorites: favoritePodcasts.map(mapTrack)
       }).catch(console.error);
     }
-  }, [queue, recentPodcasts, favoritePodcasts, feeds]);
+  }, [currentTrack, recentPodcasts, favoritePodcasts, feeds]);
 
   const playNextRef = useRef<() => void>(() => {});
 

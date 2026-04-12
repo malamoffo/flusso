@@ -16,7 +16,40 @@ interface PodcastSearchResult {
   genres: string[];
   trackCount?: number;
   collectionExplicitness?: string;
+  releaseDate?: string;
+  primaryGenreName?: string;
 }
+
+const CATEGORIES = [
+  'All',
+  'Arts',
+  'Business',
+  'Comedy',
+  'Education',
+  'Fiction',
+  'Government',
+  'History',
+  'Health & Fitness',
+  'Kids & Family',
+  'Leisure',
+  'Music',
+  'News',
+  'Religion & Spirituality',
+  'Science',
+  'Society & Culture',
+  'Sports',
+  'Technology',
+  'True Crime',
+  'TV & Film'
+];
+
+const DATE_FILTERS = [
+  { label: 'Any time', value: 'all' },
+  { label: 'Last 7 days', value: 'week' },
+  { label: 'Last 30 days', value: 'month' },
+  { label: 'Last 90 days', value: 'quarter' },
+  { label: 'Last year', value: 'year' }
+];
 
 export const PodcastSearchModal = React.memo(function PodcastSearchModal({ 
   isOpen, 
@@ -36,6 +69,8 @@ export const PodcastSearchModal = React.memo(function PodcastSearchModal({
   const [addingId, setAddingId] = useState<number | null>(null);
   const [selectedFeedDetails, setSelectedFeedDetails] = useState<Feed | null>(null);
   const [isFetchingDetails, setIsFetchingDetails] = useState<number | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState('All');
+  const [selectedDateFilter, setSelectedDateFilter] = useState('all');
 
   // Debounce query
   useEffect(() => {
@@ -45,30 +80,36 @@ export const PodcastSearchModal = React.memo(function PodcastSearchModal({
     return () => clearTimeout(timer);
   }, [query]);
 
-  // Auto-search when debounced query changes
+  const searchPodcasts = async (searchTerm: string) => {
+    setIsSearching(true);
+    setError(null);
+    try {
+      const response = await fetch(`https://itunes.apple.com/search?media=podcast&term=${encodeURIComponent(searchTerm)}&limit=50`);
+      if (!response.ok) throw new Error('Search failed');
+      const data = await response.json();
+      setResults(data.results || []);
+    } catch (err) {
+      setError('Failed to search podcasts. Please try again.');
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  // Auto-search when debounced query or filters change
   useEffect(() => {
-    if (!debouncedQuery.trim()) {
-      setResults([]);
-      return;
+    const searchTerm = debouncedQuery.trim() || (selectedCategory !== 'All' ? selectedCategory : '');
+    
+    if (!searchTerm && !debouncedQuery.trim()) {
+      // If absolutely no search term and no query, don't auto-search unless we want "top" results
+      // For now, let's only auto-search if there's at least a category or query
+      if (selectedCategory === 'All') {
+        setResults([]);
+        return;
+      }
     }
 
-    const searchPodcasts = async () => {
-      setIsSearching(true);
-      setError(null);
-      try {
-        const response = await fetch(`https://itunes.apple.com/search?media=podcast&term=${encodeURIComponent(debouncedQuery)}&limit=20`);
-        if (!response.ok) throw new Error('Search failed');
-        const data = await response.json();
-        setResults(data.results || []);
-      } catch (err) {
-        setError('Failed to search podcasts. Please try again.');
-      } finally {
-        setIsSearching(false);
-      }
-    };
-
-    searchPodcasts();
-  }, [debouncedQuery]);
+    searchPodcasts(searchTerm || 'podcast');
+  }, [debouncedQuery, selectedCategory]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -76,12 +117,15 @@ export const PodcastSearchModal = React.memo(function PodcastSearchModal({
       setDebouncedQuery('');
       setResults([]);
       setError(null);
+      setSelectedCategory('All');
+      setSelectedDateFilter('all');
     }
   }, [isOpen]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    // Search is handled by the useEffect on debouncedQuery
+    const searchTerm = query.trim() || (selectedCategory !== 'All' ? selectedCategory : 'podcast');
+    searchPodcasts(searchTerm);
   };
 
   const handleAdd = async (feedUrl: string, collectionId: number) => {
@@ -133,6 +177,29 @@ export const PodcastSearchModal = React.memo(function PodcastSearchModal({
     }
   };
 
+  const filteredResults = results.filter(podcast => {
+    // Category filter
+    if (selectedCategory !== 'All') {
+      const matchesCategory = podcast.genres?.some(g => g.toLowerCase().includes(selectedCategory.toLowerCase())) || 
+                             podcast.primaryGenreName?.toLowerCase().includes(selectedCategory.toLowerCase());
+      if (!matchesCategory) return false;
+    }
+
+    // Date filter
+    if (selectedDateFilter !== 'all' && podcast.releaseDate) {
+      const releaseDate = new Date(podcast.releaseDate).getTime();
+      const now = Date.now();
+      const diffDays = (now - releaseDate) / (1000 * 60 * 60 * 24);
+
+      if (selectedDateFilter === 'week' && diffDays > 7) return false;
+      if (selectedDateFilter === 'month' && diffDays > 30) return false;
+      if (selectedDateFilter === 'quarter' && diffDays > 90) return false;
+      if (selectedDateFilter === 'year' && diffDays > 365) return false;
+    }
+
+    return true;
+  });
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -166,7 +233,7 @@ export const PodcastSearchModal = React.memo(function PodcastSearchModal({
             </div>
 
             <form onSubmit={handleSearch} className="mb-4 shrink-0">
-              <div className="relative">
+              <div className="relative mb-3">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   <Search className="h-5 w-5 text-gray-500" />
                 </div>
@@ -188,6 +255,44 @@ export const PodcastSearchModal = React.memo(function PodcastSearchModal({
                   </button>
                 )}
               </div>
+
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
+                  <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider shrink-0">Category:</span>
+                  {CATEGORIES.map(cat => (
+                    <button
+                      key={cat}
+                      type="button"
+                      onClick={() => setSelectedCategory(cat)}
+                      className={`px-3 py-1 rounded-full text-xs whitespace-nowrap transition-colors ${
+                        selectedCategory === cat 
+                          ? 'bg-indigo-600 text-white' 
+                          : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                      }`}
+                    >
+                      {cat}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
+                  <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider shrink-0">Last Episode:</span>
+                  {DATE_FILTERS.map(filter => (
+                    <button
+                      key={filter.value}
+                      type="button"
+                      onClick={() => setSelectedDateFilter(filter.value)}
+                      className={`px-3 py-1 rounded-full text-xs whitespace-nowrap transition-colors ${
+                        selectedDateFilter === filter.value 
+                          ? 'bg-indigo-600 text-white' 
+                          : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                      }`}
+                    >
+                      {filter.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </form>
 
             {error && (
@@ -202,9 +307,9 @@ export const PodcastSearchModal = React.memo(function PodcastSearchModal({
                   <Loader2 className="w-8 h-8 animate-spin mb-2" />
                   <p>Searching...</p>
                 </div>
-              ) : results.length > 0 ? (
+              ) : filteredResults.length > 0 ? (
                 <div className="space-y-3">
-                  {results.map(podcast => {
+                  {filteredResults.map(podcast => {
                     const isSubscribed = feeds.some(f => f.feedUrl === podcast.feedUrl);
                     const isFetching = isFetchingDetails === podcast.collectionId;
                     
@@ -242,6 +347,11 @@ export const PodcastSearchModal = React.memo(function PodcastSearchModal({
                             {podcast.artistName}
                             {podcast.trackCount ? ` • ${podcast.trackCount} eps` : ''}
                           </p>
+                          {podcast.releaseDate && (
+                            <p className="text-[10px] text-gray-500 mt-0.5">
+                              Last episode: {new Date(podcast.releaseDate).toLocaleDateString('it-IT')}
+                            </p>
+                          )}
                         </div>
                         <div className="flex flex-wrap gap-1 mb-3 cursor-pointer" onClick={() => handlePodcastClick(podcast)}>
                           {podcast.genres?.slice(0, 2).map(genre => (
@@ -273,7 +383,7 @@ export const PodcastSearchModal = React.memo(function PodcastSearchModal({
                 </div>
               ) : query && !isSearching ? (
                 <div className="flex flex-col items-center justify-center h-full text-gray-500">
-                  <p>No podcasts found.</p>
+                  <p>No podcasts found with these filters.</p>
                 </div>
               ) : !query ? (
                 <div className="flex flex-col items-center justify-center h-full text-gray-600">
