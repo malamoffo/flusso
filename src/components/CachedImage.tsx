@@ -4,9 +4,8 @@ import { imagePersistence } from '../utils/imagePersistence';
 import { Capacitor } from '@capacitor/core';
 import { FileText } from 'lucide-react';
 
-// Global set to track images that have already been loaded in this session
-// We store the final resolved URL here
-const loadedFinalUrls = new Set<string>();
+// Persistent cache for image URLs to avoid re-rendering on section change
+// Now using imagePersistence.memoryCache and imagePersistence.loadedUrls
 
 type CachedImageProps = React.ImgHTMLAttributes<HTMLImageElement> & {
   src: string;
@@ -16,6 +15,7 @@ type CachedImageProps = React.ImgHTMLAttributes<HTMLImageElement> & {
 export function CachedImage({ src, className, fallback, alt, ...props }: CachedImageProps) {
   const [currentSrc, setCurrentSrc] = useState<string | null>(() => {
     if (!src) return null;
+    if (imagePersistence.memoryCache.has(src)) return imagePersistence.memoryCache.get(src)!;
     if (imagePersistence.resolvedLocalUrls.has(src)) return imagePersistence.resolvedLocalUrls.get(src)!;
     // On native, use remote src as initial value to avoid blank space while checking cache
     return src;
@@ -24,9 +24,9 @@ export function CachedImage({ src, className, fallback, alt, ...props }: CachedI
   const [isLoaded, setIsLoaded] = useState(() => {
     if (!src) return false;
     if (imagePersistence.resolvedLocalUrls.has(src)) {
-      return loadedFinalUrls.has(imagePersistence.resolvedLocalUrls.get(src)!);
+      return imagePersistence.loadedUrls.has(imagePersistence.resolvedLocalUrls.get(src)!);
     }
-    return loadedFinalUrls.has(src);
+    return imagePersistence.loadedUrls.has(src);
   });
   
   const [error, setError] = useState(false);
@@ -41,15 +41,20 @@ export function CachedImage({ src, className, fallback, alt, ...props }: CachedI
       return;
     }
 
-    if (imagePersistence.resolvedLocalUrls.has(src)) {
+    if (imagePersistence.memoryCache.has(src)) {
+      const cached = imagePersistence.memoryCache.get(src)!;
+      setCurrentSrc(cached);
+      setIsLoaded(imagePersistence.loadedUrls.has(cached));
+      setError(false);
+    } else if (imagePersistence.resolvedLocalUrls.has(src)) {
       const local = imagePersistence.resolvedLocalUrls.get(src)!;
       setCurrentSrc(local);
-      setIsLoaded(loadedFinalUrls.has(local));
+      setIsLoaded(imagePersistence.loadedUrls.has(local));
       setError(false);
     } else {
       // Use remote src as initial value
       setCurrentSrc(src);
-      setIsLoaded(loadedFinalUrls.has(src));
+      setIsLoaded(imagePersistence.loadedUrls.has(src));
       setError(false);
     }
   }, [src]);
@@ -66,7 +71,7 @@ export function CachedImage({ src, className, fallback, alt, ...props }: CachedI
           const cachedUri = await imagePersistence.getCachedUrl(src);
           if (cachedUri && isMounted) {
             setCurrentSrc(cachedUri);
-            setIsLoaded(loadedFinalUrls.has(cachedUri));
+            setIsLoaded(imagePersistence.loadedUrls.has(cachedUri));
           } else if (isMounted) {
             // Not cached locally yet. Already using remote URL.
             // Trigger background download for next time
@@ -85,14 +90,15 @@ export function CachedImage({ src, className, fallback, alt, ...props }: CachedI
   // Check if image is already complete on mount or src change
   useEffect(() => {
     if (imgRef.current?.complete && currentSrc && !isLoaded) {
-      loadedFinalUrls.add(currentSrc);
+      imagePersistence.loadedUrls.add(currentSrc);
       setIsLoaded(true);
     }
   }, [currentSrc, isLoaded]);
 
   const handleLoad = () => {
     if (currentSrc) {
-      loadedFinalUrls.add(currentSrc);
+      imagePersistence.loadedUrls.add(currentSrc);
+      if (src) imagePersistence.memoryCache.set(src, currentSrc);
     }
     setIsLoaded(true);
   };

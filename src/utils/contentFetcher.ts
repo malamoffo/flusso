@@ -1,10 +1,8 @@
 import { CapacitorHttp } from '@capacitor/core';
 import { fetchWithProxy } from './proxy';
 import { Readability } from '@mozilla/readability';
-import { get, set } from 'idb-keyval';
 import { FullArticleContent } from '../types';
-
-const CONTENT_PREFIX = 'article_content_';
+import { db } from '../services/db';
 
 class ContentFetcherQueue {
   private queue: { id: string, url: string }[] = [];
@@ -12,11 +10,11 @@ class ContentFetcherQueue {
   private maxConcurrent = 2; // Reduced concurrency to avoid rate limits
 
   async getCachedContent(articleId: string): Promise<FullArticleContent | null> {
-    return await get<FullArticleContent>(`${CONTENT_PREFIX}${articleId}`) || null;
+    return await db.articleContents.get(articleId) || null;
   }
 
   async setCachedContent(articleId: string, content: FullArticleContent): Promise<void> {
-    await set(`${CONTENT_PREFIX}${articleId}`, content);
+    await db.articleContents.put({ id: articleId, ...content });
   }
 
   enqueue(articleId: string, url: string) {

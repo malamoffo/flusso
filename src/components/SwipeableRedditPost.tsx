@@ -8,6 +8,8 @@ import { cn, getSafeUrl } from '../lib/utils';
 import { CachedImage } from './CachedImage';
 import DOMPurify from 'dompurify';
 
+import { storage } from '../services/storage';
+
 interface SwipeableRedditPostProps {
   post: RedditPost;
   settings: Settings;
@@ -39,8 +41,15 @@ export const SwipeableRedditPost = React.memo(function SwipeableRedditPost({
   
   const { ref, inView, entry } = useInView({
     threshold: 0,
-    rootMargin: '-120px 0px 0px 0px',
+    rootMargin: '200px 0px',
   });
+
+  React.useEffect(() => {
+    if (inView && post.permalink) {
+      // Prefetch comments in background
+      storage.fetchRedditComments(post.permalink).catch(() => {});
+    }
+  }, [inView, post.permalink]);
 
   React.useEffect(() => {
     // Reddit posts are now always shown as unread, so we don't need to mark them as read on scroll

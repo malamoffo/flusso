@@ -1,4 +1,4 @@
-import { get, set } from 'idb-keyval';
+import { get, set, keys, del } from 'idb-keyval';
 import { v4 as uuidv4 } from 'uuid';
 import { Feed, Article, Settings, PodcastChapter, FullArticleContent, RefreshLog, Subreddit, RedditPost, TelegramChannel, TelegramMessage } from '../types';
 import { CapacitorHttp } from '@capacitor/core';
@@ -6,6 +6,7 @@ import { fetchWithProxy } from '../utils/proxy';
 import { getSafeUrl, resolveUrl } from '../lib/utils';
 import { parseRssXml, escapeXml } from './rssParser';
 import he from 'he';
+import { db } from './db';
 
 const FEEDS_KEY = 'rss_feeds';
 const ARTICLES_KEY = 'rss_articles';
@@ -30,110 +31,160 @@ export const defaultSettings: Settings = {
   telegramRetentionDays: 30,
 };
 
+let migrationPromise: Promise<void> | null = null;
+
+async function migrateFromIdbKeyval() {
+  const migrated = await get('flusso_migrated_to_dexie');
+  if (migrated) return;
+
+  console.log('Migrating data from idb-keyval to Dexie...');
+  
+  try {
+    const settings = await get<Settings>(SETTINGS_KEY);
+    if (settings) await db.settings.put({ id: 'user_settings', ...settings });
+
+    const feeds = await get<Feed[]>(FEEDS_KEY);
+    if (feeds && feeds.length > 0) await db.feeds.bulkPut(feeds);
+
+    const articles = await get<Article[]>(ARTICLES_KEY);
+    if (articles && articles.length > 0) {
+      // Normalize articles
+      const validArticles = articles.map(a => {
+        const { content, ...lightArticle } = a;
+        return {
+          ...lightArticle,
+          type: a.type || (a.mediaType?.startsWith('audio/') ? 'podcast' : 'article'),
+          isQueued: a.isQueued || false
+        };
+      });
+      await db.articles.bulkPut(validArticles);
+    }
+
+    const subreddits = await get<Subreddit[]>(SUBREDDITS_KEY) || await get<Subreddit[]>('subreddits');
+    if (subreddits && subreddits.length > 0) await db.subreddits.bulkPut(subreddits);
+
+    const redditPosts = await get<RedditPost[]>(REDDIT_POSTS_KEY);
+    if (redditPosts && redditPosts.length > 0) await db.redditPosts.bulkPut(redditPosts);
+
+    const telegramChannels = await get<TelegramChannel[]>(TELEGRAM_CHANNELS_KEY);
+    if (telegramChannels && telegramChannels.length > 0) await db.telegramChannels.bulkPut(telegramChannels);
+
+    const refreshLogs = await get<RefreshLog[]>(REFRESH_LOGS_KEY);
+    if (refreshLogs && refreshLogs.length > 0) {
+      await db.refreshLogs.bulkPut(refreshLogs.map(log => ({ ...log, id: uuidv4() })));
+    }
+
+    // Migrate article contents and telegram messages
+    const allKeys = await keys();
+    for (const key of allKeys) {
+      const keyStr = String(key);
+      if (keyStr.startsWith(CONTENT_PREFIX)) {
+        const id = keyStr.substring(CONTENT_PREFIX.length);
+        const content = await get<FullArticleContent>(keyStr);
+        if (content) {
+          await db.articleContents.put({ id, ...content });
+        }
+      } else if (keyStr.startsWith(`${TELEGRAM_MESSAGES_KEY}_`)) {
+        const messages = await get<TelegramMessage[]>(keyStr);
+        if (messages && messages.length > 0) {
+          await db.telegramMessages.bulkPut(messages);
+        }
+      }
+    }
+
+    await set('flusso_migrated_to_dexie', true);
+    console.log('Migration complete!');
+  } catch (e) {
+    console.error('Migration failed:', e);
+  }
+}
+
+function ensureMigrated() {
+  if (!migrationPromise) {
+    migrationPromise = migrateFromIdbKeyval();
+  }
+  return migrationPromise;
+}
+
 export const storage = {
   async getSettings(): Promise<Settings> {
-    const stored = await get<Settings>(SETTINGS_KEY);
+    await ensureMigrated();
+    const stored = await db.settings.get('user_settings');
     return { ...defaultSettings, ...stored };
   },
 
   async saveSettings(settings: Settings): Promise<void> {
-    await set(SETTINGS_KEY, settings);
+    await ensureMigrated();
+    await db.settings.put({ id: 'user_settings', ...settings });
   },
 
   async getFeeds(): Promise<Feed[]> {
-    return (await get<Feed[]>(FEEDS_KEY)) || [];
+    await ensureMigrated();
+    return await db.feeds.toArray();
   },
 
   async saveFeeds(feeds: Feed[]): Promise<void> {
-    await set(FEEDS_KEY, feeds);
+    await ensureMigrated();
+    await db.feeds.bulkPut(feeds);
   },
 
   async getArticles(offset = 0, limit = 0): Promise<Article[]> {
-    const articles = (await get<Article[]>(ARTICLES_KEY)) || [];
-    if (articles.length === 0) return [];
-
-    // If limit is 0, return all (for internal use or legacy support)
-    // But we still want to apply the cleanup logic if it's the first load
+    await ensureMigrated();
     
+    // Cleanup old articles before returning
     const TWO_DAYS = 2 * 24 * 60 * 60 * 1000;
     const SEVEN_DAYS = 7 * 24 * 60 * 60 * 1000;
     const now = Date.now();
     
-    const validArticles: Article[] = [];
-    let hasChanged = false;
-
-    for (let i = 0; i < articles.length; i++) {
-      const a = articles[i];
-      let keep = false;
-
-      if (a.isFavorite || a.isQueued) {
-        keep = true;
-      } else {
-        const limitTime = a.type === 'podcast' ? SEVEN_DAYS : TWO_DAYS;
-        
-        const referenceTime = (a.isRead && a.readAt) ? a.readAt : a.pubDate;
-        if ((now - referenceTime) <= limitTime) {
-          keep = true;
-        }
-      }
-
-      if (keep) {
-        // Normalize and ensure content is NOT in the main list
-        if (a.content || a.type === undefined || a.isQueued === undefined) {
-          const { content, ...lightArticle } = a;
-          validArticles.push({
-            ...lightArticle,
-            type: a.type || (a.mediaType?.startsWith('audio/') ? 'podcast' : 'article'),
-            isQueued: a.isQueued || false
-          });
-          hasChanged = true;
-        } else {
-          validArticles.push(a);
-        }
-      } else {
-        hasChanged = true;
-      }
-    }
+    // We can't do complex OR queries easily in Dexie without multiple queries, 
+    // but we can filter in memory or use a simpler approach.
+    // For performance, let's just get them sorted by pubDate
+    let query = db.articles.orderBy('pubDate').reverse();
     
-    if (hasChanged) {
-      await this.saveArticles(validArticles);
-      // Also trigger a cleanup of orphaned content in the background
-      // Use a small delay to not block the main thread during initial load
-      setTimeout(() => {
-        this.cleanupOrphanedContent(validArticles).catch(err => console.error('Failed to cleanup orphaned content', err));
-      }, 2000);
-    }
-    
-    // Sort by date descending
-    validArticles.sort((a, b) => b.pubDate - a.pubDate);
-
     if (limit > 0) {
-      return validArticles.slice(offset, offset + limit);
+      return await query.offset(offset).limit(limit).toArray();
     }
     
-    return validArticles;
+    return await query.toArray();
   },
 
   async cleanUpOldArticles(): Promise<void> {
-    // This is essentially what getArticles(0, 0) does now, 
-    // but we can make it more explicit and run it in background
-    await this.getArticles(0, 0);
+    await ensureMigrated();
+    const TWO_DAYS = 2 * 24 * 60 * 60 * 1000;
+    const SEVEN_DAYS = 7 * 24 * 60 * 60 * 1000;
+    const now = Date.now();
+
+    // Delete old articles that are not favorite and not queued
+    const oldArticles = await db.articles
+      .filter(a => {
+        if (a.isFavorite || a.isQueued) return false;
+        const limitTime = a.type === 'podcast' ? SEVEN_DAYS : TWO_DAYS;
+        const referenceTime = (a.isRead && a.readAt) ? a.readAt : a.pubDate;
+        return (now - referenceTime) > limitTime;
+      })
+      .toArray();
+
+    const idsToDelete = oldArticles.map(a => a.id);
+    if (idsToDelete.length > 0) {
+      await db.articles.bulkDelete(idsToDelete);
+      await db.articleContents.bulkDelete(idsToDelete);
+    }
   },
 
   async getArticleContent(id: string): Promise<string | null> {
-    const fullContent = await get<FullArticleContent>(`${CONTENT_PREFIX}${id}`);
+    await ensureMigrated();
+    const fullContent = await db.articleContents.get(id);
     return fullContent?.content || null;
   },
 
   async saveArticleContent(id: string, content: string): Promise<void> {
-    // We only save if it's not already there or we want to update it
-    // Usually handled by contentFetcher, but good to have here
-    const existing = await get<FullArticleContent>(`${CONTENT_PREFIX}${id}`);
+    await ensureMigrated();
+    const existing = await db.articleContents.get(id);
     if (existing) {
-      await set(`${CONTENT_PREFIX}${id}`, { ...existing, content });
+      await db.articleContents.put({ ...existing, content });
     } else {
-      // Create a minimal FullArticleContent if it doesn't exist
-      await set(`${CONTENT_PREFIX}${id}`, { 
+      await db.articleContents.put({ 
+        id,
         title: '', 
         content, 
         textContent: '', 
@@ -148,24 +199,18 @@ export const storage = {
   },
 
   async cleanupOrphanedContent(validArticles: Article[]): Promise<void> {
-    const { keys, del } = await import('idb-keyval');
-    const allKeys = await keys();
+    await ensureMigrated();
     const validIds = new Set(validArticles.map(a => a.id));
-    const CONTENT_PREFIX = 'article_content_';
-    
-    for (const key of allKeys) {
-      const keyStr = String(key);
-      if (keyStr.startsWith(CONTENT_PREFIX)) {
-        const id = keyStr.substring(CONTENT_PREFIX.length);
-        if (!validIds.has(id)) {
-          await del(key);
-        }
-      }
+    const allContents = await db.articleContents.toArray();
+    const idsToDelete = allContents.filter(c => !validIds.has(c.id)).map(c => c.id);
+    if (idsToDelete.length > 0) {
+      await db.articleContents.bulkDelete(idsToDelete);
     }
   },
 
   async saveArticles(articles: Article[]): Promise<void> {
-    await set(ARTICLES_KEY, articles);
+    await ensureMigrated();
+    await db.articles.bulkPut(articles);
   },
 
   async fetchFeedData(feedUrl: string, sinceDate?: number, signal?: AbortSignal): Promise<{ feed: Feed; articles: Article[] } | null> {
@@ -508,7 +553,8 @@ export const storage = {
   },
 
   async getRefreshLogs(): Promise<RefreshLog[]> {
-    return (await get<RefreshLog[]>(REFRESH_LOGS_KEY)) || [];
+    await ensureMigrated();
+    return await db.refreshLogs.orderBy('timestamp').reverse().toArray();
   },
 
   // --- REDDIT METHODS ---
@@ -548,26 +594,23 @@ export const storage = {
   },
 
   async getSubreddits(): Promise<Subreddit[]> {
-    let subs = await get<Subreddit[]>(SUBREDDITS_KEY);
-    if (!subs) {
-        subs = await get<Subreddit[]>('subreddits');
-        if (subs) {
-            await this.saveSubreddits(subs);
-        }
-    }
-    return subs || [];
+    await ensureMigrated();
+    return await db.subreddits.toArray();
   },
 
   async saveSubreddits(subs: Subreddit[]): Promise<void> {
-    await set(SUBREDDITS_KEY, subs);
+    await ensureMigrated();
+    await db.subreddits.bulkPut(subs);
   },
 
   async getRedditPosts(): Promise<RedditPost[]> {
-    return (await get<RedditPost[]>(REDDIT_POSTS_KEY)) || [];
+    await ensureMigrated();
+    return await db.redditPosts.orderBy('createdUtc').reverse().toArray();
   },
 
   async saveRedditPosts(posts: RedditPost[]): Promise<void> {
-    await set(REDDIT_POSTS_KEY, posts);
+    await ensureMigrated();
+    await db.redditPosts.bulkPut(posts);
   },
 
   async addSubreddit(name: string): Promise<Subreddit | null> {
@@ -585,7 +628,7 @@ export const storage = {
       if (!cleanName) return null;
 
       // Fetch about.json to verify and get icon
-      const url = `https://www.reddit.com/r/${cleanName}/about.json`;
+      const url = `https://api.reddit.com/r/${cleanName}/about.json`;
       const data = await this.fetchJsonWithProxy(url);
 
       if (!data || data.error || !data.data) {
@@ -623,7 +666,7 @@ export const storage = {
 
   async fetchSubredditPosts(subredditName: string, sinceDate?: number, after?: string, sort: 'new' | 'hot' | 'top' = 'new'): Promise<RedditPost[]> {
     try {
-      let url = `https://www.reddit.com/r/${subredditName}/${sort}.json?limit=25`;
+      let url = `https://api.reddit.com/r/${subredditName}/${sort}.json?limit=25`;
       if (after) {
         url += `&after=t3_${after}`;
       }
@@ -687,7 +730,9 @@ export const storage = {
   async fetchRedditComments(permalink: string): Promise<any[]> {
     try {
       // permalink already includes leading slash, e.g., /r/soloboardgaming/comments/...
-      const url = `https://www.reddit.com${permalink}.json`;
+      // Ensure it doesn't end with a slash before appending .json
+      const cleanPermalink = permalink.replace(/\/$/, '');
+      const url = `https://api.reddit.com${cleanPermalink}.json`;
       const data = await this.fetchJsonWithProxy(url);
 
       // data is an array: [0] is the post, [1] is the comments
@@ -701,37 +746,43 @@ export const storage = {
   },
 
   async saveRefreshLogs(logs: RefreshLog[]): Promise<void> {
-    await set(REFRESH_LOGS_KEY, logs);
+    await ensureMigrated();
+    await db.refreshLogs.bulkPut(logs.map(log => ({ ...log, id: log.id || uuidv4() })));
   },
 
   // --- TELEGRAM METHODS ---
   async getTelegramChannels(): Promise<TelegramChannel[]> {
-    return (await get<TelegramChannel[]>(TELEGRAM_CHANNELS_KEY)) || [];
+    await ensureMigrated();
+    return await db.telegramChannels.toArray();
   },
 
   async saveTelegramChannels(channels: TelegramChannel[]): Promise<void> {
-    await set(TELEGRAM_CHANNELS_KEY, channels);
+    await ensureMigrated();
+    await db.telegramChannels.bulkPut(channels);
   },
 
   async addTelegramChannel(channel: TelegramChannel): Promise<void> {
-    const channels = await this.getTelegramChannels();
+    await ensureMigrated();
+    const channels = await db.telegramChannels.toArray();
     if (!channels.find(c => c.username === channel.username)) {
-      await this.saveTelegramChannels([...channels, channel]);
+      await db.telegramChannels.put(channel);
     }
   },
 
   async getTelegramMessages(channelId: string): Promise<TelegramMessage[]> {
-    return (await get<TelegramMessage[]>(`${TELEGRAM_MESSAGES_KEY}_${channelId}`)) || [];
+    await ensureMigrated();
+    return await db.telegramMessages.where('channelId').equals(channelId).sortBy('date');
   },
 
   async saveTelegramMessages(channelId: string, messages: TelegramMessage[]): Promise<void> {
-    await set(`${TELEGRAM_MESSAGES_KEY}_${channelId}`, messages);
+    await ensureMigrated();
+    await db.telegramMessages.bulkPut(messages);
   },
 
   async removeTelegramChannel(channelId: string): Promise<void> {
-    const channels = await this.getTelegramChannels();
-    await this.saveTelegramChannels(channels.filter(c => c.id !== channelId));
-    const { del } = await import('idb-keyval');
-    await del(`${TELEGRAM_MESSAGES_KEY}_${channelId}`);
+    await ensureMigrated();
+    await db.telegramChannels.delete(channelId);
+    const messagesToDelete = await db.telegramMessages.where('channelId').equals(channelId).primaryKeys();
+    await db.telegramMessages.bulkDelete(messagesToDelete);
   }
 };

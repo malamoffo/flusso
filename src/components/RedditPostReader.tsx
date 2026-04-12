@@ -20,23 +20,33 @@ interface RedditPostReaderProps {
 }
 
 const CommentNode: React.FC<{ comment: RedditComment }> = ({ comment }) => {
+  const [isCollapsed, setIsCollapsed] = useState(false);
+
   return (
     <div className="mb-3 text-sm">
-      <div className="flex items-center gap-2 mb-1">
+      <div 
+        className="flex items-center gap-2 mb-1 cursor-pointer hover:bg-gray-800 p-1 rounded"
+        onClick={() => setIsCollapsed(!isCollapsed)}
+      >
         <span className="font-medium text-purple-400 text-xs">u/{comment.author}</span>
         <span className="text-gray-500 text-[10px]">• {format(comment.createdUtc, 'HH:mm dd/MM/yy')}</span>
         <span className="text-gray-500 text-[10px]">• ↑ {comment.score}</span>
+        <span className="text-gray-600 text-[10px] ml-auto">{isCollapsed ? '[+]' : '[-]'}</span>
       </div>
-      <div 
-        className="text-gray-300 reddit-comment-body"
-        dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(comment.bodyHtml, { FORBID_ATTR: ['id', 'name'] }) }}
-      />
-      {comment.replies && comment.replies.length > 0 && (
-        <div className="mt-2 pl-3 border-l-2 border-gray-800">
-          {comment.replies.map(reply => (
-            <CommentNode key={reply.id} comment={reply} />
-          ))}
-        </div>
+      {!isCollapsed && (
+        <>
+          <div 
+            className="text-gray-300 reddit-comment-body"
+            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(comment.bodyHtml, { FORBID_ATTR: ['id', 'name'] }) }}
+          />
+          {comment.replies && comment.replies.length > 0 && (
+            <div className="mt-2 pl-3 border-l-2 border-gray-800">
+              {comment.replies.map(reply => (
+                <CommentNode key={reply.id} comment={reply} />
+              ))}
+            </div>
+          )}
+        </>
       )}
     </div>
   );

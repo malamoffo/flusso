@@ -1,5 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo, memo, useDeferredValue } from 'react';
 import { useRss } from './context/RssContext';
+import { useTelegram } from './context/TelegramContext';
+import { useSettings } from './context/SettingsContext';
+import { useReddit } from './context/RedditContext';
 import { useAudioState } from './context/AudioPlayerContext.tsx';
 import { SwipeableArticle } from './components/SwipeableArticle';
 import { ArticleReader } from './components/ArticleReader';
@@ -144,13 +147,25 @@ export default function App() {
   const isAtTop = useRef(true);
 
   const {
-    articles, feeds, subreddits, redditPosts, telegramChannels, telegramMessages, settings, isLoading, error, setError,
-    refreshFeeds, refreshReddit, refreshTelegramChannels, loadMoreReddit, toggleRead, markAsRead, markArticlesAsRead,
-    markAllAsRead, markAllTelegramAsRead, markTelegramChannelAsRead, loadTelegramMessages, searchQuery, setSearchQuery, unreadCount, savedCount,
-    toggleFavorite, toggleQueue, removeFromSaved,
-    markRedditAsRead, toggleRedditRead, toggleRedditFavorite,
-    redditSort, handleRedditSortChange
+    articles, feeds, isLoading, error, setError,
+    refreshFeeds, toggleRead, markAsRead, markArticlesAsRead,
+    markAllAsRead, searchQuery, setSearchQuery, unreadCount, savedCount,
+    toggleFavorite, toggleQueue, removeFromSaved
   } = useRss();
+
+  const {
+    telegramChannels, telegramMessages, refreshTelegramChannels,
+    markAllTelegramAsRead, markTelegramChannelAsRead, loadTelegramMessages,
+    loadMoreTelegramMessages
+  } = useTelegram();
+
+  const { settings } = useSettings();
+
+  const {
+    isLoading: isRedditLoading,
+    subreddits, redditPosts, redditSort, handleRedditSortChange,
+    refreshReddit, loadMoreReddit, markRedditAsRead, toggleRedditRead, toggleRedditFavorite
+  } = useReddit();
 
   const [visibleCount, setVisibleCount] = useState(30);
 
@@ -869,7 +884,7 @@ export default function App() {
           posts={filteredRedditPosts}
           onPostClick={setSelectedRedditPost}
           onImageClick={setSelectedImage}
-          isLoading={isLoading}
+          isLoading={isRedditLoading}
           refreshReddit={refreshReddit}
           loadMoreReddit={loadMoreReddit}
           settings={settings}
@@ -1064,6 +1079,7 @@ export default function App() {
             messages={telegramMessages[selectedTelegramChannel.id]}
             onClose={() => setSelectedTelegramChannel(null)}
             onRefresh={() => refreshTelegramChannels([selectedTelegramChannel])}
+            onLoadMore={() => loadMoreTelegramMessages(selectedTelegramChannel.id)}
           />
         )}
       </AnimatePresence>

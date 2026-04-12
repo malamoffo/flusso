@@ -1,14 +1,14 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useMemo, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
-import { fetchTelegramMessages, fetchTelegramChannelInfo } from '../services/telegramParser';
-import { Feed, Article, Settings, Subreddit, RedditPost, TelegramChannel, TelegramMessage } from '../types';
+import { Feed, Article, Settings, Subreddit, RedditPost } from '../types';
 import { storage, defaultSettings } from '../services/storage';
+import { useSettings } from './SettingsContext';
+import { useReddit } from './RedditContext';
 import packageJson from '../../package.json';
 import { Capacitor } from '@capacitor/core';
 import { BackgroundPlugin } from '../plugins/BackgroundPlugin';
 import DataWorker from '../workers/dataProcessor.worker?worker';
-
-import { imagePersistence } from '../utils/imagePersistence';
+import { contentFetcher } from '../utils/contentFetcher';
 
 interface ProgressInfo {
   current: number;
@@ -19,11 +19,6 @@ interface ProgressInfo {
 interface RssContextType {
   feeds: Feed[];
   articles: Article[];
-  subreddits: Subreddit[];
-  redditPosts: RedditPost[];
-  telegramChannels: TelegramChannel[];
-  telegramMessages: Record<string, TelegramMessage[]>;
-  settings: Settings;
   isLoading: boolean;
   progress: ProgressInfo | null;
   error: string | null;
@@ -41,33 +36,18 @@ interface RssContextType {
   importOpml: (file: File | { text: () => Promise<string> }) => Promise<void>;
   exportFeeds: () => Promise<string>;
   removeFeed: (id: string) => void;
-  removeSubreddit: (id: string) => void;
   refreshFeeds: (feedsToRefresh?: Feed[], currentArticles?: Article[]) => Promise<void>;
-  refreshReddit: (subsToRefresh?: Subreddit[], currentPosts?: RedditPost[], sort?: 'new' | 'hot' | 'top') => Promise<void>;
-  loadMoreReddit: () => Promise<void>;
-  redditSort: 'new' | 'hot' | 'top';
-  handleRedditSortChange: (sort: 'new' | 'hot' | 'top') => Promise<void>;
   toggleRead: (id: string) => void;
   markAsRead: (id: string) => void;
   markArticlesAsRead: (ids: string[]) => void;
   markAllAsRead: () => void;
-  markAllTelegramAsRead: () => void;
-  markTelegramChannelAsRead: (id: string) => void;
   toggleFavorite: (id: string) => void;
   toggleQueue: (id: string) => void;
   removeFromSaved: (id: string) => void;
   updateFeed: (id: string, updates: Partial<Feed>) => void;
   updateArticle: (id: string, updates: Partial<Article>) => void;
-  updateRedditPost: (id: string, updates: Partial<RedditPost>) => void;
-  toggleRedditRead: (id: string) => void;
-  markRedditAsRead: (id: string) => void;
-  toggleRedditFavorite: (id: string) => void;
-  updateSettings: (updates: Partial<Settings>) => void;
   checkUpdates: (force?: boolean) => Promise<void>;
-  addTelegramChannel: (username: string) => Promise<void>;
-  removeTelegramChannel: (id: string) => Promise<void>;
-  refreshTelegramChannels: (channelsToRefresh?: TelegramChannel[]) => Promise<void>;
-  loadTelegramMessages: (channelId: string) => Promise<void>;
+  globalSearch: (query: string) => { articles: Article[], redditPosts: RedditPost[] };
 }
 
 const RssContext = createContext<RssContextType | undefined>(undefined);
@@ -75,12 +55,8 @@ const RssContext = createContext<RssContextType | undefined>(undefined);
 export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [feeds, setFeeds] = useState<Feed[]>([]);
   const [articles, setArticles] = useState<Article[]>([]);
-  const [subreddits, setSubreddits] = useState<Subreddit[]>([]);
-  const [redditPosts, setRedditPosts] = useState<RedditPost[]>([]);
-  const [telegramChannels, setTelegramChannels] = useState<TelegramChannel[]>([]);
-  const [telegramMessages, setTelegramMessages] = useState<Record<string, TelegramMessage[]>>({});
-  const [redditSort, setRedditSort] = useState<'new' | 'hot' | 'top'>('new');
-  const [settings, setSettings] = useState<Settings>(defaultSettings);
+  const { settings } = useSettings();
+  const { subreddits, redditPosts, refreshReddit } = useReddit();
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [progress, setProgress] = useState<ProgressInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -92,10 +68,7 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   
   const articlesRef = useRef<Article[]>([]);
   const feedsRef = useRef<Feed[]>([]);
-  const subredditsRef = useRef<Subreddit[]>([]);
   const redditPostsRef = useRef<RedditPost[]>([]);
-  const telegramChannelsRef = useRef<TelegramChannel[]>([]);
-  const telegramMessagesRef = useRef<Record<string, TelegramMessage[]>>({});
 
   useEffect(() => {
     loadData();
@@ -104,11 +77,8 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   useEffect(() => {
     articlesRef.current = articles;
     feedsRef.current = feeds;
-    subredditsRef.current = subreddits;
     redditPostsRef.current = redditPosts;
-    telegramChannelsRef.current = telegramChannels;
-    telegramMessagesRef.current = telegramMessages;
-  }, [articles, feeds, subreddits, redditPosts, telegramChannels, telegramMessages]);
+  }, [articles, feeds, redditPosts]);
 
   const logError = useCallback((msg: string) => {
     setErrorLogs(prev => [...prev, `${new Date().toLocaleTimeString()}: ${msg}`]);
@@ -120,7 +90,6 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [updateInfo, setUpdateInfo] = useState<any | null>(null);
   const lastRefresh = useRef(Date.now());
   const isRefreshing = useRef(false);
-  const isRefreshingReddit = useRef(false);
   const worker = useRef<Worker>();
 
   useEffect(() => {
@@ -161,25 +130,13 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       
       const loadedFeeds = await storage.getFeeds();
       const loadedArticles = await storage.getArticles(0, 0);
-      const loadedSubreddits = await storage.getSubreddits();
-      const loadedRedditPosts = await storage.getRedditPosts();
-      const loadedSettings = await storage.getSettings();
-      const loadedTelegramChannels = await storage.getTelegramChannels();
       
       setFeeds(loadedFeeds);
       setArticles(loadedArticles);      
-      setSubreddits(loadedSubreddits);
-      setRedditPosts(loadedRedditPosts.sort((a, b) => b.createdUtc - a.createdUtc));
-      setTelegramChannels(loadedTelegramChannels);
-      setSettings(loadedSettings);
       
       return { 
         loadedFeeds, 
-        loadedArticles, 
-        loadedSubreddits, 
-        loadedRedditPosts, 
-        loadedSettings,
-        loadedTelegramChannels
+        loadedArticles
       };
     } catch (err) {
       console.error(err);
@@ -362,120 +319,6 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   }, []);
 
-  const refreshReddit = useCallback(async (subsToRefresh?: Subreddit[], currentPosts?: RedditPost[], sort?: 'new' | 'hot' | 'top') => {
-    const currentSort = sort || redditSort;
-    
-    if (isRefreshingReddit.current) {
-        console.warn('[RSS] Already refreshing reddit');
-        return;
-    }
-    isRefreshingReddit.current = true;
-    try {
-      setIsLoading(true);
-      
-      // Use provided subs or current state, but if state is empty try to load from storage
-      let sToRefresh = subsToRefresh || subreddits;
-      if (sToRefresh.length === 0 && !subsToRefresh) {
-        sToRefresh = await storage.getSubreddits();
-      }
-
-      if (sToRefresh.length === 0) {
-        console.warn('[RSS] No subreddits to refresh');
-        setIsLoading(false);
-        isRefreshingReddit.current = false;
-        return;
-      }
-
-      const sinceDate = currentSort === 'new' ? Date.now() - (3 * 24 * 60 * 60 * 1000) : undefined;
-
-      const queue = [...sToRefresh];
-      let queueIndex = 0;
-      const CONCURRENCY = Math.min(5, queue.length);
-      
-      let mergeChain = Promise.resolve();
-      
-      const workers = Array(CONCURRENCY).fill(null).map(async () => {
-        while (true) {
-          const sub = queue[queueIndex++];
-          if (!sub) break;
-          
-          try {
-            const posts = await storage.fetchSubredditPosts(sub.name, sinceDate, undefined, currentSort);
-            if (posts.length > 0) {
-              await (mergeChain = mergeChain.then(async () => {
-                const { merged } = await new Promise<{ merged: RedditPost[] }>((resolve, reject) => {
-                  const requestId = uuidv4();
-                  const timeout = setTimeout(() => {
-                    worker.current!.removeEventListener('message', handler);
-                    reject(new Error('Worker timeout'));
-                  }, 10000);
-
-                  const handler = (e: MessageEvent) => {
-                    if (e.data.type === 'mergedRedditPosts' && e.data.requestId === requestId) {
-                      clearTimeout(timeout);
-                      worker.current!.removeEventListener('message', handler);
-                      resolve(e.data);
-                    }
-                  };
-                  worker.current!.addEventListener('message', handler);
-                  worker.current!.postMessage({ 
-                    type: 'mergeRedditPosts', 
-                    prev: redditPostsRef.current, 
-                    incoming: posts, 
-                    sort: currentSort, 
-                    requestId 
-                  });
-                }).catch(err => {
-                  console.error('Reddit merge failed:', err);
-                  return { merged: redditPostsRef.current };
-                });
-                
-                setRedditPosts(merged);
-                redditPostsRef.current = merged;
-              }));
-
-              setSubreddits(prev => {
-                const next = [...prev];
-                const idx = next.findIndex(s => s.id === sub.id);
-                if (idx !== -1) {
-                  next[idx] = { ...sub, lastFetched: Date.now() };
-                }
-                subredditsRef.current = next; // Update ref synchronously to avoid race conditions
-                return next;
-              });
-            }
-          } catch (e) {
-            console.error(`Failed to refresh subreddit ${sub.name}`, e);
-          }
-        }
-      });
-
-      await Promise.all(workers);
-      await mergeChain;
-
-      await storage.saveRedditPosts(redditPostsRef.current);
-      
-      // Fetch latest subreddits from storage to avoid overwriting newly added ones
-      const currentSubsInStorage = await storage.getSubreddits();
-      const updatedSubs = currentSubsInStorage.map(s => {
-        const refreshed = sToRefresh.find(r => r.id === s.id);
-        if (refreshed) {
-          return { ...s, lastFetched: Date.now() };
-        }
-        return s;
-      });
-      await storage.saveSubreddits(updatedSubs);
-      setSubreddits(updatedSubs);
-      subredditsRef.current = updatedSubs;
-    } catch (e) {
-      logError("Failed to refresh reddit");
-      console.error("Failed to refresh reddit", e);
-    } finally {
-      setIsLoading(false);
-      isRefreshingReddit.current = false;
-    }
-  }, [subreddits, redditSort]);
-
   useEffect(() => {
     let mounted = true;
     loadData().then(data => {
@@ -485,17 +328,6 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     });
     return () => { mounted = false; };
   }, []);
-
-  useEffect(() => {
-    // Background polling for Reddit posts (every 5 minutes)
-    const redditInterval = setInterval(() => {
-      if (subreddits.length > 0) {
-        refreshReddit();
-      }
-    }, 5 * 60 * 1000);
-
-    return () => clearInterval(redditInterval);
-  }, [refreshReddit, subreddits.length]);
 
   useEffect(() => {
     if (Capacitor.isNativePlatform()) {
@@ -516,53 +348,7 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   }, [feeds, settings.refreshInterval]);
 
-  const updateSettings = useCallback(async (updates: Partial<Settings>) => {
-    setSettings(prev => {
-      const newSettings = { ...prev, ...updates };
-      storage.saveSettings(newSettings);
-      return newSettings;
-    });
-  }, []);
-
-  const addTelegramChannel = useCallback(async (username: string) => {
-    try {
-      setError(null);
-      const cleanUsername = username.replace('@', '').replace('https://t.me/', '').split('/')[0].trim();
-      
-      const existing = telegramChannels.find(c => c.username.toLowerCase() === cleanUsername.toLowerCase());
-      if (existing) {
-        throw new Error("Sei già iscritto a questo canale Telegram.");
-      }
-      
-      const [messages, info] = await Promise.all([
-        fetchTelegramMessages(cleanUsername),
-        fetchTelegramChannelInfo(cleanUsername)
-      ]);
-      
-      const channel: TelegramChannel = {
-        id: uuidv4(),
-        name: info.name,
-        username: cleanUsername,
-        imageUrl: info.imageUrl,
-        lastMessageDate: messages.length > 0 ? messages[messages.length - 1].date : Date.now(),
-        lastChecked: Date.now(),
-        unreadCount: messages.length,
-        lastOpened: Date.now(),
-        retentionDays: 30,
-      };
-      await storage.addTelegramChannel(channel);
-      setTelegramChannels(prev => [...prev, channel]);
-      setTelegramMessages(prev => ({ ...prev, [channel.id]: messages }));
-      storage.saveTelegramMessages(channel.id, messages);
-      return 'telegram';
-    } catch (e: any) {
-      const errMsg = e.message || "Canale Telegram non trovato o non accessibile";
-      setError(errMsg);
-      throw new Error(errMsg);
-    }
-  }, []);
-
-  const addFeedOrSubreddit = useCallback(async (url: string): Promise<'article' | 'podcast' | 'reddit' | 'subreddit' | 'telegram' | void> => {
+  const addFeedOrSubreddit = useCallback(async (url: string): Promise<'article' | 'podcast' | 'reddit' | 'subreddit' | void> => {
     try {
       setIsLoading(true);
       setError(null);
@@ -576,15 +362,6 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         isSubreddit = true;
       } else if (lowerName.startsWith('r/')) {
         isSubreddit = true;
-      } else if (!url.includes('://') && !url.includes('.') && !url.includes(' ')) {
-        // If it's a single word without dots or protocol, it could be a subreddit or telegram
-        // We'll try to detect if it's meant for telegram by checking if it's a common telegram username pattern
-        // but for now let's assume if it doesn't start with r/ it might be telegram.
-        // Actually, let's check if it's a telegram URL
-        if (lowerName.includes('t.me/')) {
-          await addTelegramChannel(cleanName);
-          return 'telegram';
-        }
       }
 
       if (isSubreddit) {
@@ -599,10 +376,6 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         await refreshReddit([result]);
         await loadData();
         return 'subreddit';
-      } else if (!url.includes('://') && (lowerName.includes('t.me/') || (!lowerName.startsWith('r/') && !url.includes('.')))) {
-        // Likely a telegram channel if no protocol and no dots (or explicit t.me)
-        await addTelegramChannel(cleanName);
-        return 'telegram';
       } else {
         const result = await storage.addFeed(url);
         if (!result) {
@@ -623,20 +396,7 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     } finally {
       setIsLoading(false);
     }
-  }, [addTelegramChannel, refreshReddit, loadData, logError]);
-
-  const removeSubreddit = useCallback(async (id: string) => {
-    setSubreddits(prev => {
-      const updated = prev.filter(s => s.id !== id);
-      storage.saveSubreddits(updated);
-      return updated;
-    });
-    setRedditPosts(prev => {
-      const updated = prev.filter(p => p.subredditId !== id);
-      storage.saveRedditPosts(updated);
-      return updated;
-    });
-  }, []);
+  }, [refreshReddit, subreddits, loadData, logError]);
 
   const importOpml = async (file: File | { text: () => Promise<string> }, append = true) => {
     try {
@@ -755,35 +515,20 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     });
   }, []);
 
-  const markAllTelegramAsRead = useCallback(async () => {
-    setTelegramChannels(prev => {
-      const updated = prev.map(c => ({ ...c, unreadCount: 0 }));
-      storage.saveTelegramChannels(updated);
-      return updated;
-    });
-  }, []);
-
-  const markTelegramChannelAsRead = useCallback(async (id: string) => {
-    setTelegramChannels(prev => {
-      const updated = prev.map(c => c.id === id ? { ...c, unreadCount: 0 } : c);
-      storage.saveTelegramChannels(updated);
-      return updated;
-    });
-  }, []);
-
-  const loadTelegramMessages = useCallback(async (channelId: string) => {
-    // If already loaded or currently loading, skip
-    if (telegramMessagesRef.current[channelId] !== undefined) return;
+  const globalSearch = useCallback((query: string) => {
+    const lowerQuery = query.toLowerCase();
+    const foundArticles = articlesRef.current.filter(a => 
+      a.title.toLowerCase().includes(lowerQuery) || 
+      (a.contentSnippet?.toLowerCase().includes(lowerQuery) ?? false) ||
+      (a.content?.toLowerCase().includes(lowerQuery) ?? false)
+    );
     
-    // Mark as loading by setting an empty array temporarily if needed, 
-    // but better to use a specific marker if we want to distinguish.
-    // For now, we'll just fetch.
-    const messages = await storage.getTelegramMessages(channelId);
-    setTelegramMessages(prev => {
-      const next = { ...prev, [channelId]: messages };
-      telegramMessagesRef.current = next;
-      return next;
-    });
+    const foundRedditPosts = redditPostsRef.current.filter(p => 
+      p.title.toLowerCase().includes(lowerQuery) || 
+      (p.selftextHtml?.toLowerCase().includes(lowerQuery) ?? false)
+    );
+    
+    return { articles: foundArticles, redditPosts: foundRedditPosts };
   }, []);
 
   const toggleFavorite = useCallback(async (id: string) => {
@@ -818,38 +563,6 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     });
   }, []);
 
-  const updateRedditPost = useCallback(async (id: string, updates: Partial<RedditPost>) => {
-    setRedditPosts(prev => {
-      const updated = prev.map(p => p.id === id ? { ...p, ...updates } : p);
-      storage.saveRedditPosts(updated);
-      return updated;
-    });
-  }, []);
-
-  const toggleRedditRead = useCallback(async (id: string) => {
-    setRedditPosts(prev => {
-      const updated = prev.map(p => p.id === id ? { ...p, isRead: !p.isRead, readAt: !p.isRead ? Date.now() : undefined } : p);
-      storage.saveRedditPosts(updated);
-      return updated;
-    });
-  }, []);
-
-  const markRedditAsRead = useCallback(async (id: string) => {
-    setRedditPosts(prev => {
-      const updated = prev.map(p => p.id === id ? { ...p, isRead: true, readAt: Date.now() } : p);
-      storage.saveRedditPosts(updated);
-      return updated;
-    });
-  }, []);
-
-  const toggleRedditFavorite = useCallback(async (id: string) => {
-    setRedditPosts(prev => {
-      const updated = prev.map(p => p.id === id ? { ...p, isFavorite: !p.isFavorite } : p);
-      storage.saveRedditPosts(updated);
-      return updated;
-    });
-  }, []);
-
   const removeFeed = useCallback(async (id: string) => {
     setFeeds(prev => {
       const updated = prev.filter(f => f.id !== id);
@@ -876,175 +589,6 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   }, []);
 
 
-  const loadMoreReddit = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      const sToRefresh = await storage.getSubreddits();
-      const cPosts = await storage.getRedditPosts();
-
-      if (sToRefresh.length === 0) return;
-
-      await Promise.all(sToRefresh.map(async (sub) => {
-        try {
-          // Find the oldest post for this subreddit to use as 'after' token
-          const subPosts = cPosts.filter(p => p.subredditId === sub.id || p.subredditName.toLowerCase() === sub.name.toLowerCase());
-          let afterToken: string | undefined = undefined;
-          if (subPosts.length > 0) {
-            // Posts are sorted newest first, so the oldest is at the end
-            const oldestPost = subPosts[subPosts.length - 1];
-            afterToken = oldestPost.id;
-          }
-
-          const posts = await storage.fetchSubredditPosts(sub.name, undefined, afterToken, redditSort);
-          if (posts.length > 0) {
-            const { merged, hasNew } = await new Promise<{ merged: RedditPost[], hasNew: boolean }>((resolve) => {
-              const handler = (e: MessageEvent) => {
-                if (e.data.type === 'mergedRedditPosts') {
-                  worker.current!.removeEventListener('message', handler);
-                  resolve(e.data);
-                }
-              };
-              worker.current!.addEventListener('message', handler);
-              worker.current!.postMessage({ type: 'mergeRedditPosts', prev: redditPostsRef.current, incoming: posts, sort: redditSort });
-            });
-
-            if (hasNew) {
-              setRedditPosts(merged);
-            }
-          }
-        } catch (e) {
-          console.error(`Failed to load more for subreddit ${sub.name}`, e);
-        }
-      }));
-    } catch (e) {
-      console.error("Failed to load more reddit posts", e);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [redditSort]);
-
-  const handleRedditSortChange = useCallback(async (sort: 'new' | 'hot' | 'top') => {
-    setRedditSort(sort);
-    
-    // Sort existing posts
-    setRedditPosts(prev => {
-        const sorted = [...prev];
-        if (sort === 'new') {
-            sorted.sort((a, b) => b.createdUtc - a.createdUtc);
-        } else {
-            sorted.sort((a, b) => (b.score || 0) - (a.score || 0));
-        }
-        storage.saveRedditPosts(sorted);
-        return sorted;
-    });
-    
-    // Refresh new posts
-    await refreshReddit(undefined, undefined, sort);
-  }, [refreshReddit]);
-
-  const cleanupTelegramMessages = useCallback((channel: TelegramChannel, messages: TelegramMessage[]) => {
-    const retentionMs = settings.telegramRetentionDays * 24 * 60 * 60 * 1000;
-    const now = Date.now();
-    return messages.filter(m => now - m.date < retentionMs);
-  }, [settings.telegramRetentionDays]);
-
-  const refreshTelegramChannels = useCallback(async (channelsToRefresh?: TelegramChannel[]) => {
-    const channels = channelsToRefresh || telegramChannels;
-    
-    const queue = [...channels];
-    let queueIndex = 0;
-    const CONCURRENCY = Math.min(3, queue.length);
-    
-    let mergeChain = Promise.resolve();
-    
-    const workers = Array(CONCURRENCY).fill(null).map(async () => {
-      while (true) {
-        const channel = queue[queueIndex++];
-        if (!channel) break;
-        
-        try {
-          const currentMessages = telegramMessagesRef.current[channel.id] || [];
-          const sinceDate = currentMessages.length > 0 ? currentMessages[currentMessages.length - 1].date : undefined;
-
-          const [messages, info] = await Promise.all([
-            fetchTelegramMessages(channel.username, sinceDate),
-            fetchTelegramChannelInfo(channel.username)
-          ]);
-          
-          if (messages.length > 0) {
-            await (mergeChain = mergeChain.then(async () => {
-              const { merged } = await new Promise<{ merged: TelegramMessage[] }>((resolve, reject) => {
-                const requestId = uuidv4();
-                const timeout = setTimeout(() => {
-                  worker.current!.removeEventListener('message', handler);
-                  reject(new Error('Worker timeout'));
-                }, 10000);
-
-                const handler = (e: MessageEvent) => {
-                  if (e.data.type === 'mergedTelegramMessages' && e.data.requestId === requestId) {
-                    clearTimeout(timeout);
-                    worker.current!.removeEventListener('message', handler);
-                    resolve(e.data);
-                  }
-                };
-                worker.current!.addEventListener('message', handler);
-                worker.current!.postMessage({ 
-                  type: 'mergeTelegramMessages', 
-                  prev: telegramMessagesRef.current[channel.id] || [], 
-                  incoming: messages,
-                  requestId
-                });
-              }).catch(err => {
-                console.error('Telegram merge failed:', err);
-                return { merged: telegramMessagesRef.current[channel.id] || [] };
-              });
-              
-              const cleaned = cleanupTelegramMessages(channel, merged);
-              setTelegramMessages(prev => {
-                const next = { ...prev, [channel.id]: cleaned };
-                telegramMessagesRef.current = next;
-                return next;
-              });
-              await storage.saveTelegramMessages(channel.id, cleaned);
-            }));
-          }
-
-          setTelegramChannels(prev => {
-            const next = [...prev];
-            const idx = next.findIndex(c => c.id === channel.id);
-            if (idx !== -1) {
-              next[idx] = { 
-                ...channel, 
-                name: info.name, 
-                imageUrl: info.imageUrl,
-                lastChecked: Date.now(),
-                lastMessageDate: messages.length > 0 ? messages[messages.length - 1].date : channel.lastMessageDate,
-                unreadCount: (channel.unreadCount || 0) + messages.length
-              };
-            }
-            return next;
-          });
-        } catch (e) {
-          console.error(`Failed to refresh channel ${channel.name}`, e);
-        }
-      }
-    });
-
-    await Promise.all(workers);
-    await mergeChain;
-    await storage.saveTelegramChannels(telegramChannelsRef.current);
-  }, [telegramChannels, telegramMessages, cleanupTelegramMessages]);
-
-  const removeTelegramChannel = useCallback(async (id: string) => {
-    await storage.removeTelegramChannel(id);
-    setTelegramChannels(prev => prev.filter(c => c.id !== id));
-    setTelegramMessages(prev => {
-      const next = { ...prev };
-      delete next[id];
-      return next;
-    });
-  }, []);
-
   /**
    * ⚡ Bolt: Consolidate article counters into a single pass O(N) iteration.
    * This avoids multiple filter().length calls (O(N) each) across the app, 
@@ -1062,22 +606,26 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return { unreadCount: unread, savedCount: saved };
   }, [articles]);
 
+  const prefetch = useCallback(async (article: Article) => {
+    if (article.type === 'article' && !article.content) {
+      contentFetcher.enqueue(article.id, article.link);
+    }
+  }, []);
+
   const value = useMemo(() => ({
-    feeds, articles, subreddits, redditPosts, telegramChannels, telegramMessages, settings, isLoading, progress, error, setError, errorLogs, clearErrorLogs,
-    addFeedOrSubreddit, addTelegramChannel, removeTelegramChannel, importOpml, toggleRead, markAsRead, markArticlesAsRead,
-    toggleFavorite, toggleQueue, removeFromSaved, markAllAsRead, markAllTelegramAsRead, markTelegramChannelAsRead, refreshFeeds, refreshReddit, refreshTelegramChannels, loadMoreReddit, removeFeed, removeSubreddit,
-    updateFeed, updateArticle, updateRedditPost, toggleRedditRead, markRedditAsRead, toggleRedditFavorite, updateSettings, exportFeeds,
+    feeds, articles, isLoading, progress, error, setError, errorLogs, clearErrorLogs,
+    addFeedOrSubreddit, importOpml, toggleRead, markAsRead, markArticlesAsRead,
+    toggleFavorite, toggleQueue, removeFromSaved, markAllAsRead, refreshFeeds, removeFeed,
+    updateFeed, updateArticle, exportFeeds,
     searchQuery, setSearchQuery, unreadCount, savedCount, hasMoreArticles, loadMoreArticles, updateInfo, checkUpdates,
-    redditSort, handleRedditSortChange,
-    loadTelegramMessages
+    globalSearch, prefetch
   }), [
-    feeds, articles, subreddits, redditPosts, telegramChannels, telegramMessages, settings, isLoading, progress, error, setError, errorLogs, clearErrorLogs,
-    addFeedOrSubreddit, addTelegramChannel, removeTelegramChannel, importOpml, toggleRead, markAsRead, markArticlesAsRead,
-    toggleFavorite, toggleQueue, removeFromSaved, markAllAsRead, markAllTelegramAsRead, markTelegramChannelAsRead, refreshFeeds, refreshReddit, refreshTelegramChannels, loadMoreReddit, removeFeed, removeSubreddit,
-    updateFeed, updateArticle, updateRedditPost, toggleRedditRead, markRedditAsRead, toggleRedditFavorite, updateSettings, exportFeeds,
+    feeds, articles, isLoading, progress, error, setError, errorLogs, clearErrorLogs,
+    addFeedOrSubreddit, importOpml, toggleRead, markAsRead, markArticlesAsRead,
+    toggleFavorite, toggleQueue, removeFromSaved, markAllAsRead, refreshFeeds, removeFeed,
+    updateFeed, updateArticle, exportFeeds,
     searchQuery, setSearchQuery, unreadCount, savedCount, hasMoreArticles, loadMoreArticles, updateInfo, checkUpdates,
-    redditSort, handleRedditSortChange,
-    loadTelegramMessages
+    globalSearch, prefetch
   ]);
 
   return (

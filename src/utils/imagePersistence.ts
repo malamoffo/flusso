@@ -1,23 +1,24 @@
 import { Filesystem, Directory } from '@capacitor/filesystem';
 import { Capacitor, CapacitorHttp } from '@capacitor/core';
-import { get, set } from 'idb-keyval';
+import { db } from '../services/db';
 
 const CACHE_DIR = 'image_cache';
-const CACHE_MAP_KEY = 'image_cache_map';
 
 /**
  * Utility for persistent image caching on the device's filesystem.
  */
 export const imagePersistence = {
   resolvedLocalUrls: new Map<string, string>(),
+  memoryCache: new Map<string, string>(),
+  loadedUrls: new Set<string>(),
   isInitialized: false,
 
   async init() {
     if (this.isInitialized) return;
     try {
-      const savedMap = await get<[string, string][]>(CACHE_MAP_KEY);
-      if (savedMap) {
-        this.resolvedLocalUrls = new Map(savedMap);
+      const savedMap = await db.settings.get('image_cache_map');
+      if (savedMap && savedMap.value) {
+        this.resolvedLocalUrls = new Map(JSON.parse(savedMap.value));
       }
     } catch (e) {
       console.warn('Failed to load image cache map:', e);
@@ -27,7 +28,7 @@ export const imagePersistence = {
 
   async saveMap() {
     try {
-      await set(CACHE_MAP_KEY, Array.from(this.resolvedLocalUrls.entries()));
+      await db.settings.put({ id: 'image_cache_map', value: JSON.stringify(Array.from(this.resolvedLocalUrls.entries())) } as any);
     } catch (e) {
       // Ignore save errors
     }

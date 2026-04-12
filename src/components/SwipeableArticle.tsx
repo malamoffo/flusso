@@ -360,6 +360,11 @@ export const SwipeableArticle = React.memo(function SwipeableArticle({
                 className={`${getTitleSize()} font-semibold leading-tight mb-1 ${article.isRead ? 'text-gray-400' : 'text-gray-100'}`}
                 dangerouslySetInnerHTML={{ __html: article.title }}
               />
+              {article.type === 'article' && article.contentSnippet && (
+                <p className="text-sm text-gray-400 line-clamp-2 mb-1 leading-snug">
+                  {article.contentSnippet}...
+                </p>
+              )}
               {article.type === 'podcast' && (
                 <PodcastProgressBar article={article} isCurrentTrack={isCurrentTrack} />
               )}

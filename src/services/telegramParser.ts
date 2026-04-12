@@ -40,13 +40,17 @@ export const fetchTelegramChannelInfo = async (channelUsername: string): Promise
   }
 };
 
-export const fetchTelegramMessages = async (channelUsername: string, sinceDate?: number): Promise<TelegramMessage[]> => {
+export const fetchTelegramMessages = async (channelUsername: string, sinceDate?: number, before?: string): Promise<TelegramMessage[]> => {
   try {
     let htmlData: string;
+    let url = `https://t.me/s/${channelUsername}`;
+    if (before) {
+      url += `?before=${before}`;
+    }
     
     if (Capacitor.isNativePlatform()) {
       const response = await CapacitorHttp.get({
-        url: `https://t.me/s/${channelUsername}`,
+        url: url,
       });
       if (response.status !== 200) {
         throw new Error('Channel not found');
@@ -54,7 +58,7 @@ export const fetchTelegramMessages = async (channelUsername: string, sinceDate?:
       htmlData = response.data;
     } else {
       // Use proxy for web preview to avoid CORS
-      htmlData = await fetchWithProxy(`https://t.me/s/${channelUsername}`, false);
+      htmlData = await fetchWithProxy(url, false);
     }
 
     if (!htmlData || htmlData.includes('tgme_page_error') || htmlData.includes('Channel not found')) {

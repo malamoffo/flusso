@@ -1,4 +1,4 @@
-import React, { memo, useEffect, useRef } from 'react';
+import React, { memo, useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { TelegramChannel, TelegramMessage } from '../types';
 import { ArrowLeft, RefreshCw } from 'lucide-react';
@@ -9,11 +9,13 @@ interface TelegramThreadViewProps {
   messages: TelegramMessage[];
   onClose: () => void;
   onRefresh?: () => void;
+  onLoadMore?: () => Promise<void>;
 }
 
-export const TelegramThreadView = memo(({ channel, messages, onClose, onRefresh }: TelegramThreadViewProps) => {
+export const TelegramThreadView = memo(({ channel, messages, onClose, onRefresh, onLoadMore }: TelegramThreadViewProps) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const isInitialMount = useRef(true);
+  const [isFetchingMore, setIsFetchingMore] = useState(false);
   const isLoading = messages === undefined;
   const isEmpty = messages && messages.length === 0;
 
@@ -23,6 +25,14 @@ export const TelegramThreadView = memo(({ channel, messages, onClose, onRefresh 
         top: scrollRef.current.scrollHeight,
         behavior
       });
+    }
+  };
+
+  const handleScroll = async () => {
+    if (scrollRef.current && scrollRef.current.scrollTop === 0 && onLoadMore && !isFetchingMore) {
+      setIsFetchingMore(true);
+      await onLoadMore();
+      setIsFetchingMore(false);
     }
   };
 
@@ -37,7 +47,11 @@ export const TelegramThreadView = memo(({ channel, messages, onClose, onRefresh 
         }, 100);
         return () => clearTimeout(timer);
       } else {
-        scrollToBottom('smooth');
+        // Only scroll if we are already near the bottom
+        const isNearBottom = scrollRef.current && (scrollRef.current.scrollHeight - scrollRef.current.scrollTop - scrollRef.current.clientHeight < 100);
+        if (isNearBottom) {
+          scrollToBottom('smooth');
+        }
       }
     }
   }, [messages?.length]);
@@ -78,8 +92,14 @@ export const TelegramThreadView = memo(({ channel, messages, onClose, onRefresh 
 
       <div 
         ref={scrollRef}
+        onScroll={handleScroll}
         className="flex-1 overflow-y-auto p-4 max-w-3xl mx-auto w-full"
       >
+        {isFetchingMore && (
+          <div className="flex justify-center py-4">
+            <div className="w-6 h-6 border-2 border-green-500 border-t-transparent rounded-full animate-spin" />
+          </div>
+        )}
         {isLoading ? (
           <div className="flex flex-col items-center justify-center h-full text-gray-500 space-y-4">
             <div className="w-8 h-8 border-2 border-green-500 border-t-transparent rounded-full animate-spin shadow-[0_0_10px_rgba(34,197,94,0.4)]" />
@@ -109,15 +129,6 @@ export const TelegramThreadView = memo(({ channel, messages, onClose, onRefresh 
                   alt="" 
                   className="mt-2 rounded-lg max-h-96 w-full object-cover" 
                   referrerPolicy="no-referrer"
-                  onLoad={() => {
-                    // If we are still at the bottom (or near it), scroll again when image loads
-                    if (scrollRef.current) {
-                      const isNearBottom = scrollRef.current.scrollHeight - scrollRef.current.scrollTop - scrollRef.current.clientHeight < 100;
-                      if (isNearBottom || isInitialMount.current) {
-                        scrollToBottom(isInitialMount.current ? 'auto' : 'smooth');
-                      }
-                    }
-                  }}
                 />
               )}
               <p className="text-xs text-gray-500 mt-2">{format(message.date, 'HH:mm dd/MM/yy')}</p>
