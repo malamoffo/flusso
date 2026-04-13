@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
 import { X, Rss, RefreshCw } from 'lucide-react';
 import { useRss } from '../context/RssContext';
+import { useTelegram } from '../context/TelegramContext';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export const AddFeedModal = React.memo(function AddFeedModal({ isOpen, onClose, onFeedAdded }: { isOpen: boolean; onClose: () => void; onFeedAdded?: (type: string) => void }) {
   const [url, setUrl] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { addFeedOrSubreddit, error, setError, progress } = useRss();
+  const { addTelegramChannel } = useTelegram();
 
   React.useEffect(() => {
     if (isOpen) {
@@ -21,6 +23,12 @@ export const AddFeedModal = React.memo(function AddFeedModal({ isOpen, onClose, 
     setIsSubmitting(true);
     try {
       const type = await addFeedOrSubreddit(url);
+      
+      // If it's a telegram channel, we need to call the telegram context
+      if (type === 'telegram') {
+        await addTelegramChannel(url);
+      }
+      
       setUrl('');
       if (onFeedAdded && type) {
         onFeedAdded(type);

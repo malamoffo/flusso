@@ -40,6 +40,7 @@ export const TelegramProvider: React.FC<{ children: ReactNode }> = ({ children }
   }, [telegramChannels, telegramMessages]);
 
   const loadData = useCallback(async () => {
+    await storage.cleanupOldTelegramMessages();
     const loadedTelegramChannels = await storage.getTelegramChannels();
     setTelegramChannels(loadedTelegramChannels);
     // Don't load all messages at once, they will be loaded on demand when a channel is selected
@@ -52,29 +53,16 @@ export const TelegramProvider: React.FC<{ children: ReactNode }> = ({ children }
 
   const addTelegramChannel = useCallback(async (username: string) => {
     try {
-      // Clean username: handle @username, t.me/username, t.me/s/username
+      // ... existing cleaning logic ...
       let cleanUsername = username.trim();
-      
-      // Remove protocol and domain if present
-      cleanUsername = cleanUsername.replace(/^https?:\/\//, '');
-      cleanUsername = cleanUsername.replace(/^t\.me\//, '');
-      
-      // Handle /s/ prefix often used for public preview
-      if (cleanUsername.startsWith('s/')) {
-        cleanUsername = cleanUsername.substring(2);
-      }
-      
-      // Remove @ and any trailing paths
+      cleanUsername = cleanUsername.replace(/^https?:\/\//, '').replace(/^t\.me\//, '');
+      if (cleanUsername.startsWith('s/')) cleanUsername = cleanUsername.substring(2);
       cleanUsername = cleanUsername.replace('@', '').split('/')[0].split('?')[0].trim();
       
-      if (!cleanUsername) {
-        throw new Error("Inserisci un nome utente o un link Telegram valido.");
-      }
+      if (!cleanUsername) throw new Error("Inserisci un nome utente o un link Telegram valido.");
       
       const existing = telegramChannels.find(c => c.username.toLowerCase() === cleanUsername.toLowerCase());
-      if (existing) {
-        throw new Error("Sei già iscritto a questo canale Telegram.");
-      }
+      if (existing) throw new Error("Sei già iscritto a questo canale Telegram.");
       
       const channelId = uuidv4();
       const [messages, info] = await Promise.all([
@@ -91,7 +79,6 @@ export const TelegramProvider: React.FC<{ children: ReactNode }> = ({ children }
         lastChecked: Date.now(),
         unreadCount: messages ? messages.length : 0,
         lastOpened: Date.now(),
-        retentionDays: 30,
       };
       await storage.addTelegramChannel(channel);
       setTelegramChannels(prev => [...prev, channel]);
@@ -115,10 +102,10 @@ export const TelegramProvider: React.FC<{ children: ReactNode }> = ({ children }
   }, []);
 
   const cleanupTelegramMessages = useCallback((channel: TelegramChannel, messages: TelegramMessage[]) => {
-    const retentionMs = settings.telegramRetentionDays * 24 * 60 * 60 * 1000;
+    const retentionMs = 1 * 24 * 60 * 60 * 1000; // Force 1 day retention
     const now = Date.now();
     return messages.filter(m => now - m.date < retentionMs);
-  }, [settings.telegramRetentionDays]);
+  }, []);
 
   const refreshTelegramChannels = useCallback(async (channelsToRefresh?: TelegramChannel[]) => {
     const channels = channelsToRefresh || telegramChannelsRef.current;

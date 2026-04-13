@@ -11,7 +11,6 @@ export const defaultSettings: Settings = {
   autoCheckUpdates: true,
   theme: 'dark',
   pureBlack: true,
-  telegramRetentionDays: 30,
   imageRetentionDays: 1,
 };
 

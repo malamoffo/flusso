@@ -1,4 +1,37 @@
+import { Capacitor } from '@capacitor/core';
+import { CapacitorHttp } from '@capacitor/core';
+
 export async function fetchWithProxy(url: string, isRss: boolean = true, sinceDate?: number, externalSignal?: AbortSignal): Promise<string> {
+  // On native platforms, we don't need proxies as there's no CORS restriction
+  if (Capacitor.isNativePlatform()) {
+    try {
+      const headers: Record<string, string> = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        ...(isRss ? { 'Accept': 'application/rss+xml, application/xml, text/xml, */*' } : {})
+      };
+
+      if (sinceDate) {
+        headers['If-Modified-Since'] = new Date(sinceDate).toUTCString();
+      }
+
+      const response = await CapacitorHttp.get({
+        url,
+        headers,
+        connectTimeout: 15000,
+        readTimeout: 15000
+      });
+
+      if (response.status === 304) return '';
+      if (response.status >= 200 && response.status < 300) {
+        return typeof response.data === 'string' ? response.data : JSON.stringify(response.data);
+      }
+      throw new Error(`Native fetch failed with status ${response.status}`);
+    } catch (e) {
+      console.error(`Native fetch failed for ${url}, retrying with standard fetch:`, e);
+      // Fallback to standard fetch if CapacitorHttp fails for some reason
+    }
+  }
+
   // First try direct fetch (in case CORS is enabled on the target server)
   try {
     if (externalSignal?.aborted) throw new Error('Aborted');

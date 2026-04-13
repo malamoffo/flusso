@@ -258,36 +258,33 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   }, [feeds, settings.refreshInterval]);
 
-  const addFeedOrSubreddit = useCallback(async (url: string): Promise<'article' | 'podcast' | 'reddit' | 'subreddit' | void> => {
+  const addFeedOrSubreddit = useCallback(async (url: string): Promise<'article' | 'podcast' | 'reddit' | 'subreddit' | 'telegram' | void> => {
     try {
       setIsLoading(true);
       setError(null);
       
-      // Check if it's a subreddit
-      let isSubreddit = false;
-      let cleanName = url.trim();
-      const lowerName = cleanName.toLowerCase();
+      const cleanUrl = url.trim();
+      const lowerUrl = cleanUrl.toLowerCase();
       
-      if (lowerName.includes('reddit.com/r/')) {
-        isSubreddit = true;
-      } else if (lowerName.startsWith('r/')) {
-        isSubreddit = true;
-      }
-
-      if (isSubreddit) {
-        const existing = subreddits.find(s => s.name.toLowerCase() === cleanName.toLowerCase());
+      // 1. Check if it's a subreddit
+      if (lowerUrl.startsWith('r/') || lowerUrl.includes('reddit.com/r/')) {
+        const existing = subreddits.find(s => s.name.toLowerCase() === cleanUrl.toLowerCase());
         if (existing) {
           throw new Error("Sei già iscritto a questo subreddit.");
         }
-        const result = await storage.addSubreddit(cleanName);
+        const result = await storage.addSubreddit(cleanUrl);
         if (!result) {
           throw new Error("Impossibile trovare il subreddit. Controlla il nome.");
         }
         await refreshReddit([result]);
         await loadData();
         return 'subreddit';
-      } else {
-        const result = await storage.addFeed(url);
+      } 
+      
+      // 2. Check if it's an RSS feed (starts with http/https)
+      if (lowerUrl.startsWith('http://') || lowerUrl.startsWith('https://')) {
+        // Force type to 'article' as requested (podcasts are added via search)
+        const result = await storage.addFeed(cleanUrl, 'article');
         if (!result) {
           throw new Error("Impossibile caricare il feed. Controlla l'URL.");
         }
@@ -295,7 +292,21 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         if (result.feed.feedUrl.includes('reddit.com')) {
           return 'reddit';
         }
-        return result.feed.type as 'article' | 'podcast';
+        return 'article';
+      }
+
+      // 3. Otherwise, treat as Telegram channel
+      try {
+        // We need to access addTelegramChannel from TelegramContext
+        // But RssContext doesn't have it directly. 
+        // However, the user wants this logic in the "add" flow.
+        // I will return a special type and let the caller handle it if needed,
+        // but better to implement it here if possible or in the Modal.
+        // Actually, RssContext is where addFeedOrSubreddit lives.
+        // I'll assume the caller of addFeedOrSubreddit in AddFeedModal will handle the 'telegram' return.
+        return 'telegram';
+      } catch (tgErr: any) {
+        throw new Error(tgErr.message || "Impossibile aggiungere il canale Telegram. Verifica il nome.");
       }
     } catch (err: any) {
       const errMsg = err.message || "Errore durante l'aggiunta. Riprova.";

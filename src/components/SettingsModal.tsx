@@ -426,32 +426,6 @@ export const SettingsModal = React.memo(function SettingsModal({
                     </div>
                   </div>
                 </section>
-
-                {/* Telegram Settings */}
-                <section>
-                  <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Telegram</h3>
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-1">
-                        Message Retention
-                      </label>
-                      <select
-                        value={settings.telegramRetentionDays}
-                        onChange={(e) => updateSettings({ telegramRetentionDays: parseInt(e.target.value) })}
-                        className="block w-full pl-3 pr-10 py-2 text-base border-gray-700 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-lg bg-gray-800 text-white"
-                      >
-                        <option value={1}>1 Day</option>
-                        <option value={3}>3 Days</option>
-                        <option value={7}>7 Days</option>
-                        <option value={14}>14 Days</option>
-                        <option value={30}>30 Days</option>
-                      </select>
-                      <p className="mt-1 text-[10px] text-gray-500">
-                        * Messages older than this will be removed.
-                      </p>
-                    </div>
-                  </div>
-                </section>
               </div>
             ) : activeTab === 'subscriptions' ? (
               <section className="space-y-4">

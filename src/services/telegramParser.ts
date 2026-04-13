@@ -7,17 +7,9 @@ export const fetchTelegramChannelInfo = async (channelUsername: string): Promise
   try {
     let htmlData: string;
     
-    if (Capacitor.isNativePlatform()) {
-      const response = await CapacitorHttp.get({
-        url: `https://t.me/s/${channelUsername}`,
-      });
-      if (response.status !== 200) {
-        throw new Error('Channel not found');
-      }
-      htmlData = response.data;
-    } else {
-      htmlData = await fetchWithProxy(`https://t.me/s/${channelUsername}`, false);
-    }
+    // Always use proxy for Telegram to avoid CORS and regional blocks
+    // and to ensure consistency across platforms
+    htmlData = await fetchWithProxy(`https://t.me/s/${channelUsername}`, false);
 
     if (!htmlData) {
       throw new Error('No data received from Telegram');
@@ -54,18 +46,9 @@ export const fetchTelegramMessages = async (channelUsername: string, sinceDate?:
       url += `?before=${before}`;
     }
     
-    if (Capacitor.isNativePlatform()) {
-      const response = await CapacitorHttp.get({
-        url: url,
-      });
-      if (response.status !== 200) {
-        throw new Error('Channel not found');
-      }
-      htmlData = response.data;
-    } else {
-      // Use proxy for web preview to avoid CORS
-      htmlData = await fetchWithProxy(url, false);
-    }
+    // Always use proxy for Telegram to avoid CORS and regional blocks
+    // and to ensure consistency across platforms
+    htmlData = await fetchWithProxy(url, false);
 
     if (!htmlData || htmlData.includes('tgme_page_error') || htmlData.includes('Channel not found')) {
       throw new Error('Channel not found or unavailable');

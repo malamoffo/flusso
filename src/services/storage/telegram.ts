@@ -45,5 +45,17 @@ export const telegramStorage = {
     await db.telegramChannels.delete(channelId);
     const messagesToDelete = await db.telegramMessages.where('channelId').equals(channelId).primaryKeys();
     await db.telegramMessages.bulkDelete(messagesToDelete);
+  },
+
+  async cleanupOldTelegramMessages(): Promise<void> {
+    const ONE_DAY = 1 * 24 * 60 * 60 * 1000;
+    const now = Date.now();
+    const oldMessages = await db.telegramMessages
+      .filter(m => (now - m.date) > ONE_DAY)
+      .primaryKeys();
+    
+    if (oldMessages.length > 0) {
+      await db.telegramMessages.bulkDelete(oldMessages);
+    }
   }
 };

@@ -94,53 +94,6 @@ export const rssStorage = {
   },
 
   async fetchFeedData(feedUrl: string, sinceDate?: number, signal?: AbortSignal): Promise<{ feed: Feed; articles: Article[] } | null> {
-    const isNative = typeof window !== 'undefined' && (window as any).Capacitor?.isNativePlatform();
-    
-    if (isNative) {
-      try {
-        if (signal?.aborted) return null;
-
-        const headers: Record<string, string> = { 
-          'Accept': 'application/xml, text/xml, */*',
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-        };
-
-        if (sinceDate) {
-          headers['If-Modified-Since'] = new Date(sinceDate).toUTCString();
-        }
-
-        const options = {
-          url: feedUrl,
-          headers,
-          connectTimeout: 10000,
-          readTimeout: 10000,
-        };
-        
-        const response = await CapacitorHttp.get(options);
-        
-        if (response.status === 304) {
-          return null;
-        }
-
-        if (response.status === 200) {
-          const dataString = typeof response.data === 'string' ? response.data : JSON.stringify(response.data);
-          const { feed, articles } = parseRssXml(dataString, feedUrl, sinceDate);
-          
-          const filteredArticles = articles.filter(a => {
-            const limit = a.type === 'podcast' ? 14 * 24 * 60 * 60 * 1000 : 7 * 24 * 60 * 60 * 1000;
-            return (Date.now() - a.pubDate) <= limit && 
-                   (!sinceDate || a.pubDate > sinceDate);
-          });
-
-          return { feed, articles: filteredArticles };
-        } else {
-          return null;
-        }
-      } catch (e) {
-        return null;
-      }
-    }
-
     try {
       let xmlString = await fetchWithProxy(feedUrl, true, sinceDate, signal);
       
@@ -161,6 +114,7 @@ export const rssStorage = {
 
       return { feed, articles: filteredArticles };
     } catch (e) {
+      console.error(`Failed to fetch feed data for ${feedUrl}:`, e);
       return null;
     }
   },
@@ -272,23 +226,6 @@ export const rssStorage = {
   },
 
   async fetchUrlContent(url: string): Promise<string> {
-    const isNative = typeof window !== 'undefined' && (window as any).Capacitor?.isNativePlatform();
-    if (isNative) {
-      const options = {
-        url,
-        headers: { 
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-        },
-        connectTimeout: 30000,
-        readTimeout: 30000,
-      };
-      const response = await CapacitorHttp.get(options);
-      if (response.status === 200) {
-        return typeof response.data === 'string' ? response.data : JSON.stringify(response.data);
-      }
-      throw new Error(`Fetch failed with status ${response.status}`);
-    }
     return await fetchWithProxy(url, false);
   },
 
@@ -339,10 +276,15 @@ export const rssStorage = {
     }
   },
 
-  async addFeed(url: string, append: boolean = true): Promise<{ feed: Feed; articles: Article[] } | null> {
+  async addFeed(url: string, forcedType?: 'article' | 'podcast'): Promise<{ feed: Feed; articles: Article[] } | null> {
     const discoveredUrl = await this.discoverFeedUrl(url);
     const data = await this.fetchFeedData(discoveredUrl);
     if (!data) return null;
+    
+    if (forcedType) {
+      data.feed.type = forcedType;
+      data.articles.forEach(a => a.type = forcedType);
+    }
     
     await this.saveFeedData(data.feed, data.articles);
     return data;

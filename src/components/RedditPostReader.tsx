@@ -57,6 +57,11 @@ export const RedditPostReader = ({ post, onClose, onNext, onPrev, hasNext, hasPr
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    // Mark post as read when opened
+    if (!post.isRead) {
+      storage.saveRedditPosts([{ ...post, isRead: true }]);
+    }
+
     const loadComments = async () => {
       setIsLoading(true);
       try {

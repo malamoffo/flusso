@@ -13,7 +13,6 @@ export interface Settings {
   autoCheckUpdates: boolean;
   theme: Theme;
   pureBlack: boolean;
-  telegramRetentionDays: number;
   imageRetentionDays: number;
 }
 
@@ -129,7 +128,6 @@ export interface TelegramChannel {
   lastChecked: number;
   unreadCount: number;
   lastOpened: number;
-  retentionDays: number;
   error?: string;
 }
 

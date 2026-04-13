@@ -61,6 +61,20 @@ export const RedditProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const refreshReddit = useCallback(async (subsToRefresh?: Subreddit[], currentPosts?: RedditPost[], sort?: 'new' | 'hot' | 'top') => {
     const targetSubs = subsToRefresh || subredditsRef.current;
     const targetSort = sort || redditSort;
+    
+    // Update local subreddits state if new ones are provided
+    if (subsToRefresh) {
+      setSubreddits(prev => {
+        const next = [...prev];
+        subsToRefresh.forEach(newSub => {
+          if (!next.find(s => s.id === newSub.id)) {
+            next.push(newSub);
+          }
+        });
+        return next;
+      });
+    }
+
     if (targetSubs.length === 0) return;
 
     setIsLoading(true);
