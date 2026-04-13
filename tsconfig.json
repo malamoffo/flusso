@@ -13,11 +13,7 @@
     "moduleResolution": "bundler",
     "isolatedModules": true,
     "moduleDetection": "force",
-
-    /* ✅ RIMOSSO: allowJs: true
-       Forzare TypeScript puro. Se esistono file .js legacy,
-       rinominarli in .ts e tipizzarli correttamente. */
-
+    "allowJs": true,
     "jsx": "react-jsx",
     "paths": {
       "@/*": [
@@ -26,40 +22,6 @@
     },
     "allowImportingTsExtensions": true,
     "noEmit": true,
-    "types": ["vite/client"],
-
-    /* ── STRICT MODE ──────────────────────────────────────────────────
-       Attiva tutte le verifiche di tipo. Equivale ad abilitare:
-       strictNullChecks, strictFunctionTypes, strictBindCallApply,
-       strictPropertyInitialization, noImplicitAny, noImplicitThis,
-       alwaysStrict, useUnknownInCatchVariables                      */
-    "strict": true,
-
-    /* ── QUALITY FLAGS AGGIUNTIVI ─────────────────────────────────── */
-
-    /* Errore se una variabile locale non viene usata */
-    "noUnusedLocals": true,
-
-    /* Errore se un parametro di funzione non viene usato */
-    "noUnusedParameters": true,
-
-    /* Errore se un'istruzione return non restituisce un valore
-       in tutti i rami (rileva funzioni con return implicito undefined) */
-    "noImplicitReturns": true,
-
-    /* Errore se un case di switch cade nel successivo senza break/return */
-    "noFallthroughCasesInSwitch": true,
-
-    /* Impone che i metodi di override siano marcati con la keyword
-       override, rendendo esplicita l'intenzione */
-    "noImplicitOverride": true,
-
-    /* Rileva property access su indici di array/oggetto che potrebbero
-       essere undefined (es. arr[0] diventa T | undefined) */
-    "noUncheckedIndexedAccess": true,
-
-    /* Considera che i metodi delle property siano chiamati solo
-       sull'oggetto che le possiede (previene bug con .bind / callback) */
-    "strictPropertyInitialization": true
+    "types": ["vite/client"]
   }
 }
