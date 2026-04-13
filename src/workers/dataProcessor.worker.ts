@@ -43,17 +43,26 @@ self.onmessage = (e) => {
       const { sort } = e.data;
       const merged = Array.isArray(prev) ? [...prev] : [];
       const incomingArr = Array.isArray(incoming) ? incoming : [];
-      const existingIds = new Set<string>();
+      const existingMap = new Map<string, number>();
       for (let i = 0; i < merged.length; i++) {
-        existingIds.add(merged[i].id);
+        existingMap.set(merged[i].id, i);
       }
       let hasNew = false;
 
       for (const newPost of incomingArr) {
-        if (!existingIds.has(newPost.id)) {
+        const existingIdx = existingMap.get(newPost.id);
+        if (existingIdx === undefined) {
           hasNew = true;
-          existingIds.add(newPost.id);
           merged.push(newPost);
+          existingMap.set(newPost.id, merged.length - 1);
+        } else {
+          // Update metadata but preserve user state (isRead, isFavorite)
+          const existingPost = merged[existingIdx];
+          merged[existingIdx] = {
+            ...newPost,
+            isRead: existingPost.isRead,
+            isFavorite: existingPost.isFavorite
+          };
         }
       }
 

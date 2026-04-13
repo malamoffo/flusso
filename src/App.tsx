@@ -725,7 +725,10 @@ export default function App() {
                     key={item.id}
                     post={item as any}
                     settings={settings}
-                    onClick={setSelectedRedditPost}
+                    onClick={(post) => {
+                      setSelectedRedditPost(post);
+                      if (!post.isRead) markRedditAsRead(post.id);
+                    }}
                     onImageClick={setSelectedImage}
                     onMarkAsRead={markRedditAsRead}
                     toggleRead={toggleRedditRead}
@@ -755,7 +758,10 @@ export default function App() {
         <RedditListView
           isActive={filter === 'reddit'}
           posts={filteredRedditPosts}
-          onPostClick={setSelectedRedditPost}
+          onPostClick={(post) => {
+            setSelectedRedditPost(post);
+            if (!post.isRead) markRedditAsRead(post.id);
+          }}
           onImageClick={setSelectedImage}
           isLoading={isRedditLoading}
           refreshReddit={refreshReddit}
@@ -989,8 +995,16 @@ export default function App() {
             <RedditPostReader
               post={selectedRedditPost}
               onClose={() => setSelectedRedditPost(null)}
-              onNext={hasNextReddit ? () => setSelectedRedditPost(redditPosts[activeRedditIndex + 1]) : undefined}
-              onPrev={hasPrevReddit ? () => setSelectedRedditPost(redditPosts[activeRedditIndex - 1]) : undefined}
+              onNext={hasNextReddit ? () => {
+                const next = redditPosts[activeRedditIndex + 1];
+                setSelectedRedditPost(next);
+                if (!next.isRead) markRedditAsRead(next.id);
+              } : undefined}
+              onPrev={hasPrevReddit ? () => {
+                const prev = redditPosts[activeRedditIndex - 1];
+                setSelectedRedditPost(prev);
+                if (!prev.isRead) markRedditAsRead(prev.id);
+              } : undefined}
               hasNext={hasNextReddit}
               hasPrev={hasPrevReddit}
             />
