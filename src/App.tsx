@@ -1,10 +1,13 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo, memo, useDeferredValue } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo, memo, useDeferredValue, RefObject } from 'react';
 import { useRss } from './context/RssContext';
 import { useTelegram } from './context/TelegramContext';
 import { useSettings } from './context/SettingsContext';
 import { useReddit } from './context/RedditContext';
 import { useAudioState } from './context/AudioPlayerContext.tsx';
-import { SwipeableArticle } from './components/SwipeableArticle';
+import { useFeedFiltering } from './hooks/useFeedFiltering';
+import { usePagination } from './hooks/usePagination';
+import { usePullToRefresh } from './hooks/usePullToRefresh';
+import { FeedList } from './components/App/FeedList';
 import { ArticleReader } from './components/ArticleReader';
 import { SettingsModal } from './components/SettingsModal';
 import { PersistentPlayer } from './components/PersistentPlayer';
@@ -36,106 +39,6 @@ const ProgressBanner = memo(() => {
   );
 });
 
-const ArticleListView = memo(({
-  isActive,
-  articles,
-  scrollRef,
-  handleScroll,
-  currentTrack,
-  feedsMap,
-  settings,
-  handleArticleClick,
-  markAsRead,
-  toggleRead,
-  toggleFavorite,
-  toggleQueue,
-  handleRemoveArticle,
-  isSavedSection,
-  feeds,
-  setSettingsTab,
-  setIsSettingsOpen,
-  hasMoreArticles,
-  isLoading,
-  loadMoreArticles
-}: any) => {
-  const { ref, inView } = useInView({
-    threshold: 0,
-    rootMargin: '200px',
-  });
-
-  useEffect(() => {
-    if (inView && hasMoreArticles && !isLoading) {
-      loadMoreArticles();
-    }
-  }, [inView, hasMoreArticles, isLoading, loadMoreArticles]);
-
-  return (
-    <motion.main
-      className={cn(
-        "absolute inset-0 overflow-y-auto transition-all duration-300 will-change-transform",
-        currentTrack ? "pb-48" : "pb-32",
-        isActive ? "z-10 opacity-100 pointer-events-auto" : "z-0 opacity-0 pointer-events-none"
-      )}
-      ref={scrollRef}
-      onScroll={(e) => handleScroll(e, isSavedSection ? 'saved' : 'inbox')}
-      initial={false}
-    >
-      {articles.length === 0 && !isLoading ? (
-        <div className="flex flex-col items-center justify-center h-64 text-gray-500 dark:text-gray-400 px-6 text-center">
-          <CheckCircle2 className="w-16 h-16 mb-4 text-gray-300 dark:text-gray-600" />
-          <p className="text-lg font-medium text-gray-900 dark:text-white mb-1">No articles found</p>
-          <div className="text-sm">
-            {feeds.length === 0 ? (
-              <div className="space-y-4">
-                <p>You haven't added any feeds yet.</p>
-                <motion.button
-                  whileTap={{ scale: 0.95 }}
-                  onClick={() => { setSettingsTab(undefined); setIsSettingsOpen(true); }}
-                  className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-lg shadow-blue-500/20 transition-all"
-                >
-                  <Rss className="w-5 h-5" aria-hidden="true" /> Add your first feed
-                </motion.button>
-              </div>
-            ) : (
-              <p>You're all caught up!</p>
-            )}
-          </div>
-        </div>
-      ) : (
-        <div className="flex-1 max-w-3xl mx-auto px-1 py-1">
-          <AnimatePresence initial={false}>
-            {articles.map((article: Article) => {
-              const feed = feedsMap.get(article.feedId);
-              return (
-                <SwipeableArticle
-                  key={article.id}
-                  article={article}
-                  feedName={feed?.title || 'Unknown Feed'}
-                  feedImageUrl={feed?.imageUrl}
-                  settings={settings}
-                  onClick={handleArticleClick}
-                  onMarkAsRead={markAsRead}
-                  toggleRead={toggleRead}
-                  toggleFavorite={toggleFavorite}
-                  toggleQueue={toggleQueue}
-                  isSavedSection={isSavedSection}
-                  filter={isSavedSection ? 'saved' : 'inbox'}
-                  onRemove={handleRemoveArticle}
-                />
-              );
-            })}
-          </AnimatePresence>
-          
-          <div ref={ref} className="h-20 flex items-center justify-center">
-            {(hasMoreArticles || isLoading) && (
-              <Loader2 className="w-6 h-6 text-gray-400 animate-spin" />
-            )}
-          </div>
-        </div>
-      )}
-    </motion.main>
-  );
-});
 
 export default function App() {
   const inboxScrollRef = useRef<HTMLDivElement>(null);
@@ -164,14 +67,9 @@ export default function App() {
   const {
     isLoading: isRedditLoading,
     subreddits, redditPosts, redditSort, handleRedditSortChange,
-    refreshReddit, loadMoreReddit, markRedditAsRead, toggleRedditRead, toggleRedditFavorite
+    refreshReddit, loadMoreReddit, markRedditAsRead, toggleRedditRead, toggleRedditFavorite,
+    redditUnreadCount
   } = useReddit();
-
-  const [visibleCount, setVisibleCount] = useState(30);
-
-  const loadMoreArticles = useCallback(() => {
-    setVisibleCount(prev => prev + PAGE_SIZE);
-  }, []);
 
   const deferredSearchQuery = useDeferredValue(searchQuery);
 
@@ -192,7 +90,7 @@ export default function App() {
   const [selectedTelegramChannel, setSelectedTelegramChannel] = useState<TelegramChannel | null>(null);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [settingsTab, setSettingsTab] = useState<string | undefined>(undefined);
+  const [settingsTab, setSettingsTab] = useState<'main' | 'subscriptions' | 'about' | 'general' | undefined>(undefined);
   const [isMarkAllReadOpen, setIsMarkAllReadOpen] = useState(false);
   
   const [filter, setFilter] = useState<'inbox' | 'saved' | 'reddit' | 'telegram'>('inbox');
@@ -211,7 +109,7 @@ export default function App() {
       if (query) {
         const matchesQuery = post.title.toLowerCase().includes(query) || 
                             (post.subredditName?.toLowerCase().includes(query) ?? false) ||
-                            (post.selftext?.toLowerCase().includes(query) ?? false);
+                            (post.selftextHtml?.toLowerCase().includes(query) ?? false);
         if (!matchesQuery) return false;
       }
       return true;
@@ -233,7 +131,7 @@ export default function App() {
   }, [telegramChannels, deferredSearchQuery]);
   
   useEffect(() => {
-    setVisibleCount(30);
+    resetPagination();
   }, [filter, deferredSearchQuery, inboxUnreadOnly, savedUnreadOnly, inboxTypeFilter, savedTypeFilter, sourceFilter, timeFilter]);
 
   useEffect(() => {
@@ -253,11 +151,24 @@ export default function App() {
     }
   }, [selectedTelegramChannel?.id, telegramMessages]);
 
-  const PULL_THRESHOLD = 80;
-  const pullProgress = useMotionValue(0);
-  const pullProgressTransform = useTransform(pullProgress, v => v - 40);
-  const pullOpacity = useTransform(pullProgress, v => v / PULL_THRESHOLD);
-  const [isPulling, setIsPulling] = useState(false);
+  const {
+    pullProgressTransform,
+    pullOpacity,
+    isPulling,
+    handleTouchStart,
+    handleTouchMove,
+    handleTouchEnd
+  } = usePullToRefresh({
+    onRefresh: refreshFeeds,
+    isLoading,
+    isDisabled: isSettingsOpen || filter === 'reddit' || filter === 'telegram',
+    scrollRefs: {
+      inbox: inboxScrollRef as RefObject<HTMLDivElement>,
+      saved: savedScrollRef as RefObject<HTMLDivElement>,
+      reddit: redditScrollRef as RefObject<HTMLDivElement>
+    },
+    activeScrollRefKey: filter
+  });
 
   useEffect(() => {
     setSourceFilter('all');
@@ -347,62 +258,19 @@ export default function App() {
     };
   }, [selectedArticle, selectedRedditPost, isSettingsOpen, isSearchOpen, filter, sourceFilter, timeFilter, setSearchQuery]);
 
-  /**
-   * ⚡ Bolt: Consolidated single-pass filtering for Inbox and Saved views.
-   * Reduces traversals from O(3N) to O(N) and uses useDeferredValue to keep the UI responsive.
-   * Pre-calculates constants and avoids redundant object creation in the loop.
-   */
-  const { inboxArticles, savedArticles } = useMemo(() => {
-    const inbox: Article[] = [];
-    const saved: Article[] = [];
-    
-    const now = Date.now();
-    const query = deferredSearchQuery.toLowerCase();
-    const DAY_MS = 1000 * 60 * 60 * 24;
-    const timeThresholds: Record<string, number> = {
-      today: now - DAY_MS,
-      week: now - (DAY_MS * 7),
-      month: now - (DAY_MS * 30),
-    };
+  const { inboxArticles, savedArticles } = useFeedFiltering({
+    articles,
+    inboxTypeFilter,
+    inboxUnreadOnly,
+    savedTypeFilter,
+    savedUnreadOnly,
+    deferredSearchQuery,
+    sourceFilter,
+    timeFilter,
+    isSearchOpen
+  });
 
-    for (let i = 0; i < articles.length; i++) {
-      const article = articles[i];
-      
-      // Common filters (Search & Metadata)
-      if (isSearchOpen) {
-        if (sourceFilter !== 'all' && article.feedId !== sourceFilter) continue;
-        if (timeFilter !== 'all') {
-          const threshold = timeThresholds[timeFilter];
-          // Robustly handle string or number pubDate
-          const pubTime = typeof article.pubDate === 'string' ? new Date(article.pubDate).getTime() : article.pubDate;
-          if (threshold && pubTime < threshold) continue;
-        }
-      }
-      
-      if (query) {
-        const matchesQuery = article.title.toLowerCase().includes(query) || 
-                            (article.contentSnippet?.toLowerCase().includes(query) ?? false) ||
-                            (article.content?.toLowerCase().includes(query) ?? false);
-        if (!matchesQuery) continue;
-      }
-
-      // Inbox specific filtering
-      let matchesInbox = true;
-      if (inboxUnreadOnly && article.isRead) matchesInbox = false;
-      if (inboxTypeFilter !== 'all' && article.type !== inboxTypeFilter) matchesInbox = false;
-      if (matchesInbox) inbox.push(article);
-
-      // Saved specific filtering
-      if (article.isFavorite || article.isQueued) {
-        let matchesSaved = true;
-        if (savedUnreadOnly && article.isRead) matchesSaved = false;
-        if (savedTypeFilter !== 'all' && article.type !== savedTypeFilter) matchesSaved = false;
-        if (matchesSaved) saved.push(article);
-      }
-    }
-
-    return { inboxArticles: inbox, savedArticles: saved };
-  }, [articles, inboxTypeFilter, inboxUnreadOnly, savedTypeFilter, savedUnreadOnly, deferredSearchQuery, sourceFilter, timeFilter, isSearchOpen]);
+  const { visibleCount, loadMore: loadMoreArticles, hasMore: hasMoreArticles, reset: resetPagination } = usePagination(filter === 'inbox' ? inboxArticles.length : savedArticles.length);
 
   /**
    * ⚡ Bolt: Optimize article navigation by pre-calculating the active list and current index.
@@ -410,10 +278,6 @@ export default function App() {
    */
   const activeArticles = useMemo(() => (filter === 'inbox' ? inboxArticles : savedArticles), [filter, inboxArticles, savedArticles]);
   
-  const hasMoreArticles = useMemo(() => {
-    return visibleCount < activeArticles.length;
-  }, [activeArticles.length, visibleCount]);
-
   const visibleArticles = useMemo(() => activeArticles.slice(0, visibleCount), [activeArticles, visibleCount]);
 
   const activeIndex = useMemo(() => {
@@ -421,49 +285,6 @@ export default function App() {
     return activeArticles.findIndex(a => a.id === selectedArticle.id);
   }, [selectedArticle, activeArticles]);
 
-  const handleTouchStart = (e: React.TouchEvent) => {
-    let activeScrollRef;
-    if (filter === 'inbox') activeScrollRef = inboxScrollRef;
-    else if (filter === 'saved') activeScrollRef = savedScrollRef;
-    else if (filter === 'reddit') activeScrollRef = redditScrollRef;
-    
-    const scrollTop = activeScrollRef?.current?.scrollTop || 0;
-    isAtTop.current = scrollTop <= 0;
-    touchStartY.current = e.touches[0].clientY;
-    if (isAtTop.current && !isSettingsOpen && filter !== 'reddit' && filter !== 'telegram') {
-      setIsPulling(true);
-    }
-  };
-
-  const handleTouchMove = (e: React.TouchEvent) => {
-    if (!isPulling || !isAtTop.current) return;
-    const deltaY = e.touches[0].clientY - touchStartY.current;
-    if (deltaY < 0) {
-      setIsPulling(false);
-      pullProgress.set(0);
-      return;
-    }
-    if (deltaY > 0) {
-      pullProgress.set(Math.min(deltaY * 0.4, PULL_THRESHOLD + 30));
-    }
-  };
-
-  const handleTouchEnd = () => {
-    if (isPulling && pullProgress.get() >= PULL_THRESHOLD) {
-      if (filter !== 'reddit' && filter !== 'telegram') {
-        refreshFeeds();
-      }
-    } else {
-      animate(pullProgress, 0, { duration: 0.2 });
-    }
-    setIsPulling(false);
-  };
-
-  useEffect(() => {
-    if (!isLoading) {
-      animate(pullProgress, 0, { duration: 0.2 });
-    }
-  }, [isLoading, pullProgress]);
 
   const inboxArticlesRef = useRef(inboxArticles);
   useEffect(() => { inboxArticlesRef.current = inboxArticles; }, [inboxArticles]);
@@ -565,7 +386,7 @@ export default function App() {
     };
   }, [filter, hasMoreArticles, markArticlesAsRead]);
 
-  const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>, filterType: 'inbox' | 'saved') => {
+  const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>, filterType: 'inbox' | 'saved' | 'reddit') => {
     const container = e.currentTarget;
     isAtTop.current = container.scrollTop <= 0;
 
@@ -834,50 +655,57 @@ export default function App() {
       </div>
 
       <div className="flex-1 relative overflow-hidden">
-        <ArticleListView
-          isActive={filter === 'inbox'}
-          articles={visibleArticles}
-          scrollRef={inboxScrollRef}
-          handleScroll={handleScroll}
-          currentTrack={currentTrack}
-          feedsMap={feedsMap}
-          settings={settings}
-          handleArticleClick={handleArticleClick}
-          markAsRead={markAsRead}
-          toggleRead={toggleRead}
-          toggleFavorite={toggleFavorite}
-          toggleQueue={toggleQueue}
-          handleRemoveArticle={handleRemoveArticle}
-          isSavedSection={false}
-          feeds={feeds}
-          setSettingsTab={setSettingsTab}
-          setIsSettingsOpen={setIsSettingsOpen}
-          hasMoreArticles={hasMoreArticles}
-          isLoading={isLoading}
-          loadMoreArticles={loadMoreArticles}
-        />
-        <ArticleListView
-          isActive={filter === 'saved'}
-          articles={visibleArticles}
-          scrollRef={savedScrollRef}
-          handleScroll={handleScroll}
-          currentTrack={currentTrack}
-          feedsMap={feedsMap}
-          settings={settings}
-          handleArticleClick={handleArticleClick}
-          markAsRead={markAsRead}
-          toggleRead={toggleRead}
-          toggleFavorite={toggleFavorite}
-          toggleQueue={toggleQueue}
-          handleRemoveArticle={handleRemoveArticle}
-          isSavedSection={true}
-          feeds={feeds}
-          setSettingsTab={setSettingsTab}
-          setIsSettingsOpen={setIsSettingsOpen}
-          hasMoreArticles={hasMoreArticles}
-          isLoading={isLoading}
-          loadMoreArticles={loadMoreArticles}
-        />
+        <div 
+          ref={inboxScrollRef}
+          onScroll={(e) => handleScroll(e, 'inbox')}
+          className={cn(
+            "absolute inset-0 overflow-y-auto pb-24 scroll-smooth bg-black transition-all duration-300 will-change-transform",
+            filter === 'inbox' ? "z-10 opacity-100 pointer-events-auto" : "z-0 opacity-0 pointer-events-none"
+          )}
+        >
+          <FeedList
+            articles={inboxArticles.slice(0, visibleCount)}
+            feedsMap={feedsMap}
+            settings={settings}
+            handleArticleClick={handleArticleClick}
+            markAsRead={markAsRead}
+            toggleRead={toggleRead}
+            toggleFavorite={toggleFavorite}
+            toggleQueue={toggleQueue}
+            handleRemoveArticle={handleRemoveArticle}
+            isSavedSection={false}
+            isActive={filter === 'inbox'}
+            hasMoreArticles={hasMoreArticles}
+            isLoading={isLoading}
+            loadMoreArticles={loadMoreArticles}
+          />
+        </div>
+
+        <div 
+          ref={savedScrollRef}
+          onScroll={(e) => handleScroll(e, 'saved')}
+          className={cn(
+            "absolute inset-0 overflow-y-auto pb-24 scroll-smooth bg-black transition-all duration-300 will-change-transform",
+            filter === 'saved' ? "z-10 opacity-100 pointer-events-auto" : "z-0 opacity-0 pointer-events-none"
+          )}
+        >
+          <FeedList
+            articles={savedArticles.slice(0, visibleCount)}
+            feedsMap={feedsMap}
+            settings={settings}
+            handleArticleClick={handleArticleClick}
+            markAsRead={markAsRead}
+            toggleRead={toggleRead}
+            toggleFavorite={toggleFavorite}
+            toggleQueue={toggleQueue}
+            handleRemoveArticle={handleRemoveArticle}
+            isSavedSection={true}
+            isActive={filter === 'saved'}
+            hasMoreArticles={hasMoreArticles}
+            isLoading={isLoading}
+            loadMoreArticles={loadMoreArticles}
+          />
+        </div>
 
         <RedditListView
           isActive={filter === 'reddit'}
@@ -920,9 +748,9 @@ export default function App() {
           aria-pressed={filter === 'saved'}
         >
           <Star className={cn("w-6 h-6", filter === 'saved' && "shadow-[0_0_15px_rgba(234,179,8,0.5)]")} aria-hidden="true" />
-          {savedCount > 0 && (
+          {savedArticles.filter(a => !a.isRead).length > 0 && (
             <span className="absolute -top-1 -right-1 bg-yellow-500 text-black text-[10px] font-bold px-1.5 py-0.5 rounded-full border-2 border-black">
-              {savedCount > 99 ? '99+' : savedCount}
+              {savedArticles.filter(a => !a.isRead).length > 99 ? '99+' : savedArticles.filter(a => !a.isRead).length}
             </span>
           )}
         </motion.button>
@@ -948,6 +776,11 @@ export default function App() {
           aria-pressed={filter === 'reddit'}
         >
           <MessageSquare className={cn("w-6 h-6", filter === 'reddit' && "shadow-[0_0_15px_rgba(168,85,247,0.5)]")} aria-hidden="true" />
+          {redditUnreadCount > 0 && (
+            <span className="absolute -top-1 -right-1 bg-purple-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full border-2 border-black">
+              {redditUnreadCount > 99 ? '99+' : redditUnreadCount}
+            </span>
+          )}
         </motion.button>
         <motion.button
           whileTap={{ scale: 0.9 }}
@@ -960,6 +793,11 @@ export default function App() {
             <path d="M21.5 2L2 11.5l6.5 2.5 2 6.5L14 17l5.5 4.5L21.5 2z"></path>
             <path d="M21.5 2L8.5 14"></path>
           </svg>
+          {telegramChannels.reduce((sum, c) => sum + (c.unreadCount || 0), 0) > 0 && (
+            <span className="absolute -top-1 -right-1 bg-green-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full border-2 border-black">
+              {telegramChannels.reduce((sum, c) => sum + (c.unreadCount || 0), 0) > 99 ? '99+' : telegramChannels.reduce((sum, c) => sum + (c.unreadCount || 0), 0)}
+            </span>
+          )}
         </motion.button>
         <motion.button
           whileTap={{ scale: 0.9 }}
@@ -1027,10 +865,29 @@ export default function App() {
                 </button>
                 <button
                   onClick={async () => {
-                    const activeArticles = filter === 'inbox' ? inboxArticles : savedArticles;
-                    const toMark = activeArticles.filter(a => !a.isRead).map(a => a.id);
-                    if (toMark.length > 0) {
-                      markArticlesAsRead(toMark);
+                    if (filter === 'inbox') {
+                      // If no active filters, use the global markAllAsRead
+                      if (searchQuery === '' && sourceFilter === 'all' && timeFilter === 'all' && inboxTypeFilter === 'all' && !inboxUnreadOnly) {
+                        await markAllAsRead();
+                      } else {
+                        // Otherwise mark only filtered articles
+                        const toMark = inboxArticles.filter(a => !a.isRead).map(a => a.id);
+                        if (toMark.length > 0) {
+                          markArticlesAsRead(toMark);
+                        }
+                      }
+                    } else if (filter === 'saved') {
+                      const toMark = savedArticles.filter(a => !a.isRead).map(a => a.id);
+                      if (toMark.length > 0) {
+                        markArticlesAsRead(toMark);
+                      }
+                    } else if (filter === 'reddit') {
+                      // Mark all reddit posts as read
+                      redditPosts.forEach(p => {
+                        if (!p.isRead) markRedditAsRead(p.id);
+                      });
+                    } else if (filter === 'telegram') {
+                      await markAllTelegramAsRead();
                     }
                     setIsMarkAllReadOpen(false);
                   }}

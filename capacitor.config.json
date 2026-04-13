@@ -1,6 +1,5 @@
 {
   "appId": "com.flusso.app",
   "appName": "Flusso",
-  "webDir": "dist",
-  "bundledWebRuntime": false
+  "webDir": "dist"
 }

@@ -83,15 +83,15 @@ class ContentFetcherQueue {
 
       if (articleData) {
         const fullContent: FullArticleContent = {
-          title: articleData.title,
-          content: articleData.content,
-          textContent: articleData.textContent,
-          length: articleData.length,
-          excerpt: articleData.excerpt,
-          byline: articleData.byline,
-          dir: articleData.dir,
-          siteName: articleData.siteName,
-          lang: articleData.lang,
+          title: articleData.title || '',
+          content: articleData.content || '',
+          textContent: articleData.textContent || '',
+          length: articleData.length || 0,
+          excerpt: articleData.excerpt || '',
+          byline: articleData.byline || '',
+          dir: articleData.dir || '',
+          siteName: articleData.siteName || '',
+          lang: articleData.lang || '',
         };
         await this.setCachedContent(articleId, fullContent);
 

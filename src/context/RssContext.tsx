@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useMemo, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
+import { rssService } from '../services/rssService';
 import { Feed, Article, Settings, Subreddit, RedditPost } from '../types';
 import { storage, defaultSettings } from '../services/storage';
 import { useSettings } from './SettingsContext';
@@ -7,7 +8,7 @@ import { useReddit } from './RedditContext';
 import packageJson from '../../package.json';
 import { Capacitor } from '@capacitor/core';
 import { BackgroundPlugin } from '../plugins/BackgroundPlugin';
-import DataWorker from '../workers/dataProcessor.worker?worker';
+import DataWorker from '../workers/dataProcessor.worker.ts?worker';
 import { contentFetcher } from '../utils/contentFetcher';
 
 interface ProgressInfo {
@@ -33,8 +34,8 @@ interface RssContextType {
   loadMoreArticles: () => Promise<void>;
   updateInfo: any | null;
   addFeedOrSubreddit: (url: string) => Promise<'article' | 'podcast' | 'reddit' | 'subreddit' | 'telegram' | void>;
-  importOpml: (file: File | { text: () => Promise<string> }) => Promise<void>;
-  exportFeeds: () => Promise<string>;
+  importOpml: (file: File | { text: () => Promise<string> }, append?: boolean) => Promise<void>;
+  exportFeeds: (types?: ('article' | 'podcast')[]) => Promise<string>;
   removeFeed: (id: string) => void;
   refreshFeeds: (feedsToRefresh?: Feed[], currentArticles?: Article[]) => Promise<void>;
   toggleRead: (id: string) => void;
@@ -92,7 +93,7 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [updateInfo, setUpdateInfo] = useState<any | null>(null);
   const lastRefresh = useRef(Date.now());
   const isRefreshing = useRef(false);
-  const worker = useRef<Worker>();
+  const worker = useRef<Worker | undefined>(undefined);
 
   useEffect(() => {
     worker.current = new DataWorker();
@@ -175,144 +176,27 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     if (isRefreshing.current) return;
     isRefreshing.current = true;
     try {
-      setIsLoading(true);
-
       const fToRefresh = feedsToRefresh || await storage.getFeeds();
-      // When refreshing, we need to know what we already have to avoid duplicates
-      // but we don't need to load ALL articles into memory if we use a better merge strategy.
-      // However, for now, let's keep the existing worker-based merge which expects the full list.
-      // To optimize, we could pass only recent articles to the worker.
-      const cArticles = currentArticles || await storage.getArticles(0, 500); // Load last 500 for merging
+      const cArticles = currentArticles || await storage.getArticles(0, 500);
       
-      if (fToRefresh.length === 0) {
-        setIsLoading(false);
-        isRefreshing.current = false;
-        return;
+      if (!worker.current) {
+        throw new Error('Worker not initialized');
       }
-      
-      setProgress({ current: 0, total: fToRefresh.length });
-      const results: { feed: Feed; articles: Article[] }[] = [];
-      let completed = 0;
-      
-      // Precompute the latest article date for each feed for O(1) lookups
-      const latestArticleDateByFeedId = new Map<string, number>();
-      for (const article of cArticles) {
-        const currentLatest = latestArticleDateByFeedId.get(article.feedId) || 0;
-        if (article.pubDate > currentLatest) {
-          latestArticleDateByFeedId.set(article.feedId, article.pubDate);
-        }
-      }
-      
-      const queue = [...fToRefresh];
-      let queueIndex = 0;
-      const FEED_TIMEOUT = 12000; // Reduced from 15s to 12s
-      const CONCURRENCY = Math.min(6, queue.length); // Reduced from 10 to 6 to prevent stalling
-      
-      let mergeChain = Promise.resolve();
-      
-      const workers = Array(CONCURRENCY).fill(null).map(async () => {
-        while (true) {
-          const feed = queue[queueIndex++];
-          if (!feed) break;
-          
-          try {
-            const latestArticleDate = latestArticleDateByFeedId.get(feed.id);
-            const THREE_DAYS = 3 * 24 * 60 * 60 * 1000;
-            const TWO_WEEKS = 14 * 24 * 60 * 60 * 1000;
-            const hardSinceDate = Date.now() - (feed.type === 'podcast' ? TWO_WEEKS : THREE_DAYS);
-            const sinceDate = Math.max(latestArticleDate || feed.lastArticleDate || 0, hardSinceDate);
-            
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), FEED_TIMEOUT);
-            
-            try {
-              const data = await storage.fetchFeedData(feed.feedUrl, sinceDate, controller.signal);
-              if (data) {
-                const articlesWithCorrectId = (data.articles || []).map(a => ({ ...a, feedId: feed.id }));
-                
-                if (articlesWithCorrectId.length > 0) {
-                  // Incremental merge during update as requested
-                  await (mergeChain = mergeChain.then(async () => {
-                    const { merged, hasNew } = await new Promise<{ merged: Article[], hasNew: boolean }>((resolve, reject) => {
-                      const requestId = uuidv4();
-                      const timeout = setTimeout(() => {
-                        worker.current!.removeEventListener('message', handler);
-                        reject(new Error('Worker timeout'));
-                      }, 10000);
 
-                      const handler = (e: MessageEvent) => {
-                        if (e.data.type === 'mergedArticles' && e.data.requestId === requestId) {
-                          clearTimeout(timeout);
-                          worker.current!.removeEventListener('message', handler);
-                          resolve(e.data);
-                        }
-                      };
-                      worker.current!.addEventListener('message', handler);
-                      worker.current!.postMessage({ 
-                        type: 'mergeArticles', 
-                        prev: articlesRef.current, 
-                        incoming: articlesWithCorrectId, 
-                        requestId 
-                      });
-                    }).catch(err => {
-                      console.error('Merge failed:', err);
-                      return { merged: articlesRef.current, hasNew: false };
-                    });
-                    
-                    if (hasNew) {
-                      setArticles(merged);
-                      articlesRef.current = merged; // Immediate update for next merge in chain
-                    }
-                  }));
-                }
-                
-                setFeeds(prev => {
-                  const next = [...prev];
-                  const idx = next.findIndex(f => f.id === feed.id);
-                  if (idx !== -1) {
-                    const existingFeed = next[idx];
-                    next[idx] = {
-                      ...existingFeed,
-                      ...data.feed,
-                      title: existingFeed.title, // Preserve user-defined title
-                      id: feed.id,
-                      lastFetched: Date.now(),
-                      lastArticleDate: articlesWithCorrectId.length > 0 ? Math.max(...articlesWithCorrectId.map(a => a.pubDate)) : feed.lastArticleDate,
-                      lastRefreshStatus: 'success'
-                    };
-                  }
-                  feedsRef.current = next; // Update ref synchronously
-                  return next;
-                });
-              }
-            } finally {
-              clearTimeout(timeoutId);
-            }
-          } catch (e: any) {
-            if (e.name === 'AbortError') {
-              console.warn(`Skipping feed ${feed.feedUrl} due to timeout (${FEED_TIMEOUT}ms)`);
-            } else {
-              console.warn(`Skipping feed ${feed.feedUrl} due to error:`, e);
-            }
-            
-            setFeeds(prev => {
-              const next = [...prev];
-              const idx = next.findIndex(f => f.id === feed.id);
-              if (idx !== -1) {
-                next[idx] = { ...next[idx], lastRefreshStatus: 'error' };
-              }
-              feedsRef.current = next; // Update ref synchronously
-              return next;
-            });
-          } finally {
-            completed++;
-            setProgress(p => p ? { ...p, current: completed } : { current: completed, total: fToRefresh.length });
-          }
-        }
-      });
+      await rssService.refreshFeeds(
+        fToRefresh,
+        cArticles,
+        worker.current,
+        setProgress,
+        setFeeds,
+        setArticles,
+        setIsLoading
+      );
+
       
-      await Promise.all(workers);
-      await mergeChain; // Ensure all merges are finished
+
+      
+
 
       // Save final state to storage once at the end for performance
       await storage.saveArticles(articlesRef.current);
@@ -346,6 +230,8 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setIsLoading(false);
       setProgress(null);
       isRefreshing.current = false;
+      const unread = await storage.getUnreadCount();
+      setUnreadCount(unread);
     }
   }, []);
 
@@ -469,7 +355,6 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           if (result) {
             successCount++;
           } else {
-            console.warn(`Failed to fetch feed during import: ${url}`);
             failCount++;
           }
         } catch (e) {
@@ -480,11 +365,7 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
       
       await loadData();
-      if (failCount > 0) {
-        console.warn(`Import completed with warnings: ${successCount} feeds imported, ${failCount} failed.`);
-      } else {
-        setError(null);
-      }
+      setError(null);
     } catch (err) {
       logError("Failed to parse OPML file.");
       console.error(err);
@@ -519,9 +400,12 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         return a;
       });
       if (changedCount > 0) {
-        setUnreadCount(prevCount => prevCount - changedCount);
+        setUnreadCount(prevCount => Math.max(0, prevCount - changedCount));
         const changedArticles = updated.filter(a => idSet.has(a.id));
-        storage.saveArticles(changedArticles);
+        storage.saveArticles(changedArticles).then(() => {
+          // Recalculate from DB to ensure sync
+          storage.getUnreadCount().then(setUnreadCount);
+        });
       }
       return changedCount > 0 ? updated : prev;
     });
@@ -641,6 +525,8 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       storage.saveArticles(updated);
       return updated;
     });
+    const unread = await storage.getUnreadCount();
+    setUnreadCount(unread);
   }, []);
 
   const updateFeed = useCallback(async (id: string, updates: Partial<Feed>) => {

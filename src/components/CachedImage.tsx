@@ -75,7 +75,7 @@ export function CachedImage({ src, className, fallback, alt, ...props }: CachedI
           } else if (isMounted) {
             // Not cached locally yet. Already using remote URL.
             // Trigger background download for next time
-            imagePersistence.getLocalUrl(src).catch(e => console.warn('Background cache failed', e));
+            imagePersistence.getLocalUrl(src).catch(() => {});
           }
         } catch (e) {
           // Keep using remote src
@@ -104,13 +104,10 @@ export function CachedImage({ src, className, fallback, alt, ...props }: CachedI
   };
 
   const handleError = () => {
-    console.warn(`[CachedImage] Error loading image: ${currentSrc}`);
     // If local URL failed, try falling back to original src
     if (currentSrc !== src) {
-      console.log(`[CachedImage] Retrying with original src: ${src}`);
       setCurrentSrc(src);
     } else if (src && src.startsWith('http') && !src.includes('corsproxy.io')) {
-      console.log(`[CachedImage] Retrying with proxy: ${src}`);
       setCurrentSrc(`https://corsproxy.io/?${encodeURIComponent(src)}`);
     } else {
       console.error(`[CachedImage] Failed to load image: ${src}`);

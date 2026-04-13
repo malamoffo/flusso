@@ -39,12 +39,9 @@ export async function fetchWithProxy(url: string, isRss: boolean = true, sinceDa
       } else {
         return text;
       }
-    } else {
-      console.warn(`Direct fetch failed for ${url} with status ${directResponse.status}`);
     }
   } catch (e: any) {
     if (externalSignal?.aborted) throw new Error('Aborted');
-    console.warn(`Direct fetch failed for ${url}: ${e.message || e}`);
     // Direct fetch failed (likely CORS or timeout), fallback to proxies
   }
 
@@ -111,7 +108,6 @@ export async function fetchWithProxy(url: string, isRss: boolean = true, sinceDa
             return JSON.stringify(data); // Return the JSON string, parseRssXml will handle it
           } else {
             lastError = new Error(`rss2json returned error: ${data.message}`);
-            console.warn(`${proxy.name} returned error: ${data.message}`);
             continue;
           }
         } else {
@@ -125,7 +121,6 @@ export async function fetchWithProxy(url: string, isRss: boolean = true, sinceDa
               return text;
             } else {
               lastError = new Error(`Proxy ${proxy.name} returned invalid content (not XML/RSS)`);
-              console.warn(`${proxy.name} returned invalid content for ${url}`);
               continue;
             }
           } else {
@@ -133,27 +128,22 @@ export async function fetchWithProxy(url: string, isRss: boolean = true, sinceDa
             const isTelegram = url.includes('t.me/');
             if (!isTelegram && trimmed.startsWith('<') && (trimmed.toLowerCase().includes('<html') || trimmed.toLowerCase().includes('<body') || trimmed.toLowerCase().includes('<!doctype'))) {
               lastError = new Error(`Proxy ${proxy.name} returned HTML instead of expected JSON/API response`);
-              console.warn(`${proxy.name} returned HTML for ${url}`);
               continue;
             }
             return text;
           }
         } else {
           lastError = new Error(`Proxy ${proxy.name} returned empty response`);
-          console.warn(`${proxy.name} returned empty response for ${url}`);
           continue;
         }
       }
       lastError = new Error(`Proxy ${proxy.name} returned status ${response.status}`);
-      console.warn(`${proxy.name} failed with status ${response.status} for ${url}`);
     } catch (e: any) {
       clearTimeout(id);
       if (e.name === 'AbortError') {
         lastError = new Error(`Proxy ${proxy.name} timed out after ${timeout}ms`);
-        console.warn(`${proxy.name} timed out for ${url}`);
       } else {
         lastError = e;
-        console.warn(`${proxy.name} error for ${url}: ${e.message || e}`);
       }
     }
   }

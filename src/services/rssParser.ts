@@ -199,7 +199,7 @@ export function parseRssXml(xmlString: string, feedUrl: string, sinceDate?: numb
         const articles: Article[] = data.items.map((item: any) => {
           let imageUrl = item.thumbnail || null;
           let mediaUrl = null;
-          let mediaType = null;
+          let mediaType: string | undefined = undefined;
           if (item.enclosure && item.enclosure.link && item.enclosure.type) {
             if (item.enclosure.type.startsWith('image/')) {
               if (!imageUrl) imageUrl = item.enclosure.link;
@@ -268,7 +268,6 @@ export function parseRssXml(xmlString: string, feedUrl: string, sinceDate?: numb
   // Check for parsing errors
   let parserError = xmlDoc.getElementsByTagName('parsererror')[0];
   if (parserError) {
-    console.warn('XML parsing failed, trying HTML mode:', parserError.textContent);
     xmlDoc = parser.parseFromString(xmlString, 'text/html');
   }
   
@@ -350,7 +349,7 @@ export function parseRssXml(xmlString: string, feedUrl: string, sinceDate?: numb
       
       let imageUrl: string | null = null;
       let mediaUrl: string | null = null;
-      let mediaType: string | null = null;
+      let mediaType: string | undefined = undefined;
       
       for (let j = 0; j < linkElements.length; j++) {
         const l = linkElements[j];
@@ -626,7 +625,7 @@ export function parseRssXml(xmlString: string, feedUrl: string, sinceDate?: numb
       
       let imageUrl: string | null = null;
       let mediaUrl: string | null = null;
-      let mediaType: string | null = null;
+      let mediaType: string | undefined = undefined;
       
       // Prioritize itunes:image or any image tag with an href (common in podcasts)
       const itunesImageElements = getElementsByLocalName(item, 'image');

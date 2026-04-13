@@ -21,7 +21,6 @@ export const imagePersistence = {
         this.resolvedLocalUrls = new Map(JSON.parse(savedMap.value));
       }
     } catch (e) {
-      console.warn('Failed to load image cache map:', e);
     }
     this.isInitialized = true;
   },
@@ -179,7 +178,6 @@ export const imagePersistence = {
         });
       }
     } catch (e) {
-      console.warn('[IMAGE_CACHE] Failed to clear cache:', e);
     }
   },
 

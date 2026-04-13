@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from 'react';
 import { Subreddit, RedditPost } from '../types';
 import { storage } from '../services/storage';
-import DataWorker from '../workers/dataProcessor.worker?worker';
+import DataWorker from '../workers/dataProcessor.worker.ts?worker';
 
 interface RedditContextType {
   subreddits: Subreddit[];
@@ -16,6 +16,7 @@ interface RedditContextType {
   toggleRedditFavorite: (id: string) => void;
   updateRedditPost: (id: string, updates: Partial<RedditPost>) => void;
   removeSubreddit: (id: string) => void;
+  redditUnreadCount: number;
 }
 
 const RedditContext = createContext<RedditContextType | undefined>(undefined);
@@ -26,9 +27,15 @@ export const RedditProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const [redditSort, setRedditSort] = useState<'new' | 'hot' | 'top'>('new');
   const [isLoading, setIsLoading] = useState(false);
   
+  const [redditUnreadCount, setRedditUnreadCount] = useState(0);
+  
   const subredditsRef = useRef<Subreddit[]>([]);
   const redditPostsRef = useRef<RedditPost[]>([]);
-  const worker = useRef<Worker>();
+  const worker = useRef<Worker | undefined>(undefined);
+
+  useEffect(() => {
+    setRedditUnreadCount(redditPosts.filter(p => !p.isRead).length);
+  }, [redditPosts]);
 
   useEffect(() => {
     worker.current = new DataWorker();
@@ -147,7 +154,7 @@ export const RedditProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       subreddits, redditPosts, redditSort, isLoading,
       refreshReddit, loadMoreReddit, handleRedditSortChange,
       toggleRedditRead, markRedditAsRead, toggleRedditFavorite, updateRedditPost,
-      removeSubreddit
+      removeSubreddit, redditUnreadCount
     }}>
       {children}
     </RedditContext.Provider>

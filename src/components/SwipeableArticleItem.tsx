@@ -13,7 +13,10 @@ import { getColorSync } from 'colorthief';
 // Global cache for feed colors to avoid repeated fetches and re-renders
 const feedColorCache = new Map<string, string>();
 
-interface SwipeableArticleProps {
+// VERY IMPORTANT: Persist swipe state outside component
+const swipeState: Record<string, number> = {};
+
+interface SwipeableArticleItemProps {
   key?: React.Key;
   article: Article;
   feedName: string;
@@ -31,13 +34,7 @@ interface SwipeableArticleProps {
   disableGestures?: boolean;
 }
 
-/**
- * ⚡ Bolt: Memoized SwipeableArticle component to prevent unnecessary re-renders.
- * By removing the useRss context hook and receiving data via props, this component
- * only re-renders when its specific article data or global settings change,
- * rather than on every context update (e.g., during feed refresh progress).
- */
-export const SwipeableArticle = React.memo(function SwipeableArticle({
+export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
   article,
   feedName,
   feedImageUrl,
@@ -52,8 +49,18 @@ export const SwipeableArticle = React.memo(function SwipeableArticle({
   filter,
   style,
   disableGestures = false
-}: SwipeableArticleProps) {
-  const x = useMotionValue(0);
+}: SwipeableArticleItemProps) {
+  // Initialize x from swipeState[id]
+  const x = useMotionValue(swipeState[article.id] || 0);
+  
+  // Update swipeState[id] on change
+  useEffect(() => {
+    const unsubscribe = x.on("change", (latest) => {
+      swipeState[article.id] = latest;
+    });
+    return () => unsubscribe();
+  }, [x, article.id]);
+
   const [feedThemeColor, setFeedThemeColor] = useState<string | null>(() => {
     return feedImageUrl ? feedColorCache.get(feedImageUrl) || null : null;
   });
@@ -73,7 +80,6 @@ export const SwipeableArticle = React.memo(function SwipeableArticle({
           setFeedThemeColor(hex);
         }
       } catch (e) {
-        // Avoid retrying for failed images
         feedColorCache.set(feedImageUrl, ''); 
       }
     };
@@ -84,12 +90,12 @@ export const SwipeableArticle = React.memo(function SwipeableArticle({
   
   const { ref, inView, entry } = useInView({
     threshold: 0,
-    rootMargin: '-120px 0px 0px 0px', // Offset for the sticky header
+    rootMargin: '-120px 0px 0px 0px',
   });
 
   const { ref: prefetchRef, inView: prefetchInView } = useInView({
     threshold: 0,
-    rootMargin: '200px 0px', // Trigger prefetch slightly before it enters the screen
+    rootMargin: '200px 0px',
     triggerOnce: true,
   });
 
@@ -105,8 +111,6 @@ export const SwipeableArticle = React.memo(function SwipeableArticle({
   }, [prefetchInView, entry, article.id, article.link]);
 
   useEffect(() => {
-    // Mark as read when the article exits the top of the screen (past the sticky header)
-    // Only apply this logic when in the 'inbox' filter section
     if (filter === 'inbox' && !inView && entry && entry.boundingClientRect.top < 120 && !article.isRead) {
       onMarkAsRead(article.id);
     }
@@ -116,16 +120,13 @@ export const SwipeableArticle = React.memo(function SwipeableArticle({
     if (!article.isRead) {
       onMarkAsRead(article.id);
     }
-    // ⚡ Bolt: Pass article to the stable onClick handler
     onClick(article);
   };
 
-  // Background colors based on swipe action
   const getActionColor = (action: string, isSaved: boolean) => {
     if (isSaved) {
-      return '#ef4444'; // Red for removal in saved section
+      return '#ef4444'; // Red for removal
     }
-    // If isSaved is false, we want yellow if action is configured, else transparent.
     return action === 'none' ? 'rgba(0, 0, 0, 0)' : '#f59e0b'; // Yellow
   };
 
@@ -135,46 +136,37 @@ export const SwipeableArticle = React.memo(function SwipeableArticle({
   const middleBackground = isSavedSection ? 'rgba(239, 68, 68, 0)' : 'rgba(0, 0, 0, 0)';
   const backgroundTransform = useTransform(x, [-100, 0, 100], [leftBackground, middleBackground, rightBackground]);
 
-  const getActionIcon = (action: string, isLeft: boolean) => {
-    if (action === 'toggleFavorite') {
-      return article.type === 'podcast' ? <ListPlus className="w-6 h-6" /> : <Bookmark className="w-6 h-6" />;
-    }
-    return null;
-  };
-
-  const getActionText = (action: string) => {
-    if (isSavedSection) return 'Remove';
-    if (action === 'toggleFavorite') {
-      if (article.type === 'podcast') return article.isQueued ? 'Remove from Queue' : 'Add to Queue';
-      return article.isFavorite ? 'Unfavorite' : 'Favorite';
-    }
-    return '';
-  };
-
   const [exitX, setExitX] = React.useState<number | string>(0);
 
   const handleDragEnd = (event: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
-    const threshold = 40;
-    const isRight = info.offset.x > threshold;
-    const isLeft = info.offset.x < -threshold;
+    const threshold = 80;
+    const velocityThreshold = 500;
+    
+    let isRight = info.offset.x > threshold || info.velocity.x > velocityThreshold;
+    let isLeft = info.offset.x < -threshold || info.velocity.x < -velocityThreshold;
+
+    // Prevent triggering if action is 'none' and we are not in saved section
+    if (!isSavedSection) {
+      if (settings.swipeRightAction === 'none') isRight = false;
+      if (settings.swipeLeftAction === 'none') isLeft = false;
+    }
 
     if (isRight || isLeft) {
       const action = isRight ? settings.swipeRightAction : settings.swipeLeftAction;
       
       if (isSavedSection) {
-        // Set exit direction for AnimatePresence
         setExitX(isRight ? '100%' : '-100%');
+        swipeState[article.id] = 0; // Reset state so it doesn't stay swiped if remounted
         onRemove?.(article.id);
       } else {
-        // Snap back for all actions to give the "bounce" feel
         animate(x, 0, { type: "spring", stiffness: 600, damping: 35, restDelta: 0.5 });
+        swipeState[article.id] = 0; // Reset state
 
         if (action === 'toggleFavorite') {
           article.type === 'podcast' ? toggleQueue(article.id) : toggleFavorite(article.id);
         }
       }
     } else {
-      // Snap back if threshold not met
       animate(x, 0, { type: "spring", stiffness: 400, damping: 25 });
     }
   };
@@ -186,16 +178,6 @@ export const SwipeableArticle = React.memo(function SwipeableArticle({
       case 'xlarge': return 'text-xl';
       case 'medium':
       default: return 'text-base';
-    }
-  };
-
-  const getSnippetSize = () => {
-    switch (settings.fontSize) {
-      case 'small': return 'text-xs';
-      case 'large': return 'text-base';
-      case 'xlarge': return 'text-lg';
-      case 'medium':
-      default: return 'text-sm';
     }
   };
 
@@ -235,12 +217,11 @@ export const SwipeableArticle = React.memo(function SwipeableArticle({
       )}
       style={{
         contentVisibility: 'auto',
-        containIntrinsicSize: '0 120px', // Rough estimate of article height
-        transform: 'translateZ(0)', // GPU acceleration
+        containIntrinsicSize: '0 120px',
+        transform: 'translateZ(0)',
         ...style
       } as React.CSSProperties}
     >
-      {/* Background Action Color */}
       <motion.div 
         className="absolute inset-0 z-0"
         style={{ 
@@ -248,7 +229,6 @@ export const SwipeableArticle = React.memo(function SwipeableArticle({
         }}
       />
 
-      {/* Background Actions */}
       <div className="absolute inset-0 flex items-center justify-between px-6 z-10">
         <div className="flex items-center text-white font-medium">
           {isSavedSection ? (
@@ -274,10 +254,14 @@ export const SwipeableArticle = React.memo(function SwipeableArticle({
         </div>
       </div>
 
-      {/* Foreground Draggable Card */}
       <motion.div
-        style={{ x, willChange: 'transform' }}
+        style={{ 
+          x, 
+          willChange: 'transform',
+          touchAction: 'pan-y', // Prevent scroll/swipe conflicts
+        }}
         drag={!disableGestures && (isSavedSection || (settings.swipeLeftAction !== 'none' || settings.swipeRightAction !== 'none')) ? "x" : false}
+        dragDirectionLock={true} // Lock direction to prevent diagonal dragging
         dragConstraints={{ left: 0, right: 0 }}
         dragElastic={!disableGestures ? { 
           left: (isSavedSection || settings.swipeLeftAction !== 'none') ? 0.5 : 0, 
@@ -290,20 +274,18 @@ export const SwipeableArticle = React.memo(function SwipeableArticle({
         exit={{ x: exitX, opacity: 0, transition: { duration: 0.15, ease: "easeOut" } }}
         className={cn(
           "relative z-20 w-full p-2 cursor-pointer shadow-sm transition-all bg-black select-none",
-          "mx-auto max-w-full",
-          "opacity-100"
+          "mx-auto max-w-full"
         )}
       >
         <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[90%] h-[1.5px] bg-gradient-to-r from-transparent via-blue-500 to-transparent opacity-60 shadow-[0_0_10px_rgba(59,130,246,0.5)]" />
         <div className={cn("flex gap-2", article.type === 'podcast' ? "flex-row items-start" : "flex-col gap-1.5")}>
-          {/* Image */}
           {(article.imageUrl || (article.type === 'podcast' && feedImageUrl)) && (article.type === 'podcast' || settings.imageDisplay !== 'none') && (
             <CachedImage 
               key={`${article.id}-${article.imageUrl}`}
               src={getSafeUrl(article.imageUrl || (article.type === 'podcast' ? feedImageUrl! : ''))}
               alt="" 
               className={cn(
-                "rounded-lg flex-shrink-0 bg-gray-800 transition-opacity",
+                "rounded-lg flex-shrink-0 bg-gray-800 transition-opacity pointer-events-none",
                 article.type === 'podcast' ? 'h-16 w-16 object-cover' : (
                   settings.imageDisplay === 'large' ? 'w-full h-auto min-h-[200px] mb-2' : 'w-20 h-auto min-h-[80px]'
                 )
@@ -313,7 +295,6 @@ export const SwipeableArticle = React.memo(function SwipeableArticle({
           )}
 
           <div className="flex-1 min-w-0 flex flex-col gap-1.5">
-            {/* Source and Time */}
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5 min-w-0">
                 {domain && article.type !== 'podcast' && (
@@ -354,7 +335,6 @@ export const SwipeableArticle = React.memo(function SwipeableArticle({
               </div>
             </div>
 
-            {/* Title */}
             <div className="min-w-0">
               <h3 
                 className={`${getTitleSize()} font-semibold leading-tight mb-1 ${article.isRead ? 'text-gray-400' : 'text-gray-100'}`}
@@ -376,10 +356,6 @@ export const SwipeableArticle = React.memo(function SwipeableArticle({
   );
 });
 
-/**
- * ⚡ Bolt: Isolated progress bar component to localize high-frequency re-renders.
- * Only the currently playing track's progress bar will re-render every second.
- */
 const PodcastProgressBar = React.memo(({ article, isCurrentTrack }: { article: Article, isCurrentTrack: boolean }) => {
   if (isCurrentTrack) {
     return <LivePodcastProgressBar article={article} />;

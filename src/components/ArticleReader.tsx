@@ -249,15 +249,15 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
 
           if (articleData) {
             const contentToSave = {
-              title: articleData.title,
-              content: articleData.content,
-              textContent: articleData.textContent,
-              length: articleData.length,
-              excerpt: articleData.excerpt,
-              byline: articleData.byline,
-              dir: articleData.dir,
-              siteName: articleData.siteName,
-              lang: articleData.lang,
+              title: articleData.title || '',
+              content: articleData.content || '',
+              textContent: articleData.textContent || '',
+              length: articleData.length || 0,
+              excerpt: articleData.excerpt || '',
+              byline: articleData.byline || '',
+              dir: articleData.dir || '',
+              siteName: articleData.siteName || '',
+              lang: articleData.lang || '',
             };
             setFullContent(contentToSave);
             // Cache it for future use

@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from 'react';
 import { TelegramChannel, TelegramMessage } from '../types';
 import { storage } from '../services/storage';
-import DataWorker from '../workers/dataProcessor.worker?worker';
+import DataWorker from '../workers/dataProcessor.worker.ts?worker';
 import { v4 as uuidv4 } from 'uuid';
 import { fetchTelegramMessages, fetchTelegramChannelInfo } from '../services/telegramParser';
 import { useSettings } from './SettingsContext';
@@ -27,7 +27,7 @@ export const TelegramProvider: React.FC<{ children: ReactNode }> = ({ children }
   
   const telegramChannelsRef = useRef<TelegramChannel[]>([]);
   const telegramMessagesRef = useRef<Record<string, TelegramMessage[]>>({});
-  const worker = useRef<Worker>();
+  const worker = useRef<Worker | undefined>(undefined);
 
   useEffect(() => {
     worker.current = new DataWorker();
@@ -187,11 +187,16 @@ export const TelegramProvider: React.FC<{ children: ReactNode }> = ({ children }
   }, []);
 
   const markAllTelegramAsRead = useCallback(async () => {
-    // Implementation of markAllTelegramAsRead
+    setTelegramChannels(prev => prev.map(c => ({ ...c, unreadCount: 0 })));
+    const channels = telegramChannelsRef.current;
+    await Promise.all(channels.map(c => storage.updateTelegramChannel(c.id, { unreadCount: 0 })));
   }, []);
 
   const markTelegramChannelAsRead = useCallback(async (channelId: string) => {
-    // Implementation of markTelegramChannelAsRead
+    setTelegramChannels(prev => prev.map(c => 
+      c.id === channelId ? { ...c, unreadCount: 0 } : c
+    ));
+    await storage.updateTelegramChannel(channelId, { unreadCount: 0 });
   }, []);
 
   return (
