@@ -52,7 +52,24 @@ export const TelegramProvider: React.FC<{ children: ReactNode }> = ({ children }
 
   const addTelegramChannel = useCallback(async (username: string) => {
     try {
-      const cleanUsername = username.replace('@', '').replace('https://t.me/', '').split('/')[0].trim();
+      // Clean username: handle @username, t.me/username, t.me/s/username
+      let cleanUsername = username.trim();
+      
+      // Remove protocol and domain if present
+      cleanUsername = cleanUsername.replace(/^https?:\/\//, '');
+      cleanUsername = cleanUsername.replace(/^t\.me\//, '');
+      
+      // Handle /s/ prefix often used for public preview
+      if (cleanUsername.startsWith('s/')) {
+        cleanUsername = cleanUsername.substring(2);
+      }
+      
+      // Remove @ and any trailing paths
+      cleanUsername = cleanUsername.replace('@', '').split('/')[0].split('?')[0].trim();
+      
+      if (!cleanUsername) {
+        throw new Error("Inserisci un nome utente o un link Telegram valido.");
+      }
       
       const existing = telegramChannels.find(c => c.username.toLowerCase() === cleanUsername.toLowerCase());
       if (existing) {
@@ -81,7 +98,8 @@ export const TelegramProvider: React.FC<{ children: ReactNode }> = ({ children }
       setTelegramMessages(prev => ({ ...prev, [channel.id]: messages }));
       storage.saveTelegramMessages(channel.id, messages);
     } catch (e: any) {
-      const errMsg = e.message || "Canale Telegram non trovato o non accessibile";
+      console.error('Error adding Telegram channel:', e);
+      const errMsg = e.message || "Canale Telegram non trovato o non accessibile. Assicurati che il canale sia pubblico.";
       throw new Error(errMsg);
     }
   }, [telegramChannels]);

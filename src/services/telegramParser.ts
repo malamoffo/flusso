@@ -26,9 +26,15 @@ export const fetchTelegramChannelInfo = async (channelUsername: string): Promise
     const parser = new DOMParser();
     const doc = parser.parseFromString(htmlData, 'text/html');
     
-    const name = doc.querySelector('.tgme_channel_info_header_title')?.textContent?.trim();
+    const name = doc.querySelector('.tgme_channel_info_header_title')?.textContent?.trim() || 
+                 doc.querySelector('.tgme_page_title')?.textContent?.trim();
+                 
     if (!name) {
-      throw new Error('Canale non trovato');
+      // Check if it's an error page
+      if (htmlData.includes('tgme_page_error') || htmlData.includes('Channel not found')) {
+        throw new Error('Canale non trovato o non accessibile pubblicamente');
+      }
+      throw new Error('Impossibile recuperare le informazioni del canale');
     }
     const imageUrl = doc.querySelector('.tgme_page_photo_image img')?.getAttribute('src') || 
                      doc.querySelector('meta[property="og:image"]')?.getAttribute('content') || undefined;
