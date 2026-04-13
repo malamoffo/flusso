@@ -198,48 +198,6 @@ public class AndroidAutoService extends MediaBrowserServiceCompat {
                                     }
                                 }
 
-                                private JSONObject findTrackById(String id) {
-                                    JSArray[] queues = {
-                                        QueuePlugin.getStaticQueue(AndroidAutoService.this),
-                                        QueuePlugin.getStaticRecent(AndroidAutoService.this),
-                                        QueuePlugin.getStaticFavorites(AndroidAutoService.this)
-                                    };
-                                    for (JSArray queue : queues) {
-                                        if (queue == null) continue;
-                                        for (int i = 0; i < queue.length(); i++) {
-                                            JSONObject item = queue.optJSONObject(i);
-                                            if (item != null && id.equals(item.optString("id"))) {
-                                                return item;
-                                            }
-                                        }
-                                    }
-                                    return null;
-                                }
-
-                                private void updateProxyMetadata(JSONObject track) {
-                                    MediaMetadataCompat.Builder builder = new MediaMetadataCompat.Builder()
-                                        .putString(MediaMetadataCompat.METADATA_KEY_MEDIA_ID, track.optString("id"))
-                                        .putString(MediaMetadataCompat.METADATA_KEY_TITLE, track.optString("title"))
-                                        .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, track.optString("artist"))
-                                        .putString(MediaMetadataCompat.METADATA_KEY_ALBUM, track.optString("album"));
-                                    
-                                    String artwork = track.optString("artwork");
-                                    if (artwork != null && !artwork.isEmpty()) {
-                                        builder.putString(MediaMetadataCompat.METADATA_KEY_ALBUM_ART_URI, artwork);
-                                    }
-                                    
-                                    long duration = track.optLong("duration", 0);
-                                    if (duration > 0) {
-                                        builder.putLong(MediaMetadataCompat.METADATA_KEY_DURATION, duration * 1000);
-                                    }
-                                    
-                                    proxySession.setMetadata(builder.build());
-                                    proxySession.setPlaybackState(new PlaybackStateCompat.Builder()
-                                        .setActions(PlaybackStateCompat.ACTION_PLAY | PlaybackStateCompat.ACTION_PAUSE | PlaybackStateCompat.ACTION_SKIP_TO_NEXT | PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS | PlaybackStateCompat.ACTION_SEEK_TO)
-                                        .setState(PlaybackStateCompat.STATE_BUFFERING, 0, 1.0f)
-                                        .build());
-                                }
-
                                 @Override
                                 public void onPlay() {
                                     try { actionCallbackMethod.invoke(plugin, "play"); } catch (Exception e) { Log.e(TAG, "Error invoking play", e); }
@@ -297,6 +255,50 @@ public class AndroidAutoService extends MediaBrowserServiceCompat {
             isBound = false;
         }
     };
+
+    private JSONObject findTrackById(String id) {
+        JSArray[] queues = {
+            QueuePlugin.getStaticQueue(this),
+            QueuePlugin.getStaticRecent(this),
+            QueuePlugin.getStaticFavorites(this)
+        };
+        for (JSArray queue : queues) {
+            if (queue == null) continue;
+            for (int i = 0; i < queue.length(); i++) {
+                JSONObject item = queue.optJSONObject(i);
+                if (item != null && id.equals(item.optString("id"))) {
+                    return item;
+                }
+            }
+        }
+        return null;
+    }
+
+    private void updateProxyMetadata(JSONObject track) {
+        if (proxySession == null) return;
+        
+        MediaMetadataCompat.Builder builder = new MediaMetadataCompat.Builder()
+            .putString(MediaMetadataCompat.METADATA_KEY_MEDIA_ID, track.optString("id"))
+            .putString(MediaMetadataCompat.METADATA_KEY_TITLE, track.optString("title"))
+            .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, track.optString("artist"))
+            .putString(MediaMetadataCompat.METADATA_KEY_ALBUM, track.optString("album"));
+        
+        String artwork = track.optString("artwork");
+        if (artwork != null && !artwork.isEmpty()) {
+            builder.putString(MediaMetadataCompat.METADATA_KEY_ALBUM_ART_URI, artwork);
+        }
+        
+        long duration = track.optLong("duration", 0);
+        if (duration > 0) {
+            builder.putLong(MediaMetadataCompat.METADATA_KEY_DURATION, duration * 1000);
+        }
+        
+        proxySession.setMetadata(builder.build());
+        proxySession.setPlaybackState(new PlaybackStateCompat.Builder()
+            .setActions(PlaybackStateCompat.ACTION_PLAY | PlaybackStateCompat.ACTION_PAUSE | PlaybackStateCompat.ACTION_SKIP_TO_NEXT | PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS | PlaybackStateCompat.ACTION_SEEK_TO)
+            .setState(PlaybackStateCompat.STATE_BUFFERING, 0, 1.0f)
+            .build());
+    }
 
     private void startAppWithMediaId(String mediaId) {
         QueuePlugin.setPendingMediaId(mediaId);
