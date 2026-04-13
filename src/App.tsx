@@ -547,18 +547,18 @@ export default function App() {
           </div>
         )}
 
-        {filter !== 'reddit' && filter !== 'telegram' && (
+        {filter === 'inbox' && (
           <div className="px-4 pb-3 flex items-center gap-2 overflow-x-auto scrollbar-hide">
             <button
               onClick={() => handleTypeFilterChange('unread')}
               className={cn(
                 "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap",
-                (filter === 'inbox' ? inboxUnreadOnly : savedUnreadOnly) 
-                  ? (filter === 'inbox' ? "bg-blue-600" : "bg-yellow-600") + " text-white shadow-sm" 
+                inboxUnreadOnly 
+                  ? "bg-blue-600 text-white shadow-sm" 
                   : "bg-gray-800 text-gray-400 hover:bg-gray-700"
               )}
             >
-              {(filter === 'inbox' ? inboxUnreadOnly : savedUnreadOnly) ? (
+              {inboxUnreadOnly ? (
                   <><CheckCircle2 className="w-3.5 h-3.5" /> Unread</>
               ) : (
                   <><Layers className="w-3.5 h-3.5" /> All</>
@@ -569,8 +569,8 @@ export default function App() {
               onClick={() => handleTypeFilterChange('article')}
               className={cn(
                 "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap",
-                (filter === 'inbox' ? inboxTypeFilter === 'article' : savedTypeFilter === 'article') 
-                  ? (filter === 'inbox' ? "bg-blue-600" : "bg-yellow-600") + " text-white shadow-sm" 
+                inboxTypeFilter === 'article' 
+                  ? "bg-blue-600 text-white shadow-sm" 
                   : "bg-gray-800 text-gray-400 hover:bg-gray-700"
               )}
             >
@@ -581,8 +581,8 @@ export default function App() {
               onClick={() => handleTypeFilterChange('podcast')}
               className={cn(
                 "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap",
-                (filter === 'inbox' ? inboxTypeFilter === 'podcast' : savedTypeFilter === 'podcast') 
-                  ? (filter === 'inbox' ? "bg-blue-600" : "bg-yellow-600") + " text-white shadow-sm" 
+                inboxTypeFilter === 'podcast' 
+                  ? "bg-blue-600 text-white shadow-sm" 
                   : "bg-gray-800 text-gray-400 hover:bg-gray-700"
               )}
             >
@@ -873,22 +873,20 @@ export default function App() {
               currentTrack ? "bottom-44" : "bottom-28"
             )}
           >
-            {filter !== 'saved' && (
+            {filter === 'inbox' && (
               <motion.button
                 whileTap={{ scale: 0.9 }}
                 onClick={() => {
-                  if (filter === 'inbox') refreshFeeds();
-                  else if (filter === 'reddit') refreshReddit();
-                  else if (filter === 'telegram') refreshTelegramChannels();
+                  refreshFeeds();
                 }}
                 className={cn(
                   "w-10 h-10 bg-gray-800 rounded-full shadow-lg flex items-center justify-center hover:bg-gray-700 active:scale-95 transition-transform",
-                  filter === 'reddit' ? "text-purple-400" : filter === 'telegram' ? "text-green-400" : "text-indigo-400"
+                  "text-indigo-400"
                 )}
                 title="Refresh"
                 aria-label="Refresh"
               >
-                <RefreshCw className={cn("w-5 h-5", (isLoading || isRedditLoading) ? "animate-spin" : "")} aria-hidden="true" />
+                <RefreshCw className={cn("w-5 h-5", isLoading ? "animate-spin" : "")} aria-hidden="true" />
               </motion.button>
             )}
             

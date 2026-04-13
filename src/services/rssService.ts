@@ -11,12 +11,15 @@ export const rssService = {
     onUpdateFeeds: (updater: (prev: Feed[]) => Feed[]) => void,
     onUpdateArticles: (updater: (prev: Article[]) => Article[]) => void,
     onSetIsLoading: (isLoading: boolean) => void
-  ): Promise<void> {
+  ): Promise<{ finalArticles: Article[], finalFeeds: Feed[] }> {
     onSetIsLoading(true);
+    let latestArticles = currentArticles;
+    let latestFeeds = [...feedsToRefresh];
+    
     try {
       if (feedsToRefresh.length === 0) {
         onSetIsLoading(false);
-        return;
+        return { finalArticles: latestArticles, finalFeeds: latestFeeds };
       }
       
       onProgress({ current: 0, total: feedsToRefresh.length });
@@ -80,22 +83,23 @@ export const rssService = {
                       worker.addEventListener('message', handler);
                       worker.postMessage({ 
                         type: 'mergeArticles', 
-                        prev: currentArticles, 
+                        prev: latestArticles, 
                         incoming: articlesWithCorrectId, 
                         requestId 
                       });
                     }).catch(err => {
                       console.error('Merge failed:', err);
-                      return { merged: currentArticles, hasNew: false };
+                      return { merged: latestArticles, hasNew: false };
                     });
                     
                     if (hasNew) {
+                      latestArticles = merged;
                       onUpdateArticles(() => merged);
                     }
                   }));
                 }
                 
-                onUpdateFeeds(prev => {
+                const updateFeedFn = (prev: Feed[]) => {
                   const next = [...prev];
                   const idx = next.findIndex(f => f.id === feed.id);
                   if (idx !== -1) {
@@ -110,21 +114,25 @@ export const rssService = {
                       lastRefreshStatus: 'success'
                     };
                   }
+                  latestFeeds = next;
                   return next;
-                });
+                };
+                onUpdateFeeds(updateFeedFn);
               }
             } finally {
               clearTimeout(timeoutId);
             }
           } catch (e: any) {
-            onUpdateFeeds(prev => {
+            const updateFeedFn = (prev: Feed[]) => {
               const next = [...prev];
               const idx = next.findIndex(f => f.id === feed.id);
               if (idx !== -1) {
                 next[idx] = { ...next[idx], lastRefreshStatus: 'error' };
               }
+              latestFeeds = next;
               return next;
-            });
+            };
+            onUpdateFeeds(updateFeedFn);
           } finally {
             completed++;
             onProgress({ current: completed, total: feedsToRefresh.length });
@@ -134,6 +142,7 @@ export const rssService = {
       
       await Promise.all(workers);
       await mergeChain;
+      return { finalArticles: latestArticles, finalFeeds: latestFeeds };
     } finally {
       onSetIsLoading(false);
       onProgress({ current: feedsToRefresh.length, total: feedsToRefresh.length, status: "Finalizing..." });
