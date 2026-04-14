@@ -92,6 +92,7 @@ export function formatTime(seconds: number): string {
  * Resolves a relative URL against a base URL.
  */
 export function resolveUrl(url: string, baseUrl: string): string {
+  if (!url) return url;
   try {
     return new URL(url, baseUrl).toString();
   } catch (e) {

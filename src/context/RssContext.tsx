@@ -168,7 +168,11 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     try {
       const moreArticles = await storage.getArticles(articleOffset.current, PAGE_SIZE);
       if (moreArticles.length > 0) {
-        setArticles(prev => [...prev, ...moreArticles]);
+        setArticles(prev => {
+          const existingIds = new Set(prev.map(a => a.id));
+          const newArticles = moreArticles.filter(a => !existingIds.has(a.id));
+          return [...prev, ...newArticles];
+        });
         articleOffset.current += moreArticles.length;
       }
       setHasMoreArticles(moreArticles.length === PAGE_SIZE);

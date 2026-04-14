@@ -129,7 +129,7 @@ export const redditStorage = {
         }
 
         return {
-          id: post.id,
+          id: `${post.subreddit}/${post.id}`,
           subredditId: post.subreddit_id,
           subredditName: post.subreddit,
           title: he.decode(post.title),
@@ -174,7 +174,7 @@ export const redditStorage = {
         }
 
         return {
-          id: post.id,
+          id: `${post.subreddit}/${post.id}`,
           title: he.decode(post.title),
           author: post.author,
           subredditId: post.subreddit_id,
