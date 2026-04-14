@@ -55,7 +55,7 @@ export default function App() {
     articles, feeds, isLoading, error, setError,
     refreshFeeds, toggleRead, markAsRead, markArticlesAsRead,
     markAllAsRead, searchQuery, setSearchQuery, unreadCount, savedCount,
-    toggleFavorite, toggleQueue, removeFromSaved
+    toggleFavorite, toggleQueue, removeFromSaved, removeArticle
   } = useRss();
 
   const {
@@ -344,6 +344,28 @@ export default function App() {
   }, [filter, hasMoreArticles, markArticlesAsRead]);
 
   useEffect(() => {
+    const handleBackButton = async () => {
+      if (selectedTelegramChannel) {
+        setSelectedTelegramChannel(null);
+        return true;
+      }
+      return false;
+    };
+
+    const setupListener = async () => {
+      const listener = await CapacitorApp.addListener('backButton', handleBackButton);
+      return listener;
+    };
+    
+    let listener: any;
+    setupListener().then(l => listener = l);
+    
+    return () => {
+      if (listener) listener.remove();
+    };
+  }, [selectedTelegramChannel]);
+
+  useEffect(() => {
     const savedContainer = savedScrollRef.current;
     if (!savedContainer) return;
     
@@ -429,8 +451,13 @@ export default function App() {
   }, [markAsRead]);
 
   const handleRemoveArticle = useCallback((id: string) => {
-    removeFromSaved(id);
-  }, [removeFromSaved]);
+    const article = articles.find(a => a.id === id);
+    if (article?.type === 'podcast') {
+      removeArticle(article);
+    } else {
+      removeFromSaved(id);
+    }
+  }, [articles, removeArticle, removeFromSaved]);
 
   const feedsMap = useMemo(() => new Map(feeds.map(f => [f.id, f])), [feeds]);
 

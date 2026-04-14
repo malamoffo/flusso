@@ -1,4 +1,4 @@
-export type SwipeAction = 'toggleFavorite' | 'none';
+export type SwipeAction = 'toggleFavorite' | 'remove' | 'none';
 export type ImageDisplay = 'none' | 'small' | 'large';
 export type Theme = 'light' | 'dark' | 'system';
 export type FontSize = 'small' | 'medium' | 'large' | 'xlarge';

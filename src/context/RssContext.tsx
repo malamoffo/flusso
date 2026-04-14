@@ -45,6 +45,7 @@ interface RssContextType {
   toggleFavorite: (id: string) => void;
   toggleQueue: (id: string) => void;
   removeFromSaved: (id: string) => void;
+  removeArticle: (article: Article) => Promise<void>;
   updateFeed: (id: string, updates: Partial<Feed>) => void;
   updateArticle: (id: string, updates: Partial<Article>) => void;
   checkUpdates: (force?: boolean) => Promise<void>;
@@ -499,6 +500,30 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     });
   }, []);
 
+  const removeArticle = useCallback(async (article: Article) => {
+    setArticles(prev => {
+      const updated = prev.filter(a => a.id !== article.id);
+      storage.saveArticles(updated);
+      return updated;
+    });
+    
+    if (article.type === 'podcast') {
+      setFeeds(prev => {
+        const updated = prev.map(f => {
+          if (f.id === article.feedId) {
+            return {
+              ...f,
+              lastArticleDate: Math.max(f.lastArticleDate || 0, article.pubDate)
+            };
+          }
+          return f;
+        });
+        storage.saveFeeds(updated);
+        return updated;
+      });
+    }
+  }, []);
+
   const removeFeed = useCallback(async (id: string) => {
     setFeeds(prev => {
       const updated = prev.filter(f => f.id !== id);
@@ -535,6 +560,7 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     feeds, articles, isLoading, progress, error, setError, errorLogs, clearErrorLogs,
     addFeedOrSubreddit, importOpml, toggleRead, markAsRead, markArticlesAsRead,
     toggleFavorite, toggleQueue, removeFromSaved, markAllAsRead, refreshFeeds, removeFeed,
+    removeArticle,
     updateFeed, updateArticle, exportFeeds,
     searchQuery, setSearchQuery, unreadCount, savedCount, hasMoreArticles, loadMoreArticles, updateInfo, checkUpdates,
     globalSearch, prefetch
@@ -542,6 +568,7 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     feeds, articles, isLoading, progress, error, setError, errorLogs, clearErrorLogs,
     addFeedOrSubreddit, importOpml, toggleRead, markAsRead, markArticlesAsRead,
     toggleFavorite, toggleQueue, removeFromSaved, markAllAsRead, refreshFeeds, removeFeed,
+    removeArticle,
     updateFeed, updateArticle, exportFeeds,
     searchQuery, setSearchQuery, unreadCount, savedCount, hasMoreArticles, loadMoreArticles, updateInfo, checkUpdates,
     globalSearch, prefetch

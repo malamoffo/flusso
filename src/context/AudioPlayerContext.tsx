@@ -46,7 +46,7 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
     .filter(a => a.type === 'podcast')
     .sort((a, b) => b.pubDate - a.pubDate)
     .slice(0, 20), [articles]);
-  const favoritePodcasts = useMemo(() => articles.filter(a => a.isFavorite && a.mediaUrl), [articles]);
+  const favoritePodcasts = useMemo(() => articles.filter(a => a.isFavorite && a.type === 'podcast' && a.mediaUrl), [articles]);
   
   const queueRef = useRef<Article[]>([]);
   const { feeds } = useRss();

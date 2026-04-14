@@ -104,7 +104,7 @@ export async function fetchWithProxy(url: string, isRss: boolean = true, sinceDa
   proxies.push(...shuffledBase);
 
   let lastError: any;
-  const defaultTimeout = 8000; // Reduced from 10s to 8s per proxy
+  const defaultTimeout = 12000; // Increased from 8s to 12s per proxy
 
   for (let i = 0; i < proxies.length; i++) {
     if (externalSignal?.aborted) throw new Error('Aborted');

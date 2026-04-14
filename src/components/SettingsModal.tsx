@@ -375,6 +375,7 @@ export const SettingsModal = React.memo(function SettingsModal({
                         className="block w-full pl-3 pr-10 py-2 text-base border-gray-700 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-lg bg-gray-800 text-white"
                       >
                         <option value="toggleFavorite">Favorite/Queue</option>
+                        <option value="remove">Remove (Podcasts only)</option>
                         <option value="none">None</option>
                       </select>
                     </div>
@@ -388,6 +389,7 @@ export const SettingsModal = React.memo(function SettingsModal({
                         className="block w-full pl-3 pr-10 py-2 text-base border-gray-700 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-lg bg-gray-800 text-white"
                       >
                         <option value="toggleFavorite">Favorite/Queue</option>
+                        <option value="remove">Remove (Podcasts only)</option>
                         <option value="none">None</option>
                       </select>
                     </div>

@@ -135,8 +135,8 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
     if (isSaved) {
       return '#ef4444'; // Red for removal
     }
-    if (action === 'toggleRead') {
-      return '#3b82f6'; // Blue for read
+    if (action === 'remove' && article.type === 'podcast') {
+      return '#ef4444'; // Red for removal
     }
     if (action === 'toggleFavorite') {
       return '#f59e0b'; // Yellow for favorite
@@ -174,15 +174,24 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
       
       if (isSavedSection) {
         setExitX(isRight ? '100%' : '-100%');
-        swipeState[article.id] = 0; // Reset state so it doesn't stay swiped if remounted
+        swipeState[article.id] = 0;
         onRemove?.(article.id);
+      } else if (article.type === 'podcast' && action === 'remove') {
+        // Podcast removal action
+        const direction = isRight ? '100%' : '-100%';
+        setExitX(direction);
+        swipeState[article.id] = 0;
+        // Small delay to ensure exitX state is applied before removal triggers AnimatePresence
+        setTimeout(() => {
+          onRemove?.(article.id);
+        }, 50);
+      } else if (action === 'toggleFavorite') {
+        animate(x, 0, { type: "spring", stiffness: 600, damping: 35, restDelta: 0.5 });
+        swipeState[article.id] = 0; // Reset state
+        article.type === 'podcast' ? toggleQueue(article.id) : toggleFavorite(article.id);
       } else {
         animate(x, 0, { type: "spring", stiffness: 600, damping: 35, restDelta: 0.5 });
         swipeState[article.id] = 0; // Reset state
-
-        if (action === 'toggleFavorite') {
-          article.type === 'podcast' ? toggleQueue(article.id) : toggleFavorite(article.id);
-        }
       }
     } else {
       animate(x, 0, { type: "spring", stiffness: 400, damping: 25 });
@@ -220,7 +229,12 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
       exit={{ 
         opacity: 0, 
         height: 0,
-        transition: { duration: shouldReduceMotion ? 0 : 0.2, ease: "easeInOut" } 
+        x: exitX,
+        transition: { 
+          opacity: { duration: 0.2 },
+          height: { duration: 0.2, delay: 0.1 },
+          x: { duration: 0.2 }
+        } 
       }}
       transition={{ 
         opacity: { duration: shouldReduceMotion ? 0 : 0.2 },
@@ -249,7 +263,7 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
 
       <div className="absolute inset-0 flex items-center justify-between px-6 z-10">
         <div className="flex items-center text-white font-medium">
-          {isSavedSection ? (
+          {isSavedSection || (settings.swipeRightAction === 'remove' && article.type === 'podcast') ? (
             <Trash2 className="w-6 h-6" />
           ) : (
             <>
@@ -260,7 +274,7 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
           )}
         </div>
         <div className="flex items-center text-white font-medium">
-          {isSavedSection ? (
+          {isSavedSection || (settings.swipeLeftAction === 'remove' && article.type === 'podcast') ? (
             <Trash2 className="w-6 h-6" />
           ) : (
             <>
@@ -278,12 +292,18 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
           willChange: 'transform',
           touchAction: 'pan-y', // Prevent scroll/swipe conflicts
         }}
-        drag={!disableGestures && (isSavedSection || (settings.swipeLeftAction !== 'none' || settings.swipeRightAction !== 'none')) ? "x" : false}
+        drag={
+          !disableGestures && (
+            isSavedSection || 
+            (article.type === 'podcast' && (settings.swipeLeftAction !== 'none' || settings.swipeRightAction !== 'none')) ||
+            (article.type === 'article' && (settings.swipeLeftAction === 'toggleFavorite' || settings.swipeRightAction === 'toggleFavorite'))
+          ) ? "x" : false
+        }
         dragDirectionLock={true} // Lock direction to prevent diagonal dragging
         dragConstraints={{ left: 0, right: 0 }}
         dragElastic={!disableGestures ? { 
-          left: (isSavedSection || settings.swipeLeftAction !== 'none') ? 0.5 : 0, 
-          right: (isSavedSection || settings.swipeRightAction !== 'none') ? 0.5 : 0 
+          left: (isSavedSection || (article.type === 'podcast' && settings.swipeLeftAction !== 'none') || (article.type === 'article' && settings.swipeLeftAction === 'toggleFavorite')) ? 0.5 : 0, 
+          right: (isSavedSection || (article.type === 'podcast' && settings.swipeRightAction !== 'none') || (article.type === 'article' && settings.swipeRightAction === 'toggleFavorite')) ? 0.5 : 0 
         } : 0}
         dragPropagation={false}
         dragTransition={{ bounceStiffness: 400, bounceDamping: 25 }}
