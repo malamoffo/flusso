@@ -61,7 +61,7 @@ export const rssService = {
                 const articlesWithCorrectId = (data.articles || []).map(a => ({ 
                   ...a, 
                   feedId: feed.id,
-                  type: feed.type === 'podcast' ? 'podcast' : a.type
+                  type: feed.type
                 }));
                 
                 if (articlesWithCorrectId.length > 0) {
@@ -107,6 +107,7 @@ export const rssService = {
                     next[idx] = {
                       ...existingFeed,
                       ...data.feed,
+                      type: existingFeed.type,
                       title: existingFeed.title,
                       id: feed.id,
                       lastFetched: Date.now(),

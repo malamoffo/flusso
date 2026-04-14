@@ -529,16 +529,9 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   }, []);
 
   const removeFeed = useCallback(async (id: string) => {
-    setFeeds(prev => {
-      const updated = prev.filter(f => f.id !== id);
-      storage.saveFeeds(updated);
-      return updated;
-    });
-    setArticles(prev => {
-      const updated = prev.filter(a => a.feedId !== id);
-      storage.saveArticles(updated);
-      return updated;
-    });
+    await storage.removeFeed(id);
+    setFeeds(prev => prev.filter(f => f.id !== id));
+    setArticles(prev => prev.filter(a => a.feedId !== id));
   }, []);
 
   const updateFeed = useCallback(async (id: string, updates: Partial<Feed>) => {

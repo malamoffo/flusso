@@ -41,7 +41,7 @@ export const rssStorage = {
 
     const oldArticles = await db.articles
       .filter(a => {
-        if (a.isFavorite || a.isQueued) return false;
+        if (a.type === 'podcast' && (a.isFavorite || a.isQueued)) return false;
         const limitTime = a.type === 'podcast' ? SEVEN_DAYS : TWO_DAYS;
         const referenceTime = (a.isRead && a.readAt) ? a.readAt : a.pubDate;
         return (now - referenceTime) > limitTime;
@@ -183,7 +183,8 @@ export const rssStorage = {
           title: feed.title,
           imageUrl: feed.imageUrl || updatedFeeds[existingFeedIndex].imageUrl,
           etag: feed.etag,
-          lastModified: feed.lastModified
+          lastModified: feed.lastModified,
+          type: feed.type
         };
         
         for (const a of newArticles) {
@@ -354,6 +355,14 @@ export const rssStorage = {
   async markAllArticlesAsRead(): Promise<void> {
     const now = Date.now();
     await db.articles.filter(a => !a.isRead).modify({ isRead: true, readAt: now });
+  },
+
+  async removeFeed(id: string): Promise<void> {
+    await db.feeds.delete(id);
+    const articles = await db.articles.where('feedId').equals(id).toArray();
+    const idsToDelete = articles.map(a => a.id);
+    await db.articles.bulkDelete(idsToDelete);
+    await db.articleContents.bulkDelete(idsToDelete);
   },
 
   async saveRefreshLogs(logs: RefreshLog[]): Promise<void> {

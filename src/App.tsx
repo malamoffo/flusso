@@ -230,6 +230,8 @@ export default function App() {
         setSelectedArticle(null);
       } else if (selectedRedditPost) {
         setSelectedRedditPost(null);
+      } else if (selectedTelegramChannel) {
+        setSelectedTelegramChannel(null);
       } else if (isSettingsOpen) {
         setIsSettingsOpen(false);
         setSettingsTab(undefined);
@@ -917,21 +919,22 @@ export default function App() {
               </motion.button>
             )}
             
-            <motion.button
-              whileTap={{ scale: 0.9 }}
-              onClick={() => setIsMarkAllReadOpen(true)}
-              className={cn(
-                "w-14 h-14 text-white rounded-full shadow-lg flex items-center justify-center active:scale-95 transition-all duration-300",
-                filter === 'reddit' ? "bg-purple-600 hover:bg-purple-700 shadow-purple-500/20" : 
-                filter === 'telegram' ? "bg-green-600 hover:bg-green-700 shadow-green-500/20" : 
-                filter === 'saved' ? "bg-yellow-600 hover:bg-yellow-700 shadow-yellow-500/20" : 
-                "bg-blue-600 hover:bg-blue-700 shadow-blue-500/20"
-              )}
-              title="Mark all as read"
-              aria-label="Mark all as read"
-            >
-              <Check className="w-6 h-6" aria-hidden="true" />
-            </motion.button>
+            {filter !== 'saved' && (
+              <motion.button
+                whileTap={{ scale: 0.9 }}
+                onClick={() => setIsMarkAllReadOpen(true)}
+                className={cn(
+                  "w-14 h-14 text-white rounded-full shadow-lg flex items-center justify-center active:scale-95 transition-all duration-300",
+                  filter === 'reddit' ? "bg-purple-600 hover:bg-purple-700 shadow-purple-500/20" : 
+                  filter === 'telegram' ? "bg-green-600 hover:bg-green-700 shadow-green-500/20" : 
+                  "bg-blue-600 hover:bg-blue-700 shadow-blue-500/20"
+                )}
+                title="Mark all as read"
+                aria-label="Mark all as read"
+              >
+                <Check className="w-6 h-6" aria-hidden="true" />
+              </motion.button>
+            )}
           </motion.div>
         )}
       </AnimatePresence>
