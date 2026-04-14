@@ -10,6 +10,7 @@
     "clean": "rm -rf dist",
     "postinstall": "echo 'Skipping icon generation in postinstall'",
     "lint": "tsc --noEmit",
+    "test": "vitest run",
     "cap:sync": "npx cap sync",
     "cap:open": "npx cap open android"
   },
@@ -57,7 +58,8 @@
     "tailwindcss": "^4.1.14",
     "typescript": "~5.8.2",
     "vite": "^6.2.0",
-    "vite-plugin-pwa": "^1.2.0"
+    "vite-plugin-pwa": "^1.2.0",
+    "vitest": "^4.1.4"
   },
   "overrides": {
     "tar": "^7.5.13",
