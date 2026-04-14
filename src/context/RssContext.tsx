@@ -139,14 +139,22 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setIsLoading(true);
       
       const loadedFeeds = await storage.getFeeds();
-      const [loadedArticles, unread, saved] = await Promise.all([
+      const [loadedArticles, unread, saved, favorites] = await Promise.all([
         storage.getArticles(0, PAGE_SIZE),
         storage.getUnreadCount(),
-        storage.getSavedCount()
+        storage.getSavedCount(),
+        storage.getFavorites()
       ]);
       
+      const allArticles = [...loadedArticles];
+      favorites.forEach(fav => {
+        if (!allArticles.find(a => a.id === fav.id)) {
+          allArticles.push(fav);
+        }
+      });
+      
       setFeeds(loadedFeeds);
-      setArticles(loadedArticles);
+      setArticles(allArticles);
       articleOffset.current = loadedArticles.length;
       setHasMoreArticles(loadedArticles.length === PAGE_SIZE);
       

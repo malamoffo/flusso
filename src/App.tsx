@@ -163,7 +163,7 @@ export default function App() {
   } = usePullToRefresh({
     onRefresh: refreshFeeds,
     isLoading,
-    isDisabled: isSettingsOpen || filter === 'reddit' || filter === 'telegram',
+    isDisabled: isSettingsOpen || filter === 'reddit' || filter === 'telegram' || filter === 'saved',
     scrollRefs: {
       inbox: inboxScrollRef as RefObject<HTMLDivElement>,
       saved: savedScrollRef as RefObject<HTMLDivElement>,
