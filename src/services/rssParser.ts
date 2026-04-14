@@ -235,7 +235,7 @@ export function parseRssXml(xmlString: string, feedUrl: string, sinceDate?: numb
             isRead: false,
             isFavorite: false,
             isQueued: false,
-            type: mediaType?.startsWith('audio/') ? 'podcast' : 'article',
+            type: (mediaType?.startsWith('audio/') || mediaType?.startsWith('video/') || !!item.duration) ? 'podcast' : 'article',
             contentSnippet: sanitizeSnippet(decodeHtmlEntities(item.content || item.description || '')),
           };
         }).filter(Boolean) as Article[];

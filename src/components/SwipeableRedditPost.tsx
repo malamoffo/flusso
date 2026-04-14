@@ -88,7 +88,8 @@ export const SwipeableRedditPost = React.memo(function SwipeableRedditPost({
         animate(x, 0, { type: "spring", stiffness: 600, damping: 35, restDelta: 0.5 });
 
         if (action === 'toggleFavorite') {
-          toggleFavorite(post.id);
+          // Favorites disabled for Reddit as requested
+          animate(x, 0, { type: "spring", stiffness: 600, damping: 35, restDelta: 0.5 });
         }
       }
     } else {
@@ -141,18 +142,14 @@ export const SwipeableRedditPost = React.memo(function SwipeableRedditPost({
           {isSavedSection ? (
             <Trash2 className="w-6 h-6" />
           ) : (
-            <>
-              {settings.swipeRightAction === 'toggleFavorite' && <Bookmark className="w-6 h-6" />}
-            </>
+            null
           )}
         </div>
         <div className="flex items-center text-white font-medium">
           {isSavedSection ? (
             <Trash2 className="w-6 h-6" />
           ) : (
-            <>
-              {settings.swipeLeftAction === 'toggleFavorite' && <Bookmark className="w-6 h-6" />}
-            </>
+            null
           )}
         </div>
       </div>
@@ -212,7 +209,6 @@ export const SwipeableRedditPost = React.memo(function SwipeableRedditPost({
             <div className="flex items-center gap-3 mt-2 text-xs text-gray-500 font-medium">
               <span className="flex items-center gap-1"><span className="text-purple-400 shadow-[0_0_5px_rgba(168,85,247,0.3)]">↑</span> {post.score}</span>
               <span className="flex items-center gap-1"><MessageSquare className="w-3 h-3 text-purple-400" /> {post.numComments}</span>
-              {post.isFavorite && <Bookmark className="w-3 h-3 text-purple-400 fill-purple-500 ml-auto shadow-[0_0_8px_rgba(168,85,247,0.4)]" />}
             </div>
           </div>
         </div>

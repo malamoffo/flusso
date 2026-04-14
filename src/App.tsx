@@ -730,18 +730,15 @@ export default function App() {
         >
           <div className="flex-1 max-w-3xl mx-auto px-1 py-1">
             <AnimatePresence initial={false}>
-              {[
-                ...savedArticles.map(a => ({ ...a, itemType: 'article' as const })),
-                ...redditPosts.filter(p => p.isFavorite).map(p => ({ ...p, itemType: 'reddit' as const }))
-              ]
-              .sort((a, b) => {
-                const timeA = (a as any).pubDate || (a as any).createdUtc * 1000;
-                const timeB = (b as any).pubDate || (b as any).createdUtc * 1000;
-                return timeB - timeA;
-              })
-              .slice(0, visibleCount)
-              .map(item => (
-                item.itemType === 'article' ? (
+              {savedArticles
+                .map(a => ({ ...a, itemType: 'article' as const }))
+                .sort((a, b) => {
+                  const timeA = (a as any).pubDate;
+                  const timeB = (b as any).pubDate;
+                  return timeB - timeA;
+                })
+                .slice(0, visibleCount)
+                .map(item => (
                   <SwipeableArticleItem
                     key={item.id}
                     article={item as any}
@@ -757,31 +754,13 @@ export default function App() {
                     isSavedSection={true}
                     filter={filter}
                   />
-                ) : (
-                  <SwipeableRedditPost
-                    key={item.id}
-                    post={item as any}
-                    settings={settings}
-                    onClick={(post) => {
-                      setSelectedRedditPost(post);
-                      if (!post.isRead) markRedditAsRead(post.id);
-                    }}
-                    onImageClick={setSelectedImage}
-                    onMarkAsRead={markRedditAsRead}
-                    toggleRead={toggleRedditRead}
-                    toggleFavorite={toggleRedditFavorite}
-                    filter="saved"
-                    isSavedSection={true}
-                    onRemove={() => toggleRedditFavorite(item.id)}
-                  />
-                )
-              ))}
+                ))}
             </AnimatePresence>
             {savedCount === 0 && (
               <div className="flex flex-col items-center justify-center h-64 text-gray-500 px-6 text-center">
                 <Star className="w-16 h-16 mb-4 text-yellow-500/40 shadow-[0_0_20px_rgba(234,179,8,0.2)]" />
-                <p className="text-lg font-medium text-white mb-1">No saved items</p>
-                <p className="text-sm">Swipe right on an article or Reddit post to save it for later.</p>
+                <p className="text-lg font-medium text-white mb-1">No favorites yet</p>
+                <p className="text-sm">Swipe right on an article or podcast to save it for later.</p>
               </div>
             )}
             <div className="h-20 flex items-center justify-center">

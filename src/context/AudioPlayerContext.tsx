@@ -46,7 +46,7 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
     .filter(a => a.type === 'podcast')
     .sort((a, b) => b.pubDate - a.pubDate)
     .slice(0, 20), [articles]);
-  const favoritePodcasts = useMemo(() => articles.filter(a => a.isFavorite && a.type === 'podcast' && a.mediaUrl), [articles]);
+  const favoritePodcasts = useMemo(() => articles.filter(a => (!!a.isFavorite) && a.type === 'podcast' && !!a.mediaUrl), [articles]);
   
   const queueRef = useRef<Article[]>([]);
   const { feeds } = useRss();
@@ -58,11 +58,11 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
         const feed = feeds.find(f => f.id === a.feedId);
         return {
           id: a.id,
-          title: a.title,
+          title: a.title || 'Untitled',
           artist: feed?.title || 'Podcast',
           album: 'Flusso',
-          artwork: a.imageUrl || feed?.imageUrl,
-          uri: a.mediaUrl,
+          artwork: a.imageUrl || feed?.imageUrl || '',
+          uri: a.mediaUrl || '',
           duration: a.duration ? parseDurationToSeconds(a.duration) : 0
         };
       };
@@ -71,7 +71,7 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
         queue: queue.map(mapTrack),
         recent: recentPodcasts.map(mapTrack),
         favorites: favoritePodcasts.map(mapTrack)
-      }).catch(console.error);
+      }).catch(err => console.error('Error setting queue for Android Auto:', err));
     }
   }, [currentTrack, queue, recentPodcasts, favoritePodcasts, feeds]);
 

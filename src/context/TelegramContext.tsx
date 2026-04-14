@@ -70,6 +70,10 @@ export const TelegramProvider: React.FC<{ children: ReactNode }> = ({ children }
         fetchTelegramChannelInfo(cleanUsername)
       ]);
       
+      if (!messages || messages.length === 0) {
+        throw new Error("Questo canale non ha una preview pubblica o non contiene messaggi accessibili.");
+      }
+      
       const channel: TelegramChannel = {
         id: channelId,
         name: info.name,

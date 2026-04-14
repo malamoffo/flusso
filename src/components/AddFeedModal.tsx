@@ -26,7 +26,13 @@ export const AddFeedModal = React.memo(function AddFeedModal({ isOpen, onClose, 
       
       // If it's a telegram channel, we need to call the telegram context
       if (type === 'telegram') {
-        await addTelegramChannel(url);
+        try {
+          await addTelegramChannel(url);
+        } catch (tgErr: any) {
+          setError(tgErr.message);
+          setIsSubmitting(false);
+          return;
+        }
       }
       
       setUrl('');
