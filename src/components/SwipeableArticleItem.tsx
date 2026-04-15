@@ -215,9 +215,7 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
 
   const getTitleSize = () => {
     switch (settings.fontSize) {
-      case 'small': return 'text-sm';
       case 'large': return 'text-lg';
-      case 'xlarge': return 'text-xl';
       case 'medium':
       default: return 'text-base';
     }
@@ -225,9 +223,7 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
 
   const getSnippetSize = () => {
     switch (settings.fontSize) {
-      case 'small': return 'text-[10px]';
       case 'large': return 'text-sm';
-      case 'xlarge': return 'text-base';
       case 'medium':
       default: return 'text-xs';
     }
@@ -293,7 +289,7 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
           ) : (
             <>
               {settings.swipeRightAction === 'toggleFavorite' && (
-                article.type === 'podcast' ? <ListPlus className="w-6 h-6" /> : <Bookmark className="w-6 h-6" />
+                article.type === 'podcast' ? <ListPlus className="w-6 h-6" /> : <Star className="w-6 h-6" />
               )}
             </>
           )}
@@ -304,7 +300,7 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
           ) : (
             <>
               {settings.swipeLeftAction === 'toggleFavorite' && (
-                article.type === 'podcast' ? <ListPlus className="w-6 h-6" /> : <Bookmark className="w-6 h-6" />
+                article.type === 'podcast' ? <ListPlus className="w-6 h-6" /> : <Star className="w-6 h-6" />
               )}
             </>
           )}
@@ -407,6 +403,9 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
                   </span>
                 </div>
                 <div className="flex items-center gap-1.5 ml-2">
+                  {(article.isFavorite || article.isQueued) && (
+                    <Star className="w-3 h-3 text-yellow-500 fill-current" />
+                  )}
                   <span className="text-[10px] text-gray-500 whitespace-nowrap font-medium">
                     {isToday(article.pubDate) 
                       ? format(article.pubDate, 'HH:mm') 
@@ -448,10 +447,9 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
                   </span>
                   <div className="flex-1" />
                   <div className="flex gap-3">
-                    {article.isFavorite && (
-                      <Bookmark className="w-4 h-4 text-[var(--theme-color)] fill-current" />
+                    {(article.isFavorite || article.isQueued) && (
+                      <Star className="w-4 h-4 text-yellow-500 fill-current" />
                     )}
-                    <Star className="w-4 h-4" />
                   </div>
                 </div>
               )}

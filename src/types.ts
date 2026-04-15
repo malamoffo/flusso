@@ -2,7 +2,7 @@ export type SwipeAction = 'toggleFavorite' | 'remove' | 'none';
 export type ImageDisplay = 'none' | 'small' | 'large';
 export type ListStyle = 'minimal' | 'bento' | 'magazine' | 'compact';
 export type Theme = 'light' | 'dark' | 'system';
-export type FontSize = 'small' | 'medium' | 'large' | 'xlarge';
+export type FontSize = 'medium' | 'large';
 
 export interface Settings {
   swipeLeftAction: SwipeAction;

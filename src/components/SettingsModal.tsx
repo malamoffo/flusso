@@ -303,14 +303,7 @@ export const SettingsModal = React.memo(function SettingsModal({
                 {/* Font Size Settings */}
                 <section>
                   <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Font Size</h3>
-                  <div className="grid grid-cols-4 gap-2">
-                    <button
-                      onClick={() => handleFontSizeChange('small')}
-                      className={`flex flex-col items-center justify-center p-2 rounded-xl border-2 transition-colors ${settings.fontSize === 'small' ? 'border-indigo-600 bg-indigo-900/20 text-indigo-400' : 'border-gray-700 text-gray-400 hover:bg-gray-800'}`}
-                    >
-                      <Type className="w-4 h-4 mb-1" />
-                      <span className="text-xs font-medium">Small</span>
-                    </button>
+                  <div className="grid grid-cols-2 gap-2">
                     <button
                       onClick={() => handleFontSizeChange('medium')}
                       className={`flex flex-col items-center justify-center p-2 rounded-xl border-2 transition-colors ${settings.fontSize === 'medium' ? 'border-indigo-600 bg-indigo-900/20 text-indigo-400' : 'border-gray-700 text-gray-400 hover:bg-gray-800'}`}
@@ -324,13 +317,6 @@ export const SettingsModal = React.memo(function SettingsModal({
                     >
                       <Type className="w-6 h-6 mb-1" />
                       <span className="text-xs font-medium">Large</span>
-                    </button>
-                    <button
-                      onClick={() => handleFontSizeChange('xlarge')}
-                      className={`flex flex-col items-center justify-center p-2 rounded-xl border-2 transition-colors ${settings.fontSize === 'xlarge' ? 'border-indigo-600 bg-indigo-900/20 text-indigo-400' : 'border-gray-700 text-gray-400 hover:bg-gray-800'}`}
-                    >
-                      <Type className="w-7 h-7 mb-1" />
-                      <span className="text-xs font-medium">X-Large</span>
                     </button>
                   </div>
                 </section>
@@ -454,27 +440,7 @@ export const SettingsModal = React.memo(function SettingsModal({
                   </div>
                 </section>
 
-                {/* Experimental Features */}
-                <section>
-                  <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Experimental</h3>
-                  <div className="space-y-4">
-                    <button
-                      onClick={onOpenPreview}
-                      className="w-full p-4 bg-blue-600/10 text-blue-400 hover:bg-blue-600/20 border border-blue-500/20 rounded-2xl font-medium flex items-center justify-between transition-all group"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-blue-600/20 flex items-center justify-center group-hover:scale-110 transition-transform">
-                          <Palette className="w-5 h-5" />
-                        </div>
-                        <div className="text-left">
-                          <div className="text-sm font-bold text-white">Preview Modern Layouts</div>
-                          <div className="text-[10px] text-gray-500">Try new article reader designs</div>
-                        </div>
-                      </div>
-                      <ChevronRight className="w-5 h-5 text-gray-600" />
-                    </button>
-                  </div>
-                </section>
+                {/* Experimental Features removed */}
               </div>
             ) : activeTab === 'subscriptions' ? (
               <section className="space-y-4">
