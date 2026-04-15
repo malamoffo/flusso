@@ -439,7 +439,6 @@ export const SettingsModal = React.memo(function SettingsModal({
                     </div>
                   </div>
                 </section>
-
               </div>
             ) : activeTab === 'subscriptions' ? (
               <section className="space-y-4">

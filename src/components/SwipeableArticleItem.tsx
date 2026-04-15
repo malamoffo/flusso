@@ -216,10 +216,11 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
   const hasImage = (article.imageUrl || (article.type === 'podcast' && feedImageUrl)) && (article.type === 'podcast' || settings.imageDisplay !== 'none');
 
   const getTitleSize = () => {
+    const isPodcast = article.type === 'podcast';
     switch (settings.fontSize) {
-      case 'large': return 'text-lg';
+      case 'large': return isPodcast ? 'text-base' : 'text-lg';
       case 'medium':
-      default: return 'text-base';
+      default: return isPodcast ? 'text-sm' : 'text-base';
     }
   };
 
@@ -240,6 +241,12 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
   };
 
   const domain = getDomain(article.link);
+
+  useEffect(() => {
+    if (domain) {
+      console.log(`[SwipeableArticleItem] Article: ${article.title.substring(0, 20)}... | Domain: ${domain} | Link: ${article.link}`);
+    }
+  }, [domain, article.id]);
 
   const { currentTrack } = useAudioState();
   const shouldReduceMotion = useReducedMotion();
@@ -383,12 +390,12 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
                 <div className="flex items-center gap-1.5 min-w-0">
                   {domain && (
                     <CachedImage 
-                      src={`https://icons.duckduckgo.com/ip3/${domain}.ico`} 
+                      src={`https://www.google.com/s2/favicons?domain=${domain}&sz=64`} 
                       alt="" 
                       className={`w-3.5 h-3.5 rounded-sm flex-shrink-0`}
                       referrerPolicy="no-referrer"
                       onError={(e) => {
-                        (e.target as HTMLImageElement).src = `https://www.google.com/s2/favicons?domain=${domain}&sz=32`;
+                        (e.target as HTMLImageElement).src = `https://icons.duckduckgo.com/ip3/${domain}.ico`;
                       }}
                     />
                   )}
@@ -421,9 +428,21 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
               <h3 
                 className={cn(
                   "font-bold leading-tight transition-colors",
-                  settings.listStyle === 'magazine' ? (settings.fontSize === 'large' ? 'text-2xl' : 'text-xl') : 
-                  settings.listStyle === 'bento' ? (settings.fontSize === 'large' ? 'text-xl' : 'text-lg') :
-                  settings.listStyle === 'compact' ? (settings.fontSize === 'large' ? 'text-base' : 'text-sm') : 
+                  settings.listStyle === 'magazine' ? (
+                    article.type === 'podcast' 
+                      ? (settings.fontSize === 'large' ? 'text-xl' : 'text-lg')
+                      : (settings.fontSize === 'large' ? 'text-2xl' : 'text-xl')
+                  ) : 
+                  settings.listStyle === 'bento' ? (
+                    article.type === 'podcast'
+                      ? (settings.fontSize === 'large' ? 'text-lg' : 'text-base')
+                      : (settings.fontSize === 'large' ? 'text-xl' : 'text-lg')
+                  ) :
+                  settings.listStyle === 'compact' ? (
+                    article.type === 'podcast'
+                      ? (settings.fontSize === 'large' ? 'text-sm' : 'text-xs')
+                      : (settings.fontSize === 'large' ? 'text-base' : 'text-sm')
+                  ) : 
                   getTitleSize(),
                   article.isRead ? 'text-gray-500' : 'text-gray-100',
                   !article.isRead && "group-hover:text-[var(--theme-color)]"
@@ -448,11 +467,6 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
                     {isToday(article.pubDate) ? `Oggi ${format(article.pubDate, 'HH:mm')}` : format(article.pubDate, 'dd MMM yyyy')}
                   </span>
                   <div className="flex-1" />
-                  <div className="flex gap-3">
-                    {(article.isFavorite || article.isQueued) && (
-                      <Star className="w-4 h-4 text-yellow-500 fill-current" />
-                    )}
-                  </div>
                 </div>
               )}
 

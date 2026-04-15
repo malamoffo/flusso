@@ -103,7 +103,7 @@ export function CachedImage({ src, className, fallback, alt, ...props }: CachedI
     setIsLoaded(true);
   };
 
-  const handleError = () => {
+  const handleError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
     // If local URL failed, try falling back to original src
     if (currentSrc !== src) {
       setCurrentSrc(src);
@@ -112,6 +112,9 @@ export function CachedImage({ src, className, fallback, alt, ...props }: CachedI
     } else {
       console.error(`[CachedImage] Failed to load image: ${src}`);
       setError(true);
+      if (props.onError) {
+        props.onError(e);
+      }
     }
   };
 

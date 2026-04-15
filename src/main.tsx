@@ -11,6 +11,9 @@ import { imagePersistence } from './utils/imagePersistence';
 import { registerSW } from 'virtual:pwa-register';
 
 // Register Service Worker
+const APP_VERSION = '1.0.6';
+console.log(`[Flusso] Version ${APP_VERSION} starting...`);
+
 const updateSW = registerSW({
   onNeedRefresh() {
     // Force update if needed

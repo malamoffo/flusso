@@ -186,10 +186,11 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
   };
 
   const getTitleSize = () => {
+    const isPodcast = article.type === 'podcast';
     switch (settings.fontSize) {
-      case 'large': return 'text-3xl';
+      case 'large': return isPodcast ? 'text-2xl' : 'text-3xl';
       case 'medium':
-      default: return 'text-2xl';
+      default: return isPodcast ? 'text-xl' : 'text-2xl';
     }
   };
 
@@ -581,9 +582,9 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
                   }
                 >
                   {article.type === 'podcast' ? (
-                    <ListPlus className={`w-5 h-5 ${isQueued ? 'text-[var(--theme-color)]' : ''}`} aria-hidden="true" />
+                    <Star className={`w-5 h-5 ${isQueued ? 'fill-current text-yellow-500' : ''}`} aria-hidden="true" />
                   ) : (
-                    <Star className={`w-5 h-5 ${isFavorite ? 'fill-current text-[var(--theme-color)]' : ''}`} aria-hidden="true" />
+                    <Star className={`w-5 h-5 ${isFavorite ? 'fill-current text-yellow-500' : ''}`} aria-hidden="true" />
                   )}
                 </motion.button>
               </div>
