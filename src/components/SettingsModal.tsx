@@ -184,9 +184,9 @@ export const SettingsModal = React.memo(function SettingsModal({
 
             {progress && (
               <div className="mb-6 p-4 rounded-2xl bg-indigo-900/20 border border-indigo-800">
-                <div className="flex justify-between text-sm font-medium text-indigo-300 mb-2">
-                  <span>{progress.status || 'Processing...'}</span>
-                  <span>{Math.round((progress.current / progress.total) * 100)}%</span>
+                <div className="flex justify-between items-center text-sm font-medium text-indigo-300 mb-2 gap-2">
+                  <span className="truncate">{progress.status || 'Processing...'}</span>
+                  <span className="flex-shrink-0">{Math.round((progress.current / progress.total) * 100)}%</span>
                 </div>
                 <div className="w-full h-2 bg-indigo-900/40 rounded-full overflow-hidden">
                   <motion.div 

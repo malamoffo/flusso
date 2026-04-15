@@ -114,6 +114,18 @@ export const rssStorage = {
         response = await fetchWithProxy(alternativeUrl, true, sinceDate, signal, feed?.etag, feed?.lastModified);
       }
 
+      if (response.data === '') {
+        return {
+          feed: { 
+            ...feed, 
+            etag: response.etag || feed?.etag, 
+            lastModified: response.lastModified || feed?.lastModified 
+          } as Feed,
+          articles: [],
+          bytesDownloaded: 0
+        };
+      }
+
       if (!response.data) return null;
       
       const bytesDownloaded = new Blob([response.data]).size;
@@ -127,7 +139,11 @@ export const rssStorage = {
       });
 
       return { 
-        feed: { ...parsedFeed, etag: response.etag, lastModified: response.lastModified }, 
+        feed: { 
+          ...parsedFeed, 
+          etag: response.etag || feed?.etag, 
+          lastModified: response.lastModified || feed?.lastModified 
+        }, 
         articles: filteredArticles,
         bytesDownloaded
       };

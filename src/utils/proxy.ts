@@ -27,7 +27,11 @@ export async function fetchWithProxy(url: string, isRss: boolean = true, sinceDa
         readTimeout: 15000
       });
 
-      if (response.status === 304) return { data: '' };
+      if (response.status === 304) return { 
+        data: '',
+        etag: response.headers['etag'],
+        lastModified: response.headers['last-modified']
+      };
       if (response.status >= 200 && response.status < 300) {
         return {
           data: typeof response.data === 'string' ? response.data : JSON.stringify(response.data),
@@ -76,7 +80,11 @@ export async function fetchWithProxy(url: string, isRss: boolean = true, sinceDa
     clearTimeout(directTimeoutId);
     
     if (directResponse.status === 304) {
-      return { data: '' }; // Return empty to indicate no new content
+      return { 
+        data: '',
+        etag: directResponse.headers.get('etag') || undefined,
+        lastModified: directResponse.headers.get('last-modified') || undefined
+      }; // Return empty to indicate no new content
     }
 
     if (directResponse.ok) {
@@ -100,6 +108,21 @@ export async function fetchWithProxy(url: string, isRss: boolean = true, sinceDa
   } catch (e: any) {
     if (signal?.aborted) throw new Error('Aborted');
     // Direct fetch failed (likely CORS or timeout), fallback to proxies
+  }
+
+  const headers: Record<string, string> = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+    ...(isRss ? { 'Accept': 'application/rss+xml, application/xml, text/xml, */*' } : {})
+  };
+
+  if (sinceDate) {
+    headers['If-Modified-Since'] = new Date(sinceDate).toUTCString();
+  }
+  if (etag) {
+    headers['If-None-Match'] = etag;
+  }
+  if (lastModified) {
+    headers['If-Modified-Since'] = lastModified;
   }
 
   const proxies: { name: string, url: string, type: 'text' | 'json' | 'rss2json', timeout?: number }[] = [];
@@ -151,9 +174,19 @@ export async function fetchWithProxy(url: string, isRss: boolean = true, sinceDa
       }
       
       const response = await fetch(proxy.url, { 
-        signal: controller.signal
+        signal: controller.signal,
+        headers: proxy.type === 'text' ? headers : undefined // Only send headers to text/raw proxies
       });
       clearTimeout(id);
+
+      if (response.status === 304) {
+        return { 
+          data: '',
+          etag: response.headers.get('etag') || undefined,
+          lastModified: response.headers.get('last-modified') || undefined
+        };
+      }
+
       if (response.ok) {
         let text = '';
         if (proxy.type === 'json') {
