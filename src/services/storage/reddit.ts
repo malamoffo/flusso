@@ -228,8 +228,10 @@ export const redditStorage = {
       if (!data || !Array.isArray(data) || data.length < 2 || !data[1].data || !data[1].data.children) return [];
 
       return data[1].data.children;
-    } catch (e) {
-      console.error(`Failed to fetch comments for ${permalink}:`, e);
+    } catch (e: any) {
+      // Log as warning instead of error to avoid spamming the console, 
+      // as proxy failures are expected occasionally due to rate limits.
+      console.warn(`Could not fetch comments for ${permalink}: ${e.message}`);
       return [];
     }
   },
