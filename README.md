@@ -5,7 +5,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 **Flusso** is a fast, privacy-focused, and highly customizable news reader designed to provide a superior reading experience on both web and mobile devices.
-
+ 
 ---
 
 ## ✨ Advanced Features

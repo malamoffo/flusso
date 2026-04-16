@@ -20,7 +20,7 @@ export const imagePersistence = {
       if (savedMap && savedMap.value) {
         this.resolvedLocalUrls = new Map(JSON.parse(savedMap.value));
       }
-
+      
       // Cleanup old images on init
       const settings = await db.settings.get('user_settings');
       // Use articleRetentionDays as the base for image retention
@@ -64,7 +64,7 @@ export const imagePersistence = {
    */
   async getCachedUrl(url: string): Promise<string | null> {
     if (!Capacitor.isNativePlatform()) return null;
-
+    
     if (!this.isInitialized) await this.init();
     if (this.resolvedLocalUrls.has(url)) return this.resolvedLocalUrls.get(url)!;
 
@@ -76,7 +76,7 @@ export const imagePersistence = {
         path,
         directory: Directory.Data
       });
-
+      
       if (stat.size > 0) {
         const uriResult = await Filesystem.getUri({
           path,
@@ -109,7 +109,7 @@ export const imagePersistence = {
         path,
         directory: Directory.Data
       });
-
+      
       if (stat.size > 0) {
         const uriResult = await Filesystem.getUri({
           path,
@@ -131,7 +131,7 @@ export const imagePersistence = {
       if (downloadResult.status === 200) {
         // Convert arraybuffer to base64
         const base64Data = await this.arrayBufferToBase64(downloadResult.data);
-
+        
         // Ensure directory exists
         try {
           await Filesystem.mkdir({
@@ -194,7 +194,7 @@ export const imagePersistence = {
    */
   async cleanupOldImages(maxAgeDays: number): Promise<void> {
     if (!Capacitor.isNativePlatform()) return;
-
+    
     try {
       const exists = await Filesystem.stat({
         path: CACHE_DIR,
@@ -225,7 +225,7 @@ export const imagePersistence = {
               directory: Directory.Data
             });
             deletedCount++;
-
+            
             // Remove from resolved map if we can find the original URL
             // This is tricky since we only have the filename.
             // We'll just clear the map if we deleted many files to be safe

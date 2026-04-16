@@ -37,7 +37,7 @@ interface RssContextType {
   importOpml: (file: File | { text: () => Promise<string> }, append?: boolean) => Promise<void>;
   exportFeeds: (types?: ('article' | 'podcast')[]) => Promise<string>;
   removeFeed: (id: string) => void;
-  refreshFeeds: (feedsToRefresh?: Feed[], currentArticles?: Article[]) => Promise<void>;
+  refreshFeeds: (feedsToRefresh?: Feed[]) => Promise<void>;
   toggleRead: (id: string) => void;
   markAsRead: (id: string) => void;
   markArticlesAsRead: (ids: string[]) => void;
@@ -205,12 +205,11 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   }, [hasMoreArticles, isLoading]);
 
-  const refreshFeeds = useCallback(async (feedsToRefresh?: Feed[], currentArticles?: Article[]) => {
+  const refreshFeeds = useCallback(async (feedsToRefresh?: Feed[]) => {
     if (isRefreshing.current) return;
     isRefreshing.current = true;
     try {
       const fToRefresh = feedsToRefresh || await storage.getFeeds();
-      const cArticles = currentArticles || await storage.getArticles(0, 500);
       
       if (!worker.current) {
         throw new Error('Worker not initialized');
@@ -218,7 +217,6 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
       const { finalArticles, finalFeeds } = await rssService.refreshFeeds(
         fToRefresh,
-        cArticles,
         worker.current,
         setProgress,
         setFeeds,

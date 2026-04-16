@@ -161,24 +161,17 @@ export const rssStorage = {
 
   async saveAllFeedData(
     results: { feed: Feed; articles: Article[] }[],
-    existingFeeds?: Feed[],
-    existingArticles?: Article[]
+    existingFeeds?: Feed[]
   ): Promise<{ updatedFeeds: Feed[]; allNewArticles: Article[] }> {
     const feeds = existingFeeds || await this.getFeeds();
-    const articles = existingArticles || await this.getArticles();
-    
-    const existingLinks = new Set<string>();
-    const articleByLinkMap = new Map<string, number>();
-    for (let i = 0; i < articles.length; i++) {
-      const link = articles[i].link;
-      existingLinks.add(link);
-      articleByLinkMap.set(link, i);
-    }
     
     let updatedFeeds = [...feeds];
     let allNewArticles: Article[] = [];
     let articlesModified = false;
     
+    // We will collect articles that need to be updated.
+    const articlesToUpdate: Article[] = [];
+
     for (const { feed, articles: newArticles } of results) {
       const existingFeedIndex = updatedFeeds.findIndex(f => f.feedUrl === feed.feedUrl);
       
@@ -187,13 +180,20 @@ export const rssStorage = {
         : 0;
       
       if (existingFeedIndex === -1) {
-        updatedFeeds.push({
+        // New feed
+        const newFeed = {
           ...feed,
           lastArticleDate: latestFromNew
-        });
+        };
+        updatedFeeds.push(newFeed);
+        
+        // We know there are no existing articles for a brand new feed
+        // Avoid duplicate links within the same new batch
+        const seenLinks = new Set<string>();
         
         for (const a of newArticles) {
-          if (!existingLinks.has(a.link)) {
+          if (!seenLinks.has(a.link)) {
+            seenLinks.add(a.link);
             const { content, ...lightArticle } = a;
             if (content !== undefined) {
               this.saveArticleContent(a.id, content).catch(err => console.error('Failed to save article content', err));
@@ -203,6 +203,7 @@ export const rssStorage = {
           }
         }
       } else {
+        // Existing feed
         const feedId = updatedFeeds[existingFeedIndex].id;
         const currentLastArticleDate = updatedFeeds[existingFeedIndex].lastArticleDate || 0;
         
@@ -217,8 +218,20 @@ export const rssStorage = {
           type: feed.type
         };
         
+        // Fetch only existing articles for THIS feed to perform dedup check
+        const existingForFeed = await db.articles.where('feedId').equals(feedId).toArray();
+        const existingLinks = new Set<string>();
+        const articleByLinkMap = new Map<string, Article>();
+        
+        for (const ea of existingForFeed) {
+          existingLinks.add(ea.link);
+          articleByLinkMap.set(ea.link, ea);
+        }
+        
+        // Handle incoming articles
         for (const a of newArticles) {
           if (!existingLinks.has(a.link)) {
+            existingLinks.add(a.link); // prevent dup within same batch if any
             const { content, ...lightArticle } = a;
             if (content !== undefined) {
               this.saveArticleContent(a.id, content).catch(err => console.error('Failed to save article content', err));
@@ -229,26 +242,31 @@ export const rssStorage = {
               feedId
             } as Article);
           } else {
-            const idx = articleByLinkMap.get(a.link) ?? -1;
-            if (idx !== -1) {
+            // Already exists, check if we need to update chapters or content (for podcasts typically)
+            const existingMatch = articleByLinkMap.get(a.link);
+            if (existingMatch) {
               let modified = false;
+              let nextArt = { ...existingMatch };
               
-              if (!articles[idx].chaptersUrl && a.chaptersUrl) {
-                articles[idx] = { ...articles[idx], chaptersUrl: a.chaptersUrl };
+              if (!nextArt.chaptersUrl && a.chaptersUrl) {
+                nextArt.chaptersUrl = a.chaptersUrl;
                 modified = true;
               }
               
-              if (a.type === 'podcast' && !articles[idx].content && a.content) {
-                articles[idx] = { ...articles[idx], content: a.content };
+              if (a.type === 'podcast' && !nextArt.content && a.content) {
+                nextArt.content = a.content;
                 modified = true;
               }
 
               if (modified) {
                 articlesModified = true;
+                articlesToUpdate.push(nextArt);
+                // updating internal map to track latest changes if duplicate links in same batch
+                articleByLinkMap.set(a.link, nextArt);
               }
               
               if (a.content) {
-                this.saveArticleContent(articles[idx].id, a.content).catch(() => {});
+                this.saveArticleContent(nextArt.id, a.content).catch(() => {});
               }
             }
           }
@@ -256,9 +274,14 @@ export const rssStorage = {
       }
     }
     
-    if (allNewArticles.length > 0 || articlesModified) {
-      await this.saveArticles([...articles, ...allNewArticles]);
+    if (allNewArticles.length > 0) {
+      await this.saveArticles(allNewArticles);
     }
+    if (articlesToUpdate.length > 0) {
+      // Use bulkPut to update existing elements
+      await this.saveArticles(articlesToUpdate);
+    }
+
     await this.saveFeeds(updatedFeeds);
     
     return { updatedFeeds, allNewArticles };
