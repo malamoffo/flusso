@@ -227,25 +227,46 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
 
         const isNative = typeof window !== 'undefined' && (window as any).Capacitor?.isNativePlatform();
         let html = '';
+        const safeUrl = getSafeUrl(article.link, article.link);
 
         if (isNative) {
-          const response = await CapacitorHttp.get({ url: article.link });
-          if (response.status === 200) {
-            html = response.data;
-          } else {
-            throw new Error(`Failed to fetch article: ${response.status}`);
+          let currentUrl = safeUrl;
+          let maxRedirects = 3;
+          
+          while (maxRedirects > 0) {
+            const response = await CapacitorHttp.get({ url: currentUrl });
+            if (response.status === 200) {
+              html = response.data;
+              break;
+            } else if ([301, 302, 303, 307, 308].includes(response.status)) {
+              const location = response.headers['Location'] || response.headers['location'];
+              if (location) {
+                currentUrl = getSafeUrl(location, location);
+                maxRedirects--;
+              } else {
+                throw new Error(`Redirect without location: ${response.status}`);
+              }
+            } else {
+              throw new Error(`Failed to fetch article: ${response.status}`);
+            }
           }
         } else {
-          const res = await fetchWithProxy(article.link, false);
+          const res = await fetchWithProxy(safeUrl, false);
           html = res.data;
         }
 
         if (html) {
           const doc = new DOMParser().parseFromString(html, 'text/html');
+          
+          // Add base tag to help resolve relative URLs during parsing
+          const base = doc.createElement('base');
+          base.href = article.link;
+          doc.head.appendChild(base);
+
           const reader = new Readability(doc);
           const articleData = reader.parse();
 
-          if (articleData) {
+          if (articleData && articleData.content && articleData.content.length > 200) {
             const contentToSave = {
               title: articleData.title || '',
               content: articleData.content || '',
@@ -271,6 +292,21 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
                 }
               }
             }
+          } else {
+            console.warn('[READER] Readability parsed content is too short or empty, falling back to feed content');
+            // If readability fails to get substantial content, we still set a minimal object 
+            // to stop the loading state, but it will fallback to article.content in processContent
+            setFullContent({
+              title: article.title,
+              content: '',
+              textContent: '',
+              length: 0,
+              excerpt: '',
+              byline: '',
+              dir: 'ltr',
+              siteName: '',
+              lang: ''
+            });
           }
         }
       } catch (error) {

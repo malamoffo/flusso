@@ -11,6 +11,8 @@ export const defaultSettings: Settings = {
   theme: 'dark',
   pureBlack: true,
   imageRetentionDays: 1,
+  redditRetentionDays: 1,
+  telegramRetentionDays: 1,
 };
 
 export const settingsStorage = {

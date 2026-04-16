@@ -250,7 +250,7 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   useEffect(() => {
     if (Capacitor.isNativePlatform()) {
-      if (feeds.length > 0 && settings.refreshInterval > 0) {
+      if (feeds.length > 0 && settings.autoCheckUpdates && settings.refreshInterval > 0) {
         const syncFeeds = feeds.map(f => ({
           id: f.id,
           url: f.feedUrl,
@@ -265,7 +265,20 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         BackgroundPlugin.stopBackgroundSync().catch(console.error);
       }
     }
-  }, [feeds, settings.refreshInterval]);
+  }, [feeds, settings.refreshInterval, settings.autoCheckUpdates]);
+
+  // Web-based auto refresh
+  useEffect(() => {
+    if (!settings.autoCheckUpdates || settings.refreshInterval <= 0 || Capacitor.isNativePlatform()) return;
+    
+    const interval = setInterval(() => {
+      console.log('[RSS] Auto-refreshing feeds (web)...');
+      refreshFeeds();
+      refreshReddit();
+    }, settings.refreshInterval * 60 * 1000);
+    
+    return () => clearInterval(interval);
+  }, [settings.autoCheckUpdates, settings.refreshInterval, refreshFeeds, refreshReddit]);
 
   const addFeedOrSubreddit = useCallback(async (url: string): Promise<'article' | 'podcast' | 'reddit' | 'subreddit' | 'telegram' | void> => {
     try {

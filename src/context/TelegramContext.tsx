@@ -40,7 +40,7 @@ export const TelegramProvider: React.FC<{ children: ReactNode }> = ({ children }
   }, [telegramChannels, telegramMessages]);
 
   const loadData = useCallback(async () => {
-    await storage.cleanupOldTelegramMessages();
+    await storage.cleanupOldTelegramMessages(settings.telegramRetentionDays);
     const loadedTelegramChannels = await storage.getTelegramChannels();
     setTelegramChannels(loadedTelegramChannels);
     // Don't load all messages at once, they will be loaded on demand when a channel is selected
@@ -106,10 +106,10 @@ export const TelegramProvider: React.FC<{ children: ReactNode }> = ({ children }
   }, []);
 
   const cleanupTelegramMessages = useCallback((channel: TelegramChannel, messages: TelegramMessage[]) => {
-    const retentionMs = 1 * 24 * 60 * 60 * 1000; // Force 1 day retention
+    const retentionMs = (settings.telegramRetentionDays || 1) * 24 * 60 * 60 * 1000;
     const now = Date.now();
     return messages.filter(m => now - m.date < retentionMs);
-  }, []);
+  }, [settings.telegramRetentionDays]);
 
   const refreshTelegramChannels = useCallback(async (channelsToRefresh?: TelegramChannel[]) => {
     const channels = channelsToRefresh || telegramChannelsRef.current;
@@ -192,7 +192,37 @@ export const TelegramProvider: React.FC<{ children: ReactNode }> = ({ children }
   }, [refreshTelegramChannels]);
 
   const loadMoreTelegramMessages = useCallback(async (channelId: string) => {
-    // Implementation of loadMoreTelegramMessages
+    const channel = telegramChannelsRef.current.find(c => c.id === channelId);
+    if (!channel) return;
+
+    const currentMessages = telegramMessagesRef.current[channelId] || [];
+    if (currentMessages.length === 0) return;
+
+    // Find the oldest message ID to use as 'before' parameter
+    // Telegram message IDs are usually in the format "channelname/1234"
+    const oldestMessage = currentMessages[0];
+    const idParts = oldestMessage.id.split('/');
+    const beforeId = idParts.length > 1 ? idParts[1] : oldestMessage.id;
+
+    try {
+      const olderMessages = await fetchTelegramMessages(channel.username, undefined, beforeId, channel.id);
+      
+      if (olderMessages.length > 0) {
+        setTelegramMessages(prev => {
+          const existing = prev[channelId] || [];
+          // Prepend older messages, avoiding duplicates
+          const existingIds = new Set(existing.map(m => m.id));
+          const newMessages = olderMessages.filter(m => !existingIds.has(m.id));
+          
+          const next = { ...prev, [channelId]: [...newMessages, ...existing] };
+          telegramMessagesRef.current = next;
+          storage.saveTelegramMessages(channelId, next[channelId]);
+          return next;
+        });
+      }
+    } catch (e) {
+      console.error(`Failed to load older messages for ${channel.username}`, e);
+    }
   }, []);
 
   const markAllTelegramAsRead = useCallback(async () => {

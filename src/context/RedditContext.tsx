@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode, useCa
 import { Subreddit, RedditPost } from '../types';
 import { storage } from '../services/storage';
 import DataWorker from '../workers/dataProcessor.worker.ts?worker';
+import { useSettings } from './SettingsContext';
 
 interface RedditContextType {
   subreddits: Subreddit[];
@@ -29,6 +30,7 @@ export const RedditProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const [isLoading, setIsLoading] = useState(false);
   
   const [redditUnreadCount, setRedditUnreadCount] = useState(0);
+  const { settings } = useSettings();
   
   const subredditsRef = useRef<Subreddit[]>([]);
   const redditPostsRef = useRef<RedditPost[]>([]);
@@ -50,13 +52,14 @@ export const RedditProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
   useEffect(() => {
     const loadData = async () => {
+      await storage.cleanupOldRedditPosts(settings.redditRetentionDays);
       const loadedSubreddits = await storage.getSubreddits();
       const loadedRedditPosts = await storage.getRedditPosts();
       setSubreddits(loadedSubreddits);
       setRedditPosts(loadedRedditPosts.sort((a, b) => b.createdUtc - a.createdUtc));
     };
     loadData();
-  }, []);
+  }, [settings.redditRetentionDays]);
 
   const refreshReddit = useCallback(async (subsToRefresh?: Subreddit[], currentPosts?: RedditPost[], sort?: 'new' | 'hot' | 'top') => {
     const targetSubs = subsToRefresh || subredditsRef.current;

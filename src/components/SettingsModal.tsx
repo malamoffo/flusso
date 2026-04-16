@@ -336,6 +336,25 @@ export const SettingsModal = React.memo(function SettingsModal({
                 <section>
                   <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Background Refresh</h3>
                   <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <label className="text-sm font-medium text-gray-300">
+                        Auto Check Updates
+                      </label>
+                      <button
+                        onClick={() => updateSettings({ autoCheckUpdates: !settings.autoCheckUpdates })}
+                        className={cn(
+                          "relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none",
+                          settings.autoCheckUpdates ? "bg-indigo-600" : "bg-gray-700"
+                        )}
+                      >
+                        <span
+                          className={cn(
+                            "inline-block h-4 w-4 transform rounded-full bg-white transition-transform",
+                            settings.autoCheckUpdates ? "translate-x-6" : "translate-x-1"
+                          )}
+                        />
+                      </button>
+                    </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-300 mb-1">
                         Refresh Interval
@@ -343,9 +362,9 @@ export const SettingsModal = React.memo(function SettingsModal({
                       <select
                         value={settings.refreshInterval}
                         onChange={(e) => updateSettings({ refreshInterval: parseInt(e.target.value) })}
-                        className="block w-full pl-3 pr-10 py-2 text-base border-gray-700 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-lg bg-gray-800 text-white"
+                        disabled={!settings.autoCheckUpdates}
+                        className="block w-full pl-3 pr-10 py-2 text-base border-gray-700 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-lg bg-gray-800 text-white disabled:opacity-50"
                       >
-                        <option value={0}>Never</option>
                         <option value={15}>Every 15 minutes</option>
                         <option value={30}>Every 30 minutes</option>
                         <option value={60}>Every hour</option>
@@ -385,6 +404,67 @@ export const SettingsModal = React.memo(function SettingsModal({
                         * Images older than this will be removed to save space. They will be re-downloaded if you view the article again.
                       </p>
                     </div>
+                  </div>
+                </section>
+
+                {/* Data Retention Settings */}
+                <section>
+                  <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Data Retention</h3>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-1">
+                        Reddit Retention
+                      </label>
+                      <select
+                        value={settings.redditRetentionDays}
+                        onChange={(e) => updateSettings({ redditRetentionDays: parseInt(e.target.value) })}
+                        className="block w-full pl-3 pr-10 py-2 text-base border-gray-700 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-lg bg-gray-800 text-white"
+                      >
+                        <option value={1}>1 Day</option>
+                        <option value={3}>3 Days</option>
+                        <option value={7}>7 Days</option>
+                        <option value={14}>14 Days</option>
+                        <option value={30}>30 Days</option>
+                        <option value={999}>Infinite</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-1">
+                        Telegram Retention
+                      </label>
+                      <select
+                        value={settings.telegramRetentionDays}
+                        onChange={(e) => updateSettings({ telegramRetentionDays: parseInt(e.target.value) })}
+                        className="block w-full pl-3 pr-10 py-2 text-base border-gray-700 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-lg bg-gray-800 text-white"
+                      >
+                        <option value={1}>1 Day</option>
+                        <option value={3}>3 Days</option>
+                        <option value={7}>7 Days</option>
+                        <option value={14}>14 Days</option>
+                        <option value={30}>30 Days</option>
+                        <option value={999}>Infinite</option>
+                      </select>
+                    </div>
+                  </div>
+                </section>
+
+                {/* Maintenance Settings */}
+                <section>
+                  <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Maintenance</h3>
+                  <div className="space-y-4">
+                    <button
+                      onClick={async () => {
+                        if (confirm('Are you sure you want to clear the image cache? All images will be re-downloaded when needed.')) {
+                          const { imagePersistence } = await import('../utils/imagePersistence');
+                          await imagePersistence.clearCache();
+                          alert('Image cache cleared successfully.');
+                        }
+                      }}
+                      className="w-full px-4 py-2 bg-red-900/20 text-red-400 border border-red-900/50 rounded-lg text-sm font-medium hover:bg-red-900/30 transition-colors flex items-center justify-center gap-2"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      Clear Image Cache
+                    </button>
                   </div>
                 </section>
               </div>

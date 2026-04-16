@@ -53,6 +53,11 @@ export function getSafeUrl(url: string | null | undefined, fallback: any = ''): 
     return `https:${url}`;
   }
   
+  // Upgrade http to https to avoid cleartext traffic issues on native apps
+  if (url.startsWith('http://')) {
+    return url.replace('http://', 'https://');
+  }
+  
   return url;
 }
 

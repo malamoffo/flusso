@@ -81,11 +81,12 @@ export function extractBestImage(content: string, baseUrl?: string): string | nu
     
     // Skip likely tracking pixels or icons based on URL
     const lowerUrl = url.toLowerCase();
+    
     if (
       lowerUrl.includes('1x1') ||
       lowerUrl.includes('pixel') ||
       lowerUrl.includes('tracker') ||
-      lowerUrl.includes('feedburner') ||
+      (lowerUrl.includes('feedburner') && (lowerUrl.includes('pixel') || lowerUrl.includes('1x1') || lowerUrl.includes('stats'))) ||
       lowerUrl.includes('stats') ||
       lowerUrl.includes('gravatar') ||
       lowerUrl.includes('avatar') ||

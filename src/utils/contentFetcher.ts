@@ -1,5 +1,6 @@
 import { CapacitorHttp } from '@capacitor/core';
 import { fetchWithProxy } from './proxy';
+import { getSafeUrl } from '../lib/utils';
 import { Readability } from '@mozilla/readability';
 import { FullArticleContent } from '../types';
 import { db } from '../services/db';
@@ -63,26 +64,47 @@ class ContentFetcherQueue {
   private async fetchAndCache(articleId: string, url: string) {
     const isNative = typeof window !== 'undefined' && (window as any).Capacitor?.isNativePlatform();
     let html = '';
+    const safeUrl = getSafeUrl(url, url);
 
     if (isNative) {
-      const response = await CapacitorHttp.get({ url });
-      if (response.status === 200) {
-        html = response.data;
-      } else {
-        throw new Error(`Failed to fetch article: ${response.status}`);
+      let currentUrl = safeUrl;
+      let maxRedirects = 3;
+      
+      while (maxRedirects > 0) {
+        const response = await CapacitorHttp.get({ url: currentUrl });
+        if (response.status === 200) {
+          html = response.data;
+          break;
+        } else if ([301, 302, 303, 307, 308].includes(response.status)) {
+          const location = response.headers['Location'] || response.headers['location'];
+          if (location) {
+            currentUrl = getSafeUrl(location, location);
+            maxRedirects--;
+          } else {
+            throw new Error(`Redirect without location: ${response.status}`);
+          }
+        } else {
+          throw new Error(`Failed to fetch article: ${response.status}`);
+        }
       }
     } else {
-      const res = await fetchWithProxy(url, false);
+      const res = await fetchWithProxy(safeUrl, false);
       html = res.data;
     }
 
     if (html) {
       // Parse HTML
       const doc = new DOMParser().parseFromString(html, 'text/html');
+      
+      // Add base tag to help resolve relative URLs during parsing
+      const base = doc.createElement('base');
+      base.href = url;
+      doc.head.appendChild(base);
+
       const reader = new Readability(doc);
       const articleData = reader.parse();
 
-      if (articleData) {
+      if (articleData && articleData.content && articleData.content.length > 200) {
         const fullContent: FullArticleContent = {
           title: articleData.title || '',
           content: articleData.content || '',

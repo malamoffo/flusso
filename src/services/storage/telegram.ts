@@ -47,11 +47,11 @@ export const telegramStorage = {
     await db.telegramMessages.bulkDelete(messagesToDelete);
   },
 
-  async cleanupOldTelegramMessages(): Promise<void> {
-    const ONE_DAY = 1 * 24 * 60 * 60 * 1000;
+  async cleanupOldTelegramMessages(retentionDays: number = 1): Promise<void> {
+    const retentionMs = retentionDays * 24 * 60 * 60 * 1000;
     const now = Date.now();
     const oldMessages = await db.telegramMessages
-      .filter(m => (now - m.date) > ONE_DAY)
+      .filter(m => (now - m.date) > retentionMs)
       .primaryKeys();
     
     if (oldMessages.length > 0) {

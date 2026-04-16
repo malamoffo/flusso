@@ -12,6 +12,8 @@ export interface Settings {
   theme: Theme;
   pureBlack: boolean;
   imageRetentionDays: number;
+  redditRetentionDays: number;
+  telegramRetentionDays: number;
 }
 
 export interface Feed {

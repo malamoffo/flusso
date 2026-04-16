@@ -249,4 +249,16 @@ export const redditStorage = {
       return [];
     }
   },
+  
+  async cleanupOldRedditPosts(retentionDays: number = 1): Promise<void> {
+    const retentionMs = retentionDays * 24 * 60 * 60 * 1000;
+    const now = Date.now();
+    const oldPosts = await db.redditPosts
+      .filter(p => !p.isFavorite && (now - p.createdUtc) > retentionMs)
+      .primaryKeys();
+    
+    if (oldPosts.length > 0) {
+      await db.redditPosts.bulkDelete(oldPosts);
+    }
+  }
 };
