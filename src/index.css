@@ -59,6 +59,11 @@
     display: none;
   }
 
+  .content-visibility-auto {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 120px;
+  }
+
   /* Responsive embedded videos in prose */
   .prose iframe, 
   .prose video {

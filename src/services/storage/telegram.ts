@@ -21,19 +21,17 @@ export const telegramStorage = {
     await db.telegramChannels.update(id, updates);
   },
 
-  async getTelegramMessages(channelId: string, username?: string): Promise<TelegramMessage[]> {
-    let messages = await db.telegramMessages.where('channelId').equals(channelId).sortBy('date');
+  async getTelegramMessages(channelId: string, offset = 0, limit = 0): Promise<TelegramMessage[]> {
+    // Dexie's where().equals() returns a Collection, which doesn't have orderBy().
+    // We use sortBy() which returns a Promise<Array>, then array reverse and slice.
+    const allMessages = await db.telegramMessages.where('channelId').equals(channelId).sortBy('date');
+    allMessages.reverse(); // Newest first
     
-    if (messages.length === 0 && username) {
-      const legacyMessages = await db.telegramMessages.where('channelId').equals(username).sortBy('date');
-      if (legacyMessages.length > 0) {
-        const fixedMessages = legacyMessages.map(m => ({ ...m, channelId }));
-        db.telegramMessages.bulkPut(fixedMessages).catch(e => console.error('Failed to fix legacy telegram messages:', e));
-        return fixedMessages;
-      }
+    if (limit > 0) {
+      return allMessages.slice(offset, offset + limit);
     }
     
-    return messages;
+    return allMessages;
   },
 
   async saveTelegramMessages(channelId: string, messages: TelegramMessage[]): Promise<void> {

@@ -3,7 +3,6 @@ import { redditStorage } from './reddit';
 import { telegramStorage } from './telegram';
 import { settingsStorage } from './settings';
 import { db } from '../db';
-
 import { RefreshLog } from '../../types';
 
 export const storage = {

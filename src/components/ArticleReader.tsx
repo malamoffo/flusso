@@ -16,7 +16,7 @@ import { Readability } from '@mozilla/readability';
 import { fetchWithProxy } from '../utils/proxy';
 import { contentFetcher } from '../utils/contentFetcher';
 import { extractBestImage } from '../services/rssParser';
-import { extractBestImage } from '../services/rssParser';
+
 interface ArticleReaderProps {
   key?: React.Key;
   article: Article;
@@ -135,10 +135,6 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
     setIsQueued(article.isQueued);
     setReaderImageUrl(article.imageUrl || null);
   }, [article.id, article.isFavorite, article.isQueued, article.imageUrl]);
-
-  useEffect(() => {
-    setArticleThemeColor(null);
-  }, [readerImageUrl, article.type, feed?.imageUrl]);
 
   const readTime = fullContent?.textContent ? Math.max(1, Math.ceil(fullContent.textContent.split(/\s+/).length / 200)) : 1;
   const formattedDate = new Date(article.pubDate).toLocaleString('it-IT', {

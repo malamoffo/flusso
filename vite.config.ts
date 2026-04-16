@@ -62,7 +62,7 @@ export default defineConfig(({mode}) => {
           manualChunks: {
             'react-vendor': ['react', 'react-dom'],
             'ui-vendor': ['framer-motion', 'lucide-react'],
-            'utils-vendor': ['@mozilla/readability', 'dompurify', 'date-fns', 'uuid', 'dexie'],
+            'utils-vendor': ['@mozilla/readability', 'dompurify', 'date-fns', 'dexie'],
           },
         },
       },

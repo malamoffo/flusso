@@ -24,7 +24,6 @@
     "@capgo/capacitor-media-session": "^8.0.17",
     "@mozilla/readability": "^0.6.0",
     "clsx": "^2.1.1",
-
     "date-fns": "^4.1.0",
     "dexie": "^4.4.2",
     "dexie-react-hooks": "^4.4.0",

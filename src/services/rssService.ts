@@ -1,7 +1,6 @@
 import { Feed, Article } from '../types';
 import { storage } from './storage';
 
-
 export const rssService = {
   async refreshFeeds(
     feedsToRefresh: Feed[],

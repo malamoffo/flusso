@@ -4,7 +4,6 @@ import { CapacitorHttp } from '@capacitor/core';
 import { fetchWithProxy } from '../../utils/proxy';
 import { parseRssXml, escapeXml } from '../rssParser';
 
-
 export const rssStorage = {
   async getFeeds(): Promise<Feed[]> {
     return await db.feeds.toArray();
@@ -379,8 +378,12 @@ export const rssStorage = {
     return opml;
   },
 
-  async getRefreshLogs(): Promise<RefreshLog[]> {
-    return await db.refreshLogs.orderBy('timestamp').reverse().limit(100).toArray();
+  async getRefreshLogs(offset = 0, limit = 0): Promise<RefreshLog[]> {
+    let query = db.refreshLogs.orderBy('timestamp').reverse();
+    if (limit > 0) {
+      return await query.offset(offset).limit(limit).toArray();
+    }
+    return await query.toArray();
   },
 
   async markAllArticlesAsRead(): Promise<void> {

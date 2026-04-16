@@ -35,6 +35,8 @@ export const RedditProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const [redditUnreadCount, setRedditUnreadCount] = useState(0);
   const { settings } = useSettings();
   
+  const redditOffset = useRef<number>(0);
+  const PAGE_SIZE = 25;
   const subredditsRef = useRef<Subreddit[]>([]);
   const redditPostsRef = useRef<RedditPost[]>([]);
   const paginationCursors = useRef<Record<string, string>>({}); // Track 'after' cursors
@@ -60,9 +62,10 @@ export const RedditProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     const loadData = async () => {
       await storage.cleanupOldRedditPosts(settings.redditRetentionDays);
       const loadedSubreddits = await storage.getSubreddits();
-      const loadedRedditPosts = await storage.getRedditPosts();
+      const loadedRedditPosts = await storage.getRedditPosts(0, PAGE_SIZE);
       setSubreddits(loadedSubreddits);
-      setRedditPosts(loadedRedditPosts.sort((a, b) => b.createdUtc - a.createdUtc));
+      setRedditPosts(loadedRedditPosts);
+      redditOffset.current = loadedRedditPosts.length;
     };
     loadData();
   }, [settings.redditRetentionDays]);
@@ -168,7 +171,21 @@ export const RedditProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   }, [settings.redditRetentionDays, redditSort]);
 
   const loadMoreReddit = useCallback(async () => {
-    // ... (rest)
+    // 1. Try to load more from local storage first
+    const moreLocalPosts = await storage.getRedditPosts(redditOffset.current, PAGE_SIZE);
+    
+    if (moreLocalPosts.length > 0) {
+      setRedditPosts(prev => {
+        const combined = [...prev, ...moreLocalPosts];
+        const unique = Array.from(new Map(combined.map(item => [item.id, item])).values());
+        unique.sort((a, b) => b.createdUtc - a.createdUtc);
+        return unique;
+      });
+      redditOffset.current += moreLocalPosts.length;
+      return;
+    }
+
+    // 2. If no more local posts, fetch from API
     const targetSubs = subredditsRef.current;
     if (targetSubs.length === 0) return;
 
@@ -187,15 +204,16 @@ export const RedditProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         const newPosts: RedditPost[] = results.flat();
         console.log(`[Reddit] Load more finished. New posts: ${newPosts.length}`);
         
-        // Merge...
-        setRedditPosts(prev => {
-            const combined = [...prev, ...newPosts];
-            const unique = Array.from(new Map(combined.map(item => [item.id, item])).values());
-            unique.sort((a, b) => b.createdUtc - a.createdUtc);                
-            storage.saveRedditPosts(unique);
-            return unique;
-        });
-
+        if (newPosts.length > 0) {
+          setRedditPosts(prev => {
+              const combined = [...prev, ...newPosts];
+              const unique = Array.from(new Map(combined.map(item => [item.id, item])).values());
+              unique.sort((a, b) => b.createdUtc - a.createdUtc);                
+              storage.saveRedditPosts(newPosts); // Only save the new ones
+              return unique;
+          });
+          redditOffset.current += newPosts.length;
+        }
     } finally {
         setIsLoading(false);
     }

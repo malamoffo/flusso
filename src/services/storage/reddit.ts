@@ -57,8 +57,12 @@ export const redditStorage = {
     await db.subreddits.bulkPut(subs);
   },
 
-  async getRedditPosts(): Promise<RedditPost[]> {
-    return await db.redditPosts.orderBy('createdUtc').reverse().limit(150).toArray();
+  async getRedditPosts(offset = 0, limit = 0): Promise<RedditPost[]> {
+    let query = db.redditPosts.orderBy('createdUtc').reverse();
+    if (limit > 0) {
+      return await query.offset(offset).limit(limit).toArray();
+    }
+    return await query.toArray();
   },
 
   async saveRedditPosts(posts: RedditPost[]): Promise<void> {

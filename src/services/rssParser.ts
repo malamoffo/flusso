@@ -1,5 +1,4 @@
 import { Feed, Article, PodcastChapter } from '../types';
-
 import DOMPurify from 'dompurify';
 import he from 'he';
 import { getSafeUrl, resolveUrl } from '../lib/utils';

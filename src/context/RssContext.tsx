@@ -1,5 +1,4 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useMemo, useRef } from 'react';
-
 import { rssService } from '../services/rssService';
 import { Feed, Article, Settings, Subreddit, RedditPost } from '../types';
 import { storage, defaultSettings } from '../services/storage';

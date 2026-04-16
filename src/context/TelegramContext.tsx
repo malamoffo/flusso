@@ -2,7 +2,6 @@ import React, { createContext, useContext, useState, useEffect, ReactNode, useCa
 import { TelegramChannel, TelegramMessage } from '../types';
 import { storage } from '../services/storage';
 import DataWorker from '../workers/dataProcessor.worker.ts?worker';
-
 import { fetchTelegramMessages, fetchTelegramChannelInfo } from '../services/telegramParser';
 import { useSettings } from './SettingsContext';
 
@@ -28,6 +27,8 @@ export const TelegramProvider: React.FC<{ children: ReactNode }> = ({ children }
   const telegramChannelsRef = useRef<TelegramChannel[]>([]);
   const telegramMessagesRef = useRef<Record<string, TelegramMessage[]>>({});
   const worker = useRef<Worker | undefined>(undefined);
+  const telegramMessageOffsets = useRef<Record<string, number>>({});
+  const PAGE_SIZE = 25;
 
   useEffect(() => {
     worker.current = new DataWorker();
@@ -205,8 +206,9 @@ export const TelegramProvider: React.FC<{ children: ReactNode }> = ({ children }
 
   const loadTelegramMessages = useCallback(async (channelId: string) => {
     const channel = telegramChannelsRef.current.find(c => c.id === channelId);
-    const messages = await storage.getTelegramMessages(channelId, channel?.username);
+    const messages = await storage.getTelegramMessages(channelId, 0, PAGE_SIZE);
     setTelegramMessages(prev => ({ ...prev, [channelId]: messages }));
+    telegramMessageOffsets.current[channelId] = messages.length;
     
     if (messages.length === 0 && channel) {
       refreshTelegramChannels([channel]);
@@ -217,11 +219,27 @@ export const TelegramProvider: React.FC<{ children: ReactNode }> = ({ children }
     const channel = telegramChannelsRef.current.find(c => c.id === channelId);
     if (!channel) return;
 
+    // 1. Try to load more from local storage first
+    const currentOffset = telegramMessageOffsets.current[channelId] || 0;
+    const moreLocalMessages = await storage.getTelegramMessages(channelId, currentOffset, PAGE_SIZE);
+    
+    if (moreLocalMessages.length > 0) {
+      setTelegramMessages(prev => {
+        const existing = prev[channelId] || [];
+        const combined = [...moreLocalMessages, ...existing];
+        const next = { ...prev, [channelId]: combined };
+        telegramMessagesRef.current = next;
+        return next;
+      });
+      telegramMessageOffsets.current[channelId] = currentOffset + moreLocalMessages.length;
+      return;
+    }
+
+    // 2. If no more local messages, fetch from network
     const currentMessages = telegramMessagesRef.current[channelId] || [];
     if (currentMessages.length === 0) return;
 
     // Find the oldest message ID to use as 'before' parameter
-    // Telegram message IDs are usually in the format "channelname/1234"
     const oldestMessage = currentMessages[0];
     const idParts = oldestMessage.id.split('/');
     const beforeId = idParts.length > 1 ? idParts[1] : oldestMessage.id;
@@ -246,6 +264,7 @@ export const TelegramProvider: React.FC<{ children: ReactNode }> = ({ children }
           storage.saveTelegramMessages(channelId, combined);
           return next;
         });
+        telegramMessageOffsets.current[channelId] = (telegramMessageOffsets.current[channelId] || 0) + olderMessages.length;
       }
     } catch (e) {
       console.error(`Failed to load older messages for ${channel.username}`, e);

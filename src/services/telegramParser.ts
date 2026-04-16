@@ -1,6 +1,5 @@
 import { CapacitorHttp, Capacitor } from '@capacitor/core';
 import { TelegramMessage } from '../types';
-
 import { fetchWithProxy } from '../utils/proxy';
 
 export const fetchTelegramChannelInfo = async (channelUsername: string): Promise<{ name: string; imageUrl?: string }> => {
