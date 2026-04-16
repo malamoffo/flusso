@@ -55,8 +55,12 @@ export const SwipeableRedditPost = React.memo(function SwipeableRedditPost({
   const leftBackground = getActionColor(isSavedSection ? 'remove' : settings.swipeLeftAction, !!isSavedSection);
   const rightBackground = getActionColor(isSavedSection ? 'remove' : settings.swipeRightAction, !!isSavedSection);
 
-  const middleBackground = isSavedSection ? 'rgba(239, 68, 68, 0)' : 'rgba(0, 0, 0, 0)';
-  const backgroundTransform = useTransform(x, [-100, 0, 100], [leftBackground, middleBackground, rightBackground]);
+  const backgroundTransform = useTransform(x, (val) => {
+    const numVal = typeof val === 'number' ? val : parseFloat(val);
+    if (numVal > 5) return rightBackground;
+    if (numVal < -5) return leftBackground;
+    return 'transparent';
+  });
 
   const [exitX, setExitX] = useState<number | string>(0);
 
@@ -72,15 +76,15 @@ export const SwipeableRedditPost = React.memo(function SwipeableRedditPost({
         setExitX(isRight ? '100%' : '-100%');
         onRemove?.(post.id);
       } else {
-        animate(x, 0, { type: "spring", stiffness: 600, damping: 35, restDelta: 0.5 });
+        animate(x, 0, { type: "spring", stiffness: 400, damping: 30, restDelta: 0.5 });
 
         if (action === 'toggleFavorite') {
           // Favorites disabled for Reddit as requested
-          animate(x, 0, { type: "spring", stiffness: 600, damping: 35, restDelta: 0.5 });
+          animate(x, 0, { type: "spring", stiffness: 400, damping: 30, restDelta: 0.5 });
         }
       }
     } else {
-      animate(x, 0, { type: "spring", stiffness: 400, damping: 25 });
+      animate(x, 0, { type: "spring", stiffness: 300, damping: 25 });
     }
   };
 
@@ -155,7 +159,7 @@ export const SwipeableRedditPost = React.memo(function SwipeableRedditPost({
             right: (isSavedSection || settings.swipeRightAction !== 'none') ? 0.7 : 0 
           } : 0}
           dragPropagation={false}
-          dragTransition={{ bounceStiffness: 400, bounceDamping: 25 }}
+          dragTransition={{ bounceStiffness: 300, bounceDamping: 25 }}
           onDragEnd={handleDragEnd}
           onClick={handlePostClick}
           exit={{ x: exitX, opacity: 0, transition: { duration: 0.15, ease: "easeOut" } }}

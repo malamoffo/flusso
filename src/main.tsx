@@ -11,7 +11,7 @@ import { imagePersistence } from './utils/imagePersistence';
 import { registerSW } from 'virtual:pwa-register';
 
 // Version and Build information from environment (GitHub Actions) or fallback to package.json
-export const APP_VERSION = import.meta.env.VITE_APP_VERSION || '1.0.7';
+export const APP_VERSION = import.meta.env.VITE_APP_VERSION || '1.1.0';
 export const APP_BUILD = import.meta.env.VITE_APP_BUILD || 'dev';
 console.log(`[Flusso] Version ${APP_VERSION} (Build ${APP_BUILD}) starting...`);
 

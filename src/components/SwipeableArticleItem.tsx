@@ -120,12 +120,12 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
   const leftBackground = getActionColor(isSavedSection ? 'remove' : settings.swipeLeftAction, !!isSavedSection);
   const rightBackground = getActionColor(isSavedSection ? 'remove' : settings.swipeRightAction, !!isSavedSection);
 
-  const middleBackground = 'rgba(0, 0, 0, 0)';
-  const backgroundTransform = useTransform(
-    x, 
-    [-100, -20, 0, 20, 100], 
-    [leftBackground, leftBackground, middleBackground, rightBackground, rightBackground]
-  );
+  const backgroundTransform = useTransform(x, (val) => {
+    const numVal = typeof val === 'number' ? val : parseFloat(val);
+    if (numVal > 5) return rightBackground;
+    if (numVal < -5) return leftBackground;
+    return 'transparent';
+  });
 
   const [exitX, setExitX] = React.useState<number | string>(0);
 
@@ -159,15 +159,15 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
           onRemove?.(article.id);
         }, 50);
       } else if (action === 'toggleFavorite') {
-        animate(x, 0, { type: "spring", stiffness: 600, damping: 35, restDelta: 0.5 });
+        animate(x, 0, { type: "spring", stiffness: 400, damping: 30, restDelta: 0.5 });
         swipeState[article.id] = 0; // Reset state
         article.type === 'podcast' ? toggleQueue(article.id) : toggleFavorite(article.id);
       } else {
-        animate(x, 0, { type: "spring", stiffness: 600, damping: 35, restDelta: 0.5 });
+        animate(x, 0, { type: "spring", stiffness: 400, damping: 30, restDelta: 0.5 });
         swipeState[article.id] = 0; // Reset state
       }
     } else {
-      animate(x, 0, { type: "spring", stiffness: 400, damping: 25 });
+      animate(x, 0, { type: "spring", stiffness: 300, damping: 25 });
     }
   };
 
@@ -255,7 +255,7 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
             ) : (
               <>
                 {settings.swipeRightAction === 'toggleFavorite' && (
-                  <Star className="w-6 h-6 text-yellow-400 fill-yellow-400" />
+                  <Star className="w-6 h-6 text-white fill-white" />
                 )}
               </>
             )}
@@ -266,7 +266,7 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
             ) : (
               <>
                 {settings.swipeLeftAction === 'toggleFavorite' && (
-                  <Star className="w-6 h-6 text-yellow-400 fill-yellow-400" />
+                  <Star className="w-6 h-6 text-white fill-white" />
                 )}
               </>
             )}
@@ -293,7 +293,7 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
             right: (isSavedSection || (article.type === 'podcast' && settings.swipeRightAction !== 'none') || (article.type === 'article' && settings.swipeRightAction === 'toggleFavorite')) ? 0.7 : 0 
           } : 0}
           dragPropagation={false}
-          dragTransition={{ bounceStiffness: 400, bounceDamping: 25 }}
+          dragTransition={{ bounceStiffness: 300, bounceDamping: 25 }}
           onDragEnd={handleDragEnd}
           onClick={handleArticleClick}
           exit={{ x: exitX, opacity: 0, transition: { duration: 0.15, ease: "easeOut" } }}

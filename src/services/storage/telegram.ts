@@ -22,13 +22,16 @@ export const telegramStorage = {
   },
 
   async getTelegramMessages(channelId: string, offset = 0, limit = 0): Promise<TelegramMessage[]> {
-    // Dexie's where().equals() returns a Collection, which doesn't have orderBy().
-    // We use sortBy() which returns a Promise<Array>, then array reverse and slice.
     const allMessages = await db.telegramMessages.where('channelId').equals(channelId).sortBy('date');
-    allMessages.reverse(); // Newest first
+    // allMessages is [oldest, ..., newest] because sortBy is ascending
     
     if (limit > 0) {
-      return allMessages.slice(offset, offset + limit);
+      // We want the 'latest' messages first (offset 0), then older ones.
+      // Offset 0 -> last 'limit' messages
+      // Offset 25 -> messages from index (length - 50) to (length - 25)
+      const end = Math.max(0, allMessages.length - offset);
+      const start = Math.max(0, end - limit);
+      return allMessages.slice(start, end);
     }
     
     return allMessages;

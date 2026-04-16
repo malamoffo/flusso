@@ -993,6 +993,33 @@ export const SettingsModal = React.memo(function SettingsModal({
                       <br />
                       <span className="font-mono text-xs opacity-75 mt-2 block">Version {APP_VERSION} ({APP_BUILD})</span>
                     </p>
+                    
+                    <button
+                      onClick={() => {
+                        const confirmed = window.confirm('Sei sicuro di voler ricaricare l\'app? Questo forzerà il download della versione più recente e pulirà la cache dei file.');
+                        if (confirmed) {
+                          if ('serviceWorker' in navigator) {
+                            navigator.serviceWorker.getRegistrations().then(registrations => {
+                              for (const registration of registrations) {
+                                registration.unregister();
+                              }
+                            });
+                          }
+                          if ('caches' in window) {
+                            caches.keys().then(names => {
+                              for (const name of names) {
+                                caches.delete(name);
+                              }
+                            });
+                          }
+                          window.location.reload();
+                        }
+                      }}
+                      className="w-full flex items-center justify-center gap-2 p-3 mt-4 bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 rounded-xl transition-colors font-medium text-xs"
+                    >
+                      <RefreshCw className="w-3 h-3" />
+                      Forza Aggiornamento (Svuota Cache)
+                    </button>
                   </div>
 
                   {errorLogs.length > 0 && (

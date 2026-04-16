@@ -30,9 +30,18 @@ export const TelegramThreadView = memo(({ channel, messages, onClose, onRefresh,
 
   const handleScroll = async () => {
     if (scrollRef.current && scrollRef.current.scrollTop === 0 && onLoadMore && !isFetchingMore) {
+      const prevScrollHeight = scrollRef.current.scrollHeight;
       setIsFetchingMore(true);
       await onLoadMore();
       setIsFetchingMore(false);
+      
+      // Wait for DOM to update and then restore scroll position
+      setTimeout(() => {
+        if (scrollRef.current) {
+          const newScrollHeight = scrollRef.current.scrollHeight;
+          scrollRef.current.scrollTop = newScrollHeight - prevScrollHeight;
+        }
+      }, 0);
     }
   };
 
