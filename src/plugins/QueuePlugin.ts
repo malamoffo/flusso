@@ -7,7 +7,8 @@ export interface QueuePluginInterface {
     title: string; 
     artist: string; 
     album: string; 
-    artwork?: string; 
+    artwork?: string;
+    artworkFilename?: string;
     duration?: number; 
     position?: number; 
     isPlaying: boolean; 
