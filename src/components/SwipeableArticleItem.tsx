@@ -80,6 +80,10 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
     triggerOnce: true,
   });
 
+  const { ref: visibleRef, inView: isVisibleForTimer } = useInView({
+    threshold: 0.8,
+  });
+
   const prevTop = useRef(0);
   useEffect(() => {
     if (prefetchInView && entry) {
@@ -96,6 +100,18 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
       onMarkAsRead(article.id);
     }
   }, [inView, entry, article.id, article.isRead, onMarkAsRead, filter]);
+
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (filter === 'inbox' && isVisibleForTimer && !article.isRead) {
+      timer = setTimeout(() => {
+        onMarkAsRead(article.id);
+      }, 3000);
+    }
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
+  }, [isVisibleForTimer, filter, article.isRead, article.id, onMarkAsRead]);
 
   const handleArticleClick = () => {
     if (!article.isRead) {
@@ -227,6 +243,7 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
       ref={(node) => {
         ref(node);
         prefetchRef(node);
+        visibleRef(node);
       }} 
       className={cn(
         "relative w-full overflow-hidden will-change-transform content-visibility-auto",

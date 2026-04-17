@@ -409,12 +409,9 @@ export const SettingsModal = React.memo(function SettingsModal({
                         onChange={(e) => updateSettings({ articleRetentionDays: parseInt(e.target.value) })}
                         className="block w-full pl-3 pr-10 py-2 text-base border-gray-700 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-lg bg-gray-800 text-white"
                       >
+                        <option value={1}>1 Day</option>
+                        <option value={3}>3 Days</option>
                         <option value={7}>7 Days</option>
-                        <option value={14}>14 Days</option>
-                        <option value={30}>30 Days</option>
-                        <option value={60}>60 Days</option>
-                        <option value={90}>90 Days</option>
-                        <option value={999}>Infinite</option>
                       </select>
                     </div>
                     <div>
@@ -426,12 +423,9 @@ export const SettingsModal = React.memo(function SettingsModal({
                         onChange={(e) => updateSettings({ podcastRetentionDays: parseInt(e.target.value) })}
                         className="block w-full pl-3 pr-10 py-2 text-base border-gray-700 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-lg bg-gray-800 text-white"
                       >
+                        <option value={1}>1 Day</option>
+                        <option value={3}>3 Days</option>
                         <option value={7}>7 Days</option>
-                        <option value={14}>14 Days</option>
-                        <option value={30}>30 Days</option>
-                        <option value={60}>60 Days</option>
-                        <option value={90}>90 Days</option>
-                        <option value={999}>Infinite</option>
                       </select>
                     </div>
                     <div>
@@ -446,9 +440,6 @@ export const SettingsModal = React.memo(function SettingsModal({
                         <option value={1}>1 Day</option>
                         <option value={3}>3 Days</option>
                         <option value={7}>7 Days</option>
-                        <option value={14}>14 Days</option>
-                        <option value={30}>30 Days</option>
-                        <option value={999}>Infinite</option>
                       </select>
                     </div>
                     <div>
@@ -463,9 +454,6 @@ export const SettingsModal = React.memo(function SettingsModal({
                         <option value={1}>1 Day</option>
                         <option value={3}>3 Days</option>
                         <option value={7}>7 Days</option>
-                        <option value={14}>14 Days</option>
-                        <option value={30}>30 Days</option>
-                        <option value={999}>Infinite</option>
                       </select>
                     </div>
                   </div>

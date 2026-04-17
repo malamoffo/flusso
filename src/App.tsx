@@ -955,16 +955,7 @@ export default function App() {
                 <button
                   onClick={async () => {
                     if (filter === 'inbox') {
-                      // If no active filters, use the global markAllAsRead
-                      if (searchQuery === '' && sourceFilter === 'all' && timeFilter === 'all' && inboxTypeFilter === 'all' && !inboxUnreadOnly) {
-                        await markAllAsRead();
-                      } else {
-                        // Otherwise mark only filtered articles
-                        const toMark = inboxArticles.filter(a => !a.isRead).map(a => a.id);
-                        if (toMark.length > 0) {
-                          markArticlesAsRead(toMark);
-                        }
-                      }
+                      await markAllAsRead();
                     } else if (filter === 'saved') {
                       const toMark = savedArticles.filter(a => !a.isRead).map(a => a.id);
                       if (toMark.length > 0) {
