@@ -192,6 +192,19 @@ export default function App() {
   useEffect(() => {
     setSourceFilter('all');
     setTimeFilter('all');
+
+    // Clean up readers and enforce retention when switching tabs
+    if (selectedRedditPost) {
+      setSelectedRedditPost(null);
+      enforceRedditRetention();
+    }
+    if (selectedTelegramChannel) {
+      setSelectedTelegramChannel(null);
+      enforceTelegramRetention();
+    }
+    if (selectedArticle) {
+      setSelectedArticle(null);
+    }
   }, [filter]);
 
   const handleFilterChange = (newFilter: 'inbox' | 'saved' | 'reddit' | 'telegram') => {

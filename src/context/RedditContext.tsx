@@ -192,29 +192,62 @@ export const RedditProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
     setIsLoading(true);
     try {
+      const oldestPost = redditPostsRef.current[redditPostsRef.current.length - 1];
+      const targetDateBoundary = oldestPost ? oldestPost.createdUtc - (24 * 60 * 60 * 1000) : Date.now() - (24 * 60 * 60 * 1000);
+      
+      let allNewPosts: RedditPost[] = [];
+      let reachedBoundary = false;
+      let attempts = 0;
+      const MAX_ATTEMPTS = 3; // Limit to avoid infinite loops if it's very quiet
+
+      while (!reachedBoundary && attempts < MAX_ATTEMPTS) {
+        attempts++;
         const fetchPromises = targetSubs.map(async (sub) => {
            const cursor = paginationCursors.current[sub.name];
-           console.log(`[Reddit] Loading more r/${sub.name} sort ${redditSort} cursor ${cursor}`);
+           if (cursor === 'end') return []; // No more posts for this sub
+
+           console.log(`[Reddit] Loading more r/${sub.name} sort ${redditSort} cursor ${cursor} (Attempt ${attempts})`);
            const result = await storage.fetchRedditPosts(sub.name, redditSort, cursor);
-           if (result.after) {
+           
+           if (!result.after) {
+             paginationCursors.current[sub.name] = 'end';
+           } else {
              paginationCursors.current[sub.name] = result.after;
            }
            return result.posts;
         });
-        const results = await Promise.all(fetchPromises);
-        const newPosts: RedditPost[] = results.flat();
-        console.log(`[Reddit] Load more finished. New posts: ${newPosts.length}`);
         
-        if (newPosts.length > 0) {
-          setRedditPosts(prev => {
-              const combined = [...prev, ...newPosts];
-              const unique = Array.from(new Map(combined.map(item => [item.id, item])).values());
-              unique.sort((a, b) => b.createdUtc - a.createdUtc);                
-              storage.saveRedditPosts(newPosts); // Only save the new ones
-              return unique;
-          });
-          redditOffset.current += newPosts.length;
+        const results = await Promise.all(fetchPromises);
+        const batch = results.flat();
+        
+        if (batch.length === 0) break;
+        
+        allNewPosts = [...allNewPosts, ...batch];
+        
+        // Check if we have at least one post older than targetDateBoundary
+        const minDate = Math.min(...allNewPosts.map(p => p.createdUtc));
+        if (minDate <= targetDateBoundary) {
+          reachedBoundary = true;
         }
+        
+        // If all subreddits reached 'end', break
+        if (Object.values(paginationCursors.current).every(c => c === 'end')) {
+          reachedBoundary = true;
+        }
+      }
+
+      console.log(`[Reddit] Load more finished. Total new posts fetched: ${allNewPosts.length}`);
+      
+      if (allNewPosts.length > 0) {
+        setRedditPosts(prev => {
+            const combined = [...prev, ...allNewPosts];
+            const unique = Array.from(new Map(combined.map(item => [item.id, item])).values());
+            unique.sort((a, b) => b.createdUtc - a.createdUtc);                
+            storage.saveRedditPosts(allNewPosts); 
+            return unique;
+        });
+        redditOffset.current += allNewPosts.length;
+      }
     } finally {
         setIsLoading(false);
     }

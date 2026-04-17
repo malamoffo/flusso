@@ -240,24 +240,53 @@ export const TelegramProvider: React.FC<{ children: ReactNode }> = ({ children }
     const currentMessages = telegramMessagesRef.current[channelId] || [];
     if (currentMessages.length === 0) return;
 
-    // Find the oldest message ID to use as 'before' parameter
-    const oldestMessage = currentMessages[0];
-    const idParts = oldestMessage.id.split('/');
-    const beforeId = idParts.length > 1 ? idParts[1] : oldestMessage.id;
-    console.log(`[Telegram] Loading older messages before: ${beforeId} (Original: ${oldestMessage.id})`);
+    // Find the date of the oldest message to target one day before
+    const oldestMessageInState = currentMessages[0];
+    const targetDateBoundary = oldestMessageInState.date - (24 * 60 * 60 * 1000);
+    
+    let allNewMessages: TelegramMessage[] = [];
+    let reachedBoundary = false;
+    let attempts = 0;
+    const MAX_ATTEMPTS = 3;
+    let currentBeforeId: string | undefined = undefined;
+
+    // Find the initial oldest message ID to use as 'before' parameter
+    const idParts = oldestMessageInState.id.split('/');
+    currentBeforeId = idParts.length > 1 ? idParts[1] : oldestMessageInState.id;
+
+    console.log(`[Telegram] Loading older messages before: ${currentBeforeId} targeting day boundary`);
 
     try {
-      const olderMessages = await fetchTelegramMessages(channel.username, undefined, beforeId, channel.id);
-      console.log(`[Telegram] Found ${olderMessages.length} older messages`);
+      while (!reachedBoundary && attempts < MAX_ATTEMPTS) {
+        attempts++;
+        const olderMessages = await fetchTelegramMessages(channel.username, undefined, currentBeforeId, channel.id);
+        
+        if (olderMessages.length === 0) break;
+        
+        allNewMessages = [...olderMessages, ...allNewMessages];
+        
+        // Update beforeId for next attempt
+        const oldestInBatch = olderMessages[0];
+        const nextIdParts = oldestInBatch.id.split('/');
+        currentBeforeId = nextIdParts.length > 1 ? nextIdParts[1] : oldestInBatch.id;
+        
+        // Check if we reached the boundary
+        const minDateInBatch = Math.min(...olderMessages.map(m => m.date));
+        if (minDateInBatch <= targetDateBoundary) {
+          reachedBoundary = true;
+        }
+      }
+
+      console.log(`[Telegram] Found ${allNewMessages.length} older messages across ${attempts} attempts`);
       
-      if (olderMessages.length > 0) {
+      if (allNewMessages.length > 0) {
         setTelegramMessages(prev => {
           const existing = prev[channelId] || [];
           // Prepend older messages, avoiding duplicates
           const existingIds = new Set(existing.map(m => m.id));
-          const newMessages = olderMessages.filter(m => !existingIds.has(m.id));
+          const filteredNew = allNewMessages.filter(m => !existingIds.has(m.id));
           
-          const combined = [...newMessages, ...existing];
+          const combined = [...filteredNew, ...existing];
           const next = { ...prev, [channelId]: combined };
           telegramMessagesRef.current = next;
           
@@ -265,7 +294,7 @@ export const TelegramProvider: React.FC<{ children: ReactNode }> = ({ children }
           storage.saveTelegramMessages(channelId, combined);
           return next;
         });
-        telegramMessageOffsets.current[channelId] = (telegramMessageOffsets.current[channelId] || 0) + olderMessages.length;
+        telegramMessageOffsets.current[channelId] = (telegramMessageOffsets.current[channelId] || 0) + allNewMessages.length;
       }
     } catch (e) {
       console.error(`Failed to load older messages for ${channel.username}`, e);
