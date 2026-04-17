@@ -22,6 +22,7 @@ interface RedditContextType {
   prefetchRedditComments: (permalink: string) => Promise<void>;
   getCachedComments: (permalink: string) => any[] | null;
   redditUnreadCount: number;
+  enforceRetention: () => Promise<void>;
 }
 
 const RedditContext = createContext<RedditContextType | undefined>(undefined);
@@ -60,15 +61,15 @@ export const RedditProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
   useEffect(() => {
     const loadData = async () => {
-      await storage.cleanupOldRedditPosts(settings.redditRetentionDays);
+      await storage.cleanupOldRedditPosts(1);
       const loadedSubreddits = await storage.getSubreddits();
       const loadedRedditPosts = await storage.getRedditPosts(0, PAGE_SIZE);
-      setSubreddits(loadedSubreddits);
       setRedditPosts(loadedRedditPosts);
+      setSubreddits(loadedSubreddits);
       redditOffset.current = loadedRedditPosts.length;
     };
     loadData();
-  }, [settings.redditRetentionDays]);
+  }, []);
 
   const prefetchRedditComments = useCallback(async (permalink: string) => {
     if (commentCache.current.has(permalink) || prefetchQueue.current.has(permalink)) {
@@ -142,7 +143,7 @@ export const RedditProvider: React.FC<{ children: ReactNode }> = ({ children }) 
             const merged: RedditPost[] = e.data.merged;
             
             // ... (rest of the logic)
-            const retentionMs = (settings.redditRetentionDays || 1) * 24 * 60 * 60 * 1000;
+            const retentionMs = 1 * 24 * 60 * 60 * 1000;
             const now = Date.now();
             
             let filtered = merged.filter(p => {
@@ -290,12 +291,20 @@ export const RedditProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     });
   }, []);
 
+  const enforceRetention = useCallback(async () => {
+    await storage.cleanupOldRedditPosts(1);
+    const loadedRedditPosts = await storage.getRedditPosts(0, PAGE_SIZE);
+    setRedditPosts(loadedRedditPosts);
+    redditOffset.current = loadedRedditPosts.length;
+  }, []);
+
   return (
     <RedditContext.Provider value={{
       subreddits, redditPosts, redditSort, isLoading,
       refreshReddit, loadMoreReddit, handleRedditSortChange,
       toggleRedditRead, markRedditAsRead, toggleRedditFavorite, updateRedditPost,
-      removeSubreddit, addSubreddit, markAllRedditAsRead, prefetchRedditComments, getCachedComments, redditUnreadCount
+      removeSubreddit, addSubreddit, markAllRedditAsRead, prefetchRedditComments, getCachedComments, redditUnreadCount,
+      enforceRetention
     }}>
       {children}
     </RedditContext.Provider>

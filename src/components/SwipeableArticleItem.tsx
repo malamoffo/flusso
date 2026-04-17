@@ -8,6 +8,7 @@ import { contentFetcher } from '../utils/contentFetcher';
 import { CachedImage } from './CachedImage';
 import { cn, getSafeUrl, formatTime, parseDurationToSeconds } from '../lib/utils';
 import { useAudioState, useAudioProgress } from '../context/AudioPlayerContext.tsx';
+import { useAudioStore } from '../store/audioStore';
 
 // VERY IMPORTANT: Persist swipe state outside component
 const swipeState: Record<string, number> = {};
@@ -81,7 +82,7 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
   });
 
   const { ref: visibleRef, inView: isVisibleForTimer } = useInView({
-    threshold: 0.8,
+    threshold: 0.5,
   });
 
   const prevTop = useRef(0);
@@ -216,7 +217,7 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
 
   const domain = getDomain(article.link);
 
-  const { currentTrack } = useAudioState();
+  const currentTrack = useAudioStore(state => state.currentTrack);
   const shouldReduceMotion = useReducedMotion();
   const isCurrentTrack = currentTrack?.id === article.id;
 

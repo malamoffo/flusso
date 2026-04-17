@@ -4,6 +4,7 @@ import { useTelegram } from './context/TelegramContext';
 import { useSettings } from './context/SettingsContext';
 import { useReddit } from './context/RedditContext';
 import { useAudioState } from './context/AudioPlayerContext.tsx';
+import { useAudioStore } from './store/audioStore';
 import { useFeedFiltering } from './hooks/useFeedFiltering';
 import { usePagination } from './hooks/usePagination';
 import { usePullToRefresh } from './hooks/usePullToRefresh';
@@ -69,7 +70,7 @@ export default function App() {
   const {
     telegramChannels, telegramMessages, refreshTelegramChannels,
     markAllTelegramAsRead, markTelegramChannelAsRead, loadTelegramMessages,
-    loadMoreTelegramMessages
+    loadMoreTelegramMessages, enforceRetention: enforceTelegramRetention
   } = useTelegram();
 
   const { settings } = useSettings();
@@ -78,7 +79,7 @@ export default function App() {
     isLoading: isRedditLoading,
     subreddits, redditPosts, redditSort, handleRedditSortChange,
     refreshReddit, loadMoreReddit, markRedditAsRead, toggleRedditRead, toggleRedditFavorite,
-    redditUnreadCount, markAllRedditAsRead
+    redditUnreadCount, markAllRedditAsRead, enforceRetention: enforceRedditRetention
   } = useReddit();
 
   const deferredSearchQuery = useDeferredValue(searchQuery);
@@ -93,7 +94,7 @@ export default function App() {
     [feeds]
   );
 
-  const { currentTrack } = useAudioState();
+  const currentTrack = useAudioStore(state => state.currentTrack);
 
   const [selectedArticle, setSelectedArticle] = useState<Article | null>(null);
   const [selectedRedditPost, setSelectedRedditPost] = useState<any | null>(null);
@@ -242,12 +243,15 @@ export default function App() {
     const handleBackButton = async ({ canGoBack }: any) => {
       if (selectedTelegramChannel) {
         setSelectedTelegramChannel(null);
+        enforceTelegramRetention();
       } else if (selectedArticle) {
         setSelectedArticle(null);
       } else if (selectedRedditPost) {
         setSelectedRedditPost(null);
+        enforceRedditRetention();
       } else if (selectedTelegramChannel) {
         setSelectedTelegramChannel(null);
+        enforceTelegramRetention();
       } else if (isSettingsOpen) {
         setIsSettingsOpen(false);
         setSettingsTab(undefined);
@@ -276,7 +280,7 @@ export default function App() {
     return () => {
       if (listener) listener.remove();
     };
-  }, [selectedArticle, selectedRedditPost, isSettingsOpen, isSearchOpen, filter, sourceFilter, timeFilter, setSearchQuery]);
+  }, [selectedArticle, selectedRedditPost, selectedTelegramChannel, isSettingsOpen, isSearchOpen, filter, sourceFilter, timeFilter, setSearchQuery, enforceTelegramRetention, enforceRedditRetention]);
 
   const { inboxArticles, savedArticles } = useFeedFiltering({
     articles,
@@ -955,7 +959,40 @@ export default function App() {
                 <button
                   onClick={async () => {
                     if (filter === 'inbox') {
-                      await markAllAsRead();
+                      // Get all articles that match the current search & source filters
+                      // ignoring the inboxTypeFilter and inboxUnreadOnly 
+                      const toMark = articles.filter(a => {
+                        if (a.isRead) return false;
+                        
+                        if (isSearchOpen) {
+                          if (sourceFilter !== 'all' && a.feedId !== sourceFilter) return false;
+                          if (timeFilter !== 'all') {
+                            const now = Date.now();
+                            const DAY_MS = 1000 * 60 * 60 * 24;
+                            let threshold = 0;
+                            if (timeFilter === 'today') threshold = now - DAY_MS;
+                            if (timeFilter === 'week') threshold = now - (DAY_MS * 7);
+                            if (timeFilter === 'month') threshold = now - (DAY_MS * 30);
+                            
+                            const pubTime = typeof a.pubDate === 'string' ? new Date(a.pubDate).getTime() : a.pubDate;
+                            if (threshold > 0 && pubTime < threshold) return false;
+                          }
+                        }
+                        
+                        if (searchQuery) {
+                          const lowerQuery = searchQuery.toLowerCase();
+                          const matchesQuery = a.title.toLowerCase().includes(lowerQuery) || 
+                                              (a.contentSnippet?.toLowerCase().includes(lowerQuery) ?? false) ||
+                                              (a.content?.toLowerCase().includes(lowerQuery) ?? false);
+                          if (!matchesQuery) return false;
+                        }
+                        
+                        return true;
+                      }).map(a => a.id);
+                      
+                      if (toMark.length > 0) {
+                        markArticlesAsRead(toMark);
+                      }
                     } else if (filter === 'saved') {
                       const toMark = savedArticles.filter(a => !a.isRead).map(a => a.id);
                       if (toMark.length > 0) {
@@ -1010,7 +1047,10 @@ export default function App() {
           return (
             <RedditPostReader
               post={selectedRedditPost}
-              onClose={() => setSelectedRedditPost(null)}
+              onClose={() => {
+                setSelectedRedditPost(null);
+                enforceRedditRetention();
+              }}
               onNext={hasNextReddit ? () => {
                 const next = redditPosts[activeRedditIndex + 1];
                 setSelectedRedditPost(next);
@@ -1030,7 +1070,10 @@ export default function App() {
           <TelegramThreadView
             channel={selectedTelegramChannel}
             messages={telegramMessages[selectedTelegramChannel.id]}
-            onClose={() => setSelectedTelegramChannel(null)}
+            onClose={() => {
+              setSelectedTelegramChannel(null);
+              enforceTelegramRetention();
+            }}
             onRefresh={() => refreshTelegramChannels([selectedTelegramChannel])}
             onLoadMore={() => loadMoreTelegramMessages(selectedTelegramChannel.id)}
           />

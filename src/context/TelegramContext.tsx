@@ -15,6 +15,7 @@ interface TelegramContextType {
   loadMoreTelegramMessages: (channelId: string) => Promise<void>;
   markAllTelegramAsRead: () => Promise<void>;
   markTelegramChannelAsRead: (channelId: string) => Promise<void>;
+  enforceRetention: () => Promise<void>;
 }
 
 const TelegramContext = createContext<TelegramContextType | undefined>(undefined);
@@ -41,7 +42,7 @@ export const TelegramProvider: React.FC<{ children: ReactNode }> = ({ children }
   }, [telegramChannels, telegramMessages]);
 
   const loadData = useCallback(async () => {
-    await storage.cleanupOldTelegramMessages(settings.telegramRetentionDays);
+    await storage.cleanupOldTelegramMessages(1);
     const loadedTelegramChannels = await storage.getTelegramChannels();
     setTelegramChannels(loadedTelegramChannels);
     // Don't load all messages at once, they will be loaded on demand when a channel is selected
@@ -107,7 +108,7 @@ export const TelegramProvider: React.FC<{ children: ReactNode }> = ({ children }
   }, []);
 
   const cleanupTelegramMessages = useCallback((channel: TelegramChannel, messages: TelegramMessage[]) => {
-    const retentionMs = (settings.telegramRetentionDays || 1) * 24 * 60 * 60 * 1000;
+    const retentionMs = 1 * 24 * 60 * 60 * 1000;
     const now = Date.now();
     
     // Filter by retention, but ALWAYS keep at least the 5 most recent messages
@@ -121,7 +122,7 @@ export const TelegramProvider: React.FC<{ children: ReactNode }> = ({ children }
     }
     
     return filtered;
-  }, [settings.telegramRetentionDays]);
+  }, []);
 
   const refreshTelegramChannels = useCallback(async (channelsToRefresh?: TelegramChannel[]) => {
     const channels = channelsToRefresh || telegramChannelsRef.current;
@@ -284,12 +285,25 @@ export const TelegramProvider: React.FC<{ children: ReactNode }> = ({ children }
     await storage.updateTelegramChannel(channelId, { unreadCount: 0 });
   }, []);
 
+  const enforceRetention = useCallback(async () => {
+    await storage.cleanupOldTelegramMessages(1);
+    
+    // We only want to clear from memory the ones that got deleted.
+    // The easiest way is to reload latest state from IndexedDB for loaded channels
+    const channelsToReload = Object.keys(telegramMessagesRef.current);
+    for (const channelId of channelsToReload) {
+        const messages = await storage.getTelegramMessages(channelId, 0, PAGE_SIZE);
+        setTelegramMessages(prev => ({ ...prev, [channelId]: messages }));
+        telegramMessageOffsets.current[channelId] = messages.length;
+    }
+  }, []);
+
   return (
     <TelegramContext.Provider value={{
       telegramChannels, telegramMessages,
       addTelegramChannel, removeTelegramChannel, refreshTelegramChannels,
       loadTelegramMessages, loadMoreTelegramMessages,
-      markAllTelegramAsRead, markTelegramChannelAsRead
+      markAllTelegramAsRead, markTelegramChannelAsRead, enforceRetention
     }}>
       {children}
     </TelegramContext.Provider>

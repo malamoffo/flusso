@@ -1,48 +1,34 @@
-import React, { createContext, useContext, useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { Article, Feed } from '../types';
+import React, { createContext, useContext, useEffect, useMemo, useRef } from 'react';
+import { useShallow } from 'zustand/react/shallow';
+import { Article } from '../types';
 import { useRss } from './RssContext';
-import { parseDurationToSeconds, getSafeUrl } from '../lib/utils';
-import { fetchWithProxy } from '../utils/proxy';
-import { MediaSession } from '@capgo/capacitor-media-session';
-import { imagePersistence } from '../utils/imagePersistence';
-import QueuePlugin from '../plugins/QueuePlugin';
 import { Capacitor } from '@capacitor/core';
+import { MediaSession } from '@capgo/capacitor-media-session';
+import QueuePlugin from '../plugins/QueuePlugin';
+import { imagePersistence } from '../utils/imagePersistence';
+import { parseDurationToSeconds } from '../lib/utils';
+import { useAudioStore, setGlobalUpdateArticleProgress } from '../store/audioStore';
 
-interface AudioPlayerStateContextType {
-  currentTrack: Article | null;
-  isPlaying: boolean;
-  isBuffering: boolean;
-  play: (track: Article) => void;
-  pause: () => void;
-  toggle: () => void;
-  seek: (time: number) => void;
-  stop: () => void;
-  playNext: () => void;
-  playPrevious: () => void;
-}
+const AudioPlayerProgressContext = createContext<{progress: number; duration: number} | undefined>(undefined);
 
-interface AudioPlayerProgressContextType {
-  progress: number;
-  duration: number;
-}
+// A silent bridge component that syncs Rss arrays to Zustand and to Android Auto
+// This avoids rendering the entire DOM below it when Audio updates.
+function AudioBridge() {
+  const { articles, updateArticle, feeds } = useRss();
+  
+  // 1. Send update function to store
+  useEffect(() => {
+    setGlobalUpdateArticleProgress((trackId, progress) => {
+      updateArticle(trackId, { progress });
+    });
+  }, [updateArticle]);
 
-const AudioPlayerStateContext = createContext<AudioPlayerStateContextType | undefined>(undefined);
-const AudioPlayerProgressContext = createContext<AudioPlayerProgressContextType | undefined>(undefined);
+  // 2. Initialize Media Logic exactly once
+  useEffect(() => {
+    useAudioStore.getState().initAudio();
+  }, []);
 
-export function AudioPlayerProvider({ children }: { children: React.ReactNode }) {
-  const { articles, updateArticle } = useRss();
-  const [currentTrack, setCurrentTrack] = useState<Article | null>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [isBuffering, setIsBuffering] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [duration, setDuration] = useState(0);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const progressRef = useRef<number>(0);
-  const lastSavedProgressRef = useRef<number>(0);
-  const currentTrackRef = useRef<Article | null>(null);
-
-  // ⚡ Bolt: Consolidate three separate O(N) filters and a sort into a single O(N) pass.
-  // Articles are already sorted by pubDate descending from the storage/worker layer.
+  // 3. Compute Queues
   const { queue, recentPodcasts, favoritePodcasts } = useMemo(() => {
     const q: Article[] = [];
     const r: Article[] = [];
@@ -59,29 +45,46 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
 
     return { queue: q, recentPodcasts: r, favoritePodcasts: f };
   }, [articles]);
-  
-  const queueRef = useRef<Article[]>([]);
-  const { feeds } = useRss();
-  
-  // ⚡ Bolt: Replace O(F) find() with O(1) Map lookup for native bridge sync.
-  const feedMap = useMemo(() => new Map(feeds.map(f => [f.id, f])), [feeds]);
 
+  // Sync to store
   useEffect(() => {
-    queueRef.current = queue;
-    if (Capacitor.isNativePlatform()) {
-      // ⚡ Bolt: Replace O(N) find with O(1) Map lookup for native bridge synchronization.
-      const feedsMap = new Map<string, Feed>();
-      for (let i = 0; i < feeds.length; i++) {
-        feedsMap.set(feeds[i].id, feeds[i]);
-      }
+    useAudioStore.getState().setCollections({ queue, recentPodcasts, favoritePodcasts });
+  }, [queue, recentPodcasts, favoritePodcasts]);
 
+  const feedMap = useMemo(() => new Map(feeds.map(f => [f.id, f])), [feeds]);
+  
+  // Listen for actions from Native bridge
+  useEffect(() => {
+    if (Capacitor.isNativePlatform()) {
+      const listener = QueuePlugin.addListener('actionRequest', (data) => {
+        const h = useAudioStore.getState();
+        switch (data.action) {
+          case 'play': h.toggle(); break;
+          case 'pause': h.pause(); break;
+          case 'next': h.playNext(); break;
+          case 'previous': h.playPrevious(); break;
+          case 'stop': h.stop(); break;
+        }
+      });
+      const playListener = QueuePlugin.addListener('playRequest', (data) => {
+        const trackToPlay = articles.find(a => a.id === data.id);
+        if (trackToPlay) useAudioStore.getState().play(trackToPlay);
+      });
+      return () => {
+        listener.then(l => l.remove());
+        playListener.then(l => l.remove());
+      };
+    }
+  }, [articles]);
+
+  // Sync Android Native Queues
+  useEffect(() => {
+    if (Capacitor.isNativePlatform()) {
       const mapTrack = (a: Article) => {
-        const feed = feedsMap.get(a.feedId);
+        const feed = feedMap.get(a.feedId);
         const artworkUrl = a.imageUrl || feed?.imageUrl || '';
         let artworkFilename = '';
-        if (artworkUrl) {
-          artworkFilename = imagePersistence.getFilename(artworkUrl);
-        }
+        if (artworkUrl) artworkFilename = imagePersistence.getFilename(artworkUrl);
         return {
           id: a.id,
           title: a.title || 'Untitled',
@@ -98,411 +101,125 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
         queue: queue.map(mapTrack),
         recent: recentPodcasts.map(mapTrack),
         favorites: favoritePodcasts.map(mapTrack)
-      }).catch(err => console.error('Error setting queue for Android Auto:', err));
+      }).catch(err => console.error('Error setting queue:', err));
     }
-  }, [currentTrack, queue, recentPodcasts, favoritePodcasts, feedMap]);
+  }, [queue, recentPodcasts, favoritePodcasts, feedMap]);
 
-  const playNextRef = useRef<() => void>(() => {});
+  // 4. Android MediaSession Syncs
+  const currentTrack = useAudioStore(state => state.currentTrack);
+  const progress = useAudioStore(state => state.progress);
+  const duration = useAudioStore(state => state.duration);
+  const isPlaying = useAudioStore(state => state.isPlaying);
 
-  // Keep track of current track in a ref for event listeners
-  useEffect(() => {
-    currentTrackRef.current = currentTrack;
-  }, [currentTrack]);
-
-  // Initialize audio element once
-  useEffect(() => {
-    const audio = new Audio();
-    // ⚡ Bolt: Removed crossOrigin = 'anonymous' to improve compatibility with podcast servers
-    // that don't support CORS. This is safe as we don't use the Web Audio API or Canvas with audio.
-    audioRef.current = audio;
-    
-    const handleTimeUpdate = () => {
-      setProgress(audio.currentTime);
-      progressRef.current = audio.currentTime;
-      setIsBuffering(false);
-      
-      // Update position state for media session
-      if (audio.duration > 0 && Capacitor.isNativePlatform()) {
-        MediaSession.setPositionState({
-          duration: audio.duration,
-          playbackRate: audio.playbackRate,
-          position: audio.currentTime
-        }).catch(console.error);
-      }
-    };
-
-    const handleLoadedMetadata = () => {
-      setDuration(audio.duration);
-      if (Capacitor.isNativePlatform()) {
-        MediaSession.setPositionState({
-          duration: audio.duration,
-          playbackRate: audio.playbackRate,
-          position: audio.currentTime
-        }).catch(console.error);
-      }
-    };
-
-    const handleWaiting = () => {
-      setIsBuffering(true);
-    };
-
-    const handlePlaying = () => {
-      setIsBuffering(false);
-      if (Capacitor.isNativePlatform()) MediaSession.setPlaybackState({ playbackState: 'playing' }).catch(console.error);
-    };
-
-    const handleEnded = () => {
-      setIsPlaying(false);
-      setIsBuffering(false);
-      setProgress(0);
-      if (Capacitor.isNativePlatform()) MediaSession.setPlaybackState({ playbackState: 'none' }).catch(console.error);
-      if (currentTrackRef.current) {
-        updateArticle(currentTrackRef.current.id, { progress: 0 });
-        // Auto-play next in queue if available
-        playNextRef.current();
-      }
-    };
-
-    const handleError = (e: any) => {
-      // Ignore AbortError as it's usually caused by a new play request
-      if (e?.name === 'AbortError') return;
-      console.error("Audio error:", e);
-      setIsPlaying(false);
-      setIsBuffering(false);
-      if (Capacitor.isNativePlatform()) MediaSession.setPlaybackState({ playbackState: 'none' }).catch(console.error);
-    };
-
-    audio.addEventListener('timeupdate', handleTimeUpdate);
-    audio.addEventListener('loadedmetadata', handleLoadedMetadata);
-    audio.addEventListener('waiting', handleWaiting);
-    audio.addEventListener('playing', handlePlaying);
-    audio.addEventListener('ended', handleEnded);
-    audio.addEventListener('error', handleError);
-
-    return () => {
-      audio.removeEventListener('timeupdate', handleTimeUpdate);
-      audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
-      audio.removeEventListener('waiting', handleWaiting);
-      audio.removeEventListener('playing', handlePlaying);
-      audio.removeEventListener('ended', handleEnded);
-      audio.removeEventListener('error', handleError);
-      audio.pause();
-      audio.src = '';
-    };
-  }, [updateArticle]);
-
-  // Periodically save progress
-  useEffect(() => {
-    if (isPlaying && currentTrack && duration > 0) {
-      const interval = setInterval(() => {
-        const currentProgress = progressRef.current / duration;
-        // Save if progress changed significantly (more than 1%)
-        if (Math.abs(currentProgress - lastSavedProgressRef.current) > 0.01) {
-          updateArticle(currentTrack.id, { progress: currentProgress });
-          lastSavedProgressRef.current = currentProgress;
-        }
-      }, 5000); // Every 5 seconds
-      return () => clearInterval(interval);
-    }
-  }, [isPlaying, currentTrack, duration, updateArticle]);
-
-  const play = useCallback((track: Article) => {
-    if (!audioRef.current) return;
-
-    const safeMediaUrl = getSafeUrl(track.mediaUrl, '');
-    if (!safeMediaUrl) {
-      console.error("No valid media URL for track:", track.id);
-      return;
-    }
-
-    if (currentTrack?.id !== track.id) {
-      setCurrentTrack(track);
-      audioRef.current.src = safeMediaUrl;
-      try {
-        audioRef.current.load();
-      } catch (e) {
-        console.error("Error loading audio:", e);
-      }
-      
-      // Fetch chapters if needed
-      if (track.chaptersUrl && (!track.chapters || track.chapters.length === 0)) {
-        fetchWithProxy(track.chaptersUrl, false)
-          .then(res => JSON.parse(res.data))
-          .then(data => {
-            if (data && data.chapters && Array.isArray(data.chapters)) {
-              const mappedChapters = data.chapters.map((c: any) => ({
-                startTime: Number(c.startTime) || 0,
-                title: c.title || 'Untitled Chapter',
-                url: c.url,
-                imageUrl: c.img || c.image || c.imageUrl
-              }));
-              updateArticle(track.id, { chapters: mappedChapters });
-              setCurrentTrack(prev => prev?.id === track.id ? { ...prev, chapters: mappedChapters } : prev);
-            }
-          })
-          .catch(err => console.error('Failed to fetch chapters:', err));
-      }
-
-      // Resume from saved progress if available
-      if (track.progress && track.progress > 0) {
-        const resumeTime = track.progress * (track.duration ? parseDurationToSeconds(track.duration) : 0);
-        if (resumeTime > 0) {
-          audioRef.current.currentTime = resumeTime;
-          setProgress(resumeTime);
-          lastSavedProgressRef.current = track.progress;
-        }
-      } else {
-        lastSavedProgressRef.current = 0;
-      }
-    }
-    
-    audioRef.current.play().then(() => {
-      setIsPlaying(true);
-      setIsBuffering(false);
-    }).catch(err => {
-      if (err.name === 'AbortError') {
-        // Ignore AbortError as it's usually caused by a new play request
-        return;
-      }
-      console.error("Playback failed:", err);
-      setIsBuffering(false);
-    });
-    setIsBuffering(true);
-  }, [currentTrack]);
-
-  // Check for pending media ID from Android Auto
+  // Auto-play pending on boot
   useEffect(() => {
     if (Capacitor.isNativePlatform() && articles.length > 0) {
       QueuePlugin.getPendingMediaId().then(({ mediaId }) => {
-        if (mediaId) {
+        if (mediaId && !useAudioStore.getState().currentTrack) {
           const trackToPlay = articles.find(a => a.id === mediaId);
-          if (trackToPlay) {
-            play(trackToPlay);
-          }
+          if (trackToPlay) useAudioStore.getState().play(trackToPlay);
         }
       }).catch(console.error);
     }
-  }, [articles, play]);
+  }, [articles]);
 
-  const playNext = useCallback(() => {
-    if (!currentTrackRef.current) return;
-    
-    // Determine which list we are currently playing from
-    let currentList = queue;
-    let currentIndex = currentList.findIndex(a => a.id === currentTrackRef.current?.id);
-    
-    if (currentIndex === -1) {
-      currentList = recentPodcasts;
-      currentIndex = currentList.findIndex(a => a.id === currentTrackRef.current?.id);
-    }
-    
-    if (currentIndex !== -1 && currentIndex < currentList.length - 1) {
-      play(currentList[currentIndex + 1]);
-    }
-  }, [queue, recentPodcasts, play]);
-
-  const playPrevious = useCallback(() => {
-    if (!currentTrackRef.current) return;
-    
-    // Determine which list we are currently playing from
-    let currentList = queue;
-    let currentIndex = currentList.findIndex(a => a.id === currentTrackRef.current?.id);
-    
-    if (currentIndex === -1) {
-      currentList = recentPodcasts;
-      currentIndex = currentList.findIndex(a => a.id === currentTrackRef.current?.id);
-    }
-    
-    if (currentIndex > 0) {
-      play(currentList[currentIndex - 1]);
-    }
-  }, [queue, recentPodcasts, play]);
-
-  // Update the ref for handleEnded
-  useEffect(() => {
-    playNextRef.current = playNext;
-  }, [playNext]);
-
-  // Listen for play requests from Android Auto
-  useEffect(() => {
-    if (Capacitor.isNativePlatform()) {
-      const listener = QueuePlugin.addListener('playRequest', (data) => {
-        const trackToPlay = articles.find(a => a.id === data.id);
-        if (trackToPlay) {
-          play(trackToPlay);
-        }
-      });
-      return () => {
-        listener.then(l => l.remove());
-      };
-    }
-  }, [articles, play]);
-
-  const pause = useCallback(() => {
-    if (!audioRef.current) return;
-    audioRef.current.pause();
-    setIsPlaying(false);
-    if (Capacitor.isNativePlatform()) MediaSession.setPlaybackState({ playbackState: 'paused' }).catch(console.error);
-    
-    // Save progress on pause
-    if (currentTrack && duration > 0) {
-      const currentProgress = progress / duration;
-      updateArticle(currentTrack.id, { progress: currentProgress });
-      lastSavedProgressRef.current = currentProgress;
-    }
-  }, [currentTrack, progress, duration, updateArticle]);
-
-  const toggle = useCallback(() => {
-    if (isPlaying) {
-      pause();
-    } else if (currentTrack) {
-      play(currentTrack);
-    }
-  }, [isPlaying, currentTrack, play, pause]);
-
-  const seek = useCallback((time: number) => {
-    if (!audioRef.current) return;
-    audioRef.current.currentTime = time;
-    setProgress(time);
-    
-    // Save progress on seek
-    if (currentTrack && duration > 0) {
-      const currentProgress = time / duration;
-      updateArticle(currentTrack.id, { progress: currentProgress });
-      lastSavedProgressRef.current = currentProgress;
-    }
-  }, [currentTrack, duration, updateArticle]);
-
-  const stop = useCallback(() => {
-    if (!audioRef.current) return;
-    
-    // Save progress before stopping
-    if (currentTrack && duration > 0) {
-      const currentProgress = progress / duration;
-      updateArticle(currentTrack.id, { progress: currentProgress });
-    }
-    
-    audioRef.current.pause();
-    audioRef.current.currentTime = 0;
-    setIsPlaying(false);
-    setCurrentTrack(null);
-    if (Capacitor.isNativePlatform()) MediaSession.setPlaybackState({ playbackState: 'none' }).catch(console.error);
-  }, [currentTrack, progress, duration, updateArticle]);
-
-  useEffect(() => {
-    if (Capacitor.isNativePlatform()) {
-      const listener = QueuePlugin.addListener('actionRequest', (data) => {
-        switch (data.action) {
-          case 'play': toggle(); break;
-          case 'pause': pause(); break;
-          case 'next': playNext(); break;
-          case 'previous': playPrevious(); break;
-          case 'stop': stop(); break;
-        }
-      });
-      return () => {
-        listener.then(l => l.remove());
-      };
-    }
-  }, [toggle, pause, playNext, playPrevious, stop]);
-
-  // Media Session API for background controls
+  const lastSyncProgress = useRef(0);
   useEffect(() => {
     if (currentTrack && Capacitor.isNativePlatform()) {
-      // ⚡ Bolt: Optimized O(N) find to O(1) lookup using Map for background sync.
-      const feedsMap = new Map<string, Feed>();
-      for (let i = 0; i < feeds.length; i++) {
-        feedsMap.set(feeds[i].id, feeds[i]);
+      // 1) Constant Throttled background updates
+      if (Math.abs(progress - lastSyncProgress.current) >= 1 || progress === 0) {
+        lastSyncProgress.current = progress;
+        
+        const feed = feedMap.get(currentTrack.feedId);
+        const artworkUrl = currentTrack.imageUrl || feed?.imageUrl || '';
+        QueuePlugin.updateMediaSession({
+          title: currentTrack.title,
+          artist: feed?.title || 'Podcast',
+          album: 'Flusso',
+          artwork: artworkUrl,
+          artworkFilename: artworkUrl ? imagePersistence.getFilename(artworkUrl) : '',
+          duration: duration,
+          position: progress,
+          isPlaying: isPlaying
+        }).catch(() => {});
       }
-      const feed = feedsMap.get(currentTrack.feedId);
-      
-      const artworkUrl = currentTrack.imageUrl || feed?.imageUrl || '';
-      // Sync with Android Auto proxy session (Fallback for reflection)
-      QueuePlugin.updateMediaSession({
-        title: currentTrack.title,
-        artist: feed?.title || 'Podcast',
-        album: 'Flusso',
-        artwork: artworkUrl,
-        artworkFilename: artworkUrl ? imagePersistence.getFilename(artworkUrl) : '',
-        duration: duration,
-        position: progress,
-        isPlaying: isPlaying
-      }).catch(console.error);
+    }
+  }, [currentTrack?.id, progress, duration, isPlaying, feedMap]);
 
+  useEffect(() => {
+    if (currentTrack && Capacitor.isNativePlatform()) {
+      // 2) Statically update metadata only when track changes
+      const feed = feedMap.get(currentTrack.feedId);
+      const artworkUrl = currentTrack.imageUrl || feed?.imageUrl || '';
+      
       MediaSession.setMetadata({
         title: currentTrack.title,
-        artist: feed?.title || 'Podcast', // Use feed title if found, else generic 'Podcast'
+        artist: feed?.title || 'Podcast',
         album: 'Flusso',
         artwork: artworkUrl ? [{ src: artworkUrl }] : []
       }).catch(console.error);
 
+      // We read from .getState() directly to avoid stale closures here
       MediaSession.setActionHandler({ action: 'play' }, () => {
-        if (currentTrack) {
-          play(currentTrack);
-        } else if (queue.length > 0) {
-          play(queue[0]);
-        }
+        const state = useAudioStore.getState();
+        if (state.currentTrack) state.play(state.currentTrack);
+        else if (state.queue.length > 0) state.play(state.queue[0]);
       });
-      MediaSession.setActionHandler({ action: 'pause' }, () => {
-        pause();
+      MediaSession.setActionHandler({ action: 'pause' }, () => useAudioStore.getState().pause());
+      MediaSession.setActionHandler({ action: 'seekbackward' }, () => {
+        const s = useAudioStore.getState();
+        s.seek(Math.max(0, s.progress - 10));
       });
-      MediaSession.setActionHandler({ action: 'seekbackward' }, () => seek(Math.max(0, progress - 10)));
-      MediaSession.setActionHandler({ action: 'seekforward' }, () => seek(Math.min(duration, progress + 30)));
-      MediaSession.setActionHandler({ action: 'stop' }, () => stop());
-      
-      // Android Auto / Media Session Queue Support
-      MediaSession.setActionHandler({ action: 'previoustrack' }, () => playPrevious());
-      MediaSession.setActionHandler({ action: 'nexttrack' }, () => playNext());
+      MediaSession.setActionHandler({ action: 'seekforward' }, () => {
+        const s = useAudioStore.getState();
+        s.seek(Math.min(s.duration, s.progress + 30));
+      });
+      MediaSession.setActionHandler({ action: 'stop' }, () => useAudioStore.getState().stop());
+      MediaSession.setActionHandler({ action: 'previoustrack' }, () => useAudioStore.getState().playPrevious());
+      MediaSession.setActionHandler({ action: 'nexttrack' }, () => useAudioStore.getState().playNext());
     }
-  }, [currentTrack, progress, duration, playNext, playPrevious, seek, stop, feeds, play, pause, queue]);
+  }, [currentTrack?.id, feedMap]);
 
-  // ⚡ Bolt: Memoize state context value
-  const stateValue = useMemo(() => ({
-    currentTrack,
-    isPlaying,
-    isBuffering,
-    play,
-    pause,
-    toggle,
-    seek,
-    stop,
-    playNext,
-    playPrevious
-  }), [currentTrack, isPlaying, isBuffering, play, pause, toggle, seek, stop, playNext, playPrevious]);
+  return null;
+}
 
-  // ⚡ Bolt: Memoize progress context value (this will update frequently)
-  const progressValue = useMemo(() => ({
-    progress,
-    duration
-  }), [progress, duration]);
+export function AudioPlayerProvider({ children }: { children: React.ReactNode }) {
+  // We keep AudioPlayerProgressContext to NOT break `<PlayerBar>` and other progress-rendering
+  // components immediately today.
+  const progress = useAudioStore(state => state.progress);
+  const duration = useAudioStore(state => state.duration);
+  const progressValue = useMemo(() => ({ progress, duration }), [progress, duration]);
 
   return (
-    <AudioPlayerStateContext.Provider value={stateValue}>
+    <>
+      <AudioBridge />
       <AudioPlayerProgressContext.Provider value={progressValue}>
         {children}
       </AudioPlayerProgressContext.Provider>
-    </AudioPlayerStateContext.Provider>
+    </>
   );
 }
 
-/**
- * ⚡ Bolt: Custom hook to access audio player state.
- * Use this for components that only need to know WHAT is playing or need actions.
- */
+// ⚡ Bolt: Wraps Zustand hooks to remain compatible with older components without rewrites!
 export function useAudioState() {
-  const context = useContext(AudioPlayerStateContext);
-  if (context === undefined) {
-    throw new Error('useAudioState must be used within an AudioPlayerProvider');
-  }
-  return context;
+  return useAudioStore(
+    useShallow((state) => ({
+      currentTrack: state.currentTrack,
+      isPlaying: state.isPlaying,
+      isBuffering: state.isBuffering,
+      play: state.play,
+      pause: state.pause,
+      toggle: state.toggle,
+      seek: state.seek,
+      stop: state.stop,
+      playNext: state.playNext,
+      playPrevious: state.playPrevious
+    }))
+  );
 }
 
-/**
- * ⚡ Bolt: Custom hook to access audio player progress.
- * Use this for components that need to display REAL-TIME progress (seek bars, timers).
- * Warning: Components using this will re-render frequently during playback.
- */
 export function useAudioProgress() {
+  // We use the Context here because some components still wrap inside it.
   const context = useContext(AudioPlayerProgressContext);
   if (context === undefined) {
     throw new Error('useAudioProgress must be used within an AudioPlayerProvider');
@@ -510,9 +227,6 @@ export function useAudioProgress() {
   return context;
 }
 
-/**
- * @deprecated Use useAudioState or useAudioProgress for better performance.
- */
 export function useAudioPlayer() {
   const state = useAudioState();
   const progress = useAudioProgress();

@@ -2,28 +2,15 @@ import React, { useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Play, Pause, X, RotateCcw, RotateCw, RefreshCw } from 'lucide-react';
 import { useAudioState, useAudioProgress } from '../context/AudioPlayerContext.tsx';
+import { useAudioStore } from '../store/audioStore';
 import { Article } from '../types';
 import { cn, formatTime } from '../lib/utils';
 import { CachedImage } from './CachedImage';
+import { RenderCounter } from './RenderCounter';
 
 export const PersistentPlayer = React.memo(function PersistentPlayer({ onNavigate }: { onNavigate?: (article: Article) => void }) {
   const { currentTrack, isPlaying, isBuffering, toggle, seek, stop } = useAudioState();
   const { progress, duration } = useAudioProgress();
-
-  useEffect(() => {
-    if ('mediaSession' in navigator && currentTrack) {
-      navigator.mediaSession.metadata = new MediaMetadata({
-        title: currentTrack.title,
-        artist: currentTrack.feedId,
-        artwork: currentTrack.imageUrl ? [{ src: currentTrack.imageUrl, sizes: '512x512', type: 'image/png' }] : []
-      });
-
-      navigator.mediaSession.setActionHandler('play', toggle);
-      navigator.mediaSession.setActionHandler('pause', toggle);
-      navigator.mediaSession.setActionHandler('seekbackward', () => seek(Math.max(0, progress - 15)));
-      navigator.mediaSession.setActionHandler('seekforward', () => seek(Math.min(duration, progress + 15)));
-    }
-  }, [currentTrack, isPlaying, toggle, seek, progress, duration]);
 
   if (!currentTrack) return null;
 
@@ -31,6 +18,7 @@ export const PersistentPlayer = React.memo(function PersistentPlayer({ onNavigat
 
   return (
     <AnimatePresence>
+      <RenderCounter name="PersistentPlayer" />
       <motion.div
         initial={{ y: 100, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
@@ -81,6 +69,8 @@ export const PersistentPlayer = React.memo(function PersistentPlayer({ onNavigat
             
             <SeekButton direction="forward" />
             
+            <PlaybackRateButtonMini />
+            
             <button 
               onClick={(e) => { e.stopPropagation(); stop(); }}
               className="p-1 text-gray-400 hover:text-gray-200"
@@ -93,6 +83,32 @@ export const PersistentPlayer = React.memo(function PersistentPlayer({ onNavigat
     </AnimatePresence>
   );
 });
+
+const PlaybackRateButtonMini = () => {
+  const playbackRate = useAudioStore(state => state.playbackRate);
+  const setPlaybackRate = useAudioStore(state => state.setPlaybackRate);
+
+  const rates = [1, 1.25, 1.5, 2];
+  const currentIndex = rates.indexOf(playbackRate);
+  
+  const handleToggle = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    let nextIndex = currentIndex + 1;
+    if (nextIndex >= rates.length) nextIndex = 0;
+    setPlaybackRate(rates[nextIndex]);
+  };
+
+  return (
+    <motion.button
+      whileTap={{ scale: 0.9 }}
+      onClick={handleToggle}
+      className="p-1 rounded text-indigo-400 hover:bg-white/10 transition-colors w-7 text-center ml-1"
+      aria-label="Change playback speed"
+    >
+      <span className="text-[10px] font-bold tracking-tighter block">{playbackRate}x</span>
+    </motion.button>
+  );
+};
 
 /**
  * ⚡ Bolt: Isolated title component to show current chapter.

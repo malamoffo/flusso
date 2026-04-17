@@ -25,20 +25,25 @@ export const AddFeedModal = React.memo(function AddFeedModal({ isOpen, onClose, 
     setIsSubmitting(true);
     try {
       let type;
-      const cleanUrl = url.trim();
+      let cleanUrl = url.trim();
       const lowerUrl = cleanUrl.toLowerCase();
+
+      // Ensure https:// is prepended if no protocol is specified and it's not a special shortcut
+      if (!lowerUrl.startsWith('http://') && !lowerUrl.startsWith('https://') && !lowerUrl.startsWith('r/') && !lowerUrl.startsWith('@')) {
+        cleanUrl = 'https://' + cleanUrl;
+      }
 
       if (lowerUrl.startsWith('r/') || lowerUrl.includes('reddit.com/r/')) {
         await addSubreddit(cleanUrl);
         type = 'subreddit';
       } else {
-        type = await addFeedOrSubreddit(url);
+        type = await addFeedOrSubreddit(cleanUrl);
       }
       
       // If it's a telegram channel, we need to call the telegram context
       if (type === 'telegram') {
         try {
-          await addTelegramChannel(url);
+          await addTelegramChannel(cleanUrl);
         } catch (tgErr: any) {
           setError(tgErr.message);
           setIsSubmitting(false);
