@@ -16,6 +16,7 @@ interface FeedListProps {
   toggleFavorite: (id: string) => void;
   toggleQueue: (id: string) => void;
   handleRemoveArticle: (id: string) => void;
+  onVisibilityChange?: (id: string, isVisible: boolean) => void;
   isSavedSection: boolean;
   isActive: boolean;
   hasMoreArticles: boolean;
@@ -33,6 +34,7 @@ export const FeedList = memo(({
   toggleFavorite,
   toggleQueue,
   handleRemoveArticle,
+  onVisibilityChange,
   isSavedSection,
   isActive,
   hasMoreArticles,
@@ -70,6 +72,7 @@ export const FeedList = memo(({
               isSavedSection={isSavedSection}
               filter={isSavedSection ? 'saved' : 'inbox'}
               onRemove={handleRemoveArticle}
+              onVisibilityChange={onVisibilityChange}
             />
           );
         })}

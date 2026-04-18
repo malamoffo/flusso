@@ -104,6 +104,18 @@ export default function App() {
   const [settingsTab, setSettingsTab] = useState<'main' | 'subscriptions' | 'about' | 'general' | undefined>(undefined);
   const [isMarkAllReadOpen, setIsMarkAllReadOpen] = useState(false);
   const [temporarilyVisibleUnreadIds, setTemporarilyVisibleUnreadIds] = useState<Set<string>>(new Set());
+  const [visibleInboxArticleIds, setVisibleInboxArticleIds] = useState<Set<string>>(new Set());
+  const visibleInboxArticleIdsRef = useRef<Set<string>>(new Set());
+  
+  const handleVisibilityChange = useCallback((id: string, isVisible: boolean) => {
+    setVisibleInboxArticleIds(prev => {
+      const next = new Set(prev);
+      if (isVisible) next.add(id);
+      else next.delete(id);
+      visibleInboxArticleIdsRef.current = next; // Sync the ref
+      return next;
+    });
+  }, []);
   
   const [filter, setFilter] = useState<'inbox' | 'saved' | 'reddit' | 'telegram'>('inbox');
   const scrollPositions = useRef<Record<string, number>>({});
@@ -415,7 +427,7 @@ export default function App() {
         const hasUnread = inboxArticlesRef.current.some(a => !a.isRead);
         if (hasUnread && !inboxTimerRef.current) {
           inboxTimerRef.current = setTimeout(() => {
-            const toMark = inboxArticlesRef.current.filter(a => !a.isRead).map(a => a.id);
+            const toMark = inboxArticlesRef.current.filter(a => !a.isRead && visibleInboxArticleIdsRef.current.has(a.id)).map(a => a.id);
             if (toMark.length > 0) {
               markArticlesAsReadWithPersistence(toMark);
             }
@@ -520,10 +532,10 @@ export default function App() {
         const articlesRef = filterType === 'inbox' ? inboxArticlesRef : savedArticlesRef;
         const timerRef = filterType === 'inbox' ? inboxTimerRef : savedTimerRef;
 
-        const hasUnread = articlesRef.current.some(a => !a.isRead);
+        const hasUnread = articlesRef.current.some(a => !a.isRead && (filterType !== 'inbox' || visibleInboxArticleIdsRef.current.has(a.id)));
         if (hasUnread && !timerRef.current) {
           timerRef.current = setTimeout(() => {
-            const toMark = articlesRef.current.filter(a => !a.isRead).map(a => a.id);
+            const toMark = articlesRef.current.filter(a => !a.isRead && (filterType !== 'inbox' || visibleInboxArticleIdsRef.current.has(a.id))).map(a => a.id);
             if (toMark.length > 0) {
               markArticlesAsReadWithPersistence(toMark);
             }
@@ -799,6 +811,7 @@ export default function App() {
             toggleFavorite={toggleFavorite}
             toggleQueue={toggleQueue}
             handleRemoveArticle={handleRemoveArticle}
+            onVisibilityChange={filter === 'inbox' ? handleVisibilityChange : undefined}
             isSavedSection={false}
             isActive={filter === 'inbox'}
             hasMoreArticles={hasMoreArticles}
