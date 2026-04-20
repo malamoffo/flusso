@@ -177,6 +177,13 @@ export const TelegramProvider: React.FC<{ children: ReactNode }> = ({ children }
               
               const cleaned = cleanupTelegramMessages(channel, merged);
               
+              const lastDate = merged.length > 0 ? Math.max(...merged.map(m => m.date)) : channel.lastMessageDate;
+              const newUnreadCount = (channel.unreadCount || 0) + messages.length;
+
+              setTelegramChannels(prev => prev.map(c => 
+                c.id === channel.id ? { ...c, lastMessageDate: lastDate, unreadCount: newUnreadCount } : c
+              ));
+
               setTelegramMessages(prev => {
                 const next = { ...prev, [channel.id]: cleaned };
                 telegramMessagesRef.current = next;
@@ -188,10 +195,12 @@ export const TelegramProvider: React.FC<{ children: ReactNode }> = ({ children }
               // This ensures that even if 'cleaned' is small, the database has the messages.
               await storage.saveTelegramMessages(channel.id, merged);
               
-              // Also update the channel's last message date
-              if (merged.length > 0) {
-                const lastDate = Math.max(...merged.map(m => m.date));
-                await storage.updateTelegramChannel(channel.id, { lastMessageDate: lastDate });
+              // Also update the channel's last message date and unread count in DB
+              if (messages.length > 0) {
+                await storage.updateTelegramChannel(channel.id, { 
+                  lastMessageDate: lastDate,
+                  unreadCount: newUnreadCount
+                });
               }
             }));
           }

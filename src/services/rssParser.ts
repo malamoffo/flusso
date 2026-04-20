@@ -30,6 +30,15 @@ function sanitizeSnippet(input: string): string {
   return textOnly.trim().substring(0, 200);
 }
 
+// Helper to extract the first URL from a srcset attribute efficiently
+function getFirstSrcsetUrl(srcset: string | null | undefined): string | null {
+  if (!srcset) return null;
+  const commaIndex = srcset.indexOf(',');
+  const firstPart = commaIndex !== -1 ? srcset.substring(0, commaIndex) : srcset;
+  const spaceIndex = firstPart.indexOf(' ');
+  return spaceIndex !== -1 ? firstPart.substring(0, spaceIndex) : firstPart;
+}
+
 // Helper to extract all images from HTML content
 export function extractAllImages(content: string, baseUrl?: string): string[] {
   if (!content) return [];
@@ -74,7 +83,7 @@ export function extractBestImage(content: string, baseUrl?: string): string | nu
     const url = imgTag.getAttribute('data-src') || 
                 imgTag.getAttribute('data-lazy-src') ||
                 imgTag.getAttribute('data-original') ||
-                imgTag.getAttribute('srcset')?.split(',')[0].split(' ')[0] ||
+                  getFirstSrcsetUrl(imgTag.getAttribute('srcset')) ||
                 imgTag.getAttribute('src');
     if (!url) continue;
     
@@ -132,14 +141,22 @@ function parseTime(timeStr: string | null): number {
   }
 
   // Handle standard HH:MM:SS or MM:SS
-  const parts = timeStr.replace(',', '.').split(':').reverse();
+  const normalizedTime = timeStr.replace(',', '.');
   let seconds = 0;
-  for (let i = 0; i < parts.length; i++) {
-    const val = parseFloat(parts[i]);
+  let multiplier = 1;
+  let lastIdx = normalizedTime.length;
+  
+  while (lastIdx > 0) {
+    let idx = normalizedTime.lastIndexOf(':', lastIdx - 1);
+    let part = idx !== -1 ? normalizedTime.substring(idx + 1, lastIdx) : normalizedTime.substring(0, lastIdx);
+    const val = parseFloat(part);
     if (!isNaN(val)) {
-      seconds += val * Math.pow(60, i);
+      seconds += val * multiplier;
     }
+    multiplier *= 60;
+    lastIdx = idx;
   }
+  
   return seconds;
 }
 

@@ -350,9 +350,15 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           throw new Error("Impossibile caricare il feed. Controlla l'URL.");
         }
         await loadData();
-        if (result.feed.feedUrl.includes('reddit.com')) {
-          return 'reddit';
-        }
+        try {
+          const parsedFeedUrl = new URL(result.feed.feedUrl);
+          const host = parsedFeedUrl.hostname.toLowerCase();
+          if (host === 'reddit.com' || host.endsWith('.reddit.com')) {
+            return 'reddit';
+          }
+        } catch {
+          // If feedUrl is not a valid absolute URL, fall back to article classification.
+        }       
         return 'article';
       }
 

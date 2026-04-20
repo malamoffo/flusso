@@ -2,7 +2,8 @@ import React, { memo } from 'react';
 import { motion } from 'framer-motion';
 import { TelegramChannel } from '../types';
 import { cn } from '../lib/utils';
-import { MessageSquare, Check } from 'lucide-react';
+import { format, isToday, isYesterday } from 'date-fns';
+import { it } from 'date-fns/locale';
 
 interface TelegramListViewProps {
   isActive: boolean;
@@ -11,12 +12,24 @@ interface TelegramListViewProps {
   filter: 'all' | 'unread';
 }
 
+const formatChannelDate = (date: number) => {
+  const d = new Date(date);
+  if (isToday(d)) {
+    return format(d, 'HH:mm');
+  }
+  if (isYesterday(d)) {
+    return 'Ieri ' + format(d, 'HH:mm');
+  }
+  return format(d, 'dd/MM HH:mm', { locale: it });
+};
+
 export const TelegramListView = memo(({ isActive, channels, onChannelClick, filter }: TelegramListViewProps) => {
   const filteredChannels = React.useMemo(() => {
+    let list = channels;
     if (filter === 'unread') {
-      return channels.filter(c => c.unreadCount > 0);
+      list = list.filter(c => (c.unreadCount || 0) > 0);
     }
-    return channels;
+    return list;
   }, [channels, filter]);
 
   return (
@@ -34,10 +47,10 @@ export const TelegramListView = memo(({ isActive, channels, onChannelClick, filt
             <path d="M21.5 2L8.5 14"></path>
           </svg>
           <p className="text-lg font-medium text-white mb-1">
-            {filter === 'unread' ? "No unread messages" : "No Telegram channels"}
+            {filter === 'unread' ? "Nessun messaggio non letto" : "Nessun canale Telegram"}
           </p>
           <p className="text-sm">
-            {filter === 'unread' ? "You're all caught up!" : "Add a channel in settings to see messages here."}
+            {filter === 'unread' ? "Sei in pari con tutto!" : "Aggiungi un canale nelle impostazioni per vedere i messaggi."}
           </p>
         </div>
       ) : (
@@ -46,7 +59,10 @@ export const TelegramListView = memo(({ isActive, channels, onChannelClick, filt
             <div 
               key={channel.id}
               onClick={() => onChannelClick(channel)}
-              className="p-4 rounded-2xl border-2 border-green-500/80 shadow-md flex items-center gap-4 cursor-pointer hover:bg-gray-900 bg-black transition-all active:scale-[0.98]"
+              className={cn(
+                "p-4 rounded-2xl border-2 shadow-md flex items-center gap-4 cursor-pointer hover:bg-gray-900 bg-black transition-all active:scale-[0.98]",
+                (channel.unreadCount || 0) > 0 ? "border-green-500/80" : "border-gray-800"
+              )}
             >
               {channel.imageUrl ? (
                 <img 
@@ -65,28 +81,19 @@ export const TelegramListView = memo(({ isActive, channels, onChannelClick, filt
                   <h3 className="font-semibold text-white truncate">{channel.name}</h3>
                   {channel.lastMessageDate && (
                     <span className="text-[10px] text-gray-500 whitespace-nowrap">
-                      {(() => {
-                        const d = new Date(channel.lastMessageDate);
-                        const now = new Date();
-                        const isToday = d.toDateString() === now.toDateString();
-                        if (isToday) {
-                          return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
-                        }
-                        return d.toLocaleString([], { 
-                          day: '2-digit', 
-                          month: '2-digit', 
-                          hour: '2-digit', 
-                          minute: '2-digit',
-                          hour12: false
-                        });
-                      })()}
+                      {formatChannelDate(channel.lastMessageDate)}
                     </span>
                   )}
                 </div>
                 <p className="text-sm text-gray-400 truncate">@{channel.username}</p>
               </div>
-              {channel.unreadCount > 0 && (
-                <div className="w-3 h-3 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]" />
+              {(channel.unreadCount || 0) > 0 && (
+                <div className="flex flex-col items-end gap-1">
+                  <div className="w-3 h-3 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]" />
+                  <span className="text-[10px] bg-green-500 text-black font-bold px-1.5 py-0.5 rounded-full">
+                    {channel.unreadCount}
+                  </span>
+                </div>
               )}
             </div>
           ))}
