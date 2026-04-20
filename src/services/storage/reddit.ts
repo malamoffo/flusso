@@ -4,6 +4,15 @@ import { fetchWithProxy } from '../../utils/proxy';
 import he from 'he';
 
 export const redditStorage = {
+  isImgurUrl(url: string): boolean {
+    try {
+      const { hostname } = new URL(url);
+      return hostname === 'imgur.com' || hostname.endsWith('.imgur.com');
+    } catch {
+      return false;
+    }
+  },
+
   async fetchJsonWithProxy(url: string, signal?: AbortSignal, etag?: string, lastModified?: string): Promise<{ data: any, etag?: string, lastModified?: string } | null> {
     const response = await fetchWithProxy(url, false, undefined, signal, etag, lastModified);
     
@@ -216,7 +225,7 @@ export const redditStorage = {
         if (post.preview && post.preview.images && post.preview.images.length > 0) {
           const preview = post.preview.images[0];
           imageUrl = preview.source.url;
-        } else if (post.url && (post.url.match(/\.(jpg|jpeg|png|gif|webp)$/) || post.url.includes('imgur.com'))) {
+        } else if (post.url && (post.url.match(/\.(jpg|jpeg|png|gif|webp)$/) || this.isImgurUrl(post.url))) {
           imageUrl = post.url;
         } else if (post.thumbnail && post.thumbnail.startsWith('http')) {
           imageUrl = post.thumbnail;
