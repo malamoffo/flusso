@@ -1,12 +1,7 @@
 package com.flusso.app;
 
-import android.content.ComponentName;
-import android.content.Context;
-import android.content.Intent;
-import android.content.ServiceConnection;
 import android.net.Uri;
 import android.os.Bundle;
-import android.os.IBinder;
 import android.support.v4.media.MediaBrowserCompat;
 import android.support.v4.media.MediaDescriptionCompat;
 import android.support.v4.media.MediaMetadataCompat;
@@ -18,13 +13,10 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.media.MediaBrowserServiceCompat;
 
-import com.capgo.mediasession.MediaSessionService;
 import com.getcapacitor.JSArray;
-import com.getcapacitor.JSObject;
 
 import org.json.JSONObject;
-import java.lang.reflect.Field;
-import java.lang.reflect.Method;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -33,11 +25,17 @@ public class AndroidAutoService extends MediaBrowserServiceCompat {
     private static final String TAG = "AndroidAutoService";
     private static final String ROOT_ID = "root";
     private static final String QUEUE_ID = "queue";
-    private static final String RECENT_ID = "recent";
     private static final String FAVORITES_ID = "favorites";
+
     private static AndroidAutoService instance;
-    private MediaSessionCompat proxySession;
-    private boolean isBound = false;
+
+    private MediaSessionCompat mediaSession;
+    private PlaybackStateCompat.Builder stateBuilder;
+
+    private String currentMediaId = null;
+    private long currentPositionMs = 0L;
+    private long currentDurationMs = 0L;
+    private boolean currentPlaying = false;
 
     public static AndroidAutoService getInstance() {
         return instance;
@@ -50,100 +48,299 @@ public class AndroidAutoService extends MediaBrowserServiceCompat {
         }
     }
 
-    public void updateSessionState(String title, String artist, String album, String artwork, String artworkFilename, Double duration, Double position, Boolean isPlaying) {
-        if (proxySession == null) return;
+    @Override
+    public void onCreate() {
+        super.onCreate();
+        instance = this;
 
-        MediaMetadataCompat.Builder metaBuilder = new MediaMetadataCompat.Builder()
-                .putString(MediaMetadataCompat.METADATA_KEY_TITLE, title)
-                .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, artist)
-                .putString(MediaMetadataCompat.METADATA_KEY_ALBUM, album);
+        mediaSession = new MediaSessionCompat(this, TAG);
+        mediaSession.setFlags(
+                MediaSessionCompat.FLAG_HANDLES_MEDIA_BUTTONS |
+                MediaSessionCompat.FLAG_HANDLES_TRANSPORT_CONTROLS
+        );
 
-        boolean iconSet = false;
-        if (artworkFilename != null && !artworkFilename.isEmpty()) {
-            java.io.File imageFile = new java.io.File(this.getFilesDir(), "image_cache/" + artworkFilename);
-            if (imageFile.exists()) {
-                Uri contentUri = androidx.core.content.FileProvider.getUriForFile(
-                        this, 
-                        this.getPackageName() + ".fileprovider", 
-                        imageFile);
-                metaBuilder.putString(MediaMetadataCompat.METADATA_KEY_ALBUM_ART_URI, contentUri.toString());
-                iconSet = true;
+        mediaSession.setCallback(new MediaSessionCompat.Callback() {
+            @Override
+            public void onPlay() {
+                Log.d(TAG, "onPlay");
+                QueuePlugin plugin = QueuePlugin.getInstance();
+                if (plugin != null) {
+                    plugin.triggerActionRequest("play");
+                }
+                updatePlaybackState(
+                        PlaybackStateCompat.STATE_PLAYING,
+                        currentPositionMs,
+                        true
+                );
             }
-        }
-        
-        if (!iconSet && artwork != null && !artwork.isEmpty()) {
-            metaBuilder.putString(MediaMetadataCompat.METADATA_KEY_ALBUM_ART_URI, artwork);
-        }
 
-        if (duration != null) {
-            metaBuilder.putLong(MediaMetadataCompat.METADATA_KEY_DURATION, (long) (duration * 1000));
-        }
+            @Override
+            public void onPause() {
+                Log.d(TAG, "onPause");
+                QueuePlugin plugin = QueuePlugin.getInstance();
+                if (plugin != null) {
+                    plugin.triggerActionRequest("pause");
+                }
+                updatePlaybackState(
+                        PlaybackStateCompat.STATE_PAUSED,
+                        currentPositionMs,
+                        false
+                );
+            }
 
-        proxySession.setMetadata(metaBuilder.build());
+            @Override
+            public void onStop() {
+                Log.d(TAG, "onStop");
+                QueuePlugin plugin = QueuePlugin.getInstance();
+                if (plugin != null) {
+                    plugin.triggerActionRequest("stop");
+                }
+                updatePlaybackState(
+                        PlaybackStateCompat.STATE_STOPPED,
+                        currentPositionMs,
+                        false
+                );
+                stopSelf();
+            }
 
-        PlaybackStateCompat.Builder stateBuilder = new PlaybackStateCompat.Builder()
-                .setActions(PlaybackStateCompat.ACTION_PLAY | PlaybackStateCompat.ACTION_PAUSE |
-                        PlaybackStateCompat.ACTION_SKIP_TO_NEXT | PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS |
-                        PlaybackStateCompat.ACTION_STOP | PlaybackStateCompat.ACTION_SEEK_TO);
+            @Override
+            public void onSkipToNext() {
+                Log.d(TAG, "onSkipToNext");
+                QueuePlugin plugin = QueuePlugin.getInstance();
+                if (plugin != null) {
+                    plugin.triggerActionRequest("next");
+                }
+            }
 
-        int state = isPlaying ? PlaybackStateCompat.STATE_PLAYING : PlaybackStateCompat.STATE_PAUSED;
-        stateBuilder.setState(state, (long) (position * 1000), 1.0f);
-        proxySession.setPlaybackState(stateBuilder.build());
+            @Override
+            public void onSkipToPrevious() {
+                Log.d(TAG, "onSkipToPrevious");
+                QueuePlugin plugin = QueuePlugin.getInstance();
+                if (plugin != null) {
+                    plugin.triggerActionRequest("previous");
+                }
+            }
+
+            @Override
+            public void onSeekTo(long pos) {
+                Log.d(TAG, "onSeekTo: " + pos);
+                currentPositionMs = pos;
+                QueuePlugin plugin = QueuePlugin.getInstance();
+                if (plugin != null) {
+                    plugin.triggerSeekRequest(pos / 1000.0);
+                }
+                updatePlaybackState(
+                        currentPlaying ? PlaybackStateCompat.STATE_PLAYING : PlaybackStateCompat.STATE_PAUSED,
+                        currentPositionMs,
+                        currentPlaying
+                );
+            }
+
+            @Override
+            public void onPlayFromMediaId(String mediaId, Bundle extras) {
+                Log.d(TAG, "onPlayFromMediaId: " + mediaId);
+                currentMediaId = mediaId;
+
+                JSONObject track = findTrackById(mediaId);
+                if (track != null) {
+                    updateMetadataFromTrack(track);
+                    updatePlaybackState(PlaybackStateCompat.STATE_BUFFERING, 0L, false);
+                }
+
+                QueuePlugin plugin = QueuePlugin.getInstance();
+                if (plugin != null) {
+                    plugin.triggerPlayRequest(mediaId);
+                } else {
+                    QueuePlugin.setPendingMediaId(mediaId);
+                }
+            }
+        });
+
+        stateBuilder = new PlaybackStateCompat.Builder()
+                .setActions(
+                        PlaybackStateCompat.ACTION_PLAY |
+                        PlaybackStateCompat.ACTION_PAUSE |
+                        PlaybackStateCompat.ACTION_STOP |
+                        PlaybackStateCompat.ACTION_PLAY_PAUSE |
+                        PlaybackStateCompat.ACTION_PLAY_FROM_MEDIA_ID |
+                        PlaybackStateCompat.ACTION_SKIP_TO_NEXT |
+                        PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS |
+                        PlaybackStateCompat.ACTION_SEEK_TO
+                );
+
+        mediaSession.setPlaybackState(
+                stateBuilder.setState(PlaybackStateCompat.STATE_NONE, 0, 1.0f).build()
+        );
+        mediaSession.setActive(true);
+
+        setSessionToken(mediaSession.getSessionToken());
+        MediaSessionRegistry.getInstance().setSessionToken(mediaSession.getSessionToken());
+
+        Log.d(TAG, "Android Auto MediaSession initialized");
     }
 
-    private ServiceConnection connection = new ServiceConnection() {
-        @Override
-        public void onServiceConnected(ComponentName className, IBinder service) {
-            try {
-                // Get the MediaSessionService instance from the binder
-                Method getServiceMethod = service.getClass().getDeclaredMethod("getService");
-                getServiceMethod.setAccessible(true);
-                Object mediaSessionService = getServiceMethod.invoke(service);
-                
-                // Helper to find field in hierarchy
-                Field field = null;
-                Class<?> current = mediaSessionService.getClass();
-                while (current != null && field == null) {
-                    try {
-                        field = current.getDeclaredField("mediaSession");
-                    } catch (NoSuchFieldException e) {
-                        current = current.getSuperclass();
-                    }
-                }
-                
-                if (field != null) {
-                    field.setAccessible(true);
-                    MediaSessionCompat mediaSession = (MediaSessionCompat) field.get(mediaSessionService);
-                    
-                    if (mediaSession != null) {
-                        Log.d(TAG, "Found Capgo MediaSession via reflection.");
+    @Override
+    public void onDestroy() {
+        instance = null;
+        if (mediaSession != null) {
+            mediaSession.setActive(false);
+            mediaSession.release();
+            mediaSession = null;
+        }
+        super.onDestroy();
+    }
 
-                        // REGISTRAZIONE NEL REGISTRY
-                        MediaSessionRegistry.getInstance().setSessionToken(mediaSession.getSessionToken());
-                        
-                        // IMPOSTAZIONE NEL SERVIZIO
-                        setSessionToken(mediaSession.getSessionToken());
-                        
-                        Log.d(TAG, "Token registrato e impostato con successo.");
+    @Nullable
+    @Override
+    public BrowserRoot onGetRoot(@NonNull String clientPackageName, int clientUid, @Nullable Bundle rootHints) {
+        Log.d(TAG, "onGetRoot from " + clientPackageName);
+        Bundle extras = new Bundle();
+        extras.putBoolean(BrowserRoot.EXTRA_RECENT, true);
+        extras.putBoolean(BrowserRoot.EXTRA_OFFLINE, true);
+        extras.putBoolean(BrowserRoot.EXTRA_SUGGESTED, true);
+        return new BrowserRoot(ROOT_ID, extras);
+    }
+
+    @Override
+    public void onLoadChildren(@NonNull final String parentId,
+                               @NonNull final Result<List<MediaBrowserCompat.MediaItem>> result) {
+        Log.d(TAG, "onLoadChildren: " + parentId);
+        result.detach();
+
+        new Thread(() -> {
+            List<MediaBrowserCompat.MediaItem> mediaItems = new ArrayList<>();
+
+            if (ROOT_ID.equals(parentId)) {
+                mediaItems.add(new MediaBrowserCompat.MediaItem(
+                        new MediaDescriptionCompat.Builder()
+                                .setMediaId(QUEUE_ID)
+                                .setTitle("In riproduzione")
+                                .setSubtitle("Coda corrente")
+                                .build(),
+                        MediaBrowserCompat.MediaItem.FLAG_BROWSABLE
+                ));
+
+                mediaItems.add(new MediaBrowserCompat.MediaItem(
+                        new MediaDescriptionCompat.Builder()
+                                .setMediaId(FAVORITES_ID)
+                                .setTitle("Preferiti")
+                                .setSubtitle("I tuoi podcast preferiti")
+                                .build(),
+                        MediaBrowserCompat.MediaItem.FLAG_BROWSABLE
+                ));
+            } else if (QUEUE_ID.equals(parentId) || FAVORITES_ID.equals(parentId)) {
+                JSArray itemsArray = QUEUE_ID.equals(parentId)
+                        ? QueuePlugin.getStaticQueue(AndroidAutoService.this)
+                        : QueuePlugin.getStaticFavorites(AndroidAutoService.this);
+
+                if (itemsArray != null) {
+                    for (int i = 0; i < itemsArray.length(); i++) {
+                        try {
+                            JSONObject item = itemsArray.getJSONObject(i);
+                            mediaItems.add(buildPlayableItem(item, i));
+                        } catch (Exception e) {
+                            Log.e(TAG, "Error parsing media item", e);
+                        }
                     }
                 }
-            } catch (Exception e) {
-                Log.e(TAG, "Errore nel ServiceConnection", e);
+            }
+
+            result.sendResult(mediaItems);
+        }).start();
+    }
+
+    @Override
+    public void onLoadChildren(@NonNull String parentId,
+                               @NonNull Result<List<MediaBrowserCompat.MediaItem>> result,
+                               @NonNull Bundle options) {
+        onLoadChildren(parentId, result);
+    }
+
+    @Override
+    public void onSearch(@NonNull String query, Bundle extras,
+                         @NonNull Result<List<MediaBrowserCompat.MediaItem>> result) {
+        result.sendResult(new ArrayList<>());
+    }
+
+    public void updateSessionState(String mediaId,
+                                   String title,
+                                   String artist,
+                                   String album,
+                                   String artwork,
+                                   String artworkFilename,
+                                   Double duration,
+                                   Double position,
+                                   Boolean isPlaying) {
+        if (mediaSession == null) return;
+
+        if (mediaId != null && !mediaId.isEmpty()) {
+            currentMediaId = mediaId;
+        }
+
+        currentDurationMs = duration != null ? (long) (duration * 1000) : 0L;
+        currentPositionMs = position != null ? (long) (position * 1000) : 0L;
+        currentPlaying = isPlaying != null && isPlaying;
+
+        MediaMetadataCompat.Builder metaBuilder = new MediaMetadataCompat.Builder()
+                .putString(MediaMetadataCompat.METADATA_KEY_MEDIA_ID, currentMediaId)
+                .putString(MediaMetadataCompat.METADATA_KEY_TITLE, safe(title))
+                .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, safe(artist))
+                .putString(MediaMetadataCompat.METADATA_KEY_ALBUM, safe(album));
+
+        if (currentDurationMs > 0) {
+            metaBuilder.putLong(MediaMetadataCompat.METADATA_KEY_DURATION, currentDurationMs);
+        }
+
+        Uri artUri = resolveArtworkUri(artworkFilename, artwork);
+        if (artUri != null) {
+            metaBuilder.putString(MediaMetadataCompat.METADATA_KEY_ALBUM_ART_URI, artUri.toString());
+            metaBuilder.putString(MediaMetadataCompat.METADATA_KEY_DISPLAY_ICON_URI, artUri.toString());
+        }
+
+        mediaSession.setMetadata(metaBuilder.build());
+
+        int state = currentPlaying
+                ? PlaybackStateCompat.STATE_PLAYING
+                : PlaybackStateCompat.STATE_PAUSED;
+
+        updatePlaybackState(state, currentPositionMs, currentPlaying);
+
+        if (currentMediaId != null) {
+            mediaSession.setQueue(buildQueueItemsFromCurrentQueue());
+            mediaSession.setQueueTitle("Coda");
+            try {
+                mediaSession.setActiveQueueItemId(currentMediaId.hashCode());
+            } catch (Exception ignored) {
             }
         }
+    }
 
-        @Override
-        public void onServiceDisconnected(ComponentName arg0) {
-            isBound = false;
-        }
-    };
+    private void updatePlaybackState(int state, long positionMs, boolean playing) {
+        currentPlaying = playing;
+        currentPositionMs = positionMs;
+
+        PlaybackStateCompat.Builder builder = new PlaybackStateCompat.Builder()
+                .setActions(
+                        PlaybackStateCompat.ACTION_PLAY |
+                        PlaybackStateCompat.ACTION_PAUSE |
+                        PlaybackStateCompat.ACTION_STOP |
+                        PlaybackStateCompat.ACTION_PLAY_PAUSE |
+                        PlaybackStateCompat.ACTION_PLAY_FROM_MEDIA_ID |
+                        PlaybackStateCompat.ACTION_SKIP_TO_NEXT |
+                        PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS |
+                        PlaybackStateCompat.ACTION_SEEK_TO
+                )
+                .setState(state, positionMs, playing ? 1.0f : 0.0f);
+
+        mediaSession.setPlaybackState(builder.build());
+    }
 
     private JSONObject findTrackById(String id) {
         JSArray[] queues = {
-            QueuePlugin.getStaticQueue(this),
-            QueuePlugin.getStaticRecent(this),
-            QueuePlugin.getStaticFavorites(this)
+                QueuePlugin.getStaticQueue(this),
+                QueuePlugin.getStaticFavorites(this)
         };
+
         for (JSArray queue : queues) {
             if (queue == null) continue;
             for (int i = 0; i < queue.length(); i++) {
@@ -156,204 +353,108 @@ public class AndroidAutoService extends MediaBrowserServiceCompat {
         return null;
     }
 
-    private void updateProxyMetadata(JSONObject track) {
-        if (proxySession == null) return;
-        
-        MediaMetadataCompat.Builder builder = new MediaMetadataCompat.Builder()
-            .putString(MediaMetadataCompat.METADATA_KEY_MEDIA_ID, track.optString("id"))
-            .putString(MediaMetadataCompat.METADATA_KEY_TITLE, track.optString("title"))
-            .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, track.optString("artist"))
-            .putString(MediaMetadataCompat.METADATA_KEY_ALBUM, track.optString("album"));
-        
+    private void updateMetadataFromTrack(JSONObject track) {
         String artwork = track.optString("artwork");
         String artworkFilename = track.optString("artworkFilename");
-        
-        boolean iconSet = false;
-        if (artworkFilename != null && !artworkFilename.isEmpty()) {
-            java.io.File imageFile = new java.io.File(this.getFilesDir(), "image_cache/" + artworkFilename);
-            if (imageFile.exists()) {
-                Uri contentUri = androidx.core.content.FileProvider.getUriForFile(
-                        this, 
-                        this.getPackageName() + ".fileprovider", 
-                        imageFile);
-                builder.putString(MediaMetadataCompat.METADATA_KEY_ALBUM_ART_URI, contentUri.toString());
-                iconSet = true;
-            }
+        long durationMs = track.optLong("duration", 0L) * 1000L;
+
+        currentDurationMs = durationMs;
+
+        MediaMetadataCompat.Builder builder = new MediaMetadataCompat.Builder()
+                .putString(MediaMetadataCompat.METADATA_KEY_MEDIA_ID, track.optString("id"))
+                .putString(MediaMetadataCompat.METADATA_KEY_TITLE, track.optString("title"))
+                .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, track.optString("artist"))
+                .putString(MediaMetadataCompat.METADATA_KEY_ALBUM, track.optString("album"));
+
+        if (durationMs > 0) {
+            builder.putLong(MediaMetadataCompat.METADATA_KEY_DURATION, durationMs);
         }
-        
-        if (!iconSet && artwork != null && !artwork.isEmpty()) {
-            builder.putString(MediaMetadataCompat.METADATA_KEY_ALBUM_ART_URI, artwork);
+
+        Uri artUri = resolveArtworkUri(artworkFilename, artwork);
+        if (artUri != null) {
+            builder.putString(MediaMetadataCompat.METADATA_KEY_ALBUM_ART_URI, artUri.toString());
+            builder.putString(MediaMetadataCompat.METADATA_KEY_DISPLAY_ICON_URI, artUri.toString());
         }
-        
-        long duration = track.optLong("duration", 0);
-        if (duration > 0) {
-            builder.putLong(MediaMetadataCompat.METADATA_KEY_DURATION, duration * 1000);
-        }
-        
-        proxySession.setMetadata(builder.build());
-        proxySession.setPlaybackState(new PlaybackStateCompat.Builder()
-            .setActions(PlaybackStateCompat.ACTION_PLAY | PlaybackStateCompat.ACTION_PAUSE | PlaybackStateCompat.ACTION_SKIP_TO_NEXT | PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS | PlaybackStateCompat.ACTION_SEEK_TO)
-            .setState(PlaybackStateCompat.STATE_BUFFERING, 0, 1.0f)
-            .build());
+
+        mediaSession.setMetadata(builder.build());
     }
 
-    private void startAppWithMediaId(String mediaId) {
-        QueuePlugin.setPendingMediaId(mediaId);
-        Intent intent = new Intent(this, MainActivity.class);
-        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-        intent.putExtra("play_media_id", mediaId);
+    private MediaBrowserCompat.MediaItem buildPlayableItem(JSONObject item, int fallbackIndex) {
+        String id = item.optString("id");
+        if (id == null || id.isEmpty()) id = "unknown_" + fallbackIndex;
+
+        String title = item.optString("title");
+        if (title == null || title.isEmpty()) title = "Sconosciuto";
+
+        String subtitle = item.optString("artist");
+        String artwork = item.optString("artwork");
+        String artworkFilename = item.optString("artworkFilename");
+
+        MediaDescriptionCompat.Builder description = new MediaDescriptionCompat.Builder()
+                .setMediaId(id)
+                .setTitle(title)
+                .setSubtitle(subtitle);
+
+        Uri artUri = resolveArtworkUri(artworkFilename, artwork);
+        if (artUri != null) {
+            description.setIconUri(artUri);
+        }
+
+        return new MediaBrowserCompat.MediaItem(
+                description.build(),
+                MediaBrowserCompat.MediaItem.FLAG_PLAYABLE
+        );
+    }
+
+    private Uri resolveArtworkUri(String artworkFilename, String artworkUrl) {
         try {
-            startActivity(intent);
-        } catch (Exception e) {
-            Log.e(TAG, "Failed to start activity", e);
-        }
-    }
-
-    @Override
-    public void onCreate() {
-        super.onCreate();
-        instance = this;
-        Log.d(TAG, "onCreate - Inizializzazione servizio Android Auto via Registry");
-        
-        // 1. Otenzione Token tramite Registry
-        MediaSessionCompat.Token token = MediaSessionRegistry.getInstance().getSessionToken();
-        
-        if (token != null) {
-            setSessionToken(token);
-            Log.d(TAG, "Token caricato dal Registry");
-        } else {
-            // 2. Logic Robust Cold Start:
-            // Se non c'è token, l'auto è partita prima della app. Forza avvio app.
-            Log.w(TAG, "Token non disponibile. Avvio MainActivity...");
-            Intent intent = new Intent(this, MainActivity.class);
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-            startActivity(intent);
-        }
-    }
-
-    @Override
-    public void onDestroy() {
-        Log.d(TAG, "onDestroy - Pulizia risorse");
-        instance = null;
-        if (isBound) {
-            try {
-                unbindService(connection);
-                Log.d(TAG, "Unbind dal servizio completato.");
-            } catch (IllegalArgumentException e) {
-                Log.e(TAG, "Errore durante l'unbind (servizio già non legato)", e);
-            }
-            isBound = false;
-        }
-        super.onDestroy();
-    }
-
-    @Nullable
-    @Override
-    public BrowserRoot onGetRoot(@NonNull String clientPackageName, int clientUid, @Nullable Bundle rootHints) {
-        Log.d(TAG, "onGetRoot");
-        Bundle extras = new Bundle();
-        extras.putBoolean(BrowserRoot.EXTRA_RECENT, true);
-        extras.putBoolean(BrowserRoot.EXTRA_OFFLINE, true);
-        extras.putBoolean(BrowserRoot.EXTRA_SUGGESTED, true);
-        return new BrowserRoot(ROOT_ID, extras);
-    }
-
-    @Override
-    public void onLoadChildren(@NonNull final String parentId, @NonNull final Result<List<MediaBrowserCompat.MediaItem>> result) {
-        Log.d(TAG, "onLoadChildren: " + parentId);
-        result.detach();
-        
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                List<MediaBrowserCompat.MediaItem> mediaItems = new ArrayList<>();
-
-                if (ROOT_ID.equals(parentId)) {
-                    // Add folders at the root
-                    mediaItems.add(new MediaBrowserCompat.MediaItem(
-                            new MediaDescriptionCompat.Builder()
-                                    .setMediaId(QUEUE_ID)
-                                    .setTitle("In riproduzione")
-                                    .setSubtitle("L'episodio in riproduzione")
-                                    .build(), 
-                            MediaBrowserCompat.MediaItem.FLAG_BROWSABLE));
-                            
-                    mediaItems.add(new MediaBrowserCompat.MediaItem(
-                            new MediaDescriptionCompat.Builder()
-                                    .setMediaId(FAVORITES_ID)
-                                    .setTitle("Preferiti")
-                                    .setSubtitle("I tuoi episodi preferiti")
-                                    .build(), 
-                            MediaBrowserCompat.MediaItem.FLAG_BROWSABLE));
-                } else if (QUEUE_ID.equals(parentId) || FAVORITES_ID.equals(parentId)) {
-                    // Fetch queue or favorites from our custom plugin using the static method
-                    JSArray itemsArray = QUEUE_ID.equals(parentId) ? 
-                        QueuePlugin.getStaticQueue(AndroidAutoService.this) : 
-                        QueuePlugin.getStaticFavorites(AndroidAutoService.this);
-                    
-                    if (itemsArray != null) {
-                        Log.d(TAG, "Items size for " + parentId + ": " + itemsArray.length());
-                        try {
-                            for (int i = 0; i < itemsArray.length(); i++) {
-                                JSONObject item = itemsArray.getJSONObject(i);
-                                String id = item.optString("id");
-                                if (id == null || id.isEmpty()) {
-                                    id = "unknown_" + i;
-                                }
-                                String title = item.optString("title");
-                                if (title == null || title.isEmpty()) {
-                                    title = "Sconosciuto";
-                                }
-                                String subtitle = item.optString("artist"); // Use artist for subtitle
-                                String imageUrl = item.optString("artwork"); // Use artwork for icon
-                                String artworkFilename = item.optString("artworkFilename");
-
-                                MediaDescriptionCompat.Builder descriptionBuilder = new MediaDescriptionCompat.Builder()
-                                        .setMediaId(id)
-                                        .setTitle(title)
-                                        .setSubtitle(subtitle);
-
-                                boolean iconSet = false;
-                                if (artworkFilename != null && !artworkFilename.isEmpty()) {
-                                    java.io.File imageFile = new java.io.File(AndroidAutoService.this.getFilesDir(), "image_cache/" + artworkFilename);
-                                    if (imageFile.exists()) {
-                                        Uri contentUri = androidx.core.content.FileProvider.getUriForFile(
-                                                AndroidAutoService.this, 
-                                                AndroidAutoService.this.getPackageName() + ".fileprovider", 
-                                                imageFile);
-                                        descriptionBuilder.setIconUri(contentUri);
-                                        iconSet = true;
-                                    }
-                                }
-                                
-                                if (!iconSet && imageUrl != null && !imageUrl.isEmpty()) {
-                                    descriptionBuilder.setIconUri(Uri.parse(imageUrl));
-                                }
-                                
-                                MediaDescriptionCompat description = descriptionBuilder.build();
-                                mediaItems.add(new MediaBrowserCompat.MediaItem(description, MediaBrowserCompat.MediaItem.FLAG_PLAYABLE));
-                            }
-                        } catch (Exception e) {
-                            Log.e(TAG, "Error parsing items for " + parentId, e);
-                        }
-                    } else {
-                        Log.d(TAG, "Items array is null for " + parentId);
-                    }
+            if (artworkFilename != null && !artworkFilename.isEmpty()) {
+                java.io.File imageFile = new java.io.File(getFilesDir(), "image_cache/" + artworkFilename);
+                if (imageFile.exists()) {
+                    return androidx.core.content.FileProvider.getUriForFile(
+                            this,
+                            getPackageName() + ".fileprovider",
+                            imageFile
+                    );
                 }
-                
-                result.sendResult(mediaItems);
             }
-        }).start();
+        } catch (Exception e) {
+            Log.e(TAG, "Error resolving local artwork uri", e);
+        }
+
+        try {
+            if (artworkUrl != null && !artworkUrl.isEmpty()) {
+                return Uri.parse(artworkUrl);
+            }
+        } catch (Exception ignored) {
+        }
+
+        return null;
     }
 
-    @Override
-    public void onLoadChildren(@NonNull String parentId, @NonNull Result<List<MediaBrowserCompat.MediaItem>> result, @NonNull Bundle options) {
-        // Android Auto sometimes calls this version
-        onLoadChildren(parentId, result);
+    private List<MediaSessionCompat.QueueItem> buildQueueItemsFromCurrentQueue() {
+        List<MediaSessionCompat.QueueItem> queueItems = new ArrayList<>();
+        JSArray queue = QueuePlugin.getStaticQueue(this);
+        if (queue == null) return queueItems;
+
+        for (int i = 0; i < queue.length(); i++) {
+            try {
+                JSONObject item = queue.getJSONObject(i);
+                MediaDescriptionCompat description = new MediaDescriptionCompat.Builder()
+                        .setMediaId(item.optString("id"))
+                        .setTitle(item.optString("title"))
+                        .setSubtitle(item.optString("artist"))
+                        .build();
+
+                queueItems.add(new MediaSessionCompat.QueueItem(description, item.optString("id").hashCode()));
+            } catch (Exception e) {
+                Log.e(TAG, "Error building queue item", e);
+            }
+        }
+        return queueItems;
     }
 
-    @Override
-    public void onSearch(@NonNull String query, Bundle extras, @NonNull Result<List<MediaBrowserCompat.MediaItem>> result) {
-        result.sendResult(new ArrayList<>());
+    private String safe(String value) {
+        return value != null ? value : "";
     }
 }

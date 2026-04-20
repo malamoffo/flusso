@@ -46,6 +46,7 @@ interface RssContextType {
   toggleQueue: (id: string) => void;
   removeFromSaved: (id: string) => void;
   removeArticle: (article: Article) => Promise<void>;
+  addArticle: (article: Article) => Promise<void>;
   updateFeed: (id: string, updates: Partial<Feed>) => void;
   updateArticle: (id: string, updates: Partial<Article>) => void;
   checkUpdates: (force?: boolean) => Promise<void>;
@@ -585,6 +586,11 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   }, []);
 
+  const addArticle = useCallback(async (article: Article) => {
+    setArticles(prev => [...prev, article].sort((a,b) => b.pubDate - a.pubDate));
+    await storage.saveArticles([article]);
+  }, []);
+
   const removeFeed = useCallback(async (id: string) => {
     await storage.removeFeed(id);
     setFeeds(prev => prev.filter(f => f.id !== id));
@@ -614,7 +620,7 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     feeds, articles, isLoading, progress, error, setError, errorLogs, clearErrorLogs,
     addFeedOrSubreddit, importOpml, toggleRead, markAsRead, markArticlesAsRead,
     toggleFavorite, toggleQueue, removeFromSaved, markAllAsRead, refreshFeeds, removeFeed,
-    removeArticle,
+    removeArticle, addArticle,
     updateFeed, updateArticle, exportFeeds,
     searchQuery, setSearchQuery, unreadCount, savedCount, hasMoreArticles, loadMoreArticles, updateInfo, checkUpdates,
     globalSearch, prefetch
@@ -622,7 +628,7 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     feeds, articles, isLoading, progress, error, setError, errorLogs, clearErrorLogs,
     addFeedOrSubreddit, importOpml, toggleRead, markAsRead, markArticlesAsRead,
     toggleFavorite, toggleQueue, removeFromSaved, markAllAsRead, refreshFeeds, removeFeed,
-    removeArticle,
+    removeArticle, addArticle,
     updateFeed, updateArticle, exportFeeds,
     searchQuery, setSearchQuery, unreadCount, savedCount, hasMoreArticles, loadMoreArticles, updateInfo, checkUpdates,
     globalSearch, prefetch

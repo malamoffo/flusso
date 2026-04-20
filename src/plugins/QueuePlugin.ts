@@ -1,22 +1,51 @@
-import { registerPlugin, PluginListenerHandle } from '@capacitor/core';
+import { registerPlugin } from '@capacitor/core';
 
-export interface QueuePluginInterface {
-  setQueue(options: { queue: any[], recent: any[], favorites: any[] }): Promise<void>;
-  getPendingMediaId(): Promise<{ mediaId: string | null }>;
-  updateMediaSession(options: { 
-    title: string; 
-    artist: string; 
-    album: string; 
-    artwork?: string; 
-    artworkFilename?: string;
-    duration?: number; 
-    position?: number; 
-    isPlaying: boolean; 
-  }): Promise<void>;
-  addListener(eventName: 'playRequest', listenerFunc: (data: { id: string }) => void): Promise<PluginListenerHandle>;
-  addListener(eventName: 'actionRequest', listenerFunc: (data: { action: string }) => void): Promise<PluginListenerHandle>;
+export interface QueueItem {
+  id: string;
+  title?: string;
+  artist?: string;
+  album?: string;
+  artwork?: string;
+  artworkFilename?: string;
+  uri?: string;
+  duration?: number;
 }
 
-const QueuePlugin = registerPlugin<QueuePluginInterface>('QueuePlugin');
+export interface QueuePluginPlugin {
+  setQueue(options: {
+    queue?: QueueItem[];
+    recent?: QueueItem[];
+    favorites?: QueueItem[];
+  }): Promise<void>;
 
-export default QueuePlugin;
+  updateMediaSession(options: {
+    mediaId?: string;
+    title?: string;
+    artist?: string;
+    album?: string;
+    artwork?: string;
+    artworkFilename?: string;
+    duration?: number;
+    position?: number;
+    isPlaying?: boolean;
+  }): Promise<void>;
+
+  getPendingMediaId(): Promise<{ mediaId: string | null }>;
+
+  addListener(
+    eventName: 'playRequest',
+    listenerFunc: (data: { id: string }) => void,
+  ): Promise<{ remove: () => Promise<void> }>;
+
+  addListener(
+    eventName: 'actionRequest',
+    listenerFunc: (data: { action: 'play' | 'pause' | 'stop' | 'next' | 'previous' }) => void,
+  ): Promise<{ remove: () => Promise<void> }>;
+
+  addListener(
+    eventName: 'seekRequest',
+    listenerFunc: (data: { position: number }) => void,
+  ): Promise<{ remove: () => Promise<void> }>;
+}
+
+export const QueuePlugin = registerPlugin<QueuePluginPlugin>('QueuePlugin');

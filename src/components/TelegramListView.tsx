@@ -65,14 +65,28 @@ export const TelegramListView = memo(({ isActive, channels, onChannelClick, filt
                   <h3 className="font-semibold text-white truncate">{channel.name}</h3>
                   {channel.lastMessageDate && (
                     <span className="text-[10px] text-gray-500 whitespace-nowrap">
-                      {new Date(channel.lastMessageDate).toLocaleString([], { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                      {(() => {
+                        const d = new Date(channel.lastMessageDate);
+                        const now = new Date();
+                        const isToday = d.toDateString() === now.toDateString();
+                        if (isToday) {
+                          return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+                        }
+                        return d.toLocaleString([], { 
+                          day: '2-digit', 
+                          month: '2-digit', 
+                          hour: '2-digit', 
+                          minute: '2-digit',
+                          hour12: false
+                        });
+                      })()}
                     </span>
                   )}
                 </div>
                 <p className="text-sm text-gray-400 truncate">@{channel.username}</p>
               </div>
               {channel.unreadCount > 0 && (
-                <div className="w-3 h-3 rounded-full bg-green-500" />
+                <div className="w-3 h-3 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]" />
               )}
             </div>
           ))}

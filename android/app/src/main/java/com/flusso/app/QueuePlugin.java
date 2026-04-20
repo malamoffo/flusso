@@ -16,45 +16,6 @@ public class QueuePlugin extends Plugin {
     private static JSArray favoritesQueue = new JSArray();
     private static String pendingMediaId = null;
 
-    private static void saveToFile(android.content.Context context, String filename, String content) {
-        if (context == null) return;
-        try {
-            java.io.FileOutputStream fos = context.openFileOutput(filename, android.content.Context.MODE_PRIVATE);
-            fos.write(content.getBytes());
-            fos.close();
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
-
-    private static String readFromFile(android.content.Context context, String filename) {
-        if (context == null) return "[]";
-        try {
-            java.io.File file = new java.io.File(context.getFilesDir(), filename);
-            if (!file.exists()) return "[]";
-            java.io.FileInputStream fis = context.openFileInput(filename);
-            byte[] bytes = new byte[(int) file.length()];
-            fis.read(bytes);
-            fis.close();
-            return new String(bytes);
-        } catch (Exception e) {
-            e.printStackTrace();
-            return "[]";
-        }
-    }
-
-    public static void setPendingMediaId(String mediaId) {
-        pendingMediaId = mediaId;
-    }
-
-    @PluginMethod
-    public void getPendingMediaId(PluginCall call) {
-        JSObject ret = new JSObject();
-        ret.put("mediaId", pendingMediaId);
-        call.resolve(ret);
-        pendingMediaId = null; // Clear after reading
-    }
-
     public QueuePlugin() {
         super();
         instance = this;
@@ -70,25 +31,70 @@ public class QueuePlugin extends Plugin {
         return instance;
     }
 
+    public static void setPendingMediaId(String mediaId) {
+        pendingMediaId = mediaId;
+    }
+
+    @PluginMethod
+    public void getPendingMediaId(PluginCall call) {
+        JSObject ret = new JSObject();
+        ret.put("mediaId", pendingMediaId);
+        call.resolve(ret);
+        pendingMediaId = null;
+    }
+
     @PluginMethod
     public void setQueue(PluginCall call) {
         JSArray queue = call.getArray("queue");
         JSArray recent = call.getArray("recent");
         JSArray favorites = call.getArray("favorites");
+
         if (queue != null) {
             currentQueue = queue;
-            saveToFile(getContext(), "queue.json", queue.toString());
+            saveToFile("queue.json", queue.toString());
         }
+
         if (recent != null) {
             recentQueue = recent;
-            saveToFile(getContext(), "recent.json", recent.toString());
+            saveToFile("recent.json", recent.toString());
         }
+
         if (favorites != null) {
             favoritesQueue = favorites;
-            saveToFile(getContext(), "favorites.json", favorites.toString());
+            saveToFile("favorites.json", favorites.toString());
         }
-        
+
         AndroidAutoService.notifyQueueChanged();
+        call.resolve();
+    }
+
+    @PluginMethod
+    public void updateMediaSession(PluginCall call) {
+        String mediaId = call.getString("mediaId");
+        String title = call.getString("title");
+        String artist = call.getString("artist");
+        String album = call.getString("album");
+        String artwork = call.getString("artwork");
+        String artworkFilename = call.getString("artworkFilename");
+        Double duration = call.getDouble("duration");
+        Double position = call.getDouble("position");
+        Boolean isPlaying = call.getBoolean("isPlaying");
+
+        AndroidAutoService service = AndroidAutoService.getInstance();
+        if (service != null) {
+            service.updateSessionState(
+                    mediaId,
+                    title,
+                    artist,
+                    album,
+                    artwork,
+                    artworkFilename,
+                    duration,
+                    position,
+                    isPlaying
+            );
+        }
+
         call.resolve();
     }
 
@@ -97,7 +103,8 @@ public class QueuePlugin extends Plugin {
             try {
                 String json = readFromFile(context, "queue.json");
                 currentQueue = new JSArray(json);
-            } catch (Exception e) {}
+            } catch (Exception ignored) {
+            }
         }
         return currentQueue;
     }
@@ -107,7 +114,8 @@ public class QueuePlugin extends Plugin {
             try {
                 String json = readFromFile(context, "recent.json");
                 recentQueue = new JSArray(json);
-            } catch (Exception e) {}
+            } catch (Exception ignored) {
+            }
         }
         return recentQueue;
     }
@@ -117,27 +125,10 @@ public class QueuePlugin extends Plugin {
             try {
                 String json = readFromFile(context, "favorites.json");
                 favoritesQueue = new JSArray(json);
-            } catch (Exception e) {}
+            } catch (Exception ignored) {
+            }
         }
         return favoritesQueue;
-    }
-
-    @PluginMethod
-    public void updateMediaSession(PluginCall call) {
-        String title = call.getString("title");
-        String artist = call.getString("artist");
-        String album = call.getString("album");
-        String artwork = call.getString("artwork");
-        String artworkFilename = call.getString("artworkFilename");
-        Double duration = call.getDouble("duration");
-        Double position = call.getDouble("position");
-        Boolean isPlaying = call.getBoolean("isPlaying");
-        
-        AndroidAutoService service = AndroidAutoService.getInstance();
-        if (service != null) {
-            service.updateSessionState(title, artist, album, artwork, artworkFilename, duration, position, isPlaying);
-        }
-        call.resolve();
     }
 
     public void triggerPlayRequest(String id) {
@@ -150,5 +141,46 @@ public class QueuePlugin extends Plugin {
         JSObject data = new JSObject();
         data.put("action", action);
         notifyListeners("actionRequest", data);
+    }
+
+    public void triggerSeekRequest(double positionSeconds) {
+        JSObject data = new JSObject();
+        data.put("position", positionSeconds);
+        notifyListeners("seekRequest", data);
+    }
+
+    private void saveToFile(String filename, String content) {
+        if (getContext() == null) return;
+
+        try {
+            java.io.FileOutputStream fos = getContext().openFileOutput(
+                    filename,
+                    android.content.Context.MODE_PRIVATE
+            );
+            fos.write(content.getBytes());
+            fos.close();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    private static String readFromFile(android.content.Context context, String filename) {
+        if (context == null) return "[]";
+
+        try {
+            java.io.File file = new java.io.File(context.getFilesDir(), filename);
+            if (!file.exists()) return "[]";
+
+            java.io.FileInputStream fis = context.openFileInput(filename);
+            byte[] bytes = new byte[(int) file.length()];
+            int read = fis.read(bytes);
+            fis.close();
+
+            if (read <= 0) return "[]";
+            return new String(bytes, 0, read);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return "[]";
+        }
     }
 }
