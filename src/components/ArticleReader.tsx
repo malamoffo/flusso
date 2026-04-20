@@ -398,6 +398,33 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
       
       // Clean up superfluous text/empty tags
       let content = contentToSanitize;
+
+      // --- DEEP CLEANING: Remove labels and boilerplate ---
+      // 1. Remove leading/trailing boilerplate patterns (Source:, Written by:, etc.)
+      const boilerplatePatterns = [
+        /^(<p[^>]*>)?\s*(Source|Written by|Autor|By|Di|Fonte|Traduzione di|Articolo originale|Traduzione|Pubblicato il|Ore fa|Minuti fa)\s*[:\-\u2013\u2014].*?<\/p>/i,
+        /<p[^>]*>\s*(Leggi anche|Continua a leggere|Condividi|Tags|Etichette|Potrebbe interessarti|Sostienici|Sito ufficiale|Seguici su|Iscriviti alla newsletter)\s*[:\-\u2013\u2014].*?<\/p>\s*$/i,
+        /^(<p[^>]*>)?\s*(Photo|Immagine|Credit)\s*[:\-\u2013\u2014].*?<\/p>/i,
+        /<p[^>]*>\s*(L'articolo|Questo post).*?apparsa su.*?<\/p>/i
+      ];
+
+      boilerplatePatterns.forEach(pattern => {
+        content = content.replace(pattern, '');
+      });
+
+      // 2. Remove redundant title at the start if it exactly matches
+      if (article.title) {
+        const strippedTitle = article.title.replace(/[^\w\s]/g, '').toLowerCase().trim();
+        const firstParaMatch = content.match(/<p[^>]*>(.*?)<\/p>/i);
+        if (firstParaMatch) {
+          const firstParaText = firstParaMatch[1].replace(/<\/?[^>]+(>|$)/g, "").replace(/[^\w\s]/g, '').toLowerCase().trim();
+          // If the first paragraph is essentially the title, or a very short "Source: Title" string, remove it
+          if (firstParaText === strippedTitle || (firstParaText.length < strippedTitle.length + 10 && firstParaText.includes(strippedTitle))) {
+            content = content.replace(/<p[^>]*>.*?<\/p>/i, '');
+          }
+        }
+      }
+
       content = content.replace(/<p[^>]*>(\s|&nbsp;|<br\s*\/?>)*<\/p>/gi, '');
       content = content.replace(/<div[^>]*>(\s|&nbsp;|<br\s*\/?>)*<\/div>/gi, '');
       content = content.replace(/<span[^>]*>(\s|&nbsp;|<br\s*\/?>)*<\/span>/gi, '');
@@ -588,23 +615,26 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
       </div>
 
       {/* Article Content with Glass Container */}
-      <div className="relative z-10 flex-1 py-4 px-0 sm:px-2 max-w-5xl mx-auto w-full">
-        <div className="backdrop-blur-2xl bg-white/5 border border-white/10 rounded-[1.5rem] sm:rounded-[2rem] overflow-hidden shadow-2xl mb-12">
+      <div className="relative z-10 flex-1 py-4 px-2 sm:px-4 max-w-5xl mx-auto w-full">
+        <div className="backdrop-blur-3xl bg-white/[0.03] border border-white/10 rounded-[2.5rem] overflow-hidden shadow-2xl mb-24">
           {(readerImageUrl || (article.type === 'podcast' && feed?.imageUrl)) && (
-            <CachedImage 
-              key={`${article.id}-${readerImageUrl || feed?.imageUrl}`}
-              src={getSafeUrl(readerImageUrl || (article.type === 'podcast' ? feed?.imageUrl : '') || '')}
-              alt="" 
-              className="w-full h-auto object-contain max-h-[80vh]"
-              referrerPolicy="no-referrer"
-            />
+            <div className="relative group overflow-hidden bg-black/40">
+              <CachedImage 
+                key={`${article.id}-${readerImageUrl || feed?.imageUrl}`}
+                src={getSafeUrl(readerImageUrl || (article.type === 'podcast' ? feed?.imageUrl : '') || '')}
+                alt="" 
+                className="w-full h-auto object-contain max-h-[85vh] transition-transform duration-700 group-hover:scale-105"
+                referrerPolicy="no-referrer"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+            </div>
           )}
 
-          <div className="p-4 sm:p-8">
-            <header className="mb-8 text-center">
-              <div className="flex flex-col items-center gap-3 mb-4">
-                <div className="flex items-center justify-center gap-3 flex-wrap">
-                  <div className="flex items-center gap-2">
+          <div className="p-3 sm:p-6 lg:p-8">
+            <header className="mb-12 text-center max-w-5xl mx-auto">
+              <div className="flex flex-col items-center gap-6 mb-4">
+                <div className="flex items-center justify-center gap-4 flex-wrap">
+                  <div className="flex items-center gap-2.5 px-3 py-1 rounded-full bg-white/5 border border-white/10">
                     {article.link && (
                       <CachedImage 
                         src={`https://icons.duckduckgo.com/ip3/${(() => {
@@ -612,7 +642,7 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
                           catch { return ''; }
                         })()}.ico`} 
                         alt="" 
-                        className="w-4 h-4 rounded-sm"
+                        className="w-4 h-4 rounded-full opacity-80"
                         referrerPolicy="no-referrer"
                         onError={(e) => {
                           (e.target as HTMLImageElement).src = `https://www.google.com/s2/favicons?domain=${(() => {
@@ -622,31 +652,32 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
                         }}
                       />
                     )}
-                    <span className="text-blue-400 text-sm font-semibold tracking-wide block uppercase">
+                    <span className="text-indigo-400 text-xs font-bold tracking-[0.1em] block uppercase">
                       {feed?.title || 'Unknown Source'}
                     </span>
                   </div>
-                  <span className="text-gray-400 text-sm">{formattedDate}</span>
+                  <span className="text-gray-500 text-xs font-medium uppercase tracking-wider">{formattedDate}</span>
                 </div>
                 
-                <h1 className={`${getTitleSize()} font-bold text-white leading-tight`}>
+                <h1 className={`${getTitleSize()} font-black text-white leading-[1.1] tracking-tight`}>
                   <a 
                     href={getSafeUrl(article.link)}
                     target="_blank" 
                     rel="noopener noreferrer" 
-                    className="hover:underline"
+                    className="hover:text-indigo-400 transition-colors"
                     dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(article.title, { FORBID_ATTR: ['id', 'name'] }) }}
                   />
                 </h1>
 
-                <div className="text-gray-500 text-xs uppercase tracking-widest font-bold">
-                  {readTime}m read
+                <div className="text-gray-500 text-[10px] uppercase tracking-[0.2em] font-black opacity-60">
+                  {readTime} MIN READ
                 </div>
               </div>
 
-              <div className="flex items-center justify-center gap-6 mt-6 text-gray-400">
+              <div className="flex items-center justify-center gap-8 mt-8 text-gray-500">
                 <motion.button
                   whileTap={{ scale: 0.9 }}
+                  whileHover={{ scale: 1.1, color: '#fff' }}
                   onClick={async () => {
                     const shareData = {
                       title: article.title,
@@ -671,13 +702,14 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
                       console.error('Error sharing:', err);
                     }
                   }}
-                  className="hover:text-white transition-colors"
+                  className="transition-all duration-300"
                   aria-label="Share article"
                 >
                   <Share2 className="w-5 h-5" aria-hidden="true" />
                 </motion.button>
                 <motion.button
                   whileTap={{ scale: 0.9 }}
+                  whileHover={{ scale: 1.1, color: '#fff' }}
                   onClick={() => {
                     if (article.type === 'podcast') {
                       setIsQueued(!isQueued);
@@ -687,7 +719,7 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
                       toggleFavorite(article.id);
                     }
                   }}
-                  className="hover:text-white transition-colors"
+                  className="transition-all duration-300"
                   aria-label={
                     article.type === 'podcast' 
                       ? (isQueued ? "Remove from queue" : "Add to queue")
@@ -703,11 +735,11 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
               </div>
             </header>
 
-            <div className="h-px bg-white/10 w-full mb-8" />
+            <div className="h-px bg-gradient-to-r from-transparent via-white/10 to-transparent w-full mb-12" />
 
             {article.type === 'podcast' && article.mediaUrl && (
-              <div className="mb-8 p-6 bg-white/5 rounded-3xl border border-white/10 shadow-sm">
-                <div className="flex flex-col gap-6">
+              <div className="mb-12 p-8 bg-white/[0.02] rounded-[2rem] border border-white/10 shadow-inner">
+                <div className="flex flex-col gap-8">
                   
                   <PodcastChapters article={article} isCurrentTrack={isCurrentTrack} />
 
@@ -726,7 +758,7 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
                           onSelectArticle?.(prevInQueue);
                         }
                       }}
-                      className={`p-2 rounded-full transition-colors ${prevInQueue ? 'text-gray-300 hover:bg-gray-800' : 'text-gray-700'}`}
+                      className={`p-2 rounded-full transition-colors ${prevInQueue ? 'text-gray-300 hover:bg-white/10' : 'text-gray-700'}`}
                       aria-label="Previous in queue"
                     >
                       <SkipBack className="w-6 h-6 fill-current" />
@@ -741,7 +773,7 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
                         else play(article);
                       }}
                       className={cn(
-                        "w-16 h-16 bg-indigo-600 text-white rounded-full flex items-center justify-center shadow-lg hover:bg-indigo-700 transition-colors relative",
+                        "w-16 h-16 bg-indigo-600 text-white rounded-full flex items-center justify-center shadow-[0_0_20px_rgba(79,70,229,0.4)] hover:bg-indigo-700 transition-all relative group",
                         isLoadingAudio && "animate-pulse"
                       )}
                       aria-label={isPlaying && isCurrentTrack ? "Pause" : "Play"}
@@ -749,9 +781,9 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
                       {isLoadingAudio ? (
                         <RefreshCw className="w-8 h-8 animate-spin" />
                       ) : isPlaying && isCurrentTrack ? (
-                        <Pause className="w-8 h-8 fill-current" />
+                        <Pause className="w-8 h-8 fill-current transition-transform group-hover:scale-110" />
                       ) : (
-                        <Play className="w-8 h-8 fill-current ml-1" />
+                        <Play className="w-8 h-8 fill-current ml-1 transition-transform group-hover:scale-110" />
                       )}
                     </motion.button>
 
@@ -766,7 +798,7 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
                           onSelectArticle?.(nextInQueue);
                         }
                       }}
-                      className={`p-2 rounded-full transition-colors ${nextInQueue ? 'text-gray-300 hover:bg-gray-800' : 'text-gray-700'}`}
+                      className={`p-2 rounded-full transition-colors ${nextInQueue ? 'text-gray-300 hover:bg-white/10' : 'text-gray-700'}`}
                       aria-label="Next in queue"
                     >
                       <SkipForward className="w-6 h-6 fill-current" />
@@ -777,24 +809,28 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
             )}
 
             {isLoading ? (
-              <div className="space-y-4 animate-pulse mt-8">
+              <div className="space-y-6 animate-pulse mt-8 max-w-4xl mx-auto">
                 <div className="h-4 bg-white/10 rounded w-3/4"></div>
                 <div className="h-4 bg-white/10 rounded w-full"></div>
                 <div className="h-4 bg-white/10 rounded w-5/6"></div>
                 <div className="h-4 bg-white/10 rounded w-full"></div>
-                <div className="h-40 bg-white/10 rounded w-full mt-6"></div>
+                <div className="h-4 bg-white/10 rounded w-2/3"></div>
+                <div className="h-64 bg-white/10 rounded-2xl w-full mt-10"></div>
               </div>
             ) : sanitizedContent ? (
               <div 
                 onClick={handleContentClick}
-                className={`prose ${getProseSize()} prose-invert max-w-full overflow-hidden leading-relaxed text-gray-300
-                  prose-img:rounded-xl prose-img:w-full prose-img:object-cover prose-img:max-w-full
-                  prose-video:w-full prose-video:rounded-xl
-                  [&_iframe]:w-full [&_iframe]:aspect-video [&_iframe]:rounded-xl [&_iframe]:border-0
-                  prose-a:text-indigo-400 prose-headings:font-bold prose-headings:tracking-tight prose-p:leading-relaxed
-                  prose-pre:max-w-full prose-pre:overflow-x-auto
-                  [&>blockquote]:relative [&>blockquote]:border-none [&>blockquote]:p-0 [&>blockquote]:text-center [&>blockquote]:text-xl sm:text-2xl [&>blockquote]:font-light [&>blockquote]:text-blue-200 [&>blockquote]:my-10
-                  [&>blockquote]:before:content-['“'] [&>blockquote]:before:text-6xl [&>blockquote]:before:text-blue-500/30 [&>blockquote]:before:absolute [&>blockquote]:before:-top-8 [&>blockquote]:before:left-1/2 [&>blockquote]:before:-translate-x-1/2`}
+                className={`prose ${getProseSize()} prose-invert max-w-4xl mx-auto overflow-hidden leading-[1.75] text-gray-200 font-serif
+                  prose-img:rounded-2xl prose-img:w-full prose-img:object-cover prose-img:max-w-full prose-img:my-10 prose-img:shadow-2xl
+                  prose-video:w-full prose-video:rounded-2xl prose-video:my-10
+                  [&_iframe]:w-full [&_iframe]:aspect-video [&_iframe]:rounded-2xl [&_iframe]:border-0 [&_iframe]:my-10 [&_iframe]:shadow-2xl
+                  prose-a:text-indigo-400 prose-a:decoration-indigo-400/30 prose-a:underline-offset-4 hover:prose-a:decoration-indigo-400 transition-all
+                  prose-headings:font-sans prose-headings:font-black prose-headings:tracking-tight prose-headings:text-white prose-headings:mt-12 prose-headings:mb-6
+                  prose-p:mb-8 prose-li:mb-2
+                  prose-pre:max-w-full prose-pre:overflow-x-auto prose-pre:rounded-2xl prose-pre:bg-white/5 prose-pre:border prose-pre:border-white/10
+                  [&>blockquote]:relative [&>blockquote]:border-l-4 [&>blockquote]:border-indigo-500 [&>blockquote]:bg-white/[0.03] [&>blockquote]:py-8 [&>blockquote]:px-8 [&>blockquote]:rounded-r-2xl [&>blockquote]:my-12
+                  [&>blockquote]:text-xl sm:text-2xl [&>blockquote]:font-medium [&>blockquote]:italic [&>blockquote]:text-gray-100
+                  [&>blockquote_p:before]:content-none [&>blockquote_p:after]:content-none`}
                 dangerouslySetInnerHTML={{ __html: sanitizedContent }}
               />
             ) : (
