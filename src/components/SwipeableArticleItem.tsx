@@ -136,9 +136,9 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
 
   const backgroundTransform = useTransform(x, (val) => {
     const numVal = typeof val === 'number' ? val : parseFloat(val);
-    if (numVal > 5) return rightBackground;
-    if (numVal < -5) return leftBackground;
-    return 'transparent';
+    if (numVal > 0.1) return rightBackground;
+    if (numVal < -0.1) return leftBackground;
+    return 'rgba(0, 0, 0, 0)';
   });
 
   const [exitX, setExitX] = React.useState<number | string>(0);
@@ -173,15 +173,15 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
           onRemove?.(article.id);
         }, 50);
       } else if (action === 'toggleFavorite') {
-        animate(x, 0, { type: "spring", stiffness: 400, damping: 30, restDelta: 0.5 });
+        animate(x, 0, { type: "spring", stiffness: 250, damping: 25, restDelta: 0.1 });
         swipeState[article.id] = 0; // Reset state
         article.type === 'podcast' ? toggleQueue(article.id) : toggleFavorite(article.id);
       } else {
-        animate(x, 0, { type: "spring", stiffness: 400, damping: 30, restDelta: 0.5 });
+        animate(x, 0, { type: "spring", stiffness: 250, damping: 25, restDelta: 0.1 });
         swipeState[article.id] = 0; // Reset state
       }
     } else {
-      animate(x, 0, { type: "spring", stiffness: 300, damping: 25 });
+      animate(x, 0, { type: "spring", stiffness: 200, damping: 25 });
     }
   };
 
@@ -311,9 +311,9 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
           dragTransition={{ bounceStiffness: 300, bounceDamping: 25 }}
           onDragEnd={handleDragEnd}
           onClick={handleArticleClick}
-          exit={{ x: exitX, opacity: 0, transition: { duration: 0.15, ease: "easeOut" } }}
+          exit={{ x: exitX, opacity: 0, transition: { duration: 0.2, ease: "easeOut" } }}
           className={cn(
-            "relative z-20 w-full p-3 cursor-pointer transition-all bg-black select-none",
+            "relative z-20 w-full p-3 cursor-pointer bg-black select-none",
             !isInboxOrSaved && "border-b border-gray-800"
           )}
         >
