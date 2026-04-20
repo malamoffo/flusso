@@ -403,8 +403,7 @@ public class AndroidAutoService extends MediaBrowserServiceCompat {
             );
         }
 
-        int color = ContextCompat.getColor(this, R.color.colorPrimary);
-        builder.setColor(color);
+        builder.setColor(0xFF01696F); // teal Flusso, coerente col tema app
 
         return builder.build();
     }
