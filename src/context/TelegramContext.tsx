@@ -311,16 +311,18 @@ export const TelegramProvider: React.FC<{ children: ReactNode }> = ({ children }
   }, []);
 
   const markAllTelegramAsRead = useCallback(async () => {
-    setTelegramChannels(prev => prev.map(c => ({ ...c, unreadCount: 0 })));
+    const now = Date.now();
+    setTelegramChannels(prev => prev.map(c => ({ ...c, unreadCount: 0, lastOpened: now })));
     const channels = telegramChannelsRef.current;
-    await Promise.all(channels.map(c => storage.updateTelegramChannel(c.id, { unreadCount: 0 })));
+    await Promise.all(channels.map(c => storage.updateTelegramChannel(c.id, { unreadCount: 0, lastOpened: now })));
   }, []);
 
   const markTelegramChannelAsRead = useCallback(async (channelId: string) => {
+    const now = Date.now();
     setTelegramChannels(prev => prev.map(c => 
-      c.id === channelId ? { ...c, unreadCount: 0 } : c
+      c.id === channelId ? { ...c, unreadCount: 0, lastOpened: now } : c
     ));
-    await storage.updateTelegramChannel(channelId, { unreadCount: 0 });
+    await storage.updateTelegramChannel(channelId, { unreadCount: 0, lastOpened: now });
   }, []);
 
   const enforceRetention = useCallback(async () => {

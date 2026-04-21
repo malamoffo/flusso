@@ -4,8 +4,8 @@ import { Article, FullArticleContent, PodcastChapter } from '../types';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRss } from '../context/RssContext';
 import { useSettings } from '../context/SettingsContext';
-import { useAudioState, useAudioProgress } from '../context/AudioPlayerContext.tsx';
 import { useAudioStore } from '../store/audioStore';
+import { useShallow } from 'zustand/react/shallow';
 import DOMPurify from 'dompurify';
 import he from 'he';
 import { CachedImage } from './CachedImage';
@@ -33,8 +33,7 @@ const PodcastChapters = ({ article, isCurrentTrack }: { article: Article, isCurr
   const [chapters, setChapters] = useState<PodcastChapter[]>(article.chapters || []);
   const [loading, setLoading] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
-  const { seek } = useAudioState();
-  const { progress } = useAudioProgress();
+  const { seek, progress } = useAudioStore(useShallow(s => ({ seek: s.seek, progress: s.progress })));
 
   useEffect(() => {
     let extracted: PodcastChapter[] = [];
@@ -165,7 +164,14 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
   const { feeds, articles, toggleFavorite, toggleQueue, toggleRead, updateArticle } = useRss();
   const { settings } = useSettings();
   const feed = feeds.find(f => f.id === article.feedId);
-  const { play, currentTrack, isPlaying, isBuffering, toggle, seek } = useAudioState();
+  const { play, currentTrack, isPlaying, isBuffering, toggle, seek } = useAudioStore(useShallow(s => ({
+    play: s.play,
+    currentTrack: s.currentTrack,
+    isPlaying: s.isPlaying,
+    isBuffering: s.isBuffering,
+    toggle: s.toggle,
+    seek: s.seek
+  })));
   
   const isCurrentTrack = currentTrack?.id === article.id;
   const isLoadingAudio = isCurrentTrack && isBuffering;
@@ -746,7 +752,7 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
                         else play(article);
                       }}
                       className={cn(
-                        "w-16 h-16 bg-indigo-600 text-white rounded-full flex items-center justify-center shadow-[0_0_20px_rgba(79,70,229,0.4)] hover:bg-indigo-700 transition-all relative group",
+                        "w-16 h-16 bg-indigo-600 text-white rounded-full flex items-center justify-center shadow-[0_0_20px_rgba(79,70,229,0.4)] hover:bg-indigo-700 transition-all relative flex-shrink-0 group",
                         isLoadingAudio && "animate-pulse"
                       )}
                       aria-label={isPlaying && isCurrentTrack ? "Pause" : "Play"}
@@ -857,8 +863,11 @@ const ReaderProgressBar = React.memo(function ReaderProgressBar({ article, isCur
 });
 
 const LiveReaderProgressBar = ({ article }: { article: Article }) => {
-  const { progress, duration } = useAudioProgress();
-  const { seek } = useAudioState();
+  const { progress, duration, seek } = useAudioStore(useShallow(s => ({
+    progress: s.progress,
+    duration: s.duration,
+    seek: s.seek
+  })));
   
   const totalSeconds = duration > 0 ? duration : parseDurationToSeconds(article.duration);
   const currentSeconds = progress;
@@ -891,8 +900,11 @@ const LiveReaderProgressBar = ({ article }: { article: Article }) => {
  * ⚡ Bolt: Isolated seek buttons for the article reader.
  */
 function SeekButtonReader({ direction, article, isCurrentTrack }: { direction: 'forward' | 'backward', article: Article, isCurrentTrack: boolean }) {
-  const { seek } = useAudioState();
-  const { progress, duration } = useAudioProgress();
+  const { seek, progress, duration } = useAudioStore(useShallow(s => ({
+    seek: s.seek,
+    progress: s.progress,
+    duration: s.duration
+  })));
 
   const handleSeek = () => {
     if (!isCurrentTrack) return;

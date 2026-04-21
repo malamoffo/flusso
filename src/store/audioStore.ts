@@ -20,6 +20,9 @@ interface AudioState {
   audioElement: HTMLAudioElement | null;
   lastSavedProgress: number;
 
+  // Callbacks
+  updateArticleProgress: ((trackId: string, progress: number) => void) | null;
+
   // Actions
   initAudio: () => void;
   play: (track: Article) => void;
@@ -30,16 +33,12 @@ interface AudioState {
   setPlaybackRate: (rate: number) => void;
   playNext: () => void;
   playPrevious: () => void;
+  setUpdateArticleProgress: (fn: (trackId: string, progress: number) => void) => void;
 
   setCollections: (collections: { queue: Article[]; recentPodcasts: Article[]; favoritePodcasts: Article[] }) => void;
 
   // Private internally used by event listeners
   _handleEnded: () => void;
-}
-
-export let globalUpdateArticleProgress: ((trackId: string, progress: number) => void) | null = null;
-export function setGlobalUpdateArticleProgress(fn: (trackId: string, progress: number) => void) {
-  globalUpdateArticleProgress = fn;
 }
 
 export const useAudioStore = create<AudioState>()((set, get) => ({
@@ -56,7 +55,9 @@ export const useAudioStore = create<AudioState>()((set, get) => ({
 
   audioElement: null,
   lastSavedProgress: 0,
+  updateArticleProgress: null,
 
+  setUpdateArticleProgress: (fn) => set({ updateArticleProgress: fn }),
   setCollections: (collections) => set(collections),
 
   initAudio: () => {
@@ -128,15 +129,15 @@ export const useAudioStore = create<AudioState>()((set, get) => ({
   },
 
   pause: () => {
-    const { audioElement, currentTrack, progress, duration } = get();
+    const { audioElement, currentTrack, progress, duration, updateArticleProgress } = get();
     if (!audioElement) return;
 
     audioElement.pause();
     set({ isPlaying: false });
 
-    if (currentTrack && duration > 0 && globalUpdateArticleProgress) {
+    if (currentTrack && duration > 0 && updateArticleProgress) {
       const currentProgress = progress / duration;
-      globalUpdateArticleProgress(currentTrack.id, currentProgress);
+      updateArticleProgress(currentTrack.id, currentProgress);
       set({ lastSavedProgress: currentProgress });
     }
   },
@@ -148,26 +149,26 @@ export const useAudioStore = create<AudioState>()((set, get) => ({
   },
 
   seek: (time: number) => {
-    const { audioElement, currentTrack, duration } = get();
+    const { audioElement, currentTrack, duration, updateArticleProgress } = get();
     if (!audioElement) return;
     
     audioElement.currentTime = time;
     set({ progress: time });
 
-    if (currentTrack && duration > 0 && globalUpdateArticleProgress) {
+    if (currentTrack && duration > 0 && updateArticleProgress) {
       const currentProgress = time / duration;
-      globalUpdateArticleProgress(currentTrack.id, currentProgress);
+      updateArticleProgress(currentTrack.id, currentProgress);
       set({ lastSavedProgress: currentProgress });
     }
   },
 
   stop: () => {
-    const { audioElement, currentTrack, progress, duration } = get();
+    const { audioElement, currentTrack, progress, duration, updateArticleProgress } = get();
     if (!audioElement) return;
 
-    if (currentTrack && duration > 0 && globalUpdateArticleProgress) {
+    if (currentTrack && duration > 0 && updateArticleProgress) {
       const currentProgress = progress / duration;
-      globalUpdateArticleProgress(currentTrack.id, currentProgress);
+      updateArticleProgress(currentTrack.id, currentProgress);
     }
 
     audioElement.pause();
@@ -184,7 +185,7 @@ export const useAudioStore = create<AudioState>()((set, get) => ({
   },
 
   playNext: () => {
-    const { currentTrack, queue, recentPodcasts, play } = get();
+    const { currentTrack, queue, recentPodcasts, favoritePodcasts, play } = get();
     if (!currentTrack) return;
     
     let currentList = queue;
@@ -194,6 +195,11 @@ export const useAudioStore = create<AudioState>()((set, get) => ({
       currentList = recentPodcasts;
       currentIndex = currentList.findIndex(a => a.id === currentTrack.id);
     }
+
+    if (currentIndex === -1) {
+      currentList = favoritePodcasts;
+      currentIndex = currentList.findIndex(a => a.id === currentTrack.id);
+    }
     
     if (currentIndex !== -1 && currentIndex < currentList.length - 1) {
       play(currentList[currentIndex + 1]);
@@ -201,7 +207,7 @@ export const useAudioStore = create<AudioState>()((set, get) => ({
   },
 
   playPrevious: () => {
-    const { currentTrack, progress, queue, recentPodcasts, play, seek } = get();
+    const { currentTrack, progress, queue, recentPodcasts, favoritePodcasts, play, seek } = get();
     if (!currentTrack) return;
     
     if (progress > 5) {
@@ -216,6 +222,11 @@ export const useAudioStore = create<AudioState>()((set, get) => ({
       currentList = recentPodcasts;
       currentIndex = currentList.findIndex(a => a.id === currentTrack.id);
     }
+
+    if (currentIndex === -1) {
+      currentList = favoritePodcasts;
+      currentIndex = currentList.findIndex(a => a.id === currentTrack.id);
+    }
     
     if (currentIndex > 0) {
       play(currentList[currentIndex - 1]);
@@ -225,9 +236,9 @@ export const useAudioStore = create<AudioState>()((set, get) => ({
   },
 
   _handleEnded: () => {
-    const { currentTrack, playNext } = get();
-    if (currentTrack && globalUpdateArticleProgress) {
-      globalUpdateArticleProgress(currentTrack.id, 0);
+    const { currentTrack, playNext, updateArticleProgress } = get();
+    if (currentTrack && updateArticleProgress) {
+      updateArticleProgress(currentTrack.id, 0);
     }
     playNext();
   }

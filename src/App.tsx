@@ -3,7 +3,6 @@ import { useRss } from './context/RssContext';
 import { useTelegram } from './context/TelegramContext';
 import { useSettings } from './context/SettingsContext';
 import { useReddit } from './context/RedditContext';
-import { useAudioState } from './context/AudioPlayerContext.tsx';
 import { useAudioStore } from './store/audioStore';
 import { useFeedFiltering } from './hooks/useFeedFiltering';
 import { usePagination } from './hooks/usePagination';

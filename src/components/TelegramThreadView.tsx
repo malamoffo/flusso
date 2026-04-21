@@ -132,24 +132,32 @@ export const TelegramThreadView = memo(({ channel, messages, onClose, onRefresh,
             </button>
           </div>
         ) : (
-          messages?.map(message => (
-            <div key={`${message.channelId}-${message.id}`} className="mb-4 p-4 bg-black rounded-2xl border-2 border-green-500/80 shadow-md">
-              <div 
-                className="text-gray-300 whitespace-pre-wrap break-words telegram-message-text"
-                dangerouslySetInnerHTML={{ __html: message.text }}
-              />
-              {message.imageUrl && (
-                <img 
-                  src={message.imageUrl} 
-                  alt="" 
-                  className="mt-2 rounded-lg max-h-96 w-full object-cover" 
-                  referrerPolicy="no-referrer"
+          messages?.map(message => {
+            const isNew = message.date > (channel.lastOpened || 0);
+            return (
+              <div key={`${message.channelId}-${message.id}`} className={`mb-4 p-4 bg-black rounded-2xl border-2 shadow-md relative ${isNew ? 'border-green-500/80' : 'border-gray-800'}`}>
+                {isNew && (
+                  <div className="absolute -top-3 right-4 bg-green-500 text-white text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full shadow-[0_0_10px_rgba(34,197,94,0.6)] z-10 border border-green-400">
+                    Nuovo
+                  </div>
+                )}
+                <div 
+                  className="text-gray-300 whitespace-pre-wrap break-words telegram-message-text"
+                  dangerouslySetInnerHTML={{ __html: message.text }}
                 />
-              )}
-              <p className="text-xs text-gray-500 mt-2">{format(message.date, 'HH:mm dd/MM/yy')}</p>
-              <div className="mt-4 w-[90%] h-[1.5px] mx-auto bg-gradient-to-r from-transparent via-green-500 to-transparent opacity-60 shadow-[0_0_10px_rgba(34,197,94,0.5)]" />
-            </div>
-          ))
+                {message.imageUrl && (
+                  <img 
+                    src={message.imageUrl} 
+                    alt="" 
+                    className="mt-2 rounded-lg max-h-96 w-full object-cover" 
+                    referrerPolicy="no-referrer"
+                  />
+                )}
+                <p className="text-xs text-gray-500 mt-2">{format(message.date, 'HH:mm dd/MM/yy')}</p>
+                <div className={`mt-4 w-[90%] h-[1.5px] mx-auto bg-gradient-to-r from-transparent to-transparent opacity-60 ${isNew ? 'via-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]' : 'via-gray-800'}`} />
+              </div>
+            );
+          })
         )}
       </div>
     </motion.div>

@@ -15,6 +15,7 @@ export interface Settings {
   telegramRetentionDays: number;
   articleRetentionDays: number;
   podcastRetentionDays: number;
+  playbackRate?: number;
 }
 
 export interface Feed {

@@ -8,8 +8,8 @@ import { useInView } from 'react-intersection-observer';
 import { contentFetcher } from '../utils/contentFetcher';
 import { CachedImage } from './CachedImage';
 import { cn, getSafeUrl, formatTime, parseDurationToSeconds } from '../lib/utils';
-import { useAudioState, useAudioProgress } from '../context/AudioPlayerContext.tsx';
 import { useAudioStore } from '../store/audioStore';
+import { useShallow } from 'zustand/react/shallow';
 
 // VERY IMPORTANT: Persist swipe state outside component
 const swipeState: Record<string, number> = {};
@@ -32,6 +32,49 @@ interface SwipeableArticleItemProps {
   style?: React.CSSProperties;
   disableGestures?: boolean;
 }
+
+const ScrollingFeedName = React.memo(function ScrollingFeedName({ 
+  feedName, 
+  readableFeedThemeColor 
+}: { 
+  feedName: string; 
+  readableFeedThemeColor: string | null;
+}) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const textRef = useRef<HTMLSpanElement>(null);
+  const [shouldScroll, setShouldScroll] = useState(false);
+
+  useEffect(() => {
+    if (containerRef.current && textRef.current) {
+      const isOverflowing = textRef.current.scrollWidth > containerRef.current.clientWidth;
+      setShouldScroll(isOverflowing);
+    }
+  }, [feedName]);
+
+  return (
+    <div className="flex-1 overflow-hidden whitespace-nowrap min-w-0 relative" ref={containerRef}>
+      <motion.div
+        className="inline-block"
+        animate={shouldScroll ? { x: ["0%", "-50%"] } : { x: 0 }}
+        transition={shouldScroll ? {
+          repeat: Infinity,
+          duration: 8,
+          repeatType: "loop",
+          ease: "linear",
+          repeatDelay: 1
+        } : {}}
+      >
+        <span
+          ref={textRef}
+          className={cn("text-[10px] font-bold uppercase tracking-wider inline-block", readableFeedThemeColor ? '' : 'text-blue-500')}
+          style={{ color: readableFeedThemeColor || undefined }}
+        >
+          {feedName} {shouldScroll && <>&nbsp;&nbsp;&nbsp; {feedName}</>}
+        </span>
+      </motion.div>
+    </div>
+  );
+});
 
 export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
   article,
@@ -363,23 +406,7 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
                   ) : (
                     <FileText className="w-3 h-3 text-gray-400 flex-shrink-0" />
                   )}
-                  <div className="flex-1 overflow-hidden whitespace-nowrap min-w-0">
-                    <motion.span 
-                      className={cn("text-[10px] font-bold uppercase tracking-wider inline-block", readableFeedThemeColor ? '' : 'text-blue-500')}
-                      style={{ color: readableFeedThemeColor || undefined }}
-                      initial={{ x: 0 }}
-                      animate={{ x: ["0%", "-50%"] }}
-                      transition={{ 
-                        repeat: Infinity, 
-                        duration: 8, 
-                        repeatType: "loop", 
-                        ease: "linear",
-                        repeatDelay: 1 
-                      }}
-                    >
-                      {feedName} &nbsp;&nbsp;&nbsp; {feedName}
-                    </motion.span>
-                  </div>
+                  <ScrollingFeedName feedName={feedName} readableFeedThemeColor={readableFeedThemeColor} />
                 </div>
               </div>
               <div className="flex items-center gap-1.5 flex-shrink-0 ml-2">
@@ -455,7 +482,10 @@ const PodcastProgressBar = React.memo(({ article, isCurrentTrack }: { article: A
 });
 
 const LivePodcastProgressBar = ({ article }: { article: Article }) => {
-  const { progress: liveProgress, duration: liveDuration } = useAudioProgress();
+  const { progress: liveProgress, duration: liveDuration } = useAudioStore(useShallow(s => ({
+    progress: s.progress,
+    duration: s.duration
+  })));
   
   const totalSeconds = liveDuration > 0 ? liveDuration : parseDurationToSeconds(article.duration);
   const currentSeconds = liveProgress;

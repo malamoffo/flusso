@@ -1,16 +1,20 @@
 import React, { useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Play, Pause, X, RotateCcw, RotateCw, RefreshCw } from 'lucide-react';
-import { useAudioState, useAudioProgress } from '../context/AudioPlayerContext.tsx';
 import { useAudioStore } from '../store/audioStore';
+import { useShallow } from 'zustand/react/shallow';
 import { Article } from '../types';
 import { cn, formatTime } from '../lib/utils';
 import { CachedImage } from './CachedImage';
-import { RenderCounter } from './RenderCounter';
 
 export const PersistentPlayer = React.memo(function PersistentPlayer({ onNavigate }: { onNavigate?: (article: Article) => void }) {
-  const { currentTrack, isPlaying, isBuffering, toggle, seek, stop } = useAudioState();
-  const { progress, duration } = useAudioProgress();
+  const { currentTrack, isPlaying, isBuffering, toggle, stop } = useAudioStore(useShallow(s => ({
+    currentTrack: s.currentTrack,
+    isPlaying: s.isPlaying,
+    isBuffering: s.isBuffering,
+    toggle: s.toggle,
+    stop: s.stop,
+  })));
 
   if (!currentTrack) return null;
 
@@ -53,16 +57,16 @@ export const PersistentPlayer = React.memo(function PersistentPlayer({ onNavigat
               whileTap={{ scale: 0.9 }}
               onClick={(e) => { e.stopPropagation(); toggle(); }}
               className={cn(
-                "p-1.5 bg-indigo-600 text-white rounded-full shadow-sm hover:bg-indigo-700 transition-colors relative",
+                "w-10 h-10 flex items-center justify-center bg-indigo-600 text-white rounded-full shadow-sm hover:bg-indigo-700 transition-colors relative flex-shrink-0",
                 isLoadingAudio && "animate-pulse"
               )}
             >
               {isLoadingAudio ? (
-                <RefreshCw className="w-4 h-4 animate-spin" />
+                <RefreshCw className="w-5 h-5 animate-spin" />
               ) : isPlaying ? (
-                <Pause className="w-4 h-4 fill-current" />
+                <Pause className="w-5 h-5 fill-current" />
               ) : (
-                <Play className="w-4 h-4 fill-current ml-0.5" />
+                <Play className="w-5 h-5 fill-current ml-1" />
               )}
             </motion.button>
             
@@ -85,7 +89,7 @@ export const PersistentPlayer = React.memo(function PersistentPlayer({ onNavigat
  * ⚡ Bolt: Isolated title component to show current chapter.
  */
 const PlayerTitle = React.memo(function PlayerTitle({ track }: { track: Article }) {
-  const { progress } = useAudioProgress();
+  const progress = useAudioStore(s => s.progress);
   const containerRef = React.useRef<HTMLDivElement>(null);
   const textRef = React.useRef<HTMLHeadingElement>(null);
   const [scrollDistance, setScrollDistance] = React.useState(0);
@@ -142,7 +146,7 @@ const PlayerTitle = React.memo(function PlayerTitle({ track }: { track: Article 
  * ⚡ Bolt: Isolated progress bar to prevent the whole player from re-rendering every second.
  */
 const PlayerProgressBar = React.memo(function PlayerProgressBar() {
-  const { progress, duration } = useAudioProgress();
+  const { progress, duration } = useAudioStore(useShallow(s => ({ progress: s.progress, duration: s.duration })));
   const progressPercent = (progress / duration) * 100 || 0;
 
   return (
@@ -163,8 +167,11 @@ const PlayerProgressBar = React.memo(function PlayerProgressBar() {
  * ⚡ Bolt: Isolated seek buttons to prevent unnecessary re-renders.
  */
 function SeekButton({ direction }: { direction: 'forward' | 'backward' }) {
-  const { seek } = useAudioState();
-  const { progress, duration } = useAudioProgress();
+  const { seek, progress, duration } = useAudioStore(useShallow(s => ({
+    seek: s.seek,
+    progress: s.progress,
+    duration: s.duration
+  })));
 
   const handleSeek = (e: React.MouseEvent) => {
     e.stopPropagation();

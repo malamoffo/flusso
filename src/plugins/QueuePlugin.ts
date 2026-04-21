@@ -39,7 +39,7 @@ export interface QueuePluginPlugin {
 
   addListener(
     eventName: 'actionRequest',
-    listenerFunc: (data: { action: 'play' | 'pause' | 'stop' | 'next' | 'previous' }) => void,
+    listenerFunc: (data: { action: 'play' | 'pause' | 'stop' | 'next' | 'previous' | 'seek', position?: number }) => void,
   ): Promise<{ remove: () => Promise<void> }>;
 
   addListener(

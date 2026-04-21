@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useMemo, useRef, useCallback } from 'react';
+import React, { useEffect, useMemo, useRef, useCallback } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { Article } from '../types';
 import { useRss } from './RssContext';
@@ -7,9 +7,7 @@ import { MediaSession } from '@capgo/capacitor-media-session';
 import { QueuePlugin } from '../plugins/QueuePlugin';
 import { imagePersistence } from '../utils/imagePersistence';
 import { parseDurationToSeconds } from '../lib/utils';
-import { useAudioStore, setGlobalUpdateArticleProgress } from '../store/audioStore';
-
-const AudioPlayerProgressContext = createContext<{ progress: number; duration: number } | undefined>(undefined);
+import { useAudioStore } from '../store/audioStore';
 
 // ─── costanti throttling ───────────────────────────────────────────────────────
 const POSITION_SYNC_INTERVAL_MS = 3000;   // posizione → max 1 volta / 3s
@@ -20,7 +18,7 @@ function AudioBridge() {
 
   // ─── init store ──────────────────────────────────────────────────────────────
   useEffect(() => {
-    setGlobalUpdateArticleProgress((trackId, progress) => {
+    useAudioStore.getState().setUpdateArticleProgress((trackId, progress) => {
       updateArticle(trackId, { progress });
     });
   }, [updateArticle]);
@@ -95,6 +93,11 @@ function AudioBridge() {
           case 'next':     s.playNext();     break;
           case 'previous': s.playPrevious(); break;
           case 'stop':     s.stop();         break;
+          case 'seek':     
+            if (typeof data.position === 'number' && Number.isFinite(data.position)) {
+              s.seek(data.position);
+            }
+            break;
         }
       });
 
@@ -278,45 +281,10 @@ function AudioBridge() {
 }
 
 export function AudioPlayerProvider({ children }: { children: React.ReactNode }) {
-  const progress = useAudioStore((state) => state.progress);
-  const duration = useAudioStore((state) => state.duration);
-  const progressValue = useMemo(() => ({ progress, duration }), [progress, duration]);
-
   return (
-    <AudioPlayerProgressContext.Provider value={progressValue}>
+    <>
       <AudioBridge />
       {children}
-    </AudioPlayerProgressContext.Provider>
+    </>
   );
-}
-
-export function useAudioState() {
-  return useAudioStore(
-    useShallow((state) => ({
-      currentTrack:  state.currentTrack,
-      isPlaying:     state.isPlaying,
-      isBuffering:   state.isBuffering,
-      play:          state.play,
-      pause:         state.pause,
-      toggle:        state.toggle,
-      seek:          state.seek,
-      stop:          state.stop,
-      playNext:      state.playNext,
-      playPrevious:  state.playPrevious,
-    }))
-  );
-}
-
-export function useAudioProgress() {
-  const context = useContext(AudioPlayerProgressContext);
-  if (context === undefined) {
-    throw new Error('useAudioProgress must be used within an AudioPlayerProvider');
-  }
-  return context;
-}
-
-export function useAudioPlayer() {
-  const state = useAudioState();
-  const progress = useAudioProgress();
-  return { ...state, ...progress };
 }

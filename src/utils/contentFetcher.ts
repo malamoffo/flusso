@@ -103,7 +103,39 @@ class ContentFetcherQueue {
       doc.head.appendChild(base);
 
       const reader = new Readability(doc);
-      const articleData = reader.parse();
+      let articleData = reader.parse();
+
+      // Check for "read more" link and fetch full content if detected
+      if (articleData && articleData.content) {
+        const findFullArticleLink = (doc: Document): string | null => {
+          const links = Array.from(doc.querySelectorAll('a'));
+          const patterns = [/leggi tutto/i, /read more/i, /continua a leggere/i, /full article/i];
+          // Look at the last few links in the document
+          for (let i = links.length - 1; i >= Math.max(0, links.length - 5); i--) {
+            const link = links[i];
+            if (patterns.some(p => p.test(link.textContent || ''))) {
+              return link.getAttribute('href');
+            }
+          }
+          return null;
+        };
+
+        const fullArticleUrl = findFullArticleLink(doc);
+        if (fullArticleUrl) {
+          try {
+            const resolvedUrl = new URL(fullArticleUrl, url).toString();
+            const fullResData = isNative ? (await CapacitorHttp.get({ url: resolvedUrl })).data : (await fetchWithProxy(resolvedUrl, false)).data;
+            const fullDoc = new DOMParser().parseFromString(fullResData, 'text/html');
+            const fullReader = new Readability(fullDoc);
+            const fullArticleData = fullReader.parse();
+            if (fullArticleData && fullArticleData.content) {
+              articleData = fullArticleData;
+            }
+          } catch (e) {
+            console.warn(`[PREFETCH] Failed to fetch full article link: ${fullArticleUrl}`, e);
+          }
+        }
+      }
 
       if (articleData && articleData.content && articleData.content.length > 200) {
         const fullContent: FullArticleContent = {
