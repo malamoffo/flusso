@@ -6,7 +6,7 @@ import { useReddit } from '../context/RedditContext';
 import { useTelegram } from '../context/TelegramContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../lib/utils';
-import { SwipeAction, Theme, FontSize } from '../types';
+import { SwipeAction, Theme, FontSize, Article } from '../types';
 import { AddFeedModal } from './AddFeedModal';
 import { PodcastSearchModal } from './PodcastSearchModal';
 import { PodcastDetailsModal } from './PodcastDetailsModal';
@@ -22,11 +22,13 @@ import { APP_VERSION, APP_BUILD, updateSW } from '../main';
 export const SettingsModal = React.memo(function SettingsModal({
   isOpen,
   onClose,
-  initialTab
+  initialTab,
+  onSelectArticle
 }: {
   isOpen: boolean;
   onClose: () => void;
   initialTab?: 'main' | 'general' | 'subscriptions' | 'retention' | 'about';
+  onSelectArticle: (article: Article) => void;
 }) {
   const { feeds, removeFeed, updateFeed, progress, updateInfo, checkUpdates, exportFeeds, importOpml, errorLogs, clearErrorLogs } = useRss();
   const { telegramChannels, removeTelegramChannel } = useTelegram();
@@ -1059,6 +1061,10 @@ export const SettingsModal = React.memo(function SettingsModal({
             isOpen={!!selectedPodcastForDetails}
             onClose={() => setSelectedPodcastForDetails(null)}
             podcast={selectedPodcastFeed}
+                        onArticleClick={(article) => {
+              onSelectArticle(article);
+              onClose();
+            }}
             onRemove={(id) => {
               removeFeed(id);
               setSelectedPodcastForDetails(null);

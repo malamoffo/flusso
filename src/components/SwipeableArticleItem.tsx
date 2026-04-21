@@ -43,11 +43,27 @@ const ScrollingFeedName = React.memo(function ScrollingFeedName({
   const containerRef = useRef<HTMLDivElement>(null);
   const textRef = useRef<HTMLSpanElement>(null);
   const [shouldScroll, setShouldScroll] = useState(false);
+  const [textWidth, setTextWidth] = useState(0);
+
+  const checkOverflow = () => {
+    if (containerRef.current && textRef.current) {
+      // Small buffer of 4px to avoid micro-scrolling
+      const isOverflowing = textRef.current.scrollWidth > containerRef.current.clientWidth + 4;
+      setShouldScroll(isOverflowing);
+      setTextWidth(textRef.current.scrollWidth);
+    }
+  };
 
   useEffect(() => {
-    if (containerRef.current && textRef.current) {
-      const isOverflowing = textRef.current.scrollWidth > containerRef.current.clientWidth;
-      setShouldScroll(isOverflowing);
+    checkOverflow();
+    
+    // Add ResizeObserver to handle container size changes
+    if (containerRef.current) {
+      const observer = new ResizeObserver(() => {
+        checkOverflow();
+      });
+      observer.observe(containerRef.current);
+      return () => observer.disconnect();
     }
   }, [feedName]);
 
@@ -58,7 +74,7 @@ const ScrollingFeedName = React.memo(function ScrollingFeedName({
         animate={shouldScroll ? { x: ["0%", "-50%"] } : { x: 0 }}
         transition={shouldScroll ? {
           repeat: Infinity,
-          duration: 8,
+          duration: Math.max(5, (textWidth * 2) / 25), // Proportional duration for consistent speed
           repeatType: "loop",
           ease: "linear",
           repeatDelay: 1
@@ -69,7 +85,7 @@ const ScrollingFeedName = React.memo(function ScrollingFeedName({
           className={cn("text-[10px] font-bold uppercase tracking-wider inline-block", readableFeedThemeColor ? '' : 'text-blue-500')}
           style={{ color: readableFeedThemeColor || undefined }}
         >
-          {feedName} {shouldScroll && <>&nbsp;&nbsp;&nbsp; {feedName}</>}
+          {feedName}{shouldScroll ? <>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{feedName}</> : ''}
         </span>
       </motion.div>
     </div>

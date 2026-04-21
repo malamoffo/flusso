@@ -1156,6 +1156,7 @@ export default function App() {
           setSearchQuery('');
           setIsSearchOpen(false);
         }} 
+        onSelectArticle={setSelectedArticle}
       />
 
       <AnimatePresence>
