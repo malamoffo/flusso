@@ -157,31 +157,6 @@ const PodcastChapters = ({ article, isCurrentTrack }: { article: Article, isCurr
   );
 };
 
-const PlaybackRateButton = () => {
-  const playbackRate = useAudioStore(state => state.playbackRate);
-  const setPlaybackRate = useAudioStore(state => state.setPlaybackRate);
-
-  const rates = [1, 1.25, 1.5, 2];
-  const currentIndex = rates.indexOf(playbackRate);
-  
-  const handleToggle = () => {
-    let nextIndex = currentIndex + 1;
-    if (nextIndex >= rates.length) nextIndex = 0;
-    setPlaybackRate(rates[nextIndex]);
-  };
-
-  return (
-    <motion.button
-      whileTap={{ scale: 0.9 }}
-      onClick={handleToggle}
-      className="flex items-center justify-center p-2 rounded-full text-indigo-400 hover:bg-white/10 transition-colors w-10 h-10"
-      aria-label="Change playback speed"
-    >
-      <span className="text-xs font-bold tracking-tighter">{playbackRate}x</span>
-    </motion.button>
-  );
-};
-
 export const ArticleReader = React.memo(function ArticleReader({ article, onClose, onNext, onPrev, onSelectArticle, hasNext, hasPrev }: ArticleReaderProps) {
   const [fullContent, setFullContent] = useState<FullArticleContent | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -746,9 +721,7 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
                   <ReaderProgressBar article={article} isCurrentTrack={isCurrentTrack} />
 
                   {/* Controls */}
-                  <div className="flex items-center justify-between gap-1 w-full max-w-[320px] mx-auto">
-                    <PlaybackRateButton />
-                    
+                  <div className="flex items-center justify-center gap-4 w-full max-w-[320px] mx-auto">
                     <motion.button
                       whileTap={{ scale: 0.9 }}
                       disabled={!prevInQueue}

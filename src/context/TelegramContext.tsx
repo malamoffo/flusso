@@ -336,6 +336,38 @@ export const TelegramProvider: React.FC<{ children: ReactNode }> = ({ children }
     }
   }, []);
 
+  // Independent triggers for Telegram (startup, 5min period, resume)
+  useEffect(() => {
+    const loadRefresh = async () => {
+      const loadedChannels = await storage.getTelegramChannels();
+      if (loadedChannels.length > 0) {
+        console.log('[Telegram] Startup refresh...');
+        refreshTelegramChannels(loadedChannels);
+      }
+    };
+    loadRefresh();
+  }, [refreshTelegramChannels]);
+
+  useEffect(() => {
+    const TELEGRAM_REFRESH_INTERVAL = 5 * 60 * 1000;
+    const interval = setInterval(() => {
+      if (telegramChannelsRef.current.length > 0) {
+        console.log('[Telegram] Periodic 5min refresh...');
+        refreshTelegramChannels();
+      }
+    }, TELEGRAM_REFRESH_INTERVAL);
+    return () => clearInterval(interval);
+  }, [refreshTelegramChannels]);
+
+  useEffect(() => {
+    const handleResume = () => {
+      console.log('[Telegram] App resumed refresh...');
+      refreshTelegramChannels();
+    };
+    window.addEventListener('app-resume', handleResume);
+    return () => window.removeEventListener('app-resume', handleResume);
+  }, [refreshTelegramChannels]);
+
   return (
     <TelegramContext.Provider value={{
       telegramChannels, telegramMessages,

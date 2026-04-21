@@ -363,12 +363,23 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
                   ) : (
                     <FileText className="w-3 h-3 text-gray-400 flex-shrink-0" />
                   )}
-                  <span 
-                    className={`text-[10px] font-bold uppercase tracking-wider truncate ${readableFeedThemeColor ? '' : 'text-blue-500'}`}
-                    style={{ color: readableFeedThemeColor || undefined }}
-                  >
-                    {feedName}
-                  </span>
+                  <div className="flex-1 overflow-hidden whitespace-nowrap min-w-0">
+                    <motion.span 
+                      className={cn("text-[10px] font-bold uppercase tracking-wider inline-block", readableFeedThemeColor ? '' : 'text-blue-500')}
+                      style={{ color: readableFeedThemeColor || undefined }}
+                      initial={{ x: 0 }}
+                      animate={{ x: ["0%", "-50%"] }}
+                      transition={{ 
+                        repeat: Infinity, 
+                        duration: 8, 
+                        repeatType: "loop", 
+                        ease: "linear",
+                        repeatDelay: 1 
+                      }}
+                    >
+                      {feedName} &nbsp;&nbsp;&nbsp; {feedName}
+                    </motion.span>
+                  </div>
                 </div>
               </div>
               <div className="flex items-center gap-1.5 flex-shrink-0 ml-2">

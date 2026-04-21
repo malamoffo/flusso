@@ -40,7 +40,7 @@ function AudioBridge() {
       if (a.type !== 'podcast') continue;
       if (a.isQueued || a.isFavorite) q.push(a);
       if (r.length < 20) r.push(a);
-      if (a.isFavorite && a.mediaUrl) f.push(a);
+      if (a.isFavorite) f.push(a);
     }
 
     return { queue: q, recentPodcasts: r, favoritePodcasts: f };

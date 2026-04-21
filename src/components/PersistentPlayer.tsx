@@ -18,7 +18,6 @@ export const PersistentPlayer = React.memo(function PersistentPlayer({ onNavigat
 
   return (
     <AnimatePresence>
-      <RenderCounter name="PersistentPlayer" />
       <motion.div
         initial={{ y: 100, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}

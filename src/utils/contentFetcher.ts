@@ -41,7 +41,8 @@ class ContentFetcherQueue {
         await this.fetchWithRetry(item.id, item.url);
       }
     } catch (error) {
-      console.error(`[PREFETCH] Failed to prefetch ${item.url}:`, error);
+      // Use warn for prefetch issues as they are non-critical optimizations
+      console.warn(`[PREFETCH] Failed to prefetch ${item.url}. It will be fetched on demand.`, error);
     } finally {
       this.activeCount--;
       this.processQueue();

@@ -15,7 +15,6 @@ import { ArticleReader } from './components/ArticleReader';
 import { SettingsModal } from './components/SettingsModal';
 import { storage } from './services/storage';
 import { PersistentPlayer } from './components/PersistentPlayer';
-import { HeaderWidgets } from './components/HeaderWidgets';
 import { RedditListView } from './components/RedditListView';
 import { RedditPostReader } from './components/RedditPostReader';
 import { TelegramListView } from './components/TelegramListView';
@@ -24,7 +23,7 @@ import { TelegramChannel, TelegramMessage } from './types';
 import { ImageViewer } from './components/ImageViewer';
 import { ErrorNotification } from './components/ErrorNotification';
 import { motion, AnimatePresence, useMotionValue, useTransform, animate } from 'framer-motion';
-import { Loader2, Search, X, Check, Rss, Settings, Star, CheckCircle2, RefreshCw, Layers, Headphones, FileText, Inbox, MessageSquare, ChevronDown, Flame } from 'lucide-react';
+import { Loader2, Search, X, Check, Rss, Settings, Star, CheckCircle2, RefreshCw, Layers, Headphones, FileText, Inbox, MessageSquare, ChevronDown, Flame, Sparkles } from 'lucide-react';
 import { useInView } from 'react-intersection-observer';
 import { cn } from './lib/utils';
 import { Article, Feed } from './types';
@@ -655,7 +654,16 @@ export default function App() {
             </div>
           </motion.button>
           <div className="flex items-center gap-2">
-            <HeaderWidgets />
+            <button 
+              onClick={() => setIsSettingsOpen(true)}
+              className={cn(
+                "p-2 rounded-full transition-colors text-gray-600 dark:text-gray-300",
+                filter === 'reddit' ? "hover:bg-purple-50 dark:hover:bg-purple-900/30" : "hover:bg-blue-50 dark:hover:bg-blue-900/30"
+              )}
+              aria-label="Settings"
+            >
+              <Settings className="w-5 h-5" aria-hidden="true" />
+            </button>
             <button 
               onClick={() => setIsSearchOpen(true)}
               className={cn(
@@ -994,14 +1002,12 @@ export default function App() {
         </motion.button>
         <motion.button
           whileTap={{ scale: 0.9 }}
-          onClick={() => {
-            setSettingsTab(undefined);
-            setIsSettingsOpen(true);
-          }}
-          className="text-gray-500"
-          aria-label="Settings"
+          onClick={() => {}}
+          className="text-gray-500 opacity-50 cursor-not-allowed group relative"
+          aria-label="AI Features (Coming Soon)"
         >
-          <Settings className="w-6 h-6" aria-hidden="true" />
+          <Sparkles className="w-6 h-6 transition-transform group-hover:scale-110" aria-hidden="true" />
+          <span className="absolute -bottom-4 left-1/2 -translate-x-1/2 text-[10px] font-bold opacity-0 group-hover:opacity-100 transition-opacity">AI</span>
         </motion.button>
       </div>
 

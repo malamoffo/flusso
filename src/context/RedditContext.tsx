@@ -331,6 +331,38 @@ export const RedditProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     redditOffset.current = loadedRedditPosts.length;
   }, []);
 
+  // Independent triggers for Reddit (startup, 5min period, resume)
+  useEffect(() => {
+    const loadRefresh = async () => {
+      const loadedSubreddits = await storage.getSubreddits();
+      if (loadedSubreddits.length > 0) {
+        console.log('[Reddit] Startup refresh...');
+        refreshReddit(loadedSubreddits);
+      }
+    };
+    loadRefresh();
+  }, [refreshReddit]);
+
+  useEffect(() => {
+    const REDDIT_REFRESH_INTERVAL = 5 * 60 * 1000;
+    const interval = setInterval(() => {
+      if (subredditsRef.current.length > 0) {
+        console.log('[Reddit] Periodic 5min refresh...');
+        refreshReddit();
+      }
+    }, REDDIT_REFRESH_INTERVAL);
+    return () => clearInterval(interval);
+  }, [refreshReddit]);
+
+  useEffect(() => {
+    const handleResume = () => {
+      console.log('[Reddit] App resumed refresh...');
+      refreshReddit();
+    };
+    window.addEventListener('app-resume', handleResume);
+    return () => window.removeEventListener('app-resume', handleResume);
+  }, [refreshReddit]);
+
   return (
     <RedditContext.Provider value={{
       subreddits, redditPosts, redditSort, isLoading,

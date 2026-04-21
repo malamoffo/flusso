@@ -288,11 +288,10 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const interval = setInterval(() => {
       console.log('[RSS] Auto-refreshing feeds (web)...');
       refreshFeeds();
-      refreshReddit();
     }, settings.refreshInterval * 60 * 1000);
     
     return () => clearInterval(interval);
-  }, [settings.autoCheckUpdates, settings.refreshInterval, refreshFeeds, refreshReddit]);
+  }, [settings.autoCheckUpdates, settings.refreshInterval, refreshFeeds]);
 
   // Listen for app-resume to trigger refresh if needed
   useEffect(() => {
@@ -307,7 +306,6 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         if (elapsedMinutes >= settings.refreshInterval) {
           console.log(`[Flusso] Resume refresh triggered (Last: ${Math.round(elapsedMinutes)}m ago)`);
           refreshFeeds();
-          refreshReddit();
         }
       }
       
@@ -317,7 +315,7 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     window.addEventListener('app-resume', handleResume);
     return () => window.removeEventListener('app-resume', handleResume);
-  }, [settings.autoCheckUpdates, settings.refreshInterval, refreshFeeds, refreshReddit, checkUpdates]);
+  }, [settings.autoCheckUpdates, settings.refreshInterval, refreshFeeds, checkUpdates]);
 
   const addFeedOrSubreddit = useCallback(async (url: string): Promise<'article' | 'podcast' | 'reddit' | 'subreddit' | 'telegram' | void> => {
     try {
