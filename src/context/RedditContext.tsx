@@ -14,6 +14,7 @@ interface RedditContextType {
   handleRedditSortChange: (sort: 'new' | 'hot' | 'top') => Promise<void>;
   toggleRedditRead: (id: string) => void;
   markRedditAsRead: (id: string) => void;
+  markRedditPostsAsRead: (ids: string[]) => void;
   toggleRedditFavorite: (id: string) => void;
   updateRedditPost: (id: string, updates: Partial<RedditPost>) => void;
   removeSubreddit: (id: string) => void;
@@ -267,6 +268,24 @@ export const RedditProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     });
   }, []);
 
+  const markRedditPostsAsRead = useCallback((ids: string[]) => {
+    const idSet = new Set(ids);
+    let changed = false;
+    setRedditPosts(prev => {
+      const next = prev.map(p => {
+        if (idSet.has(p.id) && !p.isRead) {
+          changed = true;
+          return { ...p, isRead: true };
+        }
+        return p;
+      });
+      if (changed) {
+        storage.saveRedditPosts(next);
+      }
+      return next;
+    });
+  }, []);
+
   const toggleRedditFavorite = useCallback((id: string) => {
     setRedditPosts(prev => {
       const next = prev.map(p => p.id === id ? { ...p, isFavorite: !p.isFavorite } : p);
@@ -356,7 +375,7 @@ export const RedditProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       subreddits, redditPosts, redditSort, isLoading,
       refreshReddit, loadMoreReddit, handleRedditSortChange,
       toggleRedditRead, markRedditAsRead, toggleRedditFavorite, updateRedditPost,
-      removeSubreddit, addSubreddit, markAllRedditAsRead, prefetchRedditComments, getCachedComments, redditUnreadCount,
+      removeSubreddit, addSubreddit, markAllRedditAsRead, markRedditPostsAsRead, prefetchRedditComments, getCachedComments, redditUnreadCount,
       enforceRetention
     }}>
       {children}

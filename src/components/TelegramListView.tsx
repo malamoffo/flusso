@@ -60,8 +60,7 @@ export const TelegramListView = memo(({ isActive, channels, onChannelClick, filt
               key={channel.id}
               onClick={() => onChannelClick(channel)}
               className={cn(
-                "p-4 rounded-2xl border-2 shadow-md flex items-center gap-4 cursor-pointer hover:bg-gray-900 bg-black transition-all active:scale-[0.98]",
-                (channel.unreadCount || 0) > 0 ? "border-green-500/80" : "border-gray-800"
+                "relative p-4 rounded-2xl border-2 border-green-500/80 shadow-md flex items-center gap-4 cursor-pointer hover:bg-gray-900 bg-black transition-all active:scale-[0.98]"
               )}
             >
               {channel.imageUrl ? (
@@ -88,12 +87,7 @@ export const TelegramListView = memo(({ isActive, channels, onChannelClick, filt
                 <p className="text-sm text-gray-400 truncate">@{channel.username}</p>
               </div>
               {(channel.unreadCount || 0) > 0 && (
-                <div className="flex flex-col items-end gap-1">
-                  <div className="w-3 h-3 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]" />
-                  <span className="text-[10px] bg-green-500 text-black font-bold px-1.5 py-0.5 rounded-full">
-                    {channel.unreadCount}
-                  </span>
-                </div>
+                <div className="w-3 h-3 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]" />
               )}
             </div>
           ))}

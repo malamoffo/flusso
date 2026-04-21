@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { TelegramChannel, TelegramMessage } from '../types';
 import { ArrowLeft, RefreshCw, MessageSquare } from 'lucide-react';
 import { format } from 'date-fns';
+import { cn } from '../lib/utils';
 
 interface TelegramThreadViewProps {
   channel: TelegramChannel;
@@ -135,11 +136,13 @@ export const TelegramThreadView = memo(({ channel, messages, onClose, onRefresh,
           Array.from(new Map(messages?.map(m => [m.id, m])).values()).map(message => {
             const isNew = message.date > (channel.lastOpened || 0);
             return (
-              <div key={`${message.channelId}-${message.id}`} className={`mb-4 p-4 bg-black rounded-2xl border-2 shadow-md relative ${isNew ? 'border-green-500/80' : 'border-gray-800'}`}>
+              <div key={`${message.channelId}-${message.id}`} className={cn(
+                "mb-4 p-4 bg-black rounded-2xl border-2 border-green-500/80 shadow-md relative transition-all"
+              )}>
                 {isNew && (
-                  <div className="absolute -top-3 right-4 bg-green-500 text-white text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full shadow-[0_0_10px_rgba(34,197,94,0.6)] z-10 border border-green-400">
-                    Nuovo
-                  </div>
+                  <span className="absolute top-2 right-2 z-30 px-2 py-0.5 bg-green-500 text-[9px] font-black text-black rounded-full shadow-[0_0_10px_rgba(34,197,94,0.6)] border border-green-400 uppercase tracking-widest">
+                    NEW
+                  </span>
                 )}
                 <div 
                   className="text-gray-300 whitespace-pre-wrap break-words telegram-message-text"
@@ -154,7 +157,6 @@ export const TelegramThreadView = memo(({ channel, messages, onClose, onRefresh,
                   />
                 )}
                 <p className="text-xs text-gray-500 mt-2">{format(message.date, 'HH:mm dd/MM/yy')}</p>
-                <div className={`mt-4 w-[90%] h-[1.5px] mx-auto bg-gradient-to-r from-transparent to-transparent opacity-60 ${isNew ? 'via-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]' : 'via-gray-800'}`} />
               </div>
             );
           })

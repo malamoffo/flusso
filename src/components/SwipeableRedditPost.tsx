@@ -18,6 +18,7 @@ interface SwipeableRedditPostProps {
   toggleRead: (id: string) => void;
   toggleFavorite: (id: string) => void;
   onRemove?: (id: string) => void;
+  onVisibilityChange?: (id: string, isVisible: boolean) => void;
   isSavedSection?: boolean;
   filter?: string;
   disableGestures?: boolean;
@@ -32,6 +33,7 @@ export const SwipeableRedditPost = React.memo(function SwipeableRedditPost({
   toggleRead,
   toggleFavorite,
   onRemove,
+  onVisibilityChange,
   isSavedSection,
   filter,
   disableGestures = false
@@ -40,10 +42,29 @@ export const SwipeableRedditPost = React.memo(function SwipeableRedditPost({
   
   const { ref, inView, entry } = useInView({
     threshold: 0,
-    rootMargin: '200px 0px',
+    rootMargin: '-120px 0px 0px 0px',
   });
 
+  const { ref: visibleRef, inView: isVisibleForTimer } = useInView({
+    threshold: 0.5,
+  });
+
+  React.useEffect(() => {
+    if (onVisibilityChange) {
+      onVisibilityChange(post.id, isVisibleForTimer);
+    }
+  }, [isVisibleForTimer, post.id, onVisibilityChange]);
+
+  React.useEffect(() => {
+    if (filter === 'reddit' && !inView && entry && entry.boundingClientRect.top < 120 && !post.isRead) {
+      onMarkAsRead(post.id);
+    }
+  }, [inView, entry, post.id, post.isRead, onMarkAsRead, filter]);
+
   const handlePostClick = () => {
+    if (!post.isRead) {
+      onMarkAsRead(post.id);
+    }
     onClick(post);
   };
 
@@ -113,7 +134,10 @@ export const SwipeableRedditPost = React.memo(function SwipeableRedditPost({
         opacity: { duration: shouldReduceMotion ? 0 : 0.2 },
         height: { duration: shouldReduceMotion ? 0 : 0.2 }
       }}
-      ref={ref}
+      ref={(node) => {
+        ref(node);
+        visibleRef(node);
+      }}
       className={cn(
         "relative w-full overflow-hidden will-change-transform",
         (filter === 'saved' || filter === 'reddit') && "px-1.25 py-1"
@@ -125,9 +149,14 @@ export const SwipeableRedditPost = React.memo(function SwipeableRedditPost({
       } as React.CSSProperties}
     >
       <div className={cn(
-        "relative w-full overflow-hidden",
-        (filter === 'saved' || filter === 'reddit') ? "rounded-2xl border-2 border-purple-500/80 shadow-md" : ""
+        "relative w-full rounded-2xl overflow-hidden",
+        (filter === 'saved' || filter === 'reddit') ? "border-2 border-purple-500/80 shadow-md bg-black" : ""
       )}>
+        {!post.isRead && (
+          <span className="absolute top-2 right-2 z-30 px-2 py-0.5 bg-purple-600 text-[9px] font-black text-white rounded-full shadow-[0_0_10px_rgba(168,85,247,0.6)] border border-purple-400 uppercase tracking-widest">
+            NEW
+          </span>
+        )}
         <motion.div 
           className="absolute inset-0 z-0"
           style={{ backgroundColor: backgroundTransform }}
@@ -168,7 +197,6 @@ export const SwipeableRedditPost = React.memo(function SwipeableRedditPost({
             (filter !== 'saved') && "opacity-100"
           )}
         >
-        {filter !== 'saved' && <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[90%] h-[1.5px] bg-gradient-to-r from-transparent via-purple-500 to-transparent opacity-60 shadow-[0_0_10px_rgba(168,85,247,0.5)]" />}
         <div className="flex flex-col gap-2">
           {/* Image at the top */}
           {decodedImageUrl && (
@@ -191,9 +219,11 @@ export const SwipeableRedditPost = React.memo(function SwipeableRedditPost({
               </span>
               <span className="text-[10px] text-gray-400 truncate tracking-wide">u/{post.author}</span>
             </div>
-            <span className="text-[10px] text-gray-500 whitespace-nowrap ml-2">
-              {isToday(post.createdUtc) ? format(post.createdUtc, 'HH:mm') : format(post.createdUtc, 'dd MMM yyyy')}
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] text-gray-500 whitespace-nowrap">
+                {isToday(post.createdUtc) ? format(post.createdUtc, 'HH:mm') : format(post.createdUtc, 'dd MMM yyyy')}
+              </span>
+            </div>
           </div>
 
           {/* Title and Stats at the bottom */}

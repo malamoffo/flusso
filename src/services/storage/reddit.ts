@@ -135,7 +135,13 @@ export const redditStorage = {
         url += `&after=t3_${after}`;
       }
       
-      const data = await this.fetchJsonWithProxy(url, undefined, subreddit?.etag, subreddit?.lastModified);
+      let data;
+      try {
+        data = await this.fetchJsonWithProxy(url, undefined, subreddit?.etag, subreddit?.lastModified);
+      } catch (e) {
+        console.warn(`FetchSubredditPosts failed for r/${subredditName}, retrying without caching headers...`, e);
+        data = await this.fetchJsonWithProxy(url);
+      }
       
       if (!data || data.data.error || !data.data.data || !data.data.data.children) {
         return [];
@@ -203,7 +209,14 @@ export const redditStorage = {
       }
 
       // Use etag from subreddit if available
-      const result = await this.fetchJsonWithProxy(url, undefined, subreddit?.etag, subreddit?.lastModified);
+      let result;
+      try {
+        result = await this.fetchJsonWithProxy(url, undefined, subreddit?.etag, subreddit?.lastModified);
+      } catch (e) {
+        console.warn(`Initial fetch failed for r/${subredditName}, retrying without caching headers...`, e);
+        // Retry without etag/lastModified in case it was a 304/cache issue on proxy
+        result = await this.fetchJsonWithProxy(url);
+      }
       
       if (!result || result.data === null) return { posts: [] }; // 304 Not Modified
 

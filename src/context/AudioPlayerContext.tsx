@@ -19,9 +19,29 @@ function AudioBridge() {
   // ─── init store ──────────────────────────────────────────────────────────────
   useEffect(() => {
     useAudioStore.getState().setUpdateArticleProgress((trackId, progress) => {
-      updateArticle(trackId, { progress });
+      // Find the track in articles to check its type and duration
+      const track = articlesRef.current.find(a => a.id === trackId);
+      const updates: Partial<Article> = { progress };
+      
+      if (track && track.type === 'podcast') {
+        const totalSeconds = parseDurationToSeconds(track.duration);
+        const currentSeconds = progress * totalSeconds;
+        // Mark as read if reached < 2 minutes from end (120 seconds)
+        if (totalSeconds > 0 && (totalSeconds - currentSeconds) < 120 && !track.isRead) {
+          updates.isRead = true;
+          updates.readAt = Date.now();
+        }
+      }
+      
+      updateArticle(trackId, updates);
     });
   }, [updateArticle]);
+
+  // Use a ref to articles to avoid dependency re-renders while allowing access in callback
+  const articlesRef = useRef(articles);
+  useEffect(() => {
+    articlesRef.current = articles;
+  }, [articles]);
 
   useEffect(() => {
     useAudioStore.getState().initAudio();

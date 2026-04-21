@@ -180,8 +180,17 @@ export const TelegramProvider: React.FC<{ children: ReactNode }> = ({ children }
               const lastDate = merged.length > 0 ? Math.max(...merged.map(m => m.date)) : channel.lastMessageDate;
               const newUnreadCount = (channel.unreadCount || 0) + messages.length;
 
+              const updates: Partial<any> = { 
+                lastMessageDate: lastDate, 
+                unreadCount: newUnreadCount 
+              };
+              
+              if (info && info.imageUrl && info.imageUrl !== channel.imageUrl) {
+                updates.imageUrl = info.imageUrl;
+              }
+
               setTelegramChannels(prev => prev.map(c => 
-                c.id === channel.id ? { ...c, lastMessageDate: lastDate, unreadCount: newUnreadCount } : c
+                c.id === channel.id ? { ...c, ...updates } : c
               ));
 
               setTelegramMessages(prev => {
@@ -196,12 +205,7 @@ export const TelegramProvider: React.FC<{ children: ReactNode }> = ({ children }
               await storage.saveTelegramMessages(channel.id, merged);
               
               // Also update the channel's last message date and unread count in DB
-              if (messages.length > 0) {
-                await storage.updateTelegramChannel(channel.id, { 
-                  lastMessageDate: lastDate,
-                  unreadCount: newUnreadCount
-                });
-              }
+              await storage.updateTelegramChannel(channel.id, updates);
             }));
           }
         } catch (e) {

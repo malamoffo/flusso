@@ -22,7 +22,7 @@ import { TelegramChannel, TelegramMessage } from './types';
 import { ImageViewer } from './components/ImageViewer';
 import { ErrorNotification } from './components/ErrorNotification';
 import { motion, AnimatePresence, useMotionValue, useTransform, animate } from 'framer-motion';
-import { Loader2, Search, X, Check, Rss, Settings, Star, CheckCircle2, RefreshCw, Layers, Headphones, FileText, Inbox, MessageSquare, ChevronDown, Flame, Sparkles } from 'lucide-react';
+import { Loader2, Search, X, Check, Rss, Settings, Star, CheckCircle2, RefreshCw, Layers, Headphones, FileText, Inbox, MessageSquare, ChevronDown, Flame } from 'lucide-react';
 import { useInView } from 'react-intersection-observer';
 import { cn } from './lib/utils';
 import { Article, Feed } from './types';
@@ -78,7 +78,7 @@ export default function App() {
   const {
     isLoading: isRedditLoading,
     subreddits, redditPosts, redditSort, handleRedditSortChange,
-    refreshReddit, loadMoreReddit, markRedditAsRead, toggleRedditRead, toggleRedditFavorite,
+    refreshReddit, loadMoreReddit, markRedditAsRead, markRedditPostsAsRead, toggleRedditRead, toggleRedditFavorite,
     redditUnreadCount, markAllRedditAsRead, enforceRetention: enforceRedditRetention
   } = useReddit();
 
@@ -131,6 +131,8 @@ export default function App() {
   const [temporarilyVisibleUnreadIds, setTemporarilyVisibleUnreadIds] = useState<Set<string>>(new Set());
   const [visibleInboxArticleIds, setVisibleInboxArticleIds] = useState<Set<string>>(new Set());
   const visibleInboxArticleIdsRef = useRef<Set<string>>(new Set());
+  const [visibleRedditPostIds, setVisibleRedditPostIds] = useState<Set<string>>(new Set());
+  const visibleRedditPostIdsRef = useRef<Set<string>>(new Set());
   
   const handleVisibilityChange = useCallback((id: string, isVisible: boolean) => {
     setVisibleInboxArticleIds(prev => {
@@ -138,6 +140,16 @@ export default function App() {
       if (isVisible) next.add(id);
       else next.delete(id);
       visibleInboxArticleIdsRef.current = next; // Sync the ref
+      return next;
+    });
+  }, []);
+
+  const handleRedditVisibilityChange = useCallback((id: string, isVisible: boolean) => {
+    setVisibleRedditPostIds(prev => {
+      const next = new Set(prev);
+      if (isVisible) next.add(id);
+      else next.delete(id);
+      visibleRedditPostIdsRef.current = next; // Sync the ref
       return next;
     });
   }, []);
@@ -428,8 +440,12 @@ export default function App() {
   const savedArticlesRef = useRef(savedArticles);
   useEffect(() => { savedArticlesRef.current = savedArticles; }, [savedArticles]);
 
+  const redditPostsRef = useRef(redditPosts);
+  useEffect(() => { redditPostsRef.current = redditPosts; }, [redditPosts]);
+
   const inboxTimerRef = useRef<NodeJS.Timeout | null>(null);
   const savedTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const redditTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Handle marking as read when scrolling to bottom
   useEffect(() => {
@@ -551,6 +567,28 @@ export default function App() {
     // Throttle the bottom check
     requestAnimationFrame(() => {
       const isAtBottom = container.scrollHeight - container.scrollTop <= container.clientHeight + 50;
+      
+      if (filterType === 'reddit') {
+          if (isAtBottom && !isRedditLoading) {
+              const hasUnread = redditPostsRef.current.some((p: any) => !p.isRead);
+              if (hasUnread && !redditTimerRef.current) {
+                  redditTimerRef.current = setTimeout(() => {
+                      const toMark = redditPostsRef.current.filter((p: any) => !p.isRead && visibleRedditPostIdsRef.current.has(p.id)).map((p: any) => p.id);
+                      if (toMark.length > 0) {
+                          markRedditPostsAsRead(toMark);
+                      }
+                      redditTimerRef.current = null;
+                  }, 5000);
+              }
+          } else {
+              if (redditTimerRef.current) {
+                  clearTimeout(redditTimerRef.current);
+                  redditTimerRef.current = null;
+              }
+          }
+          return;
+      }
+
       const allVisible = !hasMoreArticles;
 
       if (isAtBottom && allVisible) {
@@ -575,7 +613,7 @@ export default function App() {
         }
       }
     });
-  }, [hasMoreArticles, markArticlesAsRead, inboxUnreadOnly]);
+  }, [hasMoreArticles, isRedditLoading, markArticlesAsRead, markRedditPostsAsRead, inboxUnreadOnly]);
 
   const handleArticleClick = useCallback((article: Article) => {
     setSelectedArticle(article);
@@ -653,16 +691,6 @@ export default function App() {
             </div>
           </motion.button>
           <div className="flex items-center gap-2">
-            <button 
-              onClick={() => setIsSettingsOpen(true)}
-              className={cn(
-                "p-2 rounded-full transition-colors text-gray-600 dark:text-gray-300",
-                filter === 'reddit' ? "hover:bg-purple-50 dark:hover:bg-purple-900/30" : "hover:bg-blue-50 dark:hover:bg-blue-900/30"
-              )}
-              aria-label="Settings"
-            >
-              <Settings className="w-5 h-5" aria-hidden="true" />
-            </button>
             <button 
               onClick={() => setIsSearchOpen(true)}
               className={cn(
@@ -913,6 +941,7 @@ export default function App() {
             if (!post.isRead) markRedditAsRead(post.id);
           }}
           onImageClick={setSelectedImage}
+          onVisibilityChange={handleRedditVisibilityChange}
           isLoading={isRedditLoading}
           refreshReddit={refreshReddit}
           loadMoreReddit={loadMoreReddit}
@@ -1001,12 +1030,14 @@ export default function App() {
         </motion.button>
         <motion.button
           whileTap={{ scale: 0.9 }}
-          onClick={() => {}}
-          className="text-gray-500 opacity-50 cursor-not-allowed group relative"
-          aria-label="AI Features (Coming Soon)"
+          onClick={() => setIsSettingsOpen(true)}
+          className={cn(
+            "p-2 rounded-full transition-colors text-gray-500 hover:text-gray-300",
+            isSettingsOpen && "text-[var(--theme-color)]"
+          )}
+          aria-label="Settings"
         >
-          <Sparkles className="w-6 h-6 transition-transform group-hover:scale-110" aria-hidden="true" />
-          <span className="absolute -bottom-4 left-1/2 -translate-x-1/2 text-[10px] font-bold opacity-0 group-hover:opacity-100 transition-opacity">AI</span>
+          <Settings className="w-6 h-6" aria-hidden="true" />
         </motion.button>
       </div>
 
@@ -1120,9 +1151,10 @@ export default function App() {
                       }
                     } else if (filter === 'reddit') {
                       // Mark all reddit posts as read
-                      redditPosts.forEach(p => {
-                        if (!p.isRead) markRedditAsRead(p.id);
-                      });
+                      const toMark = redditPosts.filter(p => !p.isRead).map(p => p.id);
+                      if (toMark.length > 0) {
+                        markRedditPostsAsRead(toMark);
+                      }
                     } else if (filter === 'telegram') {
                       await markAllTelegramAsRead();
                     }
@@ -1192,6 +1224,9 @@ export default function App() {
             channel={selectedTelegramChannel}
             messages={telegramMessages[selectedTelegramChannel.id]}
             onClose={() => {
+              if (selectedTelegramChannel) {
+                markTelegramChannelAsRead(selectedTelegramChannel.id);
+              }
               setSelectedTelegramChannel(null);
               enforceTelegramRetention();
             }}

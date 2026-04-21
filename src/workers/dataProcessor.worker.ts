@@ -74,9 +74,15 @@ self.onmessage = (e) => {
         } else {
           // Update metadata but preserve user state (isRead, isFavorite)
           const existingPost = finalMerged[existingIdx];
+          
+          // Reset isRead if comments increased
+          const wasRead = existingPost.isRead;
+          const nowRead = wasRead && newPost.numComments <= existingPost.numComments;
+          if (wasRead && !nowRead) hasNew = true; // Signal update
+
           finalMerged[existingIdx] = {
             ...newPost,
-            isRead: existingPost.isRead,
+            isRead: nowRead,
             isFavorite: existingPost.isFavorite
           };
         }

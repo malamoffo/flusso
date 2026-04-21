@@ -15,6 +15,7 @@ interface RedditListViewProps {
   loadMoreReddit: () => void;
   settings: Settings;
   onMarkAsRead: (id: string) => void;
+  onVisibilityChange?: (id: string, isVisible: boolean) => void;
   toggleRead: (id: string) => void;
   toggleFavorite: (id: string) => void;
   scrollRef?: React.RefObject<HTMLDivElement | null>;
@@ -31,6 +32,7 @@ export const RedditListView = memo(({
   loadMoreReddit,
   settings,
   onMarkAsRead,
+  onVisibilityChange,
   toggleRead,
   toggleFavorite,
   scrollRef,
@@ -65,6 +67,7 @@ export const RedditListView = memo(({
                 onClick={onPostClick}
                 onImageClick={onImageClick}
                 onMarkAsRead={onMarkAsRead}
+                onVisibilityChange={onVisibilityChange}
                 toggleRead={toggleRead}
                 toggleFavorite={toggleFavorite}
                 filter="reddit"

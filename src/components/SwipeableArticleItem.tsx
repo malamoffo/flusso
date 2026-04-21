@@ -167,13 +167,13 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
   }, [prefetchInView, entry, article.id, article.link]);
 
   useEffect(() => {
-    if (filter === 'inbox' && !inView && entry && entry.boundingClientRect.top < 120 && !article.isRead) {
+    if (filter === 'inbox' && !inView && entry && entry.boundingClientRect.top < 120 && !article.isRead && article.type !== 'podcast') {
       onMarkAsRead(article.id);
     }
-  }, [inView, entry, article.id, article.isRead, onMarkAsRead, filter]);
+  }, [inView, entry, article.id, article.isRead, article.type, onMarkAsRead, filter]);
 
   const handleArticleClick = () => {
-    if (!article.isRead) {
+    if (!article.isRead && article.type !== 'podcast') {
       onMarkAsRead(article.id);
     }
     onClick(article);
@@ -280,6 +280,15 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
   const isCurrentTrack = currentTrack?.id === article.id;
 
   const isInboxOrSaved = filter === 'inbox' || filter === 'saved' || isSavedSection;
+
+  const isPodcast = article.type === 'podcast';
+  const isFinished = isPodcast && (() => {
+    const total = parseDurationToSeconds(article.duration);
+    if (total <= 0) return false;
+    const current = (article.progress || 0) * total;
+    return total - current < 120;
+  })();
+  const isReadForDisplay = isPodcast ? isFinished : article.isRead;
 
   return (
     <motion.div 
@@ -442,8 +451,8 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
                 className={cn(
                   "font-bold leading-tight transition-colors",
                   getTitleSize(),
-                  article.isRead ? 'text-gray-500' : 'text-gray-100',
-                  !article.isRead && "group-hover:text-[var(--theme-color)]"
+                  isReadForDisplay ? 'text-gray-500' : 'text-gray-100',
+                  !isReadForDisplay && "group-hover:text-[var(--theme-color)]"
                 )}
                 dangerouslySetInnerHTML={{ __html: article.title }}
               />

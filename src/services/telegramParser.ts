@@ -18,6 +18,9 @@ export const fetchTelegramChannelInfo = async (channelUsername: string): Promise
     const parser = new DOMParser();
     const doc = parser.parseFromString(htmlData, 'text/html');
     
+    // DEBUG: Log the HTML content to see why images are missing
+    // console.log('Telegram HTML Sample:', htmlData.substring(0, 1000));
+    
     const name = doc.querySelector('.tgme_channel_info_header_title')?.textContent?.trim() || 
                  doc.querySelector('.tgme_page_title')?.textContent?.trim();
                  
@@ -29,6 +32,7 @@ export const fetchTelegramChannelInfo = async (channelUsername: string): Promise
       throw new Error('Impossibile recuperare le informazioni del canale');
     }
     const imageUrl = doc.querySelector('.tgme_page_photo_image img')?.getAttribute('src') || 
+                     doc.querySelector('.tgme_page_photo_image')?.getAttribute('src') ||
                      doc.querySelector('meta[property="og:image"]')?.getAttribute('content') || undefined;
 
     return { name, imageUrl };
@@ -80,7 +84,7 @@ export const fetchTelegramMessages = async (channelUsername: string, sinceDate?:
       
       // Improved image URL parsing
       let imageUrl = undefined;
-      const photoWrap = el.querySelector('.tgme_widget_message_photo_wrap, .tgme_widget_message_video_player');
+      const photoWrap = el.querySelector('.tgme_widget_message_photo_wrap, .tgme_widget_message_video_player, .tgme_widget_message_roundvideo_player');
       if (photoWrap) {
         const style = photoWrap.getAttribute('style');
         if (style) {
@@ -90,8 +94,20 @@ export const fetchTelegramMessages = async (channelUsername: string, sinceDate?:
       }
 
       if (!imageUrl) {
+        // Try background image directly on wrap or children
+        const bgEl = el.querySelector('[style*="background-image"]');
+        if (bgEl) {
+          const style = bgEl.getAttribute('style');
+          if (style) {
+            const match = style.match(/url\(['"]?(.*?)['"]?\)/);
+            if (match) imageUrl = match[1];
+          }
+        }
+      }
+
+      if (!imageUrl) {
         // Try video thumbnail
-        const videoWrap = el.querySelector('.tgme_widget_message_video_wrap');
+        const videoWrap = el.querySelector('.tgme_widget_message_video_wrap, .tgme_widget_message_roundvideo_wrap');
         if (videoWrap) {
           const style = videoWrap.getAttribute('style');
           if (style) {
