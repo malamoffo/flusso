@@ -132,7 +132,7 @@ export const TelegramThreadView = memo(({ channel, messages, onClose, onRefresh,
             </button>
           </div>
         ) : (
-          messages?.map(message => {
+          Array.from(new Map(messages?.map(m => [m.id, m])).values()).map(message => {
             const isNew = message.date > (channel.lastOpened || 0);
             return (
               <div key={`${message.channelId}-${message.id}`} className={`mb-4 p-4 bg-black rounded-2xl border-2 shadow-md relative ${isNew ? 'border-green-500/80' : 'border-gray-800'}`}>

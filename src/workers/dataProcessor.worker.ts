@@ -9,9 +9,18 @@ self.onmessage = (e) => {
       const merged = Array.isArray(prev) ? [...prev] : [];
       const incomingArr = Array.isArray(incoming) ? incoming : [];
       const existingLinks = new Set<string>();
+      
+      // First pass: identify existing and deduplicate 'prev' if it has duplicates
+      const initialUnique = [];
       for (let i = 0; i < merged.length; i++) {
-        existingLinks.add(merged[i].link);
+        if (!existingLinks.has(merged[i].link)) {
+          existingLinks.add(merged[i].link);
+          initialUnique.push(merged[i]);
+        }
       }
+      
+      // Use clean version of merged
+      const finalMerged = initialUnique;
       let hasNew = false;
 
       for (const newArticle of incomingArr) {
@@ -19,46 +28,53 @@ self.onmessage = (e) => {
           hasNew = true;
           existingLinks.add(newArticle.link);
 
-          // Binary Search for correct position
-          if (merged.length === 0 || newArticle.pubDate >= merged[0].pubDate) {
-            merged.unshift(newArticle);
+          // Binary Search for correct position in the finalMerged array
+          if (finalMerged.length === 0 || newArticle.pubDate >= finalMerged[0].pubDate) {
+            finalMerged.unshift(newArticle);
             continue;
           }
 
           let low = 0;
-          let high = merged.length;
+          let high = finalMerged.length;
           while (low < high) {
             const mid = (low + high) >>> 1;
-            if (merged[mid].pubDate > newArticle.pubDate) {
+            if (finalMerged[mid].pubDate > newArticle.pubDate) {
               low = mid + 1;
             } else {
               high = mid;
             }
           }
-          merged.splice(low, 0, newArticle);
+          finalMerged.splice(low, 0, newArticle);
         }
       }
-      self.postMessage({ type: 'mergedArticles', merged, hasNew, requestId });
+      self.postMessage({ type: 'mergedArticles', merged: finalMerged, hasNew, requestId });
     } else if (type === 'mergeRedditPosts') {
-      const { sort } = e.data;
+      const sort = e.data.sort;
       const merged = Array.isArray(prev) ? [...prev] : [];
       const incomingArr = Array.isArray(incoming) ? incoming : [];
       const existingMap = new Map<string, number>();
+      
+      const initialUnique = [];
       for (let i = 0; i < merged.length; i++) {
-        existingMap.set(merged[i].id, i);
+        if (!existingMap.has(merged[i].id)) {
+          existingMap.set(merged[i].id, initialUnique.length);
+          initialUnique.push(merged[i]);
+        }
       }
+      
+      const finalMerged = initialUnique;
       let hasNew = false;
 
       for (const newPost of incomingArr) {
         const existingIdx = existingMap.get(newPost.id);
         if (existingIdx === undefined) {
           hasNew = true;
-          merged.push(newPost);
-          existingMap.set(newPost.id, merged.length - 1);
+          finalMerged.push(newPost);
+          existingMap.set(newPost.id, finalMerged.length - 1);
         } else {
           // Update metadata but preserve user state (isRead, isFavorite)
-          const existingPost = merged[existingIdx];
-          merged[existingIdx] = {
+          const existingPost = finalMerged[existingIdx];
+          finalMerged[existingIdx] = {
             ...newPost,
             isRead: existingPost.isRead,
             isFavorite: existingPost.isFavorite
@@ -68,33 +84,40 @@ self.onmessage = (e) => {
 
       if (hasNew || sort) {
         if (sort === 'new') {
-          merged.sort((a, b) => b.createdUtc - a.createdUtc);
+          finalMerged.sort((a, b) => b.createdUtc - a.createdUtc);
         } else {
-          merged.sort((a, b) => (b.score || 0) - (a.score || 0));
+          finalMerged.sort((a, b) => (b.score || 0) - (a.score || 0));
         }
       }
-      self.postMessage({ type: 'mergedRedditPosts', merged, hasNew, requestId });
+      self.postMessage({ type: 'mergedRedditPosts', merged: finalMerged, hasNew, requestId });
     } else if (type === 'mergeTelegramMessages') {
       const merged = Array.isArray(prev) ? [...prev] : [];
       const incomingArr = Array.isArray(incoming) ? incoming : [];
       const existingIds = new Set<string>();
+      
+      const initialUnique = [];
       for (let i = 0; i < merged.length; i++) {
-        existingIds.add(merged[i].id);
+        if (!existingIds.has(merged[i].id)) {
+          existingIds.add(merged[i].id);
+          initialUnique.push(merged[i]);
+        }
       }
+      
+      const finalMerged = initialUnique;
       let hasNew = false;
 
       for (const newMessage of incomingArr) {
         if (!existingIds.has(newMessage.id)) {
           hasNew = true;
           existingIds.add(newMessage.id);
-          merged.push(newMessage);
+          finalMerged.push(newMessage);
         }
       }
 
       if (hasNew) {
-        merged.sort((a, b) => a.date - b.date);
+        finalMerged.sort((a, b) => a.date - b.date);
       }
-      self.postMessage({ type: 'mergedTelegramMessages', merged, hasNew, requestId });
+      self.postMessage({ type: 'mergedTelegramMessages', merged: finalMerged, hasNew, requestId });
     }
   } catch (error) {
     self.postMessage({ type: 'error', error: String(error), requestId: e.data.requestId });

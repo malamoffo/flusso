@@ -236,8 +236,11 @@ export const TelegramProvider: React.FC<{ children: ReactNode }> = ({ children }
     if (moreLocalMessages.length > 0) {
       setTelegramMessages(prev => {
         const existing = prev[channelId] || [];
-        const combined = [...moreLocalMessages, ...existing];
-        const next = { ...prev, [channelId]: combined };
+        const all = [...moreLocalMessages, ...existing];
+        const deduplicated = Array.from(new Map(all.map(m => [m.id, m])).values());
+        const sorted = deduplicated.sort((a, b) => a.date - b.date);
+        
+        const next = { ...prev, [channelId]: sorted };
         telegramMessagesRef.current = next;
         return next;
       });
@@ -286,14 +289,15 @@ export const TelegramProvider: React.FC<{ children: ReactNode }> = ({ children }
         }
       }
 
-      console.log(`[Telegram] Found ${allNewMessages.length} older messages across ${attempts} attempts`);
+      const deduplicated = Array.from(new Map(allNewMessages.map(m => [m.id, m])).values());
+      console.log(`[Telegram] Found ${deduplicated.length} unique older messages across ${attempts} attempts`);
       
-      if (allNewMessages.length > 0) {
+      if (deduplicated.length > 0) {
         setTelegramMessages(prev => {
           const existing = prev[channelId] || [];
           // Prepend older messages, avoiding duplicates
           const existingIds = new Set(existing.map(m => m.id));
-          const filteredNew = allNewMessages.filter(m => !existingIds.has(m.id));
+          const filteredNew = deduplicated.filter(m => !existingIds.has(m.id));
           
           const combined = [...filteredNew, ...existing];
           const next = { ...prev, [channelId]: combined };
@@ -303,7 +307,7 @@ export const TelegramProvider: React.FC<{ children: ReactNode }> = ({ children }
           storage.saveTelegramMessages(channelId, combined);
           return next;
         });
-        telegramMessageOffsets.current[channelId] = (telegramMessageOffsets.current[channelId] || 0) + allNewMessages.length;
+        telegramMessageOffsets.current[channelId] = (telegramMessageOffsets.current[channelId] || 0) + deduplicated.length;
       }
     } catch (e) {
       console.error(`Failed to load older messages for ${channel.username}`, e);

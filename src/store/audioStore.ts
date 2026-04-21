@@ -106,14 +106,22 @@ export const useAudioStore = create<AudioState>()((set, get) => ({
       audio.load();
       audio.playbackRate = state.playbackRate;
 
+      // Handle seek on load to fix Android issue
+      const onMetadataLoaded = () => {
+        if (track.progress && track.progress > 0) {
+          const resumeTime = track.progress * (track.duration ? parseDurationToSeconds(track.duration) : 0);
+          if (resumeTime > 0) {
+            audio.currentTime = resumeTime;
+            set({ progress: resumeTime });
+          }
+        }
+        audio.removeEventListener('loadedmetadata', onMetadataLoaded);
+      };
+      audio.addEventListener('loadedmetadata', onMetadataLoaded);
+
       let startProgress = 0;
       if (track.progress && track.progress > 0) {
-        const resumeTime = track.progress * (track.duration ? parseDurationToSeconds(track.duration) : 0);
-        if (resumeTime > 0) {
-          audio.currentTime = resumeTime;
-          startProgress = track.progress;
-          set({ progress: resumeTime });
-        }
+        startProgress = track.progress;
       }
       
       set({ currentTrack: track, lastSavedProgress: startProgress });
@@ -238,7 +246,7 @@ export const useAudioStore = create<AudioState>()((set, get) => ({
   _handleEnded: () => {
     const { currentTrack, playNext, updateArticleProgress } = get();
     if (currentTrack && updateArticleProgress) {
-      updateArticleProgress(currentTrack.id, 0);
+      updateArticleProgress(currentTrack.id, 1);
     }
     playNext();
   }

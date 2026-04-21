@@ -125,13 +125,18 @@ function AudioBridge() {
   // ─── sync code verso nativo (solo quando cambiano le code) ───────────────────
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
+    // Guard: non scrivere su disco finché Dexie non ha caricato gli articoli.
+    // Senza questo guard, al primo render articles=[] e setQueue sovrascrive
+    // favorites.json con [] su disco, causando lista vuota in Android Auto
+    // al cold start (quando l'auto è già connessa prima che la WebView sia pronta).
+    if (articles.length === 0) return;
 
     QueuePlugin.setQueue({
       queue:     queue.map(mapTrack),
       recent:    recentPodcasts.map(mapTrack),
       favorites: favoritePodcasts.map(mapTrack),
     }).catch((err) => console.error('setQueue error:', err));
-  }, [queue, recentPodcasts, favoritePodcasts, mapTrack]);
+  }, [queue, recentPodcasts, favoritePodcasts, mapTrack, articles]);
 
   // ─── autoplay pending al boot ─────────────────────────────────────────────────
   useEffect(() => {

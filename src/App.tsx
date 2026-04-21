@@ -864,7 +864,7 @@ export default function App() {
         >
           <div className="flex-1 max-w-3xl mx-auto px-2 py-2 space-y-2">
             <AnimatePresence initial={false}>
-              {savedArticles
+              {Array.from(new Map(savedArticles.map(a => [a.id, a])).values())
                 .map(a => ({ ...a, itemType: 'article' as const }))
                 .sort((a, b) => {
                   const timeA = (a as any).pubDate;

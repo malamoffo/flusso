@@ -27,7 +27,6 @@ export const rssService = {
       let completed = 0;
       
       const queue = [...feedsToRefresh];
-      let queueIndex = 0;
       const FEED_TIMEOUT = 22500;
       const CONCURRENCY = Math.min(6, queue.length);
       
@@ -35,7 +34,7 @@ export const rssService = {
       
       const workers = Array(CONCURRENCY).fill(null).map(async () => {
         while (true) {
-          const feed = queue[queueIndex++];
+          const feed = queue.shift();
           if (!feed) break;
           
           try {

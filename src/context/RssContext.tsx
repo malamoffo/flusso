@@ -153,8 +153,13 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       
       const loadedFeeds = await storage.getFeeds();
       
-      // Cleanup old articles based on retention settings
-      await storage.cleanUpOldArticles(settings.articleRetentionDays, settings.podcastRetentionDays);
+      // Cleanup old articles based on retention settings, throttled to once per day
+      const lastCleanupTime = parseInt(localStorage.getItem('lastCleanupTime') || '0', 10);
+      const ONE_DAY = 24 * 60 * 60 * 1000;
+      if (Date.now() - lastCleanupTime > ONE_DAY) {
+        await storage.cleanUpOldArticles(settings.articleRetentionDays, settings.podcastRetentionDays);
+        localStorage.setItem('lastCleanupTime', Date.now().toString());
+      }
 
       const [loadedArticles, unread, saved, favorites] = await Promise.all([
         storage.getArticles(0, PAGE_SIZE),
@@ -518,55 +523,71 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   }, []);
 
   const toggleFavorite = useCallback(async (id: string) => {
+    let updatedArticle: Article | undefined;
     setArticles(prev => {
       const updated = prev.map(a => {
         if (a.id === id) {
-          const isFavorite = !a.isFavorite;
-          const newArt = { ...a, isFavorite };
-          storage.saveArticles([newArt]);
-          return newArt;
+          updatedArticle = { ...a, isFavorite: !a.isFavorite };
+          return updatedArticle;
         }
         return a;
       });
       return updated;
     });
+    if (updatedArticle) {
+      await storage.saveArticles([updatedArticle]);
+    }
   }, []);
 
   const toggleQueue = useCallback(async (id: string) => {
+    let updatedArticle: Article | undefined;
     setArticles(prev => {
       const updated = prev.map(a => {
         if (a.id === id) {
-          const isQueued = !a.isQueued;
-          const newArt = { ...a, isQueued };
-          storage.saveArticles([newArt]);
-          return newArt;
+          updatedArticle = { ...a, isQueued: !a.isQueued };
+          return updatedArticle;
         }
         return a;
       });
       return updated;
     });
+    if (updatedArticle) {
+      await storage.saveArticles([updatedArticle]);
+    }
   }, []);
 
   const removeFromSaved = useCallback(async (id: string) => {
+    let updatedArticle: Article | undefined;
     setArticles(prev => {
       const updated = prev.map(a => {
         if (a.id === id) {
-          const newArt = { ...a, isFavorite: false, isQueued: false };
-          storage.saveArticles([newArt]);
-          return newArt;
+          updatedArticle = { ...a, isFavorite: false, isQueued: false };
+          return updatedArticle;
         }
         return a;
       });
       return updated;
     });
+    if (updatedArticle) {
+      await storage.saveArticles([updatedArticle]);
+    }
   }, []);
 
   const updateArticle = useCallback(async (id: string, updates: Partial<Article>) => {
+    let updatedArticle: Article | undefined;
     setArticles(prev => {
-      const updated = prev.map(a => a.id === id ? { ...a, ...updates } : a);
-      storage.saveArticles(updated);
+      const updated = prev.map(a => {
+        if (a.id === id) {
+          updatedArticle = { ...a, ...updates };
+          return updatedArticle;
+        }
+        return a;
+      });
       return updated;
     });
+    if (updatedArticle) {
+      await storage.saveArticles([updatedArticle]);
+    }
   }, []);
 
   const removeArticle = useCallback(async (article: Article) => {

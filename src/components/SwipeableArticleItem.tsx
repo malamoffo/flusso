@@ -47,8 +47,10 @@ const ScrollingFeedName = React.memo(function ScrollingFeedName({
 
   const checkOverflow = () => {
     if (containerRef.current && textRef.current) {
-      // Small buffer of 4px to avoid micro-scrolling
-      const isOverflowing = textRef.current.scrollWidth > containerRef.current.clientWidth + 4;
+      // Use a larger buffer (10px) to prevent unnecessary scrolling for short names
+      // also ensure clientWidth is definitely greater than 0
+      const containerWidth = containerRef.current.clientWidth;
+      const isOverflowing = containerWidth > 0 && textRef.current.scrollWidth > containerWidth + 10;
       setShouldScroll(isOverflowing);
       setTextWidth(textRef.current.scrollWidth);
     }
