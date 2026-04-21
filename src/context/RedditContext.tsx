@@ -104,7 +104,6 @@ export const RedditProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const refreshReddit = useCallback(async (subsToRefresh?: Subreddit[], currentPosts?: RedditPost[], sort?: 'new' | 'hot' | 'top') => {
     const targetSubs = subsToRefresh || subredditsRef.current;
     const targetSort = sort || redditSort;
-    console.log(`[Reddit] Refreshing. TargetSort: ${targetSort}, RawSortParam: ${sort}, StateSort: ${redditSort}`);
     
     // Reset cursors on refresh
     if (!subsToRefresh) {
@@ -112,7 +111,6 @@ export const RedditProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     }
 
     if (targetSubs.length === 0) {
-      console.log(`[Reddit] No target subreddits.`);
       return;
     }
 
@@ -120,7 +118,6 @@ export const RedditProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     try {
      const fetchPromises = targetSubs.map(async (sub) => {
         try {
-          console.log(`[Reddit] Fetching r/${sub.name} with sort ${targetSort}`);
           const result = await storage.fetchRedditPosts(sub.name, targetSort);
           if (result.after) {
             paginationCursors.current[sub.name] = result.after;
@@ -134,12 +131,10 @@ export const RedditProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       
       const results = await Promise.all(fetchPromises);
       const posts: RedditPost[] = results.flat();
-      console.log(`[Reddit] Finished fetch. Total posts: ${posts.length}`);
 
       if (worker.current) {
         const handler = (e: MessageEvent) => {
           if (e.data.type === 'mergedRedditPosts') {
-            console.log(`[Reddit] Worker returned ${e.data.merged.length} posts`);
             const merged: RedditPost[] = e.data.merged;
             
             // ... (rest of the logic)
@@ -206,7 +201,6 @@ export const RedditProvider: React.FC<{ children: ReactNode }> = ({ children }) 
            const cursor = paginationCursors.current[sub.name];
            if (cursor === 'end') return []; // No more posts for this sub
 
-           console.log(`[Reddit] Loading more r/${sub.name} sort ${redditSort} cursor ${cursor} (Attempt ${attempts})`);
            const result = await storage.fetchRedditPosts(sub.name, redditSort, cursor);
            
            if (!result.after) {
@@ -235,8 +229,6 @@ export const RedditProvider: React.FC<{ children: ReactNode }> = ({ children }) 
           reachedBoundary = true;
         }
       }
-
-      console.log(`[Reddit] Load more finished. Total new posts fetched: ${allNewPosts.length}`);
       
       if (allNewPosts.length > 0) {
         setRedditPosts(prev => {
@@ -254,7 +246,6 @@ export const RedditProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   }, [redditSort]);
 
   const handleRedditSortChange = useCallback(async (sort: 'new' | 'hot' | 'top') => {
-    console.log(`[Reddit] Sort change to: ${sort}`);
     setRedditSort(sort);
     // Explicitly pass the new sort to refreshReddit
     await refreshReddit(undefined, undefined, sort);
@@ -336,7 +327,6 @@ export const RedditProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     const loadRefresh = async () => {
       const loadedSubreddits = await storage.getSubreddits();
       if (loadedSubreddits.length > 0) {
-        console.log('[Reddit] Startup refresh...');
         refreshReddit(loadedSubreddits);
       }
     };
@@ -347,7 +337,6 @@ export const RedditProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     const REDDIT_REFRESH_INTERVAL = 5 * 60 * 1000;
     const interval = setInterval(() => {
       if (subredditsRef.current.length > 0) {
-        console.log('[Reddit] Periodic 5min refresh...');
         refreshReddit();
       }
     }, REDDIT_REFRESH_INTERVAL);
@@ -356,7 +345,6 @@ export const RedditProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
   useEffect(() => {
     const handleResume = () => {
-      console.log('[Reddit] App resumed refresh...');
       refreshReddit();
     };
     window.addEventListener('app-resume', handleResume);

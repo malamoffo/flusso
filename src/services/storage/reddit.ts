@@ -257,16 +257,13 @@ export const redditStorage = {
   },
 
   async fetchRedditComments(permalink: string): Promise<any[]> {
-    console.log(`[Reddit Comments] Starting fetch for: ${permalink}`);
     try {
       const cleanPermalink = permalink.replace(/\/$/, '');
       const url = `https://www.reddit.com${cleanPermalink}.json`;
       
       try {
-        console.log(`[Reddit Comments] 1. Trying JSON API method...`);
         const result = await this.fetchJsonWithProxy(url);
         if (result && result.data && Array.isArray(result.data) && result.data.length >= 2 && result.data[1].data && result.data[1].data.children) {
-          console.log(`[Reddit Comments] JSON API success.`);
           return result.data[1].data.children;
         }
       } catch (e) {
@@ -274,7 +271,6 @@ export const redditStorage = {
       }
 
       // Scraping fallback: fetch HTML and parse
-      console.log(`[Reddit Comments] 2. Trying Scraping Fallback method...`);
       const htmlUrl = `https://www.reddit.com${cleanPermalink}`;
       const response = await fetchWithProxy(htmlUrl, false);
       if (!response.data) {
@@ -308,7 +304,6 @@ export const redditStorage = {
          comments.push({ data: { author, body } });
       });
 
-      console.log(`[Reddit Comments] Scraping successful. Found: ${comments.length} comments.`);
       return comments;
     } catch (e: any) {
       console.error(`[Reddit Comments] All methods failed for: ${permalink}`, e);

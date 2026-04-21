@@ -36,10 +36,6 @@ export const RedditListView = memo(({
   scrollRef,
   handleScroll
 }: RedditListViewProps) => {
-  React.useEffect(() => {
-    console.log(`[RedditListView] Posts updated. Count: ${posts.length}, first post title: ${posts[0]?.title}`);
-  }, [posts]);
-  
   const hasUnread = React.useMemo(() => posts.some(p => !p.isRead), [posts]);
 
   return (

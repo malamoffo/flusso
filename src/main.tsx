@@ -17,11 +17,9 @@ console.log(`[Flusso] Version ${APP_VERSION} (Build ${APP_BUILD}) starting...`);
 
 export const updateSW = registerSW({
   onNeedRefresh() {
-    console.log('[Flusso] New version available, reloading...');
     updateSW(true);
   },
   onOfflineReady() {
-    console.log('[Flusso] App ready for offline use');
   },
 });
 
@@ -31,7 +29,6 @@ import { App as CapacitorApp } from '@capacitor/app';
 if (typeof window !== 'undefined' && 'Capacitor' in window) {
   CapacitorApp.addListener('appStateChange', ({ isActive }) => {
     if (isActive) {
-      console.log('[Flusso] App resumed, checking for updates and clearing stale sessions...');
       updateSW();
       
       // Also potentially trigger a feed refresh if we haven't in a while

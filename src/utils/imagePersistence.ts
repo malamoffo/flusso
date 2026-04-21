@@ -236,7 +236,6 @@ export const imagePersistence = {
       }
 
       if (deletedCount > 0) {
-        console.log(`[IMAGE_CACHE] Cleaned up ${deletedCount} old images.`);
         // Re-sync map by checking which URLs still exist
         const newMap = new Map<string, string>();
         for (const [url, localUrl] of this.resolvedLocalUrls.entries()) {

@@ -266,8 +266,6 @@ export const TelegramProvider: React.FC<{ children: ReactNode }> = ({ children }
     const idParts = oldestMessageInState.id.split('/');
     currentBeforeId = idParts.length > 1 ? idParts[1] : oldestMessageInState.id;
 
-    console.log(`[Telegram] Loading older messages before: ${currentBeforeId} targeting day boundary`);
-
     try {
       while (!reachedBoundary && attempts < MAX_ATTEMPTS) {
         attempts++;
@@ -290,7 +288,6 @@ export const TelegramProvider: React.FC<{ children: ReactNode }> = ({ children }
       }
 
       const deduplicated = Array.from(new Map(allNewMessages.map(m => [m.id, m])).values());
-      console.log(`[Telegram] Found ${deduplicated.length} unique older messages across ${attempts} attempts`);
       
       if (deduplicated.length > 0) {
         setTelegramMessages(prev => {
@@ -347,7 +344,6 @@ export const TelegramProvider: React.FC<{ children: ReactNode }> = ({ children }
     const loadRefresh = async () => {
       const loadedChannels = await storage.getTelegramChannels();
       if (loadedChannels.length > 0) {
-        console.log('[Telegram] Startup refresh...');
         refreshTelegramChannels(loadedChannels);
       }
     };
@@ -358,7 +354,6 @@ export const TelegramProvider: React.FC<{ children: ReactNode }> = ({ children }
     const TELEGRAM_REFRESH_INTERVAL = 5 * 60 * 1000;
     const interval = setInterval(() => {
       if (telegramChannelsRef.current.length > 0) {
-        console.log('[Telegram] Periodic 5min refresh...');
         refreshTelegramChannels();
       }
     }, TELEGRAM_REFRESH_INTERVAL);
@@ -367,7 +362,6 @@ export const TelegramProvider: React.FC<{ children: ReactNode }> = ({ children }
 
   useEffect(() => {
     const handleResume = () => {
-      console.log('[Telegram] App resumed refresh...');
       refreshTelegramChannels();
     };
     window.addEventListener('app-resume', handleResume);

@@ -94,10 +94,6 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const redditPostsRef = useRef<RedditPost[]>([]);
 
   useEffect(() => {
-    loadData();
-  }, []);
-
-  useEffect(() => {
     articlesRef.current = articles;
     feedsRef.current = feeds;
     redditPostsRef.current = redditPosts;
@@ -291,7 +287,6 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     if (!settings.autoCheckUpdates || settings.refreshInterval <= 0 || Capacitor.isNativePlatform()) return;
     
     const interval = setInterval(() => {
-      console.log('[RSS] Auto-refreshing feeds (web)...');
       refreshFeeds();
     }, settings.refreshInterval * 60 * 1000);
     
@@ -301,7 +296,6 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   // Listen for app-resume to trigger refresh if needed
   useEffect(() => {
     const handleResume = () => {
-      console.log('[Flusso] App resumed - checking if refresh is needed');
       const now = Date.now();
       const elapsedMinutes = (now - lastRefresh.current) / (1000 * 60);
       
@@ -309,7 +303,6 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       // or if we just want to be reactive.
       if (settings.autoCheckUpdates && settings.refreshInterval > 0) {
         if (elapsedMinutes >= settings.refreshInterval) {
-          console.log(`[Flusso] Resume refresh triggered (Last: ${Math.round(elapsedMinutes)}m ago)`);
           refreshFeeds();
         }
       }
@@ -595,19 +588,23 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     await storage.deleteArticle(article.id);
     
     if (article.type === 'podcast') {
+      let updatedFeed: Feed | undefined;
       setFeeds(prev => {
         const updated = prev.map(f => {
           if (f.id === article.feedId) {
-            return {
+            updatedFeed = {
               ...f,
               lastArticleDate: Math.max(f.lastArticleDate || 0, article.pubDate)
             };
+            return updatedFeed;
           }
           return f;
         });
-        storage.saveFeeds(updated);
         return updated;
       });
+      if (updatedFeed) {
+        await storage.saveFeeds([updatedFeed]);
+      }
     }
   }, []);
 
@@ -623,11 +620,20 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   }, []);
 
   const updateFeed = useCallback(async (id: string, updates: Partial<Feed>) => {
+    let updatedFeed: Feed | undefined;
     setFeeds(prev => {
-      const updated = prev.map(f => f.id === id ? { ...f, ...updates } : f);
-      storage.saveFeeds(updated);
+      const updated = prev.map(f => {
+        if (f.id === id) {
+          updatedFeed = { ...f, ...updates };
+          return updatedFeed;
+        }
+        return f;
+      });
       return updated;
     });
+    if (updatedFeed) {
+      await storage.saveFeeds([updatedFeed]);
+    }
   }, []);
 
   const exportFeeds = useCallback(async (types?: ('article' | 'podcast')[]) => {
