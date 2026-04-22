@@ -4,11 +4,13 @@ import { rssStorage } from './rss';
 import { redditStorage } from './reddit';
 import { telegramStorage } from './telegram';
 import { settingsStorage } from './settings';
+import { kvStorage } from './kv';
 
 export * from './rss';
 export * from './reddit';
 export * from './telegram';
 export * from './settings';
+export * from './kv';
 
 export async function getRefreshLogs(): Promise<RefreshLog[]> {
   return await db.refreshLogs.orderBy('timestamp').reverse().toArray();
@@ -23,6 +25,7 @@ export const storage = {
   ...redditStorage,
   ...telegramStorage,
   ...settingsStorage,
+  ...kvStorage,
   getRefreshLogs,
   saveRefreshLogs,
 };

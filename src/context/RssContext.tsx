@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useMemo, useRef } from 'react';
+import { db } from '../services/db';
 import { rssService } from '../services/rssService';
 import { Feed, Article, Settings, Subreddit, RedditPost } from '../types';
 import { storage, defaultSettings } from '../services/storage';
@@ -67,24 +68,27 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [hasMoreArticles, setHasMoreArticles] = useState<boolean>(true);
   
-  // ⚡ Bolt: Consolidate multiple O(N) passes into a single pass to calculate counts.
-  const { unreadCount, savedCount } = useMemo(() => {
-    let unread = 0;
-    let saved = 0;
+  const [unreadCount, setUnreadCount] = useState<number>(0);
+  const [savedCount, setSavedCount] = useState<number>(0);
 
-    for (let i = 0; i < articles.length; i++) {
-      const a = articles[i];
-      if (!a.isRead) unread++;
-      if (a.isFavorite || a.isQueued) saved++;
-    }
+  // Update counts asynchronously from the database to include items outside the RAM window
+  const updateCounts = useCallback(async () => {
+    // Get all unread articles from DB
+    const allUnread = await db.articles.filter(a => !a.isRead).toArray();
+    
+    // Filter out saved podcasts
+    const unread = allUnread.filter(a => !(a.type === 'podcast' && a.isFavorite)).length;
+    
+    const saved = await storage.getSavedCount();
+    const reddit = await db.redditPosts.filter(p => !!p.isFavorite).count();
+    
+    setUnreadCount(unread);
+    setSavedCount(saved + reddit);
+  }, []);
 
-    for (let i = 0; i < redditPosts.length; i++) {
-      const p = redditPosts[i];
-      if (p.isFavorite) saved++;
-    }
-
-    return { unreadCount: unread, savedCount: saved };
-  }, [articles, redditPosts]);
+  useEffect(() => {
+    updateCounts();
+  }, [articles, redditPosts, updateCounts]);
 
   const articleOffset = useRef<number>(0);
   const PAGE_SIZE = 50;
@@ -143,24 +147,22 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   }, []);
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       setIsLoading(true);
       
       const loadedFeeds = await storage.getFeeds();
       
       // Cleanup old articles based on retention settings, throttled to once per day
-      const lastCleanupTime = parseInt(localStorage.getItem('lastCleanupTime') || '0', 10);
+      const lastCleanupTime = parseInt((await storage.get('lastCleanupTime')) || '0', 10);
       const ONE_DAY = 24 * 60 * 60 * 1000;
       if (Date.now() - lastCleanupTime > ONE_DAY) {
         await storage.cleanUpOldArticles(settings.articleRetentionDays, settings.podcastRetentionDays);
-        localStorage.setItem('lastCleanupTime', Date.now().toString());
+        await storage.set('lastCleanupTime', Date.now().toString());
       }
 
-      const [loadedArticles, unread, saved, favorites] = await Promise.all([
+      const [loadedArticles, favorites] = await Promise.all([
         storage.getArticles(0, PAGE_SIZE),
-        storage.getUnreadCount(),
-        storage.getSavedCount(),
         storage.getFavorites()
       ]);
       
@@ -186,7 +188,7 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [settings.articleRetentionDays, settings.podcastRetentionDays]);
 
   const loadMoreArticles = useCallback(async () => {
     if (!hasMoreArticles || isLoading) return;
@@ -226,8 +228,30 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setIsLoading
       );
 
-      // Save final state to storage once at the end for performance
-      await storage.saveArticles(finalArticles);
+      // Save final state to storage, merging with existing DB state to preserve flags
+      const existingArticlesMap = new Map((await db.articles.toArray()).map(a => [a.id, a]));
+      const articlesToSave = finalArticles.map(newArt => {
+        const existing = existingArticlesMap.get(newArt.id);
+        if (existing) {
+          // Preserve critical flags
+          return {
+            ...newArt,
+            isFavorite: existing.isFavorite,
+            isQueued: existing.isQueued,
+            // Keep read status if already read, otherwise use new status
+            isRead: existing.isRead || newArt.isRead,
+            readAt: existing.isRead ? existing.readAt : newArt.readAt
+          };
+        }
+        return newArt;
+      });
+      await storage.saveArticles(articlesToSave);
+      
+      // Update local state to match DB
+      setArticles(prev => {
+        const newArticlesMap = new Map(articlesToSave.map(a => [a.id, a]));
+        return prev.map(a => newArticlesMap.has(a.id) ? newArticlesMap.get(a.id)! : a);
+      });
       
       // Fetch latest feeds from storage to avoid overwriting newly added ones
       const currentFeedsInStorage = await storage.getFeeds();
@@ -516,70 +540,44 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   }, []);
 
   const toggleFavorite = useCallback(async (id: string) => {
-    let updatedArticle: Article | undefined;
-    setArticles(prev => {
-      const updated = prev.map(a => {
-        if (a.id === id) {
-          updatedArticle = { ...a, isFavorite: !a.isFavorite };
-          return updatedArticle;
-        }
-        return a;
-      });
-      return updated;
-    });
-    if (updatedArticle) {
+    // Update DB first
+    const article = await db.articles.get(id);
+    if (article) {
+      const updatedArticle = { ...article, isFavorite: !article.isFavorite };
       await storage.saveArticles([updatedArticle]);
+      
+      // Update local state if present
+      setArticles(prev => prev.map(a => a.id === id ? updatedArticle : a));
     }
   }, []);
 
   const toggleQueue = useCallback(async (id: string) => {
-    let updatedArticle: Article | undefined;
-    setArticles(prev => {
-      const updated = prev.map(a => {
-        if (a.id === id) {
-          updatedArticle = { ...a, isQueued: !a.isQueued };
-          return updatedArticle;
-        }
-        return a;
-      });
-      return updated;
-    });
-    if (updatedArticle) {
+    const article = await db.articles.get(id);
+    if (article) {
+      const updatedArticle = { ...article, isQueued: !article.isQueued };
       await storage.saveArticles([updatedArticle]);
+      
+      setArticles(prev => prev.map(a => a.id === id ? updatedArticle : a));
     }
   }, []);
 
   const removeFromSaved = useCallback(async (id: string) => {
-    let updatedArticle: Article | undefined;
-    setArticles(prev => {
-      const updated = prev.map(a => {
-        if (a.id === id) {
-          updatedArticle = { ...a, isFavorite: false, isQueued: false };
-          return updatedArticle;
-        }
-        return a;
-      });
-      return updated;
-    });
-    if (updatedArticle) {
+    const article = await db.articles.get(id);
+    if (article) {
+      const updatedArticle = { ...article, isFavorite: false, isQueued: false };
       await storage.saveArticles([updatedArticle]);
+      
+      setArticles(prev => prev.map(a => a.id === id ? updatedArticle : a));
     }
   }, []);
 
   const updateArticle = useCallback(async (id: string, updates: Partial<Article>) => {
-    let updatedArticle: Article | undefined;
-    setArticles(prev => {
-      const updated = prev.map(a => {
-        if (a.id === id) {
-          updatedArticle = { ...a, ...updates };
-          return updatedArticle;
-        }
-        return a;
-      });
-      return updated;
-    });
-    if (updatedArticle) {
+    const article = await db.articles.get(id);
+    if (article) {
+      const updatedArticle = { ...article, ...updates };
       await storage.saveArticles([updatedArticle]);
+      
+      setArticles(prev => prev.map(a => a.id === id ? updatedArticle : a));
     }
   }, []);
 

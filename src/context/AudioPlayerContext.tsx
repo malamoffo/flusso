@@ -1,5 +1,4 @@
 import React, { useEffect, useMemo, useRef, useCallback } from 'react';
-import { useShallow } from 'zustand/react/shallow';
 import { Article } from '../types';
 import { useRss } from './RssContext';
 import { Capacitor } from '@capacitor/core';
@@ -8,10 +7,11 @@ import { QueuePlugin } from '../plugins/QueuePlugin';
 import { imagePersistence } from '../utils/imagePersistence';
 import { parseDurationToSeconds } from '../lib/utils';
 import { useAudioStore } from '../store/audioStore';
+import { storage } from '../services/storage';
 
 // ─── costanti throttling ───────────────────────────────────────────────────────
-const POSITION_SYNC_INTERVAL_MS = 3000;   // posizione → max 1 volta / 3s
-const POSITION_SYNC_THRESHOLD_S = 2;      // invia solo se delta ≥ 2s (evita jitter)
+const POSITION_SYNC_INTERVAL_MS = 3000;
+const POSITION_SYNC_THRESHOLD_S = 2;
 
 function AudioBridge() {
   const { articles, updateArticle, feeds } = useRss();
@@ -19,25 +19,22 @@ function AudioBridge() {
   // ─── init store ──────────────────────────────────────────────────────────────
   useEffect(() => {
     useAudioStore.getState().setUpdateArticleProgress((trackId, progress) => {
-      // Find the track in articles to check its type and duration
       const track = articlesRef.current.find(a => a.id === trackId);
       const updates: Partial<Article> = { progress };
-      
+
       if (track && track.type === 'podcast') {
         const totalSeconds = parseDurationToSeconds(track.duration);
         const currentSeconds = progress * totalSeconds;
-        // Mark as read if reached < 2 minutes from end (120 seconds)
         if (totalSeconds > 0 && (totalSeconds - currentSeconds) < 120 && !track.isRead) {
           updates.isRead = true;
           updates.readAt = Date.now();
         }
       }
-      
+
       updateArticle(trackId, updates);
     });
   }, [updateArticle]);
 
-  // Use a ref to articles to avoid dependency re-renders while allowing access in callback
   const articlesRef = useRef(articles);
   useEffect(() => {
     articlesRef.current = articles;
@@ -48,25 +45,41 @@ function AudioBridge() {
   }, []);
 
   // ─── calcolo code ─────────────────────────────────────────────────────────────
-  const { queue, recentPodcasts, favoritePodcasts } = useMemo(() => {
+  const { queue, recentPodcasts } = useMemo(() => {
     const q: Article[] = [];
     const r: Article[] = [];
-    const f: Article[] = [];
 
     for (let i = 0; i < articles.length; i++) {
       const a = articles[i];
       if (a.type !== 'podcast') continue;
       if (a.isQueued || a.isFavorite) q.push(a);
       if (r.length < 20) r.push(a);
-      if (a.isFavorite) f.push(a);
     }
 
-    return { queue: q, recentPodcasts: r, favoritePodcasts: f };
+    return { queue: q, recentPodcasts: r };
   }, [articles]);
 
+  // ─── favoritePodcasts: letti direttamente dal DB, non dall'array in RAM ───────
+  // Questo evita il bug in cui i podcast preferiti non rientrano nella prima
+  // pagina di 50 articoli caricata da loadData() e quindi non compaiono in articles[].
+  const favoritePodcastsRef = useRef<Article[]>([]);
+
   useEffect(() => {
-    useAudioStore.getState().setCollections({ queue, recentPodcasts, favoritePodcasts });
-  }, [queue, recentPodcasts, favoritePodcasts]);
+    if (!Capacitor.isNativePlatform()) return;
+    if (articles.length === 0) return; // aspetta che Dexie abbia caricato
+
+    storage.getFavoritePodcasts().then(favs => {
+      favoritePodcastsRef.current = favs;
+    }).catch(console.error);
+  }, [articles]); // si aggiorna ogni volta che articles cambia (toggle preferito)
+
+  useEffect(() => {
+    useAudioStore.getState().setCollections({
+      queue,
+      recentPodcasts,
+      favoritePodcasts: favoritePodcastsRef.current,
+    });
+  }, [queue, recentPodcasts]);
 
   const feedMap = useMemo(() => new Map(feeds.map((f) => [f.id, f])), [feeds]);
 
@@ -113,7 +126,7 @@ function AudioBridge() {
           case 'next':     s.playNext();     break;
           case 'previous': s.playPrevious(); break;
           case 'stop':     s.stop();         break;
-          case 'seek':     
+          case 'seek':
             if (typeof data.position === 'number' && Number.isFinite(data.position)) {
               s.seek(data.position);
             }
@@ -122,8 +135,16 @@ function AudioBridge() {
       });
 
       playListener = await QueuePlugin.addListener('playRequest', (data) => {
-        const track = articles.find((a) => a.id === data.id && a.type === 'podcast');
-        if (track) useAudioStore.getState().play(track);
+        const track = articlesRef.current.find((a) => a.id === data.id && a.type === 'podcast');
+        if (track) {
+          useAudioStore.getState().play(track);
+        } else {
+          // Fallback: cerca nel DB se la traccia non è in RAM (podcast fuori paginazione)
+          storage.getFavoritePodcasts().then(favs => {
+            const favTrack = favs.find(a => a.id === data.id);
+            if (favTrack) useAudioStore.getState().play(favTrack);
+          }).catch(console.error);
+        }
       });
 
       seekListener = await QueuePlugin.addListener('seekRequest', (data) => {
@@ -142,21 +163,23 @@ function AudioBridge() {
     };
   }, [articles]);
 
-  // ─── sync code verso nativo (solo quando cambiano le code) ───────────────────
+  // ─── sync code verso nativo ──────────────────────────────────────────────────
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
-    // Guard: non scrivere su disco finché Dexie non ha caricato gli articoli.
-    // Senza questo guard, al primo render articles=[] e setQueue sovrascrive
-    // favorites.json con [] su disco, causando lista vuota in Android Auto
-    // al cold start (quando l'auto è già connessa prima che la WebView sia pronta).
     if (articles.length === 0) return;
 
-    QueuePlugin.setQueue({
-      queue:     queue.map(mapTrack),
-      recent:    recentPodcasts.map(mapTrack),
-      favorites: favoritePodcasts.map(mapTrack),
-    }).catch((err) => console.error('setQueue error:', err));
-  }, [queue, recentPodcasts, favoritePodcasts, mapTrack, articles]);
+    // Legge i preferiti freschi dal DB per evitare che la paginazione
+    // nasconda podcast preferiti con pubDate vecchio
+    storage.getFavoritePodcasts().then(favs => {
+      favoritePodcastsRef.current = favs;
+      QueuePlugin.setQueue({
+        queue:     queue.map(mapTrack),
+        recent:    recentPodcasts.map(mapTrack),
+        favorites: favs.map(mapTrack),
+      }).catch((err) => console.error('setQueue error:', err));
+    }).catch(console.error);
+
+  }, [queue, recentPodcasts, mapTrack, articles]);
 
   // ─── autoplay pending al boot ─────────────────────────────────────────────────
   useEffect(() => {
@@ -165,8 +188,16 @@ function AudioBridge() {
     QueuePlugin.getPendingMediaId()
       .then(({ mediaId }) => {
         if (mediaId && !useAudioStore.getState().currentTrack) {
-          const track = articles.find((a) => a.id === mediaId && a.type === 'podcast');
-          if (track) useAudioStore.getState().play(track);
+          const track = articlesRef.current.find((a) => a.id === mediaId && a.type === 'podcast');
+          if (track) {
+            useAudioStore.getState().play(track);
+          } else {
+            // Cerca nel DB se non è in RAM
+            storage.getFavoritePodcasts().then(favs => {
+              const favTrack = favs.find(a => a.id === mediaId);
+              if (favTrack) useAudioStore.getState().play(favTrack);
+            }).catch(console.error);
+          }
         }
       })
       .catch(console.error);
@@ -180,7 +211,7 @@ function AudioBridge() {
 
   // ─── ref per throttling posizione ────────────────────────────────────────────
   const lastSentPositionRef  = useRef(-1);
-  const lastPositionSyncRef  = useRef(0);      // timestamp ms dell'ultimo invio
+  const lastPositionSyncRef  = useRef(0);
   const pendingPositionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ─── livello 1: metadata — solo al cambio traccia ────────────────────────────
@@ -189,7 +220,6 @@ function AudioBridge() {
 
     const { artworkUrl, artworkFilename, feed } = getArtworkData(currentTrack);
 
-    // reset del throttling posizione ad ogni cambio traccia
     lastSentPositionRef.current = -1;
     lastPositionSyncRef.current = 0;
     if (pendingPositionTimer.current) {
@@ -197,7 +227,6 @@ function AudioBridge() {
       pendingPositionTimer.current = null;
     }
 
-    // aggiorna metadata completi
     QueuePlugin.updateMediaSession({
       mediaId:         currentTrack.id,
       title:           currentTrack.title,
@@ -210,7 +239,6 @@ function AudioBridge() {
       isPlaying:       false,
     }).catch(() => {});
 
-    // aggiorna MediaSession di sistema (lockscreen/headunit)
     MediaSession.setMetadata({
       title:   currentTrack.title,
       artist:  feed?.title || 'Podcast',
@@ -223,12 +251,12 @@ function AudioBridge() {
       if (s.currentTrack) s.play(s.currentTrack);
       else if (s.queue.length > 0) s.play(s.queue[0]);
     });
-    MediaSession.setActionHandler({ action: 'pause' }, () => useAudioStore.getState().pause());
+    MediaSession.setActionHandler({ action: 'pause' },        () => useAudioStore.getState().pause());
     MediaSession.setActionHandler({ action: 'seekbackward' }, () => {
       const s = useAudioStore.getState();
       s.seek(Math.max(0, s.progress - 10));
     });
-    MediaSession.setActionHandler({ action: 'seekforward' }, () => {
+    MediaSession.setActionHandler({ action: 'seekforward' },  () => {
       const s = useAudioStore.getState();
       s.seek(Math.min(s.duration, s.progress + 30));
     });
@@ -238,7 +266,7 @@ function AudioBridge() {
 
   }, [currentTrack?.id, feedMap]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ─── livello 2: isPlaying — immediato, ma senza metadata completi ────────────
+  // ─── livello 2: isPlaying ────────────────────────────────────────────────────
   const lastSentPlayingRef = useRef<boolean | null>(null);
 
   useEffect(() => {
@@ -248,17 +276,17 @@ function AudioBridge() {
     lastSentPlayingRef.current = isPlaying;
 
     QueuePlugin.updateMediaSession({
-      mediaId:   currentTrack.id,
-      position:  progress,
+      mediaId:  currentTrack.id,
+      position: progress,
       duration,
       isPlaying,
     }).catch(() => {});
   }, [isPlaying]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ─── livello 3: posizione — throttled 3s, invia solo se delta ≥ 2s ──────────
+  // ─── livello 3: posizione — throttled 3s ────────────────────────────────────
   useEffect(() => {
     if (!currentTrack || !Capacitor.isNativePlatform()) return;
-    if (!isPlaying) return; // se in pausa non serve aggiornare posizione
+    if (!isPlaying) return;
 
     const delta = Math.abs(progress - lastSentPositionRef.current);
     if (delta < POSITION_SYNC_THRESHOLD_S) return;
@@ -280,14 +308,12 @@ function AudioBridge() {
     };
 
     if (elapsed >= POSITION_SYNC_INTERVAL_MS) {
-      // abbastanza tempo trascorso: invia subito
       if (pendingPositionTimer.current) {
         clearTimeout(pendingPositionTimer.current);
         pendingPositionTimer.current = null;
       }
       doSend();
     } else {
-      // schedula l'invio al momento giusto, senza accumulare timer
       if (!pendingPositionTimer.current) {
         const delay = POSITION_SYNC_INTERVAL_MS - elapsed;
         pendingPositionTimer.current = setTimeout(doSend, delay);

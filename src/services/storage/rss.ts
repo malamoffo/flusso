@@ -33,8 +33,19 @@ export const rssStorage = {
     return await db.articles.filter(a => (!!a.isFavorite || !!a.isQueued) && !a.isRead).count();
   },
 
+  // Restituisce preferiti E in coda (usato da loadData per precaricare in articles[])
   async getFavorites(): Promise<Article[]> {
     return await db.articles.filter(a => !!a.isFavorite || !!a.isQueued).toArray();
+  },
+
+  // Restituisce SOLO i podcast con isFavorite=true — usato per favorites.json in Android Auto
+  async getFavoritePodcasts(): Promise<Article[]> {
+    // Usa l'indice su isFavorite per efficienza, poi filtra per type
+    return await db.articles
+      .where('isFavorite')
+      .equals(1)
+      .filter(a => a.type === 'podcast')
+      .toArray();
   },
 
   async cleanUpOldArticles(articleRetentionDays: number, podcastRetentionDays: number): Promise<void> {
@@ -111,7 +122,6 @@ export const rssStorage = {
         response = await fetchWithProxy(feedUrl, true, sinceDate, signal, feed?.etag, feed?.lastModified);
       } catch (e) {
         if (signal?.aborted) throw e;
-        // If first attempt failed, try alternative URL (with/without trailing slash)
         const alternativeUrl = feedUrl.endsWith('/') ? feedUrl.slice(0, -1) : feedUrl + '/';
         response = await fetchWithProxy(alternativeUrl, true, sinceDate, signal, feed?.etag, feed?.lastModified);
       }
@@ -169,7 +179,6 @@ export const rssStorage = {
     let allNewArticles: Article[] = [];
     let articlesModified = false;
     
-    // We will collect articles that need to be updated.
     const articlesToUpdate: Article[] = [];
 
     for (const { feed, articles: newArticles } of results) {
@@ -180,15 +189,12 @@ export const rssStorage = {
         : 0;
       
       if (existingFeedIndex === -1) {
-        // New feed
         const newFeed = {
           ...feed,
           lastArticleDate: latestFromNew
         };
         updatedFeeds.push(newFeed);
         
-        // We know there are no existing articles for a brand new feed
-        // Avoid duplicate links within the same new batch
         const seenLinks = new Set<string>();
         
         for (const a of newArticles) {
@@ -203,7 +209,6 @@ export const rssStorage = {
           }
         }
       } else {
-        // Existing feed
         const feedId = updatedFeeds[existingFeedIndex].id;
         const currentLastArticleDate = updatedFeeds[existingFeedIndex].lastArticleDate || 0;
         
@@ -218,7 +223,6 @@ export const rssStorage = {
           type: feed.type
         };
         
-        // Fetch only existing articles for THIS feed to perform dedup check
         const existingForFeed = await db.articles.where('feedId').equals(feedId).toArray();
         const existingLinks = new Set<string>();
         const articleByLinkMap = new Map<string, Article>();
@@ -228,10 +232,9 @@ export const rssStorage = {
           articleByLinkMap.set(ea.link, ea);
         }
         
-        // Handle incoming articles
         for (const a of newArticles) {
           if (!existingLinks.has(a.link)) {
-            existingLinks.add(a.link); // prevent dup within same batch if any
+            existingLinks.add(a.link);
             const { content, ...lightArticle } = a;
             if (content !== undefined) {
               this.saveArticleContent(a.id, content).catch(err => console.error('Failed to save article content', err));
@@ -242,7 +245,6 @@ export const rssStorage = {
               feedId
             } as Article);
           } else {
-            // Already exists, check if we need to update chapters or content (for podcasts typically)
             const existingMatch = articleByLinkMap.get(a.link);
             if (existingMatch) {
               let modified = false;
@@ -261,7 +263,6 @@ export const rssStorage = {
               if (modified) {
                 articlesModified = true;
                 articlesToUpdate.push(nextArt);
-                // updating internal map to track latest changes if duplicate links in same batch
                 articleByLinkMap.set(a.link, nextArt);
               }
               
@@ -278,7 +279,6 @@ export const rssStorage = {
       await this.saveArticles(allNewArticles);
     }
     if (articlesToUpdate.length > 0) {
-      // Use bulkPut to update existing elements
       await this.saveArticles(articlesToUpdate);
     }
 
@@ -365,7 +365,7 @@ export const rssStorage = {
     const outlines = doc.querySelectorAll('outline');
     const urls: string[] = [];
     
-    outlines.forEach((outline, index) => {
+    outlines.forEach((outline) => {
       const url = outline.getAttribute('xmlUrl') || 
                   outline.getAttribute('xmlURL') || 
                   outline.getAttribute('xmlurl') || 
