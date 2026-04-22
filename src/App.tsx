@@ -185,6 +185,7 @@ export default function App() {
     activeSectionRef.current = getActiveScrollRef() as any;
   }, [filter, getActiveScrollRef]);
   
+  const [redditUnreadOnly, setRedditUnreadOnly] = useState(false);
   const [inboxTypeFilter, setInboxTypeFilter] = useState<'all' | 'article' | 'podcast'>('all');
   const [inboxUnreadOnly, setInboxUnreadOnly] = useState(false);
   const [savedTypeFilter, setSavedTypeFilter] = useState<'all' | 'article' | 'podcast'>('all');
@@ -197,6 +198,7 @@ export default function App() {
   const filteredRedditPosts = useMemo(() => {
     const query = deferredSearchQuery.toLowerCase();
     const filtered = redditPosts.filter(post => {
+      if (redditUnreadOnly && post.isRead) return false;
       if (query) {
         const matchesQuery = post.title.toLowerCase().includes(query) || 
                             (post.subredditName?.toLowerCase().includes(query) ?? false) ||
@@ -706,6 +708,16 @@ export default function App() {
 
         {filter === 'reddit' && (
           <div className="px-4 pb-3 flex items-center gap-2 overflow-x-auto scrollbar-hide">
+            <button
+              onClick={() => setRedditUnreadOnly(!redditUnreadOnly)}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap",
+                redditUnreadOnly ? "bg-purple-600 text-white shadow-sm" : "bg-gray-800 text-gray-400 hover:bg-gray-700"
+              )}
+            >
+              {redditUnreadOnly ? <Check className="w-3.5 h-3.5" /> : <Layers className="w-3.5 h-3.5" />}
+              {redditUnreadOnly ? 'Unread' : 'All'}
+            </button>
             <button
               onClick={() => handleRedditSortChange('new')}
               className={cn(

@@ -178,7 +178,7 @@ export const TelegramProvider: React.FC<{ children: ReactNode }> = ({ children }
               const cleaned = cleanupTelegramMessages(channel, merged);
               
               const lastDate = merged.length > 0 ? Math.max(...merged.map(m => m.date)) : channel.lastMessageDate;
-              const newUnreadCount = (channel.unreadCount || 0) + messages.length;
+              const newUnreadCount = merged.filter(m => m.date > channel.lastOpened).length;
 
               const updates: Partial<any> = { 
                 lastMessageDate: lastDate, 

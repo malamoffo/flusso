@@ -125,15 +125,19 @@ export function extractBestImage(content: string, baseUrl?: string): string | nu
   return null;
 }
 
+const HOUR_REGEX = /(\d+)\s*h/;
+const MINUTE_REGEX = /(\d+)\s*m/;
+const SECOND_REGEX = /(\d+)\s*s/;
+
 function parseTime(timeStr: string | null): number {
   if (!timeStr) return 0;
   
   // Handle formats like "1h 23m 45s" or "23m 45s"
   if (timeStr.includes('h') || timeStr.includes('m') || timeStr.includes('s')) {
     let totalSeconds = 0;
-    const hMatch = timeStr.match(/(\d+)\s*h/);
-    const mMatch = timeStr.match(/(\d+)\s*m/);
-    const sMatch = timeStr.match(/(\d+)\s*s/);
+    const hMatch = timeStr.match(HOUR_REGEX);
+    const mMatch = timeStr.match(MINUTE_REGEX);
+    const sMatch = timeStr.match(SECOND_REGEX);
     if (hMatch) totalSeconds += parseInt(hMatch[1]) * 3600;
     if (mMatch) totalSeconds += parseInt(mMatch[1]) * 60;
     if (sMatch) totalSeconds += parseInt(sMatch[1]);

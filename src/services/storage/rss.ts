@@ -96,8 +96,8 @@ export const rssStorage = {
 
   async cleanupOrphanedContent(validArticles: Article[]): Promise<void> {
     const validIds = new Set(validArticles.map(a => a.id));
-    const allContents = await db.articleContents.toArray();
-    const idsToDelete = allContents.filter(c => !validIds.has(c.id)).map(c => c.id);
+    const allContentIds = await db.articleContents.toCollection().primaryKeys();
+    const idsToDelete = allContentIds.filter(id => !validIds.has(id));
     if (idsToDelete.length > 0) {
       await db.articleContents.bulkDelete(idsToDelete);
     }
