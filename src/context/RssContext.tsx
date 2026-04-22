@@ -58,7 +58,7 @@ interface RssContextType {
     timeThreshold?: number;
     searchQuery?: string;
   }) => Promise<void>;
-  prefetch: (ids: string[]) => Promise<void>;
+  prefetch: (article: Article) => Promise<void>;
 }
 
 const RssContext = createContext<RssContextType | undefined>(undefined);
