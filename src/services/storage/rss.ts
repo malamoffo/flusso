@@ -40,12 +40,11 @@ export const rssStorage = {
 
   // Restituisce SOLO i podcast con isFavorite=true — usato per favorites.json in Android Auto
   async getFavoritePodcasts(): Promise<Article[]> {
-    // Usa l'indice su isFavorite per efficienza, poi filtra per type
-    return await db.articles
-      .where('isFavorite')
-      .equals(1)
-      .filter(a => a.type === 'podcast')
+    const podcasts = await db.articles
+      .where('type')
+      .equals('podcast')
       .toArray();
+    return podcasts.filter(a => !!a.isFavorite);
   },
 
   async cleanUpOldArticles(articleRetentionDays: number, podcastRetentionDays: number): Promise<void> {
@@ -412,6 +411,39 @@ export const rssStorage = {
   async markAllArticlesAsRead(): Promise<void> {
     const now = Date.now();
     await db.articles.filter(a => !a.isRead).modify({ isRead: true, readAt: now });
+  },
+
+  async markFilteredArticlesAsRead(filters: {
+    type?: 'article' | 'podcast';
+    feedId?: string;
+    timeThreshold?: number;
+    searchQuery?: string;
+  }): Promise<void> {
+    const now = Date.now();
+    let collection = db.articles.filter(a => !a.isRead);
+
+    if (filters.type && filters.type !== 'all' as any) {
+      collection = collection.filter(a => a.type === filters.type);
+    }
+    if (filters.feedId && filters.feedId !== 'all') {
+      collection = collection.filter(a => a.feedId === filters.feedId);
+    }
+    if (filters.timeThreshold) {
+      collection = collection.filter(a => {
+        const pubTime = typeof a.pubDate === 'string' ? new Date(a.pubDate).getTime() : a.pubDate;
+        return pubTime >= filters.timeThreshold!;
+      });
+    }
+    if (filters.searchQuery) {
+      const q = filters.searchQuery.toLowerCase();
+      collection = collection.filter(a => 
+        a.title.toLowerCase().includes(q) || 
+        (a.contentSnippet?.toLowerCase().includes(q) ?? false) ||
+        (a.content?.toLowerCase().includes(q) ?? false)
+      );
+    }
+
+    await collection.modify({ isRead: true, readAt: now });
   },
 
   async removeFeed(id: string): Promise<void> {

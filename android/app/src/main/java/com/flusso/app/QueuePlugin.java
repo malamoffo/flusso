@@ -111,17 +111,17 @@ public class QueuePlugin extends Plugin {
     // ─── Static accessors (usati da AndroidAutoService al cold start) ─────────
 
     public static JSArray getStaticQueue(Context context) {
-        if (currentQueue.length() == 0 && context != null) {
-            currentQueue = loadFromDisk(context, "queue.json");
-            Log.d(TAG, "getStaticQueue from file: " + currentQueue.length() + " items");
+        if (context != null) {
+            JSArray fromDisk = loadFromDisk(context, "queue.json");
+            currentQueue = fromDisk;
         }
         return currentQueue;
     }
 
     public static JSArray getStaticRecent(Context context) {
-        if (recentQueue.length() == 0 && context != null) {
-            recentQueue = loadFromDisk(context, "recent.json");
-            Log.d(TAG, "getStaticRecent from file: " + recentQueue.length() + " items");
+        if (context != null) {
+            JSArray fromDisk = loadFromDisk(context, "recent.json");
+            recentQueue = fromDisk;
         }
         return recentQueue;
     }
@@ -130,9 +130,7 @@ public class QueuePlugin extends Plugin {
         // ✅ Fix: rilegge SEMPRE da file per evitare dati stantii in RAM
         if (context != null) {
             JSArray fromDisk = loadFromDisk(context, "favorites.json");
-            if (fromDisk.length() > 0) {
-                favoritesQueue = fromDisk;
-            }
+            favoritesQueue = fromDisk;
         }
         Log.d(TAG, "getStaticFavorites returning " + favoritesQueue.length() + " items");
         return favoritesQueue;

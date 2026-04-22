@@ -63,7 +63,7 @@ export default function App() {
   const {
     articles, feeds, isLoading, error, setError,
     refreshFeeds, toggleRead, markAsRead, markArticlesAsRead,
-    markAllAsRead, searchQuery, setSearchQuery, unreadCount, savedCount,
+    markAllAsRead, markFilteredArticlesAsRead, searchQuery, setSearchQuery, unreadCount, savedCount,
     toggleFavorite, toggleQueue, removeFromSaved, removeArticle, addArticle
   } = useRss();
 
@@ -1122,40 +1122,18 @@ export default function App() {
                 <button
                   onClick={async () => {
                     if (filter === 'inbox') {
-                      // Get all articles that match the current search & source filters
-                      // ignoring the inboxTypeFilter and inboxUnreadOnly 
-                      const toMark = articles.filter(a => {
-                        if (a.isRead) return false;
-                        
-                        if (isSearchOpen) {
-                          if (sourceFilter !== 'all' && a.feedId !== sourceFilter) return false;
-                          if (timeFilter !== 'all') {
-                            const now = Date.now();
-                            const DAY_MS = 1000 * 60 * 60 * 24;
-                            let threshold = 0;
-                            if (timeFilter === 'today') threshold = now - DAY_MS;
-                            if (timeFilter === 'week') threshold = now - (DAY_MS * 7);
-                            if (timeFilter === 'month') threshold = now - (DAY_MS * 30);
-                            
-                            const pubTime = typeof a.pubDate === 'string' ? new Date(a.pubDate).getTime() : a.pubDate;
-                            if (threshold > 0 && pubTime < threshold) return false;
-                          }
-                        }
-                        
-                        if (searchQuery) {
-                          const lowerQuery = searchQuery.toLowerCase();
-                          const matchesQuery = a.title.toLowerCase().includes(lowerQuery) || 
-                                              (a.contentSnippet?.toLowerCase().includes(lowerQuery) ?? false) ||
-                                              (a.content?.toLowerCase().includes(lowerQuery) ?? false);
-                          if (!matchesQuery) return false;
-                        }
-                        
-                        return true;
-                      }).map(a => a.id);
-                      
-                      if (toMark.length > 0) {
-                        markArticlesAsReadWithPersistence(toMark);
-                      }
+                      const DAY_MS = 1000 * 60 * 60 * 24;
+                      let threshold = 0;
+                      if (timeFilter === 'today') threshold = Date.now() - DAY_MS;
+                      if (timeFilter === 'week') threshold = Date.now() - (DAY_MS * 7);
+                      if (timeFilter === 'month') threshold = Date.now() - (DAY_MS * 30);
+
+                      await markFilteredArticlesAsRead({
+                        type: inboxTypeFilter === 'all' ? undefined : inboxTypeFilter,
+                        feedId: sourceFilter === 'all' ? undefined : sourceFilter,
+                        searchQuery: searchQuery || undefined,
+                        timeThreshold: threshold || undefined
+                      });
                     } else if (filter === 'saved') {
                       const toMark = savedArticles.filter(a => !a.isRead).map(a => a.id);
                       if (toMark.length > 0) {

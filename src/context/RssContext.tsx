@@ -74,10 +74,7 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   // Update counts asynchronously from the database to include items outside the RAM window
   const updateCounts = useCallback(async () => {
     // Get all unread articles from DB
-    const allUnread = await db.articles.filter(a => !a.isRead).toArray();
-    
-    // Filter out saved podcasts
-    const unread = allUnread.filter(a => !(a.type === 'podcast' && a.isFavorite)).length;
+    const unread = await storage.getUnreadCount();
     
     const saved = await storage.getSavedCount();
     const reddit = await db.redditPosts.filter(p => !!p.isFavorite).count();
@@ -523,6 +520,41 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setArticles(prev => prev.map(a => ({ ...a, isRead: true, readAt: a.isRead ? a.readAt : now })));
   }, []);
 
+  const markFilteredArticlesAsRead = useCallback(async (filters: {
+    type?: 'article' | 'podcast';
+    feedId?: string;
+    timeThreshold?: number;
+    searchQuery?: string;
+  }) => {
+    const now = Date.now();
+    await storage.markFilteredArticlesAsRead(filters);
+    
+    // Update local state for consistency
+    const q = filters.searchQuery?.toLowerCase();
+    setArticles(prev => prev.map(a => {
+      if (a.isRead) return a;
+      
+      let matches = true;
+      if (filters.type && filters.type !== 'all' as any && a.type !== filters.type) matches = false;
+      if (filters.feedId && filters.feedId !== 'all' && a.feedId !== filters.feedId) matches = false;
+      if (filters.timeThreshold) {
+        const pubTime = typeof a.pubDate === 'string' ? new Date(a.pubDate).getTime() : a.pubDate;
+        if (pubTime < filters.timeThreshold) matches = false;
+      }
+      if (q) {
+        const matchesQuery = a.title.toLowerCase().includes(q) || 
+                            (a.contentSnippet?.toLowerCase().includes(q) ?? false) ||
+                            (a.content?.toLowerCase().includes(q) ?? false);
+        if (!matchesQuery) matches = false;
+      }
+      
+      if (matches) {
+        return { ...a, isRead: true, readAt: now };
+      }
+      return a;
+    }));
+  }, []);
+
   const globalSearch = useCallback((query: string) => {
     const lowerQuery = query.toLowerCase();
     const foundArticles = articlesRef.current.filter(a => 
@@ -652,7 +684,7 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     removeArticle, addArticle,
     updateFeed, updateArticle, exportFeeds,
     searchQuery, setSearchQuery, unreadCount, savedCount, hasMoreArticles, loadMoreArticles, updateInfo, checkUpdates,
-    globalSearch, prefetch
+    globalSearch, prefetch, markFilteredArticlesAsRead
   }), [
     feeds, articles, isLoading, progress, error, setError, errorLogs, clearErrorLogs,
     addFeedOrSubreddit, importOpml, toggleRead, markAsRead, markArticlesAsRead,
@@ -660,7 +692,7 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     removeArticle, addArticle,
     updateFeed, updateArticle, exportFeeds,
     searchQuery, setSearchQuery, unreadCount, savedCount, hasMoreArticles, loadMoreArticles, updateInfo, checkUpdates,
-    globalSearch, prefetch
+    globalSearch, prefetch, markFilteredArticlesAsRead
   ]);
 
   return (
