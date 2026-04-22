@@ -22,6 +22,7 @@ export const telegramStorage = {
   },
 
   async getTelegramMessages(channelId: string, offset = 0, limit = 0): Promise<TelegramMessage[]> {
+    if (!channelId) return [];
     const allMessages = await db.telegramMessages.where('channelId').equals(channelId).sortBy('date');
     // allMessages is [oldest, ..., newest] because sortBy is ascending
     
@@ -43,6 +44,7 @@ export const telegramStorage = {
   },
 
   async removeTelegramChannel(channelId: string): Promise<void> {
+    if (!channelId) return;
     await db.telegramChannels.delete(channelId);
     const messagesToDelete = await db.telegramMessages.where('channelId').equals(channelId).primaryKeys();
     await db.telegramMessages.bulkDelete(messagesToDelete);

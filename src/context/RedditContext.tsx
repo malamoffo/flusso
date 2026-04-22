@@ -252,54 +252,65 @@ export const RedditProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     await refreshReddit(undefined, undefined, sort);
   }, [refreshReddit]);
 
-  const toggleRedditRead = useCallback((id: string) => {
+  const toggleRedditRead = useCallback(async (id: string) => {
+    let nextPosts: RedditPost[] = [];
     setRedditPosts(prev => {
-      const next = prev.map(p => p.id === id ? { ...p, isRead: !p.isRead } : p);
-      storage.saveRedditPosts(next);
-      return next;
+      nextPosts = prev.map(p => p.id === id ? { ...p, isRead: p.isRead ? 0 : 1 } : p);
+      return nextPosts;
     });
+    if (nextPosts.length > 0) {
+      await storage.saveRedditPosts(nextPosts);
+    }
   }, []);
 
-  const markRedditAsRead = useCallback((id: string) => {
+  const markRedditAsRead = useCallback(async (id: string) => {
+    let nextPosts: RedditPost[] = [];
     setRedditPosts(prev => {
-      const next = prev.map(p => p.id === id ? { ...p, isRead: true } : p);
-      storage.saveRedditPosts(next);
-      return next;
+      nextPosts = prev.map(p => p.id === id ? { ...p, isRead: 1 } : p);
+      return nextPosts;
     });
+    if (nextPosts.length > 0) {
+      await storage.saveRedditPosts(nextPosts);
+    }
   }, []);
 
-  const markRedditPostsAsRead = useCallback((ids: string[]) => {
+  const markRedditPostsAsRead = useCallback(async (ids: string[]) => {
     const idSet = new Set(ids);
-    let changed = false;
+    let nextPosts: RedditPost[] = [];
     setRedditPosts(prev => {
-      const next = prev.map(p => {
+      nextPosts = prev.map(p => {
         if (idSet.has(p.id) && !p.isRead) {
-          changed = true;
-          return { ...p, isRead: true };
+          return { ...p, isRead: 1 };
         }
         return p;
       });
-      if (changed) {
-        storage.saveRedditPosts(next);
-      }
-      return next;
+      return nextPosts;
     });
+    if (nextPosts.length > 0) {
+      await storage.saveRedditPosts(nextPosts);
+    }
   }, []);
 
-  const toggleRedditFavorite = useCallback((id: string) => {
+  const toggleRedditFavorite = useCallback(async (id: string) => {
+    let nextPosts: RedditPost[] = [];
     setRedditPosts(prev => {
-      const next = prev.map(p => p.id === id ? { ...p, isFavorite: !p.isFavorite } : p);
-      storage.saveRedditPosts(next);
-      return next;
+      nextPosts = prev.map(p => p.id === id ? { ...p, isFavorite: p.isFavorite ? 0 : 1 } : p);
+      return nextPosts;
     });
+    if (nextPosts.length > 0) {
+      await storage.saveRedditPosts(nextPosts);
+    }
   }, []);
 
-  const updateRedditPost = useCallback((id: string, updates: Partial<RedditPost>) => {
+  const updateRedditPost = useCallback(async (id: string, updates: Partial<RedditPost>) => {
+    let nextPosts: RedditPost[] = [];
     setRedditPosts(prev => {
-      const next = prev.map(p => p.id === id ? { ...p, ...updates } : p);
-      storage.saveRedditPosts(next);
-      return next;
+      nextPosts = prev.map(p => p.id === id ? { ...p, ...updates } : p);
+      return nextPosts;
     });
+    if (nextPosts.length > 0) {
+      await storage.saveRedditPosts(nextPosts);
+    }
   }, []);
 
   const removeSubreddit = useCallback((id: string) => {
@@ -328,7 +339,7 @@ export const RedditProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
   const markAllRedditAsRead = useCallback(() => {
     setRedditPosts(prev => {
-      const next = prev.map(p => ({ ...p, isRead: true }));
+      const next = prev.map(p => ({ ...p, isRead: 1 }));
       storage.saveRedditPosts(next);
       return next;
     });

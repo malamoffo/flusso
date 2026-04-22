@@ -692,12 +692,14 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
                   whileTap={{ scale: 0.9 }}
                   whileHover={{ scale: 1.1, color: '#fff' }}
                   onClick={() => {
-                    if (article.type === 'podcast') {
-                      setIsQueued(!isQueued);
-                      toggleQueue(article.id);
-                    } else {
-                      setIsFavorite(!isFavorite);
-                      toggleFavorite(article.id);
+                    if (article) {
+                      if (article.type === 'podcast') {
+                        setIsQueued(isQueued ? 0 : 1);
+                        toggleQueue(article.id);
+                      } else {
+                        setIsFavorite(isFavorite ? 0 : 1);
+                        toggleFavorite(article.id);
+                      }
                     }
                   }}
                   className="transition-all duration-300"

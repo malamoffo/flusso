@@ -1137,13 +1137,13 @@ export default function App() {
                     } else if (filter === 'saved') {
                       const toMark = savedArticles.filter(a => !a.isRead).map(a => a.id);
                       if (toMark.length > 0) {
-                        markArticlesAsRead(toMark);
+                        await markArticlesAsRead(toMark);
                       }
                     } else if (filter === 'reddit') {
                       // Mark all reddit posts as read
                       const toMark = redditPosts.filter(p => !p.isRead).map(p => p.id);
                       if (toMark.length > 0) {
-                        markRedditPostsAsRead(toMark);
+                        await markRedditPostsAsRead(toMark);
                       }
                     } else if (filter === 'telegram') {
                       await markAllTelegramAsRead();

@@ -22,20 +22,51 @@ export const rssStorage = {
   },
 
   async getUnreadCount(): Promise<number> {
-    return await db.articles.filter(a => !a.isRead).count();
+    try {
+      return await db.articles.where('isRead').equals(0).count();
+    } catch (e) {
+      console.warn('Index query failed for unread count, falling back to filter:', e);
+      return await db.articles.filter(a => !a.isRead).count();
+    }
   },
 
   async getSavedCount(): Promise<number> {
-    return await db.articles.filter(a => !!a.isFavorite || !!a.isQueued).count();
+    try {
+      const favIds = await db.articles.where('isFavorite').equals(1).primaryKeys();
+      const queuedIds = await db.articles.where('isQueued').equals(1).primaryKeys();
+      const uniqueIds = new Set([...favIds, ...queuedIds]);
+      return uniqueIds.size;
+    } catch (e) {
+      console.warn('Index query failed for saved count, falling back to filter:', e);
+      return await db.articles.filter(a => !!a.isFavorite || !!a.isQueued).count();
+    }
   },
 
   async getSavedUnreadCount(): Promise<number> {
-    return await db.articles.filter(a => (!!a.isFavorite || !!a.isQueued) && !a.isRead).count();
+    try {
+      const favs = await db.articles.where('isFavorite').equals(1).filter(a => !a.isRead).primaryKeys();
+      const queued = await db.articles.where('isQueued').equals(1).filter(a => !a.isRead).primaryKeys();
+      const uniqueIds = new Set([...favs, ...queued]);
+      return uniqueIds.size;
+    } catch (e) {
+      console.warn('Index query failed for saved unread count, falling back to filter:', e);
+      return await db.articles.filter(a => (!!a.isFavorite || !!a.isQueued) && !a.isRead).count();
+    }
   },
 
   // Restituisce preferiti E in coda (usato da loadData per precaricare in articles[])
   async getFavorites(): Promise<Article[]> {
-    return await db.articles.filter(a => !!a.isFavorite || !!a.isQueued).toArray();
+    try {
+      const favs = await db.articles.where('isFavorite').equals(1).toArray();
+      const queued = await db.articles.where('isQueued').equals(1).toArray();
+      const map = new Map<string, Article>();
+      favs.forEach(a => map.set(a.id, a));
+      queued.forEach(a => map.set(a.id, a));
+      return Array.from(map.values());
+    } catch (e) {
+      console.warn('Index query failed for favorites, falling back to filter:', e);
+      return await db.articles.filter(a => !!a.isFavorite || !!a.isQueued).toArray();
+    }
   },
 
   // Restituisce SOLO i podcast con isFavorite=true — usato per favorites.json in Android Auto
@@ -103,7 +134,13 @@ export const rssStorage = {
   },
 
   async saveArticles(articles: Article[]): Promise<void> {
-    await db.articles.bulkPut(articles);
+    const normalized = articles.map(a => ({
+      ...a,
+      isRead: a.isRead ? 1 : 0,
+      isFavorite: a.isFavorite ? 1 : 0,
+      isQueued: a.isQueued ? 1 : 0
+    }));
+    await db.articles.bulkPut(normalized as Article[]);
   },
 
   async deleteArticle(id: string): Promise<void> {
@@ -211,6 +248,11 @@ export const rssStorage = {
         const feedId = updatedFeeds[existingFeedIndex].id;
         const currentLastArticleDate = updatedFeeds[existingFeedIndex].lastArticleDate || 0;
         
+        if (feedId === undefined) {
+          console.warn("Skipping feed data save: feedId is undefined for", feed.feedUrl);
+          continue;
+        }
+
         updatedFeeds[existingFeedIndex] = {
           ...updatedFeeds[existingFeedIndex],
           lastFetched: Date.now(),
@@ -410,7 +452,7 @@ export const rssStorage = {
 
   async markAllArticlesAsRead(): Promise<void> {
     const now = Date.now();
-    await db.articles.filter(a => !a.isRead).modify({ isRead: true, readAt: now });
+    await db.articles.where('isRead').equals(0).modify({ isRead: 1, readAt: now });
   },
 
   async markFilteredArticlesAsRead(filters: {
@@ -420,7 +462,7 @@ export const rssStorage = {
     searchQuery?: string;
   }): Promise<void> {
     const now = Date.now();
-    let collection = db.articles.filter(a => !a.isRead);
+    let collection = db.articles.where('isRead').equals(0);
 
     if (filters.type && filters.type !== 'all' as any) {
       collection = collection.filter(a => a.type === filters.type);
@@ -443,10 +485,11 @@ export const rssStorage = {
       );
     }
 
-    await collection.modify({ isRead: true, readAt: now });
+    await collection.modify({ isRead: 1, readAt: now });
   },
 
   async removeFeed(id: string): Promise<void> {
+    if (!id) return;
     await db.feeds.delete(id);
     const articles = await db.articles.where('feedId').equals(id).toArray();
     const idsToDelete = articles.map(a => a.id);

@@ -57,10 +57,10 @@ export interface Article {
   progress?: number; // 0 to 1
   mediaUrl?: string;
   mediaType?: string;
-  isRead: boolean;
+  isRead: number; // 0 or 1
   readAt?: number;
-  isFavorite: boolean;
-  isQueued: boolean;
+  isFavorite: number; // 0 or 1
+  isQueued: number; // 0 or 1
   type: 'article' | 'podcast';
   chapters?: PodcastChapter[];
   chaptersUrl?: string;
@@ -111,9 +111,9 @@ export interface RedditPost {
   createdUtc: number;
   selftextHtml?: string;
   imageUrl?: string;
-  isRead: boolean;
+  isRead: number;
   readAt?: number;
-  isFavorite: boolean;
+  isFavorite: number;
 }
 
 export interface RedditComment {

@@ -17,7 +17,7 @@ export class FlussoDatabase extends Dexie {
     super('FlussoDB');
     
     // Define tables and indexes
-    this.version(1).stores({
+    this.version(3).stores({
       feeds: 'id, feedUrl',
       articles: 'id, feedId, pubDate, isRead, isFavorite, isQueued, type',
       subreddits: 'id, name',
@@ -28,6 +28,20 @@ export class FlussoDatabase extends Dexie {
       settings: 'id',
       refreshLogs: 'id, timestamp',
       kv: 'id'
+    }).upgrade(tx => {
+      // Data transformation from version 2 to 3
+      const convert = (val: any) => val ? 1 : 0;
+      
+      return tx.table('articles').toCollection().modify((article: any) => {
+        article.isRead = convert(article.isRead);
+        article.isFavorite = convert(article.isFavorite);
+        article.isQueued = convert(article.isQueued);
+      }).then(() => {
+        return tx.table('redditPosts').toCollection().modify((post: any) => {
+          post.isRead = convert(post.isRead);
+          post.isFavorite = convert(post.isFavorite);
+        });
+      });
     });
   }
 }

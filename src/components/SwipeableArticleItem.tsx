@@ -437,7 +437,7 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
                 </div>
               </div>
               <div className="flex items-center gap-1.5 flex-shrink-0 ml-2">
-                {(article.isFavorite || article.isQueued) && (
+                {!!(article.isFavorite || article.isQueued) && (
                   <Star className="w-3 h-3 text-yellow-500 fill-current" />
                 )}
                 <span className="text-[10px] text-gray-400 whitespace-nowrap">

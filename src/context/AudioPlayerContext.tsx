@@ -26,7 +26,7 @@ function AudioBridge() {
         const totalSeconds = parseDurationToSeconds(track.duration);
         const currentSeconds = progress * totalSeconds;
         if (totalSeconds > 0 && (totalSeconds - currentSeconds) < 120 && !track.isRead) {
-          updates.isRead = true;
+          updates.isRead = 1;
           updates.readAt = Date.now();
         }
       }

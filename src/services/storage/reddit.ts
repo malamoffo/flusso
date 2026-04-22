@@ -74,7 +74,12 @@ export const redditStorage = {
   },
 
   async saveRedditPosts(posts: RedditPost[]): Promise<void> {
-    await db.redditPosts.bulkPut(posts);
+    const normalized = posts.map(p => ({
+      ...p,
+      isRead: p.isRead ? 1 : 0,
+      isFavorite: p.isFavorite ? 1 : 0
+    }));
+    await db.redditPosts.bulkPut(normalized as RedditPost[]);
   },
 
   async addSubreddit(name: string): Promise<Subreddit | null> {
@@ -183,8 +188,8 @@ export const redditStorage = {
           createdUtc,
           selftextHtml: post.selftext_html ? he.decode(post.selftext_html) : undefined,
           imageUrl: imageUrl ? he.decode(imageUrl) : undefined,
-          isRead: false,
-          isFavorite: false,
+          isRead: 0,
+          isFavorite: 0,
         };
       }).filter(Boolean) as RedditPost[];
 
@@ -257,8 +262,8 @@ export const redditStorage = {
           score: post.score,
           numComments: post.num_comments,
           selftextHtml: post.selftext_html ? he.decode(post.selftext_html) : undefined,
-          isRead: false,
-          isFavorite: false
+          isRead: 0,
+          isFavorite: 0
         };
       });
 
@@ -325,17 +330,18 @@ export const redditStorage = {
   },
   
   async cleanupOldRedditPosts(retentionDays: number = 1): Promise<void> {
-    const retentionMs = retentionDays * 24 * 60 * 60 * 1000;
-    const now = Date.now();
-    
-    const posts = await this.getRedditPosts();
-    if (posts.length <= 5) return;
+    try {
+      const retentionMs = retentionDays * 24 * 60 * 60 * 1000;
+      const now = Date.now();
+      
+      const posts = await this.getRedditPosts();
+      if (posts.length <= 5) return;
 
-    const oldPosts = posts
-      .filter(p => !p.isFavorite && (now - p.createdUtc) > retentionMs)
-      .sort((a, b) => b.createdUtc - a.createdUtc); // Newest first
-    
-    if (oldPosts.length > 0) {
+      const oldPosts = posts
+        .filter(p => !p.isFavorite && (now - (p.createdUtc || 0)) > retentionMs)
+        .sort((a, b) => (b.createdUtc || 0) - (a.createdUtc || 0)); // Newest first
+      
+      if (oldPosts.length > 0) {
       const postsToKeep = 5;
       const postsAfterCleanup = posts.length - oldPosts.length;
       
@@ -351,6 +357,9 @@ export const redditStorage = {
       if (idsToDelete.length > 0) {
         await db.redditPosts.bulkDelete(idsToDelete);
       }
+    }
+    } catch (e) {
+      console.error('Failed to cleanup old reddit posts:', e);
     }
   }
 };

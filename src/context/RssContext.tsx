@@ -80,14 +80,26 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   // Update counts asynchronously from the database to include items outside the RAM window
   const updateCounts = useCallback(async () => {
-    // Get all unread articles from DB
-    const unread = await storage.getUnreadCount();
-    
-    const saved = await storage.getSavedCount();
-    const reddit = await db.redditPosts.filter(p => !!p.isFavorite).count();
-    
-    setUnreadCount(unread);
-    setSavedCount(saved + reddit);
+    try {
+      // Use Promise.all for parallel database reads
+      const [unread, saved, redditFavs] = await Promise.all([
+        storage.getUnreadCount(),
+        storage.getSavedCount(),
+        (async () => {
+          try {
+            return await db.redditPosts.where('isFavorite').equals(1).count();
+          } catch (e) {
+            console.warn('Reddit index query failed, falling back to filter:', e);
+            return await db.redditPosts.filter(p => !!p.isFavorite).count();
+          }
+        })()
+      ]);
+      
+      setUnreadCount(unread);
+      setSavedCount(saved + redditFavs);
+    } catch (e) {
+      console.error('Failed to update counts:', e);
+    }
   }, []);
 
   useEffect(() => {
@@ -472,35 +484,43 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const toggleRead = useCallback(async (id: string) => {
+    let articleToSave: Article | undefined;
     setArticles(prev => {
-      const updated = prev.map(a => a.id === id ? { ...a, isRead: !a.isRead, readAt: a.isRead ? undefined : Date.now() } : a);
-      const article = updated.find(a => a.id === id);
-      if (article) {
-        storage.saveArticles([article]); // Save only the changed article
-      }
+      const updated = prev.map(a => a.id === id ? { ...a, isRead: a.isRead ? 0 : 1, readAt: a.isRead ? undefined : Date.now() } : a);
+      articleToSave = updated.find(a => a.id === id);
       return updated;
     });
-  }, []);
+    
+    if (articleToSave) {
+      await storage.saveArticles([articleToSave]);
+      await updateCounts();
+    }
+  }, [updateCounts]);
 
   const markArticlesAsRead = useCallback(async (ids: string[]) => {
     const idSet = new Set(ids);
     const now = Date.now();
+    let articlesToSave: Article[] = [];
+    
     setArticles(prev => {
-      let changedCount = 0;
+      let changed = false;
       const updated = prev.map(a => {
         if (idSet.has(a.id) && !a.isRead) {
-          changedCount++;
-          return { ...a, isRead: true, readAt: now };
+          const updatedArt = { ...a, isRead: 1, readAt: now };
+          articlesToSave.push(updatedArt);
+          changed = true;
+          return updatedArt;
         }
         return a;
       });
-      if (changedCount > 0) {
-        const changedArticles = updated.filter(a => idSet.has(a.id));
-        storage.saveArticles(changedArticles);
-      }
-      return changedCount > 0 ? updated : prev;
+      return changed ? updated : prev;
     });
-  }, []);
+    
+    if (articlesToSave.length > 0) {
+      await storage.saveArticles(articlesToSave);
+      await updateCounts();
+    }
+  }, [updateCounts]);
 
   const pendingReadIds = useRef<Set<string>>(new Set());
   const markAsReadTimeout = useRef<NodeJS.Timeout | null>(null);
@@ -524,8 +544,11 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     // For "Mark all as read", we should update the DB directly for all articles
     // and then update the local state
     await storage.markAllArticlesAsRead();
-    setArticles(prev => prev.map(a => ({ ...a, isRead: true, readAt: a.isRead ? a.readAt : now })));
-  }, []);
+    setArticles(prev => prev.map(a => ({ ...a, isRead: 1, readAt: a.isRead ? a.readAt : now })));
+    
+    // Explicitly update counts after mass DB change
+    updateCounts();
+  }, [updateCounts]);
 
   const markFilteredArticlesAsRead = useCallback(async (filters: {
     type?: 'article' | 'podcast';
@@ -556,11 +579,14 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
       
       if (matches) {
-        return { ...a, isRead: true, readAt: now };
+        return { ...a, isRead: 1, readAt: now };
       }
       return a;
     }));
-  }, []);
+
+    // Explicitly update counts after mass DB change
+    updateCounts();
+  }, [updateCounts]);
 
   const globalSearch = useCallback((query: string) => {
     const lowerQuery = query.toLowerCase();
@@ -582,33 +608,39 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     // Update DB first
     const article = await db.articles.get(id);
     if (article) {
-      const updatedArticle = { ...article, isFavorite: !article.isFavorite };
+      const updatedArticle = { ...article, isFavorite: article.isFavorite ? 0 : 1 };
       await storage.saveArticles([updatedArticle]);
       
       // Update local state if present
       setArticles(prev => prev.map(a => a.id === id ? updatedArticle : a));
+      
+      await updateCounts();
     }
-  }, []);
+  }, [updateCounts]);
 
   const toggleQueue = useCallback(async (id: string) => {
     const article = await db.articles.get(id);
     if (article) {
-      const updatedArticle = { ...article, isQueued: !article.isQueued };
+      const updatedArticle = { ...article, isQueued: article.isQueued ? 0 : 1 };
       await storage.saveArticles([updatedArticle]);
       
       setArticles(prev => prev.map(a => a.id === id ? updatedArticle : a));
+      
+      await updateCounts();
     }
-  }, []);
+  }, [updateCounts]);
 
   const removeFromSaved = useCallback(async (id: string) => {
     const article = await db.articles.get(id);
     if (article) {
-      const updatedArticle = { ...article, isFavorite: false, isQueued: false };
+      const updatedArticle = { ...article, isFavorite: 0, isQueued: 0 };
       await storage.saveArticles([updatedArticle]);
       
       setArticles(prev => prev.map(a => a.id === id ? updatedArticle : a));
+      
+      await updateCounts();
     }
-  }, []);
+  }, [updateCounts]);
 
   const updateArticle = useCallback(async (id: string, updates: Partial<Article>) => {
     const article = await db.articles.get(id);
