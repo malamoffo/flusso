@@ -52,6 +52,13 @@ interface RssContextType {
   updateArticle: (id: string, updates: Partial<Article>) => void;
   checkUpdates: (force?: boolean) => Promise<void>;
   globalSearch: (query: string) => { articles: Article[], redditPosts: RedditPost[] };
+  markFilteredArticlesAsRead: (filters: {
+    type?: 'article' | 'podcast';
+    feedId?: string;
+    timeThreshold?: number;
+    searchQuery?: string;
+  }) => Promise<void>;
+  prefetch: (ids: string[]) => Promise<void>;
 }
 
 const RssContext = createContext<RssContextType | undefined>(undefined);
