@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { X, Trash2, Headphones, ExternalLink, Plus, Calendar } from 'lucide-react';
+import { X, Trash2, Headphones, ExternalLink, Plus, Calendar, FileText } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Feed, Article } from '../types';
 import { CachedImage } from './CachedImage';
@@ -128,17 +128,28 @@ export const PodcastDetailsModal = React.memo(function PodcastDetailsModal({
                 )}
 
                 <div className="space-y-3 w-full">
+                <div className="flex gap-2 w-full">
                   {podcast.link && (
                     <a 
                       href={podcast.link}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="w-full py-4 bg-gray-800 hover:bg-gray-700 text-white rounded-xl font-bold flex items-center justify-center gap-2 transition-colors text-sm"
+                      className="flex-1 py-4 bg-gray-800 hover:bg-gray-700 text-white rounded-xl font-bold flex items-center justify-center gap-2 transition-colors text-sm"
                     >
                       <ExternalLink className="w-4 h-4" />
                       Visit Website
                     </a>
                   )}
+                  <a 
+                    href={podcast.feedUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="py-4 px-4 bg-gray-800 hover:bg-gray-700 text-white rounded-xl font-bold flex items-center justify-center gap-2 transition-colors text-sm"
+                    title="RSS Feed"
+                  >
+                    <FileText className="w-4 h-4" />
+                  </a>
+                </div>
                   
                   {isSubscribed ? (
                     <div className="pt-2">

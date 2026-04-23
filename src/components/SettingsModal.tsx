@@ -139,6 +139,10 @@ export const SettingsModal = React.memo(function SettingsModal({
 
   const selectedFeed = feeds.find(f => f.id === selectedFeedId);
   const selectedPodcastFeed = feeds.find(f => f.id === selectedPodcastForDetails) || null;
+  const articleFeeds = React.useMemo(() => feeds.filter(f => f.type === 'article' && !f.feedUrl.includes('reddit.com')).sort((a, b) => a.title.localeCompare(b.title)), [feeds]);
+  const podcastFeeds = React.useMemo(() => feeds.filter(f => f.type === 'podcast').sort((a, b) => a.title.localeCompare(b.title)), [feeds]);
+  const redditFeeds = React.useMemo(() => feeds.filter(f => f.feedUrl.includes('reddit.com')).sort((a, b) => (b.lastArticleDate || 0) - (a.lastArticleDate || 0)), [feeds]);
+  const sortedSubreddits = React.useMemo(() => subreddits.slice().sort((a, b) => a.name.localeCompare(b.name)), [subreddits]);
 
   return (
     <AnimatePresence>
@@ -469,10 +473,7 @@ export const SettingsModal = React.memo(function SettingsModal({
                         className="overflow-hidden"
                       >
                         <div className="p-2 space-y-1 bg-black">
-                          {feeds
-                            .filter(f => f.type === 'article' && !f.feedUrl.includes('reddit.com'))
-                            .sort((a, b) => a.title.localeCompare(b.title))
-                            .map(feed => {
+                          {articleFeeds.map(feed => {
                             const domain = feed.link ? new URL(feed.link).hostname : '';
                             return (
                               <div 
@@ -538,10 +539,7 @@ export const SettingsModal = React.memo(function SettingsModal({
                             Search & Add Podcast
                           </button>
                           <div className="grid grid-cols-4 gap-2">
-                            {feeds
-                              .filter(f => f.type === 'podcast')
-                              .sort((a, b) => a.title.localeCompare(b.title))
-                              .map(feed => (
+                            {podcastFeeds.map(feed => (
                               <div 
                                 key={feed.id} 
                                 className="group relative aspect-square rounded-xl overflow-hidden bg-gray-800 border border-gray-700 hover:border-indigo-500 transition-all cursor-pointer" 
@@ -605,9 +603,7 @@ export const SettingsModal = React.memo(function SettingsModal({
 
                             return (
                               <>
-                                {subreddits
-                                  .slice()
-                                  .sort((a, b) => a.name.localeCompare(b.name))
+                                {sortedSubreddits
                                   .map(sub => (
                                   <div 
                                     key={sub.id} 
@@ -642,8 +638,6 @@ export const SettingsModal = React.memo(function SettingsModal({
                                   </div>
                                 ))}
                                 {redditFeeds
-                                  .slice()
-                                  .sort((a, b) => (b.lastArticleDate || 0) - (a.lastArticleDate || 0))
                                   .map(feed => {
                                   const domain = feed.link ? new URL(feed.link).hostname : '';
                                   return (

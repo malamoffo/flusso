@@ -106,6 +106,7 @@ public class BackgroundSyncWorker extends Worker {
                         inItem = true;
                     } else if (inItem && (name.equalsIgnoreCase("pubDate") || name.equalsIgnoreCase("published") || name.equalsIgnoreCase("updated"))) {
                         String dateStr = parser.nextText();
+                        Log.d(TAG, "DEBUG: Found date string in feed " + urlString + ": " + dateStr);
                         long date = parseDate(dateStr);
                         if (date > latestDate) {
                             latestDate = date;
@@ -122,6 +123,7 @@ public class BackgroundSyncWorker extends Worker {
             }
             in.close();
             conn.disconnect();
+            Log.d(TAG, "DEBUG: Final latestDate for " + urlString + ": " + latestDate);
             return latestDate;
         } catch (Exception e) {
             Log.e(TAG, "Error fetching feed: " + urlString, e);
@@ -132,6 +134,7 @@ public class BackgroundSyncWorker extends Worker {
     private long parseDate(String dateStr) {
         try {
             // Try standard RSS format
+            // 'Z' handles RFC 822 timezones like +0000 or -0500.
             SimpleDateFormat sdf = new SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss Z", Locale.US);
             Date date = sdf.parse(dateStr);
             if (date != null) return date.getTime();
@@ -148,6 +151,7 @@ public class BackgroundSyncWorker extends Worker {
                     Date date = sdf3.parse(dateStr.replaceAll("([+-]\\d\\d):(\\d\\d)$", "$1$2"));
                     if (date != null) return date.getTime();
                 } catch (Exception e3) {
+                    Log.d(TAG, "DEBUG: Failed to parse date string: " + dateStr);
                     Log.e(TAG, "Failed to parse date: " + dateStr);
                 }
             }
