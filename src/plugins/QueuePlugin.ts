@@ -48,4 +48,15 @@ export interface QueuePluginPlugin {
   ): Promise<{ remove: () => Promise<void> }>;
 }
 
-export const QueuePlugin = registerPlugin<QueuePluginPlugin>('QueuePlugin');
+export const WebQueuePlugin: QueuePluginPlugin = {
+  async setQueue() {},
+  async updateMediaSession() {},
+  async getPendingMediaId() { return { mediaId: null }; },
+  async addListener() {
+    return { remove: async () => {} };
+  }
+};
+
+export const QueuePlugin = registerPlugin<QueuePluginPlugin>('FlussoQueue', {
+  web: () => Promise.resolve(WebQueuePlugin)
+});

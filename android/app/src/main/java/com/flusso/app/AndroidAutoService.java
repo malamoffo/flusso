@@ -92,7 +92,7 @@ public class AndroidAutoService extends MediaBrowserServiceCompat {
         mediaSession.setCallback(new MediaSessionCompat.Callback() {
             @Override
             public void onPlay() {
-                QueuePlugin plugin = QueuePlugin.getInstance();
+                QueuePlugin plugin = (QueuePlugin) QueuePlugin.getInstance();
                 if (plugin != null) plugin.triggerActionRequest("play");
                 setPlaybackState(PlaybackStateCompat.STATE_PLAYING, currentPositionMs, true);
                 updateNotification();
@@ -100,7 +100,7 @@ public class AndroidAutoService extends MediaBrowserServiceCompat {
 
             @Override
             public void onPause() {
-                QueuePlugin plugin = QueuePlugin.getInstance();
+                QueuePlugin plugin = (QueuePlugin) QueuePlugin.getInstance();
                 if (plugin != null) plugin.triggerActionRequest("pause");
                 setPlaybackState(PlaybackStateCompat.STATE_PAUSED, currentPositionMs, false);
                 updateNotification();
@@ -108,7 +108,7 @@ public class AndroidAutoService extends MediaBrowserServiceCompat {
 
             @Override
             public void onStop() {
-                QueuePlugin plugin = QueuePlugin.getInstance();
+                QueuePlugin plugin = (QueuePlugin) QueuePlugin.getInstance();
                 if (plugin != null) plugin.triggerActionRequest("stop");
                 setPlaybackState(PlaybackStateCompat.STATE_STOPPED, currentPositionMs, false);
                 stopForegroundCompat();
@@ -116,20 +116,20 @@ public class AndroidAutoService extends MediaBrowserServiceCompat {
 
             @Override
             public void onSkipToNext() {
-                QueuePlugin plugin = QueuePlugin.getInstance();
+                QueuePlugin plugin = (QueuePlugin) QueuePlugin.getInstance();
                 if (plugin != null) plugin.triggerActionRequest("next");
             }
 
             @Override
             public void onSkipToPrevious() {
-                QueuePlugin plugin = QueuePlugin.getInstance();
+                QueuePlugin plugin = (QueuePlugin) QueuePlugin.getInstance();
                 if (plugin != null) plugin.triggerActionRequest("previous");
             }
 
             @Override
             public void onSeekTo(long pos) {
                 currentPositionMs = pos;
-                QueuePlugin plugin = QueuePlugin.getInstance();
+                QueuePlugin plugin = (QueuePlugin) QueuePlugin.getInstance();
                 if (plugin != null) plugin.triggerSeekRequest(pos / 1000.0);
                 setPlaybackState(
                         currentPlaying ? PlaybackStateCompat.STATE_PLAYING : PlaybackStateCompat.STATE_PAUSED,
@@ -155,7 +155,7 @@ public class AndroidAutoService extends MediaBrowserServiceCompat {
 
                 setPlaybackState(PlaybackStateCompat.STATE_BUFFERING, 0L, false);
 
-                QueuePlugin plugin = QueuePlugin.getInstance();
+                QueuePlugin plugin = (QueuePlugin) QueuePlugin.getInstance();
                 if (plugin != null) {
                     plugin.triggerPlayRequest(mediaId);
                 } else {

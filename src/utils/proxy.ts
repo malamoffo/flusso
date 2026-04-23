@@ -36,8 +36,8 @@ export async function fetchWithProxy(url: string, isRss: boolean = true, sinceDa
       const response = await CapacitorHttp.get({
         url,
         headers,
-        connectTimeout: 5000,
-        readTimeout: 5000
+        connectTimeout: 15000,
+        readTimeout: 15000
       });
 
       if (response.status === 304) return { 

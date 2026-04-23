@@ -10,10 +10,10 @@ import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 
-@CapacitorPlugin(name = "QueuePlugin")
+@CapacitorPlugin(name = "FlussoQueue")
 public class QueuePlugin extends Plugin {
 
-    private static final String TAG = "QueuePlugin";
+    private static final String TAG = "FlussoQueue";
 
     private static QueuePlugin instance;
     private static JSArray currentQueue   = new JSArray();
