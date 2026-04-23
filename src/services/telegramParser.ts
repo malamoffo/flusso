@@ -37,6 +37,9 @@ export const fetchTelegramChannelInfo = async (channelUsername: string): Promise
 
     return { name, imageUrl };
   } catch (error) {
+    if (!Capacitor.isNativePlatform()) {
+      return { name: channelUsername };
+    }
     console.error('Error fetching Telegram channel info:', error);
     throw error;
   }
@@ -128,6 +131,15 @@ export const fetchTelegramMessages = async (channelUsername: string, sinceDate?:
 
     return messages;
   } catch (error) {
+    if (!Capacitor.isNativePlatform()) {
+      console.warn(`[Telegram] Fetch failed for ${channelUsername}, generating mock messages for preview.`);
+      return [{
+        id: `${channelUsername}/mock-${crypto.randomUUID()}`,
+        channelId: channelId || channelUsername,
+        text: `Questo è un messaggio di test generato perché il caricamento di Telegram per @${channelUsername} è fallito o andato in timeout.`,
+        date: Date.now(),
+      }];
+    }
     console.error('Error fetching Telegram messages:', error);
     throw error;
   }

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Moon, Sun, Monitor, Image as ImageIcon, LayoutList, Maximize, Type, Plus, Trash2, Edit2, AlertCircle, Save, ArrowLeft, ChevronDown, ChevronUp, Github, Info, ExternalLink, RefreshCw, ShieldCheck, Download, CheckCircle2, FileText, Headphones, Upload, MessageSquare, Settings, Search, Palette, ChevronRight, FlaskConical, Calendar } from 'lucide-react';
+import { X, Moon, Sun, Monitor, Image as ImageIcon, LayoutList, Maximize, Type, Plus, Trash2, Edit2, AlertCircle, Save, ArrowLeft, ChevronDown, ChevronUp, Github, Info, ExternalLink, RefreshCw, ShieldCheck, Download, CheckCircle2, FileText, Headphones, Upload, MessageSquare, Settings, Search, Palette, ChevronRight, FlaskConical, Calendar, Terminal } from 'lucide-react';
 import { useRss } from '../context/RssContext';
 import { useSettings } from '../context/SettingsContext';
 import { useReddit } from '../context/RedditContext';
@@ -19,6 +19,8 @@ import { format } from 'date-fns';
 
 import { APP_VERSION, APP_BUILD, updateSW } from '../main';
 
+import { BrowserLogsModal } from './BrowserLogsModal';
+
 export const SettingsModal = React.memo(function SettingsModal({
   isOpen,
   onClose,
@@ -36,6 +38,7 @@ export const SettingsModal = React.memo(function SettingsModal({
   const { subreddits, removeSubreddit } = useReddit();
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isPodcastSearchOpen, setIsPodcastSearchOpen] = useState(false);
+  const [isBrowserLogsOpen, setIsBrowserLogsOpen] = useState(false);
   const [selectedPodcastForDetails, setSelectedPodcastForDetails] = useState<string | null>(null);
   const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
   const [activeTab, setActiveTab] = useState<'main' | 'general' | 'subscriptions' | 'retention' | 'about'>('main');
@@ -965,6 +968,14 @@ export const SettingsModal = React.memo(function SettingsModal({
                       <br />
                       <span className="font-mono text-xs opacity-75 mt-2 block">Version {APP_VERSION} ({APP_BUILD})</span>
                     </p>
+                    
+                    <button
+                      onClick={() => setIsBrowserLogsOpen(true)}
+                      className="mt-4 w-full flex items-center justify-center gap-2 p-3 rounded-xl bg-gray-900 border border-gray-700 text-gray-300 hover:bg-black hover:text-white transition-all text-xs font-bold uppercase tracking-wider"
+                    >
+                      <Terminal className="w-4 h-4" />
+                      View Console Logs
+                    </button>
                   </div>
 
                   {errorLogs.length > 0 && (
@@ -1042,6 +1053,10 @@ export const SettingsModal = React.memo(function SettingsModal({
               removeFeed(id);
               setSelectedPodcastForDetails(null);
             }}
+          />
+          <BrowserLogsModal
+            isOpen={isBrowserLogsOpen}
+            onClose={() => setIsBrowserLogsOpen(false)}
           />
         </>
       )}

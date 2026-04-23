@@ -238,6 +238,7 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const { finalArticles, finalFeeds } = await rssService.refreshFeeds(
         fToRefresh,
         worker.current,
+        articlesRef.current,
         setProgress,
         setFeeds,
         setArticles,
@@ -245,21 +246,26 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       );
 
       // Save final state to storage, merging with existing DB state to preserve flags
-      const existingArticlesMap = new Map((await db.articles.toArray()).map(a => [a.id, a]));
+      const existingArticlesMap = new Map((await db.articles.toArray()).map(a => [a.link, a])); // Match by link, not generated ID if ID changes
       const articlesToSave = finalArticles.map(newArt => {
-        const existing = existingArticlesMap.get(newArt.id);
+        const existing = existingArticlesMap.get(newArt.link);
         if (existing) {
           // Preserve critical flags
           return {
             ...newArt,
+            id: existing.id, // Preserve original ID to avoid duplicates or losing connection
             isFavorite: existing.isFavorite,
             isQueued: existing.isQueued,
             // Keep read status if already read, otherwise use new status
-            isRead: existing.isRead || newArt.isRead,
-            readAt: existing.isRead ? existing.readAt : newArt.readAt
+            isRead: existing.isRead ? 1 : 0,
+            readAt: existing.isRead ? existing.readAt : undefined
           };
         }
-        return newArt;
+        // It's genuinely a new article
+        return {
+          ...newArt,
+          isRead: 0 // New articles are always unread
+        };
       });
       await storage.saveArticles(articlesToSave);
       
@@ -284,6 +290,7 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       
       setProgress(p => p ? { ...p, status: "Finalizing..." } : null);
       lastRefresh.current = Date.now();
+      await updateCounts();
     } catch (e) {
       // Failed to refresh feeds
     } finally {
@@ -291,7 +298,7 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setProgress(null);
       isRefreshing.current = false;
     }
-  }, []);
+  }, [updateCounts]);
 
   useEffect(() => {
     let mounted = true;

@@ -5,6 +5,7 @@ export const rssService = {
   async refreshFeeds(
     feedsToRefresh: Feed[],
     worker: Worker,
+    currentArticlesMemory: Article[],
     onProgress: (progress: { current: number; total: number; status?: string; bytesDownloaded?: number }) => void,
     onUpdateFeeds: (updater: (prev: Feed[]) => Feed[]) => void,
     onUpdateArticles: (updater: (prev: Article[]) => Article[]) => void,
@@ -16,6 +17,9 @@ export const rssService = {
     
     // We'll collect new articles returned by the merge step
     let allFinalArticles: Article[] = [];
+    
+    // Copy the memory links to track what's new synchronously
+    const knownLinks = new Set(currentArticlesMemory.map(a => a.link));
     
     try {
       if (feedsToRefresh.length === 0) {
@@ -60,19 +64,27 @@ export const rssService = {
                 })) as Article[];
                 
                 let hasNew = false;
-                if (articlesWithCorrectId.length > 0) {
+                const genuinelyNewArticles: Article[] = [];
+                for (const a of articlesWithCorrectId) {
+                  if (!knownLinks.has(a.link)) {
+                    hasNew = true;
+                    genuinelyNewArticles.push(a);
+                    knownLinks.add(a.link);
+                  }
+                }
+                
+                if (hasNew) {
                   await (mergeChain = mergeChain.then(async () => {
                     // Update state with just the new ones for smooth UI updates
                     onUpdateArticles(prev => {
                        const merged = [...prev];
-                       const uniqueLinks = new Set(merged.map(a => a.link));
+                       const uniqueLinks = new Set(merged.map(x => x.link));
                        let stateChanged = false;
-                       for (const a of articlesWithCorrectId) {
+                       for (const a of genuinelyNewArticles) {
                          if (!uniqueLinks.has(a.link)) {
                            merged.unshift(a);
                            uniqueLinks.add(a.link);
                            stateChanged = true;
-                           hasNew = true;
                          }
                        }
                        // keep UI tidy
@@ -83,9 +95,7 @@ export const rssService = {
                     });
                     
                     // Push to the final collection that will be saved to db
-                    if (hasNew) {
-                       allFinalArticles.push(...articlesWithCorrectId);
-                    }
+                    allFinalArticles.push(...genuinelyNewArticles);
                   }));
                 }
                 

@@ -3,6 +3,7 @@ import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
 import { TelegramProvider } from './context/TelegramContext';
+import { consoleInterceptor } from './utils/consoleInterceptor';
 import { RedditProvider } from './context/RedditContext';
 import { RssProvider } from './context/RssContext';
 import { SettingsProvider } from './context/SettingsContext';

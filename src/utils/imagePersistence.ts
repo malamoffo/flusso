@@ -159,7 +159,7 @@ export const imagePersistence = {
         return localUrl;
       }
     } catch (downloadErr) {
-      console.error('[IMAGE_CACHE] Failed to download/cache image:', url, downloadErr);
+      console.warn('[IMAGE_CACHE] Failed to download/cache image:', url);
     }
 
     return url;
@@ -249,7 +249,7 @@ export const imagePersistence = {
         this.saveMap();
       }
     } catch (e) {
-      console.error('[IMAGE_CACHE] Cleanup failed:', e);
+      console.warn('[IMAGE_CACHE] Cleanup failed:', e);
     }
   },
 

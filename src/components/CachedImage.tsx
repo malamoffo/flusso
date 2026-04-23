@@ -114,7 +114,7 @@ export function CachedImage({ src, className, fallback, alt, ...props }: CachedI
     } else if (corsProxyUrl && currentSrc !== corsProxyUrl) {
       setCurrentSrc(corsProxyUrl);
     } else {
-      console.error(`[CachedImage] Failed to load image: ${src}`);
+      console.warn(`[CachedImage] Failed to load image: ${src}`);
       setError(true);
       if (props.onError) {
         props.onError(e);

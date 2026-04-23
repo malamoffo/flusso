@@ -1,6 +1,7 @@
 import { db } from '../db';
 import { Subreddit, RedditPost } from '../../types';
 import { fetchWithProxy } from '../../utils/proxy';
+import { Capacitor } from '@capacitor/core';
 import he from 'he';
 
 export const redditStorage = {
@@ -269,6 +270,26 @@ export const redditStorage = {
 
       return { posts, after: result.data.data.after };
     } catch (e) {
+      if (!Capacitor.isNativePlatform()) {
+        console.warn(`[Reddit] Fetch failed for r/${subredditName}, generating mock post for preview.`);
+        const mockPost: RedditPost = {
+          id: `mock/${subredditName}/${crypto.randomUUID()}`,
+          originalId: 'mock',
+          title: `[TEST] Placeholder post for r/${subredditName}`,
+          author: 'System',
+          subredditId: 'mock',
+          subredditName: subredditName,
+          permalink: `/r/${subredditName}/mock`,
+          url: `https://reddit.com/r/${subredditName}`,
+          createdUtc: Date.now(),
+          score: 100,
+          numComments: 10,
+          selftextHtml: '<p>This is a placeholder post generated because the Reddit fetch failed.</p>',
+          isRead: 0,
+          isFavorite: 0
+        };
+        return { posts: [mockPost] };
+      }
       console.error(`Failed to fetch posts for r/${subredditName}:`, e);
       throw e;
     }

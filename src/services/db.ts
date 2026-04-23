@@ -17,7 +17,7 @@ export class FlussoDatabase extends Dexie {
     super('FlussoDB');
     
     // Define tables and indexes
-    this.version(3).stores({
+    this.version(6).stores({
       feeds: 'id, feedUrl',
       articles: 'id, feedId, pubDate, isRead, isFavorite, isQueued, type',
       subreddits: 'id, name',
@@ -28,20 +28,41 @@ export class FlussoDatabase extends Dexie {
       settings: 'id',
       refreshLogs: 'id, timestamp',
       kv: 'id'
-    }).upgrade(tx => {
-      // Data transformation from version 2 to 3
-      const convert = (val: any) => val ? 1 : 0;
+    }).upgrade(async tx => {
+      console.log('[Database] Upgrading to version 6...');
       
-      return tx.table('articles').toCollection().modify((article: any) => {
-        article.isRead = convert(article.isRead);
-        article.isFavorite = convert(article.isFavorite);
-        article.isQueued = convert(article.isQueued);
-      }).then(() => {
-        return tx.table('redditPosts').toCollection().modify((post: any) => {
-          post.isRead = convert(post.isRead);
-          post.isFavorite = convert(post.isFavorite);
+      const convert = (val: any) => {
+        if (val === 1 || val === true || val === '1') return 1;
+        return 0;
+      };
+      
+      const articles = await tx.table('articles').toArray();
+      console.log(`[Database] Upgrading ${articles.length} articles...`);
+      for (const article of articles) {
+        const nextIsRead = convert(article.isRead);
+        const nextIsFavorite = convert(article.isFavorite);
+        const nextIsQueued = convert(article.isQueued);
+        
+        // Always force update to ensure type is number
+        await tx.table('articles').update(article.id, {
+          isRead: nextIsRead,
+          isFavorite: nextIsFavorite,
+          isQueued: nextIsQueued
         });
-      });
+      }
+
+      const posts = await tx.table('redditPosts').toArray();
+      console.log(`[Database] Upgrading ${posts.length} reddit posts...`);
+      for (const post of posts) {
+        const nextIsRead = convert(post.isRead);
+        const nextIsFavorite = convert(post.isFavorite);
+        
+        await tx.table('redditPosts').update(post.id, {
+          isRead: nextIsRead,
+          isFavorite: nextIsFavorite
+        });
+      }
+      console.log('[Database] Upgrade to version 6 completed.');
     });
   }
 }

@@ -36,8 +36,8 @@ export async function fetchWithProxy(url: string, isRss: boolean = true, sinceDa
       const response = await CapacitorHttp.get({
         url,
         headers,
-        connectTimeout: 10000,
-        readTimeout: 10000
+        connectTimeout: 5000,
+        readTimeout: 5000
       });
 
       if (response.status === 304) return { 
@@ -54,7 +54,6 @@ export async function fetchWithProxy(url: string, isRss: boolean = true, sinceDa
       }
       throw new Error(`Native fetch failed with status ${response.status}`);
     } catch (e) {
-      console.error(`Native fetch failed for ${url}, retrying with standard fetch:`, e);
       // Fallback to standard fetch if CapacitorHttp fails for some reason
     }
   }
@@ -64,7 +63,7 @@ export async function fetchWithProxy(url: string, isRss: boolean = true, sinceDa
     if (signal?.aborted) throw new Error('Aborted');
 
     const directController = new AbortController();
-    const directTimeoutId = setTimeout(() => directController.abort(), 5000);
+    const directTimeoutId = setTimeout(() => directController.abort(), 4000);
     
     // Link external signal to our internal controller
     if (signal) {
@@ -139,21 +138,21 @@ export async function fetchWithProxy(url: string, isRss: boolean = true, sinceDa
   const proxies: { name: string, url: string, type: 'text' | 'json' | 'rss2json', timeout?: number }[] = [];
   
   const baseProxies: { name: string, url: string, type: 'text' | 'json' | 'rss2json', timeout?: number }[] = [
-    { name: 'CorsProxy.io', url: `https://corsproxy.io/?${encodeURIComponent(url)}`, type: 'text', timeout: 8000 },
-    { name: 'AllOrigins Raw', url: `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`, type: 'text', timeout: 10000 },
-    { name: 'CodeTabs', url: `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`, type: 'text', timeout: 8000 },
-    { name: 'CorsProxy.org', url: `https://corsproxy.org/?url=${encodeURIComponent(url)}`, type: 'text', timeout: 8000 },
-    { name: 'AllOrigins JSON', url: `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`, type: 'json', timeout: 10000 },
-    { name: 'YACDN', url: `https://yacdn.org/proxy/${url}`, type: 'text', timeout: 8000 },
-    { name: 'Cloudflare Worker', url: `https://cors-anywhere.azm.workers.dev/${url}`, type: 'text', timeout: 8000 },
-    { name: 'ThingProxy', url: `https://thingproxy.freeboard.io/fetch/${url}`, type: 'text', timeout: 10000 },
-    { name: 'CORS.sh', url: `https://proxy.cors.sh/${url}`, type: 'text', timeout: 8000 },
-    { name: 'CORS-Anywhere Demo', url: `https://cors-anywhere.herokuapp.com/${url}`, type: 'text', timeout: 10000 }
+    { name: 'AllOrigins JSON', url: `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`, type: 'json', timeout: 5000 },
+    { name: 'AllOrigins Raw', url: `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`, type: 'text', timeout: 5000 },
+    { name: 'CorsProxy.io', url: `https://corsproxy.io/?${encodeURIComponent(url)}`, type: 'text', timeout: 5000 },
+    { name: 'CorsProxy.org', url: `https://corsproxy.org/?url=${encodeURIComponent(url)}`, type: 'text', timeout: 5000 },
+    { name: 'Cloudflare Worker', url: `https://cors-anywhere.azm.workers.dev/${url}`, type: 'text', timeout: 5000 },
+    { name: 'CodeTabs', url: `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`, type: 'text', timeout: 5000 },
+    { name: 'YACDN', url: `https://yacdn.org/proxy/${url}`, type: 'text', timeout: 5000 },
+    { name: 'ThingProxy', url: `https://thingproxy.freeboard.io/fetch/${url}`, type: 'text', timeout: 5000 },
+    { name: 'CORS-Anywhere Demo', url: `https://cors-anywhere.herokuapp.com/${url}`, type: 'text', timeout: 5000 },
+    { name: 'CORS.sh', url: `https://proxy.cors.sh/${url}`, type: 'text', timeout: 5000 }
   ];
 
-  // Shuffle proxies to distribute load
-  const shuffledBase = [...baseProxies].sort(() => Math.random() - 0.5);
-  proxies.push(...shuffledBase);
+  // Remove shuffling of proxies to prevent IP-based rate limiting on services
+  const orderedBase = [...baseProxies];
+  proxies.push(...orderedBase);
 
   // Add RSS2JSON as a fallback at the end if it's an RSS feed
   if (isRss) {
@@ -161,13 +160,13 @@ export async function fetchWithProxy(url: string, isRss: boolean = true, sinceDa
   }
 
   let lastError: any;
-  const defaultTimeout = 8000; // Increased from 8s to 12s per proxy
+  const defaultTimeout = 4000;
 
   for (let i = 0; i < proxies.length; i++) {
     if (signal?.aborted) throw new Error('Aborted');
     
     const proxy = proxies[i];
-    const timeout = proxy.timeout ? Math.min(proxy.timeout, 12000) : defaultTimeout;
+    const timeout = proxy.timeout ? Math.min(proxy.timeout, 5000) : defaultTimeout;
     
     let id: any;
     try {
@@ -250,6 +249,8 @@ export async function fetchWithProxy(url: string, isRss: boolean = true, sinceDa
       clearTimeout(id);
       if (e.name === 'AbortError') {
         lastError = new Error(`Proxy ${proxy.name} timed out after ${timeout}ms`);
+      } else if (e.message === 'Aborted') {
+        lastError = e;
       } else {
         lastError = e;
       }
