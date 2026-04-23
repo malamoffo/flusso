@@ -167,13 +167,13 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
   }, [prefetchInView, entry, article.id, article.link]);
 
   useEffect(() => {
-    if (filter === 'inbox' && !inView && entry && entry.boundingClientRect.top < 120 && !article.isRead && article.type !== 'podcast') {
+    if (filter === 'inbox' && !inView && entry && entry.boundingClientRect.top < 120 && !article.isRead) {
       onMarkAsRead(article.id);
     }
-  }, [inView, entry, article.id, article.isRead, article.type, onMarkAsRead, filter]);
+  }, [inView, entry, article.id, article.isRead, onMarkAsRead, filter]);
 
   const handleArticleClick = () => {
-    if (!article.isRead && article.type !== 'podcast') {
+    if (!article.isRead) {
       onMarkAsRead(article.id);
     }
     onClick(article);
@@ -236,7 +236,7 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
       } else if (action === 'toggleFavorite') {
         animate(x, 0, { type: "spring", stiffness: 250, damping: 25, restDelta: 0.1 });
         swipeState[article.id] = 0; // Reset state
-        article.type === 'podcast' ? toggleQueue(article.id) : toggleFavorite(article.id);
+        toggleFavorite(article.id);
       } else {
         animate(x, 0, { type: "spring", stiffness: 250, damping: 25, restDelta: 0.1 });
         swipeState[article.id] = 0; // Reset state
