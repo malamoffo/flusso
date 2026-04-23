@@ -4,27 +4,21 @@ import { Capacitor, CapacitorHttp } from '@capacitor/core';
 import { fetchWithProxy } from '../../utils/proxy';
 import { parseRssXml, escapeXml } from '../rssParser';
 
-const generateMockArticle = (feedUrl: string, feedTitle: string, type: 'article' | 'podcast'): Article => {
+const generateMockArticle = (feedUrl: string, feedTitle: string): Article => {
   const id = crypto.randomUUID();
   const now = Date.now();
   return {
     id,
     feedId: '', // Will be set by saveAllFeedData
-    title: `[TEST] Placeholder ${type === 'podcast' ? 'Podcast' : 'Article'} for ${feedTitle}`,
+    title: `[TEST] Placeholder Article for ${feedTitle}`,
     link: `${feedUrl}/test-${id}`,
     pubDate: now,
     author: 'System Test',
-    content: `This is a placeholder ${type} generated because the fetch for ${feedUrl} failed or timed out. Use this for testing UI components.`,
-    contentSnippet: `Placeholder ${type} for testing purposes.`,
+    content: `This is a placeholder article generated because the fetch for ${feedUrl} failed or timed out. Use this for testing UI components.`,
+    contentSnippet: `Placeholder article for testing purposes.`,
     isRead: 0,
     isFavorite: 0,
-    isQueued: 0,
-    type,
-    ...(type === 'podcast' ? {
-      audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3',
-      duration: 372,
-      fileSize: 5000000
-    } : {})
+    type: 'article'
   } as Article;
 };
 
@@ -62,63 +56,41 @@ export const rssStorage = {
 
   async getSavedCount(): Promise<number> {
     try {
-      const favIds = await db.articles.where('isFavorite').equals(1).primaryKeys();
-      const queuedIds = await db.articles.where('isQueued').equals(1).primaryKeys();
-      const uniqueIds = new Set([...favIds, ...queuedIds]);
-      return uniqueIds.size;
+      return await db.articles.where('isFavorite').equals(1).count();
     } catch (e) {
       console.warn('Index query failed for saved count, falling back to filter:', e);
-      return await db.articles.filter(a => !!a.isFavorite || !!a.isQueued).count();
+      return await db.articles.filter(a => !!a.isFavorite).count();
     }
   },
 
   async getSavedUnreadCount(): Promise<number> {
     try {
-      const favs = await db.articles.where('isFavorite').equals(1).filter(a => !a.isRead).primaryKeys();
-      const queued = await db.articles.where('isQueued').equals(1).filter(a => !a.isRead).primaryKeys();
-      const uniqueIds = new Set([...favs, ...queued]);
-      return uniqueIds.size;
+      return await db.articles.where('isFavorite').equals(1).filter(a => !a.isRead).count();
     } catch (e) {
       console.warn('Index query failed for saved unread count, falling back to filter:', e);
-      return await db.articles.filter(a => (!!a.isFavorite || !!a.isQueued) && !a.isRead).count();
+      return await db.articles.filter(a => !!a.isFavorite && !a.isRead).count();
     }
   },
 
-  // Restituisce preferiti E in coda (usato da loadData per precaricare in articles[])
+  // Restituisce preferiti (usato da loadData per precaricare in articles[])
   async getFavorites(): Promise<Article[]> {
     try {
-      const favs = await db.articles.where('isFavorite').equals(1).toArray();
-      const queued = await db.articles.where('isQueued').equals(1).toArray();
-      const map = new Map<string, Article>();
-      favs.forEach(a => map.set(a.id, a));
-      queued.forEach(a => map.set(a.id, a));
-      return Array.from(map.values());
+      return await db.articles.where('isFavorite').equals(1).toArray();
     } catch (e) {
       console.warn('Index query failed for favorites, falling back to filter:', e);
-      return await db.articles.filter(a => !!a.isFavorite || !!a.isQueued).toArray();
+      return await db.articles.filter(a => !!a.isFavorite).toArray();
     }
   },
 
-  // Restituisce SOLO i podcast con isFavorite=true — usato per favorites.json in Android Auto
-  async getFavoritePodcasts(): Promise<Article[]> {
-    const podcasts = await db.articles
-      .where('type')
-      .equals('podcast')
-      .toArray();
-    return podcasts.filter(a => !!a.isFavorite);
-  },
-
-  async cleanUpOldArticles(articleRetentionDays: number, podcastRetentionDays: number): Promise<void> {
+  async cleanUpOldArticles(articleRetentionDays: number): Promise<void> {
     const ARTICLE_LIMIT = articleRetentionDays * 24 * 60 * 60 * 1000;
-    const PODCAST_LIMIT = podcastRetentionDays * 24 * 60 * 60 * 1000;
     const now = Date.now();
 
     const oldArticles = await db.articles
       .filter(a => {
-        if (a.isFavorite || a.isQueued) return false;
-        const limitTime = a.type === 'podcast' ? PODCAST_LIMIT : ARTICLE_LIMIT;
+        if (a.isFavorite) return false;
         const referenceTime = (a.isRead && a.readAt) ? a.readAt : a.pubDate;
-        return (now - referenceTime) > limitTime;
+        return (now - referenceTime) > ARTICLE_LIMIT;
       })
       .toArray();
 
@@ -169,8 +141,7 @@ export const rssStorage = {
     const normalized = articles.map(a => ({
       ...a,
       isRead: (a.isRead as any === 1 || a.isRead as any === true) ? 1 : 0,
-      isFavorite: (a.isFavorite as any === 1 || a.isFavorite as any === true) ? 1 : 0,
-      isQueued: (a.isQueued as any === 1 || a.isQueued as any === true) ? 1 : 0
+      isFavorite: (a.isFavorite as any === 1 || a.isFavorite as any === true) ? 1 : 0
     }));
 
     try {
@@ -289,8 +260,7 @@ export const rssStorage = {
             if (content !== undefined) {
               this.saveArticleContent(a.id, content).catch(err => console.error('Failed to save article content', err));
             }
-            const articleToSave = a.type === 'podcast' ? a : lightArticle;
-            allNewArticles.push(articleToSave as Article);
+            allNewArticles.push(lightArticle as Article);
           }
         }
       } else {
@@ -329,35 +299,15 @@ export const rssStorage = {
             if (content !== undefined) {
               this.saveArticleContent(a.id, content).catch(err => console.error('Failed to save article content', err));
             }
-            const articleToSave = a.type === 'podcast' ? a : lightArticle;
             allNewArticles.push({
-              ...articleToSave,
+              ...lightArticle,
               feedId
             } as Article);
           } else {
             const existingMatch = articleByLinkMap.get(a.link);
             if (existingMatch) {
-              let modified = false;
-              let nextArt = { ...existingMatch };
-              
-              if (!nextArt.chaptersUrl && a.chaptersUrl) {
-                nextArt.chaptersUrl = a.chaptersUrl;
-                modified = true;
-              }
-              
-              if (a.type === 'podcast' && !nextArt.content && a.content) {
-                nextArt.content = a.content;
-                modified = true;
-              }
-
-              if (modified) {
-                articlesModified = true;
-                articlesToUpdate.push(nextArt);
-                articleByLinkMap.set(a.link, nextArt);
-              }
-              
               if (a.content) {
-                this.saveArticleContent(nextArt.id, a.content).catch(() => {});
+                this.saveArticleContent(existingMatch.id, a.content).catch(() => {});
               }
             }
           }
@@ -429,7 +379,7 @@ export const rssStorage = {
     }
   },
 
-  async addFeed(url: string, forcedType?: 'article' | 'podcast'): Promise<{ feed: Feed; articles: Article[] } | null> {
+  async addFeed(url: string, forcedType?: 'article'): Promise<{ feed: Feed; articles: Article[] } | null> {
     const discoveredUrl = await this.discoverFeedUrl(url);
     const data = await this.fetchFeedData(discoveredUrl);
     if (!data) return null;
@@ -470,7 +420,7 @@ export const rssStorage = {
     return uniqueUrls;
   },
 
-  async exportOpml(types?: ('article' | 'podcast')[]): Promise<string> {
+  async exportOpml(types?: ('article')[]): Promise<string> {
     const feeds = await this.getFeeds();
     const filteredFeeds = types ? feeds.filter(f => types.includes(f.type as any)) : feeds;
     
@@ -510,7 +460,7 @@ export const rssStorage = {
   },
 
   async markFilteredArticlesAsRead(filters: {
-    type?: 'article' | 'podcast';
+    type?: 'article';
     feedId?: string;
     timeThreshold?: number;
     searchQuery?: string;

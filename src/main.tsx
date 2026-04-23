@@ -7,7 +7,6 @@ import { consoleInterceptor } from './utils/consoleInterceptor';
 import { RedditProvider } from './context/RedditContext';
 import { RssProvider } from './context/RssContext';
 import { SettingsProvider } from './context/SettingsContext';
-import { AudioPlayerProvider } from './context/AudioPlayerContext.tsx';
 import { imagePersistence } from './utils/imagePersistence';
 import { registerSW } from 'virtual:pwa-register';
 
@@ -53,9 +52,7 @@ createRoot(document.getElementById('root')!).render(
       <RedditProvider>
         <TelegramProvider>
           <RssProvider>
-            <AudioPlayerProvider>
-              <App />
-            </AudioPlayerProvider>
+            <App />
           </RssProvider>
         </TelegramProvider>
       </RedditProvider>

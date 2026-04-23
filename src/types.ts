@@ -14,8 +14,6 @@ export interface Settings {
   redditRetentionDays: number;
   telegramRetentionDays: number;
   articleRetentionDays: number;
-  podcastRetentionDays: number;
-  playbackRate?: number;
 }
 
 export interface Feed {
@@ -28,18 +26,10 @@ export interface Feed {
   lastFetched?: number;
   lastArticleDate?: number;
   error?: string;
-  type?: 'article' | 'podcast';
+  type?: 'article';
   lastRefreshStatus?: 'success' | 'error';
   etag?: string;
   lastModified?: string;
-}
-
-export interface PodcastChapter {
-  startTime: number;
-  title: string;
-  url?: string;
-  imageUrl?: string;
-  img?: string;
 }
 
 export interface Article {
@@ -53,18 +43,10 @@ export interface Article {
   imageUrl?: string;
   profileImageUrl?: string; // Added for Bluesky
   postImageUrls?: string[]; // Added for Bluesky
-  duration?: string;
-  progress?: number; // 0 to 1
-  mediaUrl?: string;
-  mediaType?: string;
   isRead: number; // 0 or 1
   readAt?: number;
   isFavorite: number; // 0 or 1
-  isQueued: number; // 0 or 1
-  type: 'article' | 'podcast';
-  chapters?: PodcastChapter[];
-  chaptersUrl?: string;
-  episode?: number;
+  type: 'article';
 }
 
 export interface RefreshLog {

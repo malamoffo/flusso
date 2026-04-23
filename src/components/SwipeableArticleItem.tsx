@@ -1,15 +1,13 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { motion, useMotionValue, useTransform, PanInfo, animate, useReducedMotion } from 'framer-motion';
 import { format, isToday } from 'date-fns';
-import { Check, Trash2, Headphones, ListPlus, FileText, Bookmark, Star } from 'lucide-react';
+import { Trash2, FileText, Star } from 'lucide-react';
 import he from 'he';
 import { Article, Settings } from '../types';
 import { useInView } from 'react-intersection-observer';
 import { contentFetcher } from '../utils/contentFetcher';
 import { CachedImage } from './CachedImage';
-import { cn, getSafeUrl, formatTime, parseDurationToSeconds } from '../lib/utils';
-import { useAudioStore } from '../store/audioStore';
-import { useShallow } from 'zustand/react/shallow';
+import { cn, getSafeUrl } from '../lib/utils';
 
 // VERY IMPORTANT: Persist swipe state outside component
 const swipeState: Record<string, number> = {};
@@ -24,7 +22,6 @@ interface SwipeableArticleItemProps {
   onMarkAsRead: (id: string) => void;
   toggleRead: (id: string) => void;
   toggleFavorite: (id: string) => void;
-  toggleQueue: (id: string) => void;
   onRemove?: (id: string) => void;
   onVisibilityChange?: (id: string, isVisible: boolean) => void;
   isSavedSection?: boolean;
@@ -103,7 +100,6 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
   onMarkAsRead,
   toggleRead,
   toggleFavorite,
-  toggleQueue,
   onRemove,
   onVisibilityChange,
   isSavedSection,
@@ -183,9 +179,6 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
     if (isSaved) {
       return '#ef4444'; // Red for removal
     }
-    if (action === 'remove' && article.type === 'podcast') {
-      return '#ef4444'; // Red for removal
-    }
     if (action === 'toggleFavorite') {
       return '#f59e0b'; // Yellow for favorite
     }
@@ -224,15 +217,6 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
         setExitX(isRight ? '100%' : '-100%');
         swipeState[article.id] = 0;
         onRemove?.(article.id);
-      } else if (article.type === 'podcast' && action === 'remove') {
-        // Podcast removal action
-        const direction = isRight ? '100%' : '-100%';
-        setExitX(direction);
-        swipeState[article.id] = 0;
-        // Small delay to ensure exitX state is applied before removal triggers AnimatePresence
-        setTimeout(() => {
-          onRemove?.(article.id);
-        }, 50);
       } else if (action === 'toggleFavorite') {
         animate(x, 0, { type: "spring", stiffness: 250, damping: 25, restDelta: 0.1 });
         swipeState[article.id] = 0; // Reset state
@@ -246,14 +230,13 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
     }
   };
 
-  const hasImage = (article.imageUrl || (article.type === 'podcast' && feedImageUrl));
+  const hasImage = !!article.imageUrl;
 
   const getTitleSize = () => {
-    const isPodcast = article.type === 'podcast';
     switch (settings.fontSize) {
-      case 'large': return isPodcast ? 'text-base' : 'text-lg';
+      case 'large': return 'text-lg';
       case 'medium':
-      default: return isPodcast ? 'text-sm' : 'text-base';
+      default: return 'text-base';
     }
   };
 
@@ -275,20 +258,11 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
 
   const domain = getDomain(article.link);
 
-  const currentTrack = useAudioStore(state => state.currentTrack);
   const shouldReduceMotion = useReducedMotion();
-  const isCurrentTrack = currentTrack?.id === article.id;
 
   const isInboxOrSaved = filter === 'inbox' || filter === 'saved' || isSavedSection;
 
-  const isPodcast = article.type === 'podcast';
-  const isFinished = isPodcast && (() => {
-    const total = parseDurationToSeconds(article.duration);
-    if (total <= 0) return false;
-    const current = (article.progress || 0) * total;
-    return total - current < 120;
-  })();
-  const isReadForDisplay = isPodcast ? isFinished : article.isRead;
+  const isReadForDisplay = article.isRead;
 
   return (
     <motion.div 
@@ -335,7 +309,7 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
 
         <div className="absolute inset-0 flex items-center justify-between px-6 z-10">
           <div className="flex items-center font-medium">
-            {isSavedSection || (settings.swipeRightAction === 'remove' && article.type === 'podcast') ? (
+            {isSavedSection ? (
               <Trash2 className="w-6 h-6 text-white" />
             ) : (
               <>
@@ -346,7 +320,7 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
             )}
           </div>
           <div className="flex items-center font-medium">
-            {isSavedSection || (settings.swipeLeftAction === 'remove' && article.type === 'podcast') ? (
+            {isSavedSection ? (
               <Trash2 className="w-6 h-6 text-white" />
             ) : (
               <>
@@ -367,15 +341,14 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
           drag={
             !disableGestures && (
               isSavedSection || 
-              (article.type === 'podcast' && (settings.swipeLeftAction !== 'none' || settings.swipeRightAction !== 'none')) ||
-              (article.type === 'article' && (settings.swipeLeftAction === 'toggleFavorite' || settings.swipeRightAction === 'toggleFavorite'))
+              (settings.swipeLeftAction === 'toggleFavorite' || settings.swipeRightAction === 'toggleFavorite')
             ) ? "x" : false
           }
           dragDirectionLock={true} // Lock direction to prevent diagonal dragging
           dragConstraints={{ left: 0, right: 0 }}
           dragElastic={!disableGestures ? { 
-            left: (isSavedSection || (article.type === 'podcast' && settings.swipeLeftAction !== 'none') || (article.type === 'article' && settings.swipeLeftAction === 'toggleFavorite')) ? 0.7 : 0, 
-            right: (isSavedSection || (article.type === 'podcast' && settings.swipeRightAction !== 'none') || (article.type === 'article' && settings.swipeRightAction === 'toggleFavorite')) ? 0.7 : 0 
+            left: (isSavedSection || settings.swipeLeftAction === 'toggleFavorite') ? 0.7 : 0, 
+            right: (isSavedSection || settings.swipeRightAction === 'toggleFavorite') ? 0.7 : 0 
           } : 0}
           dragPropagation={false}
           dragTransition={{ bounceStiffness: 300, bounceDamping: 25 }}
@@ -387,31 +360,20 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
             !isInboxOrSaved && "border-b border-gray-800"
           )}
         >
-          <div className={cn(
-            "flex gap-2", 
-            (article.type === 'podcast') ? "flex-row items-center" : "flex-col"
-          )}>
+          <div className="flex flex-col gap-2">
             {hasImage ? (
-              <div className={cn(
-                "relative overflow-hidden flex-shrink-0",
-                (article.type !== 'podcast') ? "w-full h-auto rounded-2xl" : "w-16 h-16 rounded-lg"
-              )}>
+              <div className="relative overflow-hidden flex-shrink-0 w-full h-auto rounded-2xl">
               <CachedImage 
                 key={`${article.id}-${article.imageUrl}`}
-                src={getSafeUrl(article.imageUrl || (article.type === 'podcast' ? feedImageUrl! : ''))}
+                src={getSafeUrl(article.imageUrl || '')}
                 alt="" 
-                className={cn(
-                  "w-full h-full object-cover bg-gray-800 transition-opacity",
-                  article.type !== 'podcast' && "h-auto"
-                )}
+                className="w-full h-full object-cover bg-gray-800 transition-opacity h-auto"
                 referrerPolicy="no-referrer"
               />
             </div>
           ) : null}
 
-          <div className={cn(
-            "flex-1 min-w-0 flex flex-col gap-1.5"
-          )}>
+          <div className="flex-1 min-w-0 flex flex-col gap-1.5">
             <div className="flex items-center justify-between mb-0.5 w-full">
               <div className="flex items-center gap-2 min-w-0 flex-1">
                 {domain && (
@@ -428,16 +390,12 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
                   </div>
                 )}
                 <div className="flex items-center gap-1.5 min-w-0">
-                  {article.type === 'podcast' ? (
-                    <Headphones className="w-3 h-3 text-[var(--theme-color)] flex-shrink-0" />
-                  ) : (
-                    <FileText className="w-3 h-3 text-gray-400 flex-shrink-0" />
-                  )}
+                  <FileText className="w-3 h-3 text-gray-400 flex-shrink-0" />
                   <ScrollingFeedName feedName={feedName} readableFeedThemeColor={readableFeedThemeColor} />
                 </div>
               </div>
               <div className="flex items-center gap-1.5 flex-shrink-0 ml-2">
-                {!!(article.isFavorite || article.isQueued) && (
+                {!!(article.isFavorite) && (
                   <Star className="w-3 h-3 text-yellow-500 fill-current" />
                 )}
                 <span className="text-[10px] text-gray-400 whitespace-nowrap">
@@ -457,7 +415,7 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
                 dangerouslySetInnerHTML={{ __html: article.title }}
               />
               
-              {article.type === 'article' && article.contentSnippet && (
+              {article.contentSnippet && (
                 <p className={cn(
                   "text-gray-400 line-clamp-2 leading-snug mb-1",
                   getSnippetSize()
@@ -469,10 +427,6 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
               <div className="flex items-center gap-4 text-xs text-gray-500 mt-1">
                 <div className="flex-1" />
               </div>
-
-              {article.type === 'podcast' && (
-                <PodcastProgressBar article={article} isCurrentTrack={isCurrentTrack} />
-              )}
             </div>
           </div>
         </div>
@@ -481,56 +435,3 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
     </motion.div>
   );
 });
-
-const PodcastProgressBar = React.memo(({ article, isCurrentTrack }: { article: Article, isCurrentTrack: boolean }) => {
-  if (isCurrentTrack) {
-    return <LivePodcastProgressBar article={article} />;
-  }
-
-  const totalSeconds = parseDurationToSeconds(article.duration);
-  const currentSeconds = article.progress ? article.progress * totalSeconds : 0;
-  const remainingSeconds = Math.max(0, totalSeconds - currentSeconds);
-  const progressPercent = totalSeconds > 0 ? (currentSeconds / totalSeconds) * 100 : 0;
-
-  return (
-    <div className="mt-2">
-      <div className="flex items-center gap-2 text-[10px] font-medium text-indigo-400">
-        <span className="w-12 flex-shrink-0 text-left whitespace-nowrap">{formatTime(currentSeconds)}</span>
-        <div className="flex-1 h-1.5 bg-gray-800 rounded-full overflow-hidden">
-          <div 
-            className="h-full bg-indigo-500 transition-all duration-300" 
-            style={{ width: `${progressPercent}%` }} 
-          />
-        </div>
-        <span className="w-12 flex-shrink-0 text-right whitespace-nowrap">{formatTime(remainingSeconds)}</span>
-      </div>
-    </div>
-  );
-});
-
-const LivePodcastProgressBar = ({ article }: { article: Article }) => {
-  const { progress: liveProgress, duration: liveDuration } = useAudioStore(useShallow(s => ({
-    progress: s.progress,
-    duration: s.duration
-  })));
-  
-  const totalSeconds = liveDuration > 0 ? liveDuration : parseDurationToSeconds(article.duration);
-  const currentSeconds = liveProgress;
-  const remainingSeconds = Math.max(0, totalSeconds - currentSeconds);
-  const progressPercent = totalSeconds > 0 ? (currentSeconds / totalSeconds) * 100 : 0;
-
-  return (
-    <div className="mt-2">
-      <div className="flex items-center gap-2 text-[10px] font-medium text-indigo-400">
-        <span className="w-12 flex-shrink-0 text-left whitespace-nowrap">{formatTime(currentSeconds)}</span>
-        <div className="flex-1 h-1.5 bg-gray-800 rounded-full overflow-hidden">
-          <div 
-            className="h-full bg-indigo-500 transition-all duration-300" 
-            style={{ width: `${progressPercent}%` }} 
-          />
-        </div>
-        <span className="w-12 flex-shrink-0 text-right whitespace-nowrap">{formatTime(remainingSeconds)}</span>
-      </div>
-    </div>
-  );
-};

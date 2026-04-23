@@ -3,7 +3,6 @@ import { useRss } from './context/RssContext';
 import { useTelegram } from './context/TelegramContext';
 import { useSettings } from './context/SettingsContext';
 import { useReddit } from './context/RedditContext';
-import { useAudioStore } from './store/audioStore';
 import { useFeedFiltering } from './hooks/useFeedFiltering';
 import { usePagination } from './hooks/usePagination';
 import { usePullToRefresh } from './hooks/usePullToRefresh';
@@ -13,7 +12,6 @@ import { SwipeableRedditPost } from './components/SwipeableRedditPost';
 import { ArticleReader } from './components/ArticleReader';
 import { SettingsModal } from './components/SettingsModal';
 import { storage } from './services/storage';
-import { PersistentPlayer } from './components/PersistentPlayer';
 import { RedditListView } from './components/RedditListView';
 import { RedditPostReader } from './components/RedditPostReader';
 import { TelegramListView } from './components/TelegramListView';
@@ -22,7 +20,7 @@ import { TelegramChannel, TelegramMessage } from './types';
 import { ImageViewer } from './components/ImageViewer';
 import { ErrorNotification } from './components/ErrorNotification';
 import { motion, AnimatePresence, useMotionValue, useTransform, animate } from 'framer-motion';
-import { Loader2, Search, X, Check, Rss, Settings, Star, CheckCircle2, RefreshCw, Layers, Headphones, FileText, Inbox, MessageSquare, ChevronDown, Flame } from 'lucide-react';
+import { Loader2, Search, X, Check, Rss, Settings, Star, CheckCircle2, RefreshCw, Layers, FileText, Inbox, MessageSquare, ChevronDown, Flame } from 'lucide-react';
 import { useInView } from 'react-intersection-observer';
 import { cn } from './lib/utils';
 import { Article, Feed } from './types';
@@ -64,7 +62,7 @@ export default function App() {
     articles, feeds, isLoading, error, setError,
     refreshFeeds, toggleRead, markAsRead, markArticlesAsRead,
     markAllAsRead, markFilteredArticlesAsRead, searchQuery, setSearchQuery, unreadCount, savedCount,
-    toggleFavorite, toggleQueue, removeFromSaved, removeArticle, addArticle
+    toggleFavorite, removeFromSaved, removeArticle, addArticle
   } = useRss();
 
   const {
@@ -94,38 +92,11 @@ export default function App() {
     [feeds]
   );
 
-  const currentTrack = useAudioStore(state => state.currentTrack);
   const [selectedArticle, setSelectedArticle] = useState<Article | null>(null);
   const [selectedRedditPost, setSelectedRedditPost] = useState<any | null>(null);
   const [selectedTelegramChannel, setSelectedTelegramChannel] = useState<TelegramChannel | null>(null);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [undoPodcastRemoval, setUndoPodcastRemoval] = useState<{ article: Article, feed: Feed } | null>(null);
-  
-  useEffect(() => {
-    if (undoPodcastRemoval) {
-      const timer = setTimeout(() => {
-        setUndoPodcastRemoval(null);
-      }, 5000);
-      return () => clearTimeout(timer);
-    }
-  }, [undoPodcastRemoval]);
-
-  const removePodcastAndSetUndo = async (article: Article) => {
-    const feed = feeds.find(f => f.id === article.feedId);
-    if (feed) {
-      setUndoPodcastRemoval({ article, feed });
-      await removeArticle(article);
-    }
-  };
-  
-  const handleUndoPodcastRemoval = async () => {
-    if (undoPodcastRemoval) {
-      await addArticle(undoPodcastRemoval.article);
-      setUndoPodcastRemoval(null);
-    }
-  };
-  
   const [settingsTab, setSettingsTab] = useState<'main' | 'subscriptions' | 'about' | 'general' | undefined>(undefined);
   const [isMarkAllReadOpen, setIsMarkAllReadOpen] = useState(false);
   const [temporarilyVisibleUnreadIds, setTemporarilyVisibleUnreadIds] = useState<Set<string>>(new Set());
@@ -185,9 +156,7 @@ export default function App() {
     activeSectionRef.current = getActiveScrollRef() as any;
   }, [filter, getActiveScrollRef]);
   
-  const [inboxTypeFilter, setInboxTypeFilter] = useState<'all' | 'article' | 'podcast'>('all');
   const [inboxUnreadOnly, setInboxUnreadOnly] = useState(false);
-  const [savedTypeFilter, setSavedTypeFilter] = useState<'all' | 'article' | 'podcast'>('all');
   const [savedUnreadOnly, setSavedUnreadOnly] = useState(false);
   const [telegramFilter, setTelegramFilter] = useState<'all' | 'unread'>('all');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -231,7 +200,7 @@ export default function App() {
   
   useEffect(() => {
     resetPagination();
-  }, [filter, deferredSearchQuery, inboxUnreadOnly, savedUnreadOnly, inboxTypeFilter, savedTypeFilter, sourceFilter, timeFilter]);
+  }, [filter, deferredSearchQuery, inboxUnreadOnly, savedUnreadOnly, sourceFilter, timeFilter]);
 
   useEffect(() => {
     if (filter === 'reddit' && subreddits.length > 0) {
@@ -297,7 +266,7 @@ export default function App() {
     setFilter(newFilter);
   };
 
-  const handleTypeFilterChange = (newType: 'unread' | 'article' | 'podcast') => {
+  const handleTypeFilterChange = (newType: 'unread') => {
     if (filter === 'inbox') {
       if (newType === 'unread') {
         const nextValue = !inboxUnreadOnly;
@@ -306,17 +275,11 @@ export default function App() {
         if (!nextValue) {
           setTemporarilyVisibleUnreadIds(new Set());
         }
-      } else {
-        const nextType = inboxTypeFilter === newType ? 'all' : newType;
-        setInboxTypeFilter(nextType);
       }
       if (inboxScrollRef.current) inboxScrollRef.current.scrollTop = 0;
     } else {
       if (newType === 'unread') {
         setSavedUnreadOnly(!savedUnreadOnly);
-      } else {
-        const nextType = savedTypeFilter === newType ? 'all' : newType;
-        setSavedTypeFilter(nextType);
       }
       if (savedScrollRef.current) savedScrollRef.current.scrollTop = 0;
     }
@@ -407,9 +370,7 @@ export default function App() {
 
   const { inboxArticles, savedArticles } = useFeedFiltering({
     articles,
-    inboxTypeFilter,
     inboxUnreadOnly,
-    savedTypeFilter,
     savedUnreadOnly,
     deferredSearchQuery,
     sourceFilter,
@@ -623,13 +584,8 @@ export default function App() {
   }, [markAsReadWithPersistence]);
 
   const handleRemoveArticle = useCallback((id: string) => {
-    const article = articles.find(a => a.id === id);
-    if (article?.type === 'podcast') {
-      removePodcastAndSetUndo(article);
-    } else {
-      removeFromSaved(id);
-    }
-  }, [articles, removePodcastAndSetUndo, removeFromSaved]);
+    removeFromSaved(id);
+  }, [removeFromSaved]);
 
   const feedsMap = useMemo(() => new Map(feeds.map(f => [f.id, f])), [feeds]);
 
@@ -762,30 +718,6 @@ export default function App() {
                   <><Layers className="w-3.5 h-3.5" /> All</>
               )}
             </button>
-            
-            <button
-              onClick={() => handleTypeFilterChange('article')}
-              className={cn(
-                "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap",
-                inboxTypeFilter === 'article' 
-                  ? "bg-blue-600 text-white shadow-sm" 
-                  : "bg-gray-800 text-gray-400 hover:bg-gray-700"
-              )}
-            >
-              <FileText className="w-3.5 h-3.5" /> Articles
-            </button>
-            
-            <button
-              onClick={() => handleTypeFilterChange('podcast')}
-              className={cn(
-                "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap",
-                inboxTypeFilter === 'podcast' 
-                  ? "bg-blue-600 text-white shadow-sm" 
-                  : "bg-gray-800 text-gray-400 hover:bg-gray-700"
-              )}
-            >
-              <Headphones className="w-3.5 h-3.5" /> Podcasts
-            </button>
           </div>
         )}
 
@@ -863,23 +795,22 @@ export default function App() {
             filter === 'inbox' ? "z-10 opacity-100 pointer-events-auto" : "z-0 opacity-0 pointer-events-none"
           )}
         >
-          <FeedList
-            articles={inboxArticles.slice(0, visibleCount)}
-            feedsMap={feedsMap}
-            settings={settings}
-            handleArticleClick={handleArticleClick}
-            markAsRead={markAsRead}
-            toggleRead={toggleRead}
-            toggleFavorite={toggleFavorite}
-            toggleQueue={toggleQueue}
-            handleRemoveArticle={handleRemoveArticle}
-            onVisibilityChange={filter === 'inbox' ? handleVisibilityChange : undefined}
-            isSavedSection={false}
-            isActive={filter === 'inbox'}
-            hasMoreArticles={hasMoreArticles}
-            isLoading={isLoading}
-            loadMoreArticles={loadMoreArticles}
-          />
+            <FeedList
+              articles={inboxArticles.slice(0, visibleCount)}
+              feedsMap={feedsMap}
+              settings={settings}
+              handleArticleClick={handleArticleClick}
+              markAsRead={markAsRead}
+              toggleRead={toggleRead}
+              toggleFavorite={toggleFavorite}
+              handleRemoveArticle={handleRemoveArticle}
+              onVisibilityChange={filter === 'inbox' ? handleVisibilityChange : undefined}
+              isSavedSection={false}
+              isActive={filter === 'inbox'}
+              hasMoreArticles={hasMoreArticles}
+              isLoading={isLoading}
+              loadMoreArticles={loadMoreArticles}
+            />
         </div>
 
         <div 
@@ -911,7 +842,6 @@ export default function App() {
                     onMarkAsRead={markAsRead}
                     toggleRead={toggleRead}
                     toggleFavorite={toggleFavorite}
-                    toggleQueue={toggleQueue}
                     onRemove={handleRemoveArticle}
                     isSavedSection={true}
                     filter={filter}
@@ -922,7 +852,7 @@ export default function App() {
               <div className="flex flex-col items-center justify-center h-64 text-gray-500 px-6 text-center">
                 <Star className="w-16 h-16 mb-4 text-yellow-500/40 shadow-[0_0_20px_rgba(234,179,8,0.2)]" />
                 <p className="text-lg font-medium text-white mb-1">No favorites yet</p>
-                <p className="text-sm">Swipe right on an article or podcast to save it for later.</p>
+                <p className="text-sm">Swipe right on an article to save it for later.</p>
               </div>
             )}
             <div className="h-20 flex items-center justify-center">
@@ -1048,8 +978,7 @@ export default function App() {
             animate={{ opacity: 1, scale: 1, x: 0 }}
             exit={{ opacity: 0, scale: 0.8, x: 20 }}
             className={cn(
-              "fixed right-6 flex flex-col gap-4 z-30 items-center transition-all duration-300",
-              currentTrack ? "bottom-44" : "bottom-28"
+              "fixed right-6 flex flex-col gap-4 z-30 items-center transition-all duration-300 bottom-28"
             )}
           >
             {filter === 'inbox' && (
@@ -1117,7 +1046,6 @@ export default function App() {
                       if (timeFilter === 'month') threshold = Date.now() - (DAY_MS * 30);
 
                       await markFilteredArticlesAsRead({
-                        type: inboxTypeFilter === 'all' ? undefined : inboxTypeFilter,
                         feedId: sourceFilter === 'all' ? undefined : sourceFilter,
                         searchQuery: searchQuery || undefined,
                         timeThreshold: threshold || undefined
@@ -1244,27 +1172,8 @@ export default function App() {
           );
         })()}
       </AnimatePresence>
-
-      <PersistentPlayer onNavigate={(a) => setSelectedArticle(a)} />
       
-      <AnimatePresence>
-        {undoPodcastRemoval && (
-          <motion.div
-            initial={{ y: 50, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: 50, opacity: 0 }}
-            className="fixed bottom-24 left-4 right-4 bg-indigo-600 text-white p-4 rounded-xl flex items-center justify-between z-[100] shadow-lg"
-          >
-            <span>Podcast removed</span>
-            <button
-              onClick={handleUndoPodcastRemoval}
-              className="font-bold underline"
-            >
-              Undo
-            </button>
-          </motion.div>
-        )}
-      </AnimatePresence>
+
     </div>
   );
 }

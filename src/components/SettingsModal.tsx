@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Moon, Sun, Monitor, Image as ImageIcon, LayoutList, Maximize, Type, Plus, Trash2, Edit2, AlertCircle, Save, ArrowLeft, ChevronDown, ChevronUp, Github, Info, ExternalLink, RefreshCw, ShieldCheck, Download, CheckCircle2, FileText, Headphones, Upload, MessageSquare, Settings, Search, Palette, ChevronRight, FlaskConical, Calendar, Terminal } from 'lucide-react';
+import { X, Moon, Sun, Monitor, Image as ImageIcon, LayoutList, Maximize, Type, Plus, Trash2, Edit2, AlertCircle, Save, ArrowLeft, ChevronDown, ChevronUp, Github, Info, ExternalLink, RefreshCw, ShieldCheck, Download, CheckCircle2, FileText, Upload, MessageSquare, Settings, Search, Palette, ChevronRight, FlaskConical, Calendar, Terminal } from 'lucide-react';
 import { useRss } from '../context/RssContext';
 import { useSettings } from '../context/SettingsContext';
 import { useReddit } from '../context/RedditContext';
@@ -8,8 +8,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../lib/utils';
 import { SwipeAction, Theme, FontSize, Article } from '../types';
 import { AddFeedModal } from './AddFeedModal';
-import { PodcastSearchModal } from './PodcastSearchModal';
-import { PodcastDetailsModal } from './PodcastDetailsModal';
 import packageJson from '../../package.json';
 import { CachedImage } from './CachedImage';
 import { Capacitor } from '@capacitor/core';
@@ -37,9 +35,7 @@ export const SettingsModal = React.memo(function SettingsModal({
   const { settings, updateSettings } = useSettings();
   const { subreddits, removeSubreddit } = useReddit();
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [isPodcastSearchOpen, setIsPodcastSearchOpen] = useState(false);
   const [isBrowserLogsOpen, setIsBrowserLogsOpen] = useState(false);
-  const [selectedPodcastForDetails, setSelectedPodcastForDetails] = useState<string | null>(null);
   const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
   const [activeTab, setActiveTab] = useState<'main' | 'general' | 'subscriptions' | 'retention' | 'about'>('main');
   const [editingFeedId, setEditingFeedId] = useState<string | null>(null);
@@ -72,8 +68,6 @@ export const SettingsModal = React.memo(function SettingsModal({
       setExpandedSections(new Set());
       setShowImportOptions(false);
       setShowExportOptions(false);
-      setIsPodcastSearchOpen(false);
-      setSelectedPodcastForDetails(null);
     }
   }, [isOpen, initialTab]);
 
@@ -138,9 +132,7 @@ export const SettingsModal = React.memo(function SettingsModal({
   };
 
   const selectedFeed = feeds.find(f => f.id === selectedFeedId);
-  const selectedPodcastFeed = feeds.find(f => f.id === selectedPodcastForDetails) || null;
   const articleFeeds = React.useMemo(() => feeds.filter(f => f.type === 'article' && !f.feedUrl.includes('reddit.com')).sort((a, b) => a.title.localeCompare(b.title)), [feeds]);
-  const podcastFeeds = React.useMemo(() => feeds.filter(f => f.type === 'podcast').sort((a, b) => a.title.localeCompare(b.title)), [feeds]);
   const redditFeeds = React.useMemo(() => feeds.filter(f => f.feedUrl.includes('reddit.com')).sort((a, b) => (b.lastArticleDate || 0) - (a.lastArticleDate || 0)), [feeds]);
   const sortedSubreddits = React.useMemo(() => subreddits.slice().sort((a, b) => a.name.localeCompare(b.name)), [subreddits]);
 
@@ -343,8 +335,7 @@ export const SettingsModal = React.memo(function SettingsModal({
                         onChange={handleSwipeLeftChange}
                         className="block w-full pl-3 pr-10 py-2 text-base border-gray-700 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-lg bg-gray-800 text-white"
                       >
-                        <option value="toggleFavorite">Favorite/Queue</option>
-                        <option value="remove">Remove (Podcasts only)</option>
+                        <option value="toggleFavorite">Favorite</option>
                         <option value="none">None</option>
                       </select>
                     </div>
@@ -357,8 +348,7 @@ export const SettingsModal = React.memo(function SettingsModal({
                         onChange={handleSwipeRightChange}
                         className="block w-full pl-3 pr-10 py-2 text-base border-gray-700 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-lg bg-gray-800 text-white"
                       >
-                        <option value="toggleFavorite">Favorite/Queue</option>
-                        <option value="remove">Remove (Podcasts only)</option>
+                        <option value="toggleFavorite">Favorite</option>
                         <option value="none">None</option>
                       </select>
                     </div>
@@ -433,20 +423,6 @@ export const SettingsModal = React.memo(function SettingsModal({
                         <option value={7}>7 Days</option>
                       </select>
                     </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-1">
-                        Podcasts Retention
-                      </label>
-                      <select
-                        value={settings.podcastRetentionDays}
-                        onChange={(e) => updateSettings({ podcastRetentionDays: parseInt(e.target.value) })}
-                        className="block w-full pl-3 pr-10 py-2 text-base border-gray-700 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-lg bg-gray-800 text-white"
-                      >
-                        <option value={1}>1 Day</option>
-                        <option value={3}>3 Days</option>
-                        <option value={7}>7 Days</option>
-                      </select>
-                    </div>
                   </div>
                 </section>
               </div>
@@ -504,65 +480,6 @@ export const SettingsModal = React.memo(function SettingsModal({
                               </div>
                             );
                           })}
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-
-                {/* Podcasts Section */}
-                <div className="border border-gray-800 rounded-2xl overflow-hidden">
-                  <button 
-                    onClick={() => toggleSection('podcasts')}
-                    className="w-full flex items-center justify-between p-4 bg-gray-900/50 hover:bg-gray-800 transition-colors"
-                  >
-                    <h3 className="text-sm font-semibold text-gray-300 uppercase tracking-wider flex items-center gap-2">
-                      <Headphones className="w-4 h-4" />
-                      Podcasts
-                    </h3>
-                    {expandedSections.has('podcasts') ? <ChevronUp className="w-4 h-4 text-gray-500" /> : <ChevronDown className="w-4 h-4 text-gray-500" />}
-                  </button>
-                  <AnimatePresence>
-                    {expandedSections.has('podcasts') && (
-                      <motion.div 
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: 'auto', opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        className="overflow-hidden"
-                      >
-                        <div className="p-4 bg-black">
-                          <button
-                            onClick={() => setIsPodcastSearchOpen(true)}
-                            className="w-full mb-4 py-3 bg-indigo-900/20 text-indigo-400 hover:bg-indigo-900/40 border border-indigo-500/20 rounded-xl font-medium flex items-center justify-center gap-2 transition-colors"
-                          >
-                            <Search className="w-4 h-4" />
-                            Search & Add Podcast
-                          </button>
-                          <div className="grid grid-cols-4 gap-2">
-                            {podcastFeeds.map(feed => (
-                              <div 
-                                key={feed.id} 
-                                className="group relative aspect-square rounded-xl overflow-hidden bg-gray-800 border border-gray-700 hover:border-indigo-500 transition-all cursor-pointer" 
-                                onClick={() => setSelectedPodcastForDetails(feed.id)}
-                              >
-                                {feed.imageUrl ? (
-                                  <CachedImage 
-                                    src={feed.imageUrl} 
-                                    alt={feed.title} 
-                                    className="w-full h-full object-cover"
-                                    referrerPolicy="no-referrer"
-                                  />
-                                ) : (
-                                  <div className="w-full h-full flex items-center justify-center">
-                                    <Headphones className="w-5 h-5 text-gray-500" />
-                                  </div>
-                                )}
-                                <div className="absolute inset-0 bg-black/40 flex items-end p-1">
-                                  <span className="text-[8px] font-bold text-white truncate w-full">{feed.title}</span>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
                         </div>
                       </motion.div>
                     )}
@@ -831,7 +748,6 @@ export const SettingsModal = React.memo(function SettingsModal({
                     </div>
                   )}
 
-                  {/* Export OPML Button - Styled like the Import button */}
                   {!showExportOptions ? (
                     <button
                       onClick={() => setShowExportOptions(true)}
@@ -842,40 +758,18 @@ export const SettingsModal = React.memo(function SettingsModal({
                     </button>
                   ) : (
                     <div className="p-4 rounded-2xl bg-indigo-900/10 border border-indigo-500/20 space-y-3 animate-in fade-in slide-in-from-bottom-2">
-                      <p className="text-sm text-center text-indigo-200 font-medium">What would you like to export?</p>
+                      <p className="text-sm text-center text-indigo-200 font-medium">Ready to export?</p>
                       <div className="grid grid-cols-1 gap-2">
                         <button
                           onClick={async () => {
-                            const opml = await exportFeeds(['article']);
-                            downloadOpml(opml, 'flusso-articles.opml');
-                            setShowExportOptions(false);
-                          }}
-                          className="flex items-center justify-center gap-2 p-3 rounded-xl bg-indigo-900/20 text-indigo-400 border border-indigo-500/20 hover:bg-indigo-900/30 transition-colors"
-                        >
-                          <FileText className="w-4 h-4" />
-                          <span className="text-xs font-bold uppercase tracking-wider">Articles Only</span>
-                        </button>
-                        <button
-                          onClick={async () => {
-                            const opml = await exportFeeds(['podcast']);
-                            downloadOpml(opml, 'flusso-podcasts.opml');
-                            setShowExportOptions(false);
-                          }}
-                          className="flex items-center justify-center gap-2 p-3 rounded-xl bg-indigo-900/20 text-indigo-400 border border-indigo-500/20 hover:bg-indigo-900/30 transition-colors"
-                        >
-                          <Headphones className="w-4 h-4" />
-                          <span className="text-xs font-bold uppercase tracking-wider">Podcasts Only</span>
-                        </button>
-                        <button
-                          onClick={async () => {
                             const opml = await exportFeeds();
-                            downloadOpml(opml, 'flusso-all-subscriptions.opml');
+                            downloadOpml(opml, 'flusso-subscriptions.opml');
                             setShowExportOptions(false);
                           }}
                           className="flex items-center justify-center gap-2 p-3 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
                         >
-                          <CheckCircle2 className="w-4 h-4" />
-                          <span className="text-xs font-bold uppercase tracking-wider">Export All</span>
+                          <Download className="w-4 h-4" />
+                          <span className="text-xs font-bold uppercase tracking-wider">Export Everything</span>
                         </button>
                       </div>
                       <button 
@@ -1025,27 +919,8 @@ export const SettingsModal = React.memo(function SettingsModal({
             onClose={() => setIsAddModalOpen(false)} 
             onFeedAdded={(type) => {
               if (type === 'article') setExpandedSections(prev => new Set(prev).add('articles'));
-              else if (type === 'podcast') setExpandedSections(prev => new Set(prev).add('podcasts'));
               else if (type === 'subreddit' || type === 'reddit') setExpandedSections(prev => new Set(prev).add('subreddits'));
               else if (type === 'telegram') setExpandedSections(prev => new Set(prev).add('telegram'));
-            }}
-          />
-          <PodcastSearchModal
-            isOpen={isPodcastSearchOpen}
-            onClose={() => setIsPodcastSearchOpen(false)}
-            onPodcastAdded={() => setExpandedSections(prev => new Set(prev).add('podcasts'))}
-          />
-          <PodcastDetailsModal
-            isOpen={!!selectedPodcastForDetails}
-            onClose={() => setSelectedPodcastForDetails(null)}
-            podcast={selectedPodcastFeed}
-                        onArticleClick={(article) => {
-              onSelectArticle(article);
-              onClose();
-            }}
-            onRemove={(id) => {
-              removeFeed(id);
-              setSelectedPodcastForDetails(null);
             }}
           />
           <BrowserLogsModal

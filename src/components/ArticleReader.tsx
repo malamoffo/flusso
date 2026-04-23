@@ -1,15 +1,13 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { ArrowLeft, FileText, AlignLeft, X, Share2, Star, EyeOff, ListPlus, Play, Pause, SkipBack, SkipForward, RotateCcw, RotateCw, ChevronUp, ChevronDown, Calendar, User, ExternalLink, RefreshCw, Bookmark, List, FastForward } from 'lucide-react';
-import { Article, FullArticleContent, PodcastChapter } from '../types';
+import { ArrowLeft, FileText, AlignLeft, X, Share2, Star, EyeOff, ChevronUp, ChevronDown, Calendar, User, ExternalLink, RefreshCw, Bookmark, List, FastForward } from 'lucide-react';
+import { Article, FullArticleContent } from '../types';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRss } from '../context/RssContext';
 import { useSettings } from '../context/SettingsContext';
-import { useAudioStore } from '../store/audioStore';
-import { useShallow } from 'zustand/react/shallow';
 import DOMPurify from 'dompurify';
 import he from 'he';
 import { CachedImage } from './CachedImage';
-import { cn, getSafeUrl, formatTime, parseDurationToSeconds } from '../lib/utils';
+import { cn, getSafeUrl } from '../lib/utils';
 import { Capacitor, CapacitorHttp } from '@capacitor/core';
 import { Share } from '@capacitor/share';
 import { imagePersistence } from '../utils/imagePersistence';
@@ -29,167 +27,20 @@ interface ArticleReaderProps {
   hasPrev?: boolean;
 }
 
-const PodcastChapters = ({ article, isCurrentTrack }: { article: Article, isCurrentTrack: boolean }) => {
-  const [chapters, setChapters] = useState<PodcastChapter[]>(article.chapters || []);
-  const [loading, setLoading] = useState(false);
-  const [isOpen, setIsOpen] = useState(false);
-  const { seek, progress } = useAudioStore(useShallow(s => ({ seek: s.seek, progress: s.progress })));
-
-  useEffect(() => {
-    let extracted: PodcastChapter[] = [];
-    if (article.chapters && article.chapters.length > 0) {
-      extracted = article.chapters;
-    } else if (!article.chaptersUrl) {
-      // Try parsing from text
-      const textToParse = ((article.content || '') + '\n' + (article.contentSnippet || '')).replace(/<br\s*\/?>|<\/p>|<p>/gi, '\n');
-      const regex = /(?:^|\n)\s*(?:-|\*|\(|\[)?\s*(\d{1,2}:\d{2}(?::\d{2})?)\s*(?:\)|\])?\s*(?:-|:)?\s*([^\n]+)/gi;
-      let match;
-      while ((match = regex.exec(textToParse)) !== null) {
-        const timeStr = match[1];
-        let title = match[2].trim().replace(/<\/?[^>]+(>|$)/g, ""); // strip html
-        if (title.length > 80) title = title.substring(0, 80) + '...';
-        
-        const parts = timeStr.split(':').map(Number);
-        let seconds = 0;
-        if (parts.length === 3) {
-          seconds = parts[0] * 3600 + parts[1] * 60 + parts[2];
-        } else if (parts.length === 2) {
-          seconds = parts[0] * 60 + parts[1];
-        }
-        
-        if (title && !extracted.some(c => c.startTime === seconds)) {
-          extracted.push({ startTime: seconds, title });
-        }
-      }
-      extracted.sort((a, b) => a.startTime - b.startTime);
-    }
-
-    if (extracted.length > 0) {
-      setChapters(extracted);
-      return;
-    }
-
-    if (article.chaptersUrl) {
-      setLoading(true);
-      fetchWithProxy(article.chaptersUrl, false)
-        .then(res => JSON.parse(res.data))
-        .then(data => {
-          if (data && data.chapters && Array.isArray(data.chapters)) {
-            const mappedChapters = data.chapters.map((c: any) => ({
-              startTime: Number(c.startTime) || 0,
-              title: c.title || 'Untitled Chapter',
-              url: c.url,
-              imageUrl: c.img || c.image || c.imageUrl
-            }));
-            setChapters(mappedChapters);
-          }
-        })
-        .catch(err => console.error('Failed to fetch chapters:', err))
-        .finally(() => setLoading(false));
-    }
-  }, [article.chapters, article.chaptersUrl, article.content, article.contentSnippet]);
-
-  if (!chapters || chapters.length === 0) {
-    if (loading) {
-      return <div className="text-sm text-gray-400 animate-pulse text-center w-full mb-4">Caricamento capitoli...</div>;
-    }
-    return null;
-  }
-
-  return (
-    <div className="w-full mb-4">
-      <button 
-        onClick={() => setIsOpen(!isOpen)}
-        className="w-full py-2.5 px-4 bg-white/5 hover:bg-white/10 border border-white/5 rounded-xl font-medium text-gray-200 flex items-center justify-between transition-colors shadow-sm"
-      >
-        <span className="flex items-center gap-2"><List className="w-5 h-5 text-gray-400" /> Capitoli ({chapters.length})</span>
-        <ChevronDown className={cn("w-5 h-5 transition-transform text-gray-400", isOpen ? "rotate-180" : "")} />
-      </button>
-
-      <AnimatePresence>
-        {isOpen && (
-          <motion.div 
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            className="overflow-hidden"
-          >
-            <div className="space-y-1.5 mt-3 max-h-[35vh] overflow-y-auto pr-2 custom-scrollbar">
-              {chapters.map((chapter, index) => {
-                const isCurrentChapter = isCurrentTrack && progress >= chapter.startTime && (index === chapters.length - 1 || progress < chapters[index + 1].startTime);
-                return (
-                  <button
-                    key={index}
-                    onClick={() => {
-                      if (isCurrentTrack) {
-                        seek(chapter.startTime);
-                      }
-                    }}
-                    className={cn(
-                      "w-full text-left px-3 py-2.5 rounded-lg transition-colors flex items-center gap-3 group",
-                      isCurrentChapter ? "bg-indigo-500/20 border border-indigo-500/30" : "hover:bg-white/10",
-                      !isCurrentTrack && "cursor-default opacity-70"
-                    )}
-                  >
-                    <div className={cn(
-                      "text-xs font-mono px-1.5 py-0.5 rounded flex-shrink-0 transition-colors",
-                      isCurrentChapter ? "text-indigo-300 bg-indigo-900/40" : "text-gray-400 bg-white/10 group-hover:bg-white/20"
-                    )}>
-                      {formatTime(chapter.startTime)}
-                    </div>
-                    {chapter.imageUrl && (
-                      <CachedImage src={chapter.imageUrl} alt="" className="w-8 h-8 rounded object-cover flex-shrink-0 bg-black/20" />
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <div className={cn("text-sm font-medium truncate", isCurrentChapter ? "text-white" : "text-gray-300")}>
-                        {chapter.title}
-                      </div>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  );
-};
-
-export const ArticleReader = React.memo(function ArticleReader({ article, onClose, onNext, onPrev, onSelectArticle, hasNext, hasPrev }: ArticleReaderProps) {
+export const ArticleReader = React.memo(function ArticleReader({ article, onClose, onNext, onPrev, hasNext, hasPrev }: ArticleReaderProps) {
   const [fullContent, setFullContent] = useState<FullArticleContent | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [articleThemeColor, setArticleThemeColor] = useState<string | null>(null);
   const [readerImageUrl, setReaderImageUrl] = useState<string | null>(article.imageUrl || null);
-  const { feeds, articles, toggleFavorite, toggleQueue, toggleRead, updateArticle } = useRss();
+  const [isFavorite, setIsFavorite] = useState(article.isFavorite);
+  const { feeds, toggleFavorite, toggleRead } = useRss();
   const { settings } = useSettings();
   const feed = feeds.find(f => f.id === article.feedId);
-  const { play, currentTrack, isPlaying, isBuffering, toggle, seek } = useAudioStore(useShallow(s => ({
-    play: s.play,
-    currentTrack: s.currentTrack,
-    isPlaying: s.isPlaying,
-    isBuffering: s.isBuffering,
-    toggle: s.toggle,
-    seek: s.seek
-  })));
-  
-  const isCurrentTrack = currentTrack?.id === article.id;
-  const isLoadingAudio = isCurrentTrack && isBuffering;
-
-  // Get queue for navigation
-  const queue = articles.filter(a => a.isQueued);
-  const queueIndex = queue.findIndex(a => a.id === article.id);
-  const prevInQueue = queueIndex > 0 ? queue[queueIndex - 1] : null;
-  const nextInQueue = queueIndex !== -1 && queueIndex < queue.length - 1 ? queue[queueIndex + 1] : null;
-
-  const [isFavorite, setIsFavorite] = useState(article.isFavorite);
-  const [isQueued, setIsQueued] = useState(article.isQueued);
 
   useEffect(() => {
     setIsFavorite(article.isFavorite);
-    setIsQueued(article.isQueued);
     setReaderImageUrl(article.imageUrl || null);
-  }, [article.id, article.isFavorite, article.isQueued, article.imageUrl]);
+  }, [article.id, article.isFavorite, article.imageUrl]);
 
   const readTime = fullContent?.textContent ? Math.max(1, Math.ceil(fullContent.textContent.split(/\s+/).length / 200)) : 1;
   const formattedDate = new Date(article.pubDate).toLocaleString('it-IT', {
@@ -210,11 +61,10 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
   };
 
   const getTitleSize = () => {
-    const isPodcast = article.type === 'podcast';
     switch (settings.fontSize) {
-      case 'large': return isPodcast ? 'text-2xl' : 'text-3xl';
+      case 'large': return 'text-3xl';
       case 'medium':
-      default: return isPodcast ? 'text-xl' : 'text-2xl';
+      default: return 'text-2xl';
     }
   };
 
@@ -228,23 +78,6 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
         const cached = await contentFetcher.getCachedContent(article.id);
         if (cached) {
           setFullContent(cached);
-          setIsLoading(false);
-          return;
-        }
-
-        if (article.type === 'podcast') {
-          // For podcasts, use the article description as content if full content is not available in cache
-          setFullContent({
-            title: article.title,
-            content: article.content || '',
-            textContent: article.contentSnippet || article.title,
-            length: article.content?.length || 0,
-            excerpt: article.contentSnippet || '',
-            byline: '',
-            dir: 'ltr',
-            siteName: feed?.title || '',
-            lang: 'it'
-          });
           setIsLoading(false);
           return;
         }
@@ -346,21 +179,7 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
   const [sanitizedContent, setSanitizedContent] = useState<string>('');
 
   const handleContentClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    const target = e.target as HTMLElement;
-    const link = target.closest('a.podcast-timestamp');
-    if (link) {
-      e.preventDefault();
-      const timeStr = link.getAttribute('data-time');
-      if (timeStr) {
-        const timeInSeconds = parseDurationToSeconds(timeStr);
-        if (currentTrack?.id === article.id) {
-          seek(timeInSeconds);
-        } else {
-          play(article);
-          setTimeout(() => seek(timeInSeconds), 500);
-        }
-      }
-    }
+    // Basic handler if needed
   };
 
   useEffect(() => {
@@ -409,21 +228,6 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
       content = content.replace(/<p[^>]*>(\s|&nbsp;|<br\s*\/?>)*<\/p>/gi, '');
       content = content.replace(/<div[^>]*>(\s|&nbsp;|<br\s*\/?>)*<\/div>/gi, '');
       content = content.replace(/<span[^>]*>(\s|&nbsp;|<br\s*\/?>)*<\/span>/gi, '');
-      
-      if (article.type === 'podcast') {
-        // If there are no <p> or <br> tags, convert newlines to <br>
-        if (!/<p\b[^>]*>/i.test(content) && !/<br\b[^>]*>/i.test(content)) {
-          content = content.replace(/\n/g, '<br/>');
-        }
-        
-        // Linkify URLs if there are no <a> tags
-        if (!/<a\b[^>]*>/i.test(content)) {
-          content = content.replace(/(https?:\/\/[^\s<]+[^<.,:;"')\]\s])/g, '<a href="$1">$1</a>');
-        }
-
-        // Linkify timestamps (e.g., 01:23:45 or 12:34)
-        content = content.replace(/\b(\d{1,2}:\d{2}(?::\d{2})?)\b/g, '<a href="#seek-$1" class="podcast-timestamp" data-time="$1">$1</a>');
-      }
 
       const purifier = DOMPurify();
 
@@ -508,10 +312,6 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
       
       // Ensure videos are responsive
       videos.forEach(v => {
-        if (article.type === 'podcast') {
-          v.parentNode?.removeChild(v);
-          return;
-        }
         v.setAttribute('width', '100%');
         if (v.tagName === 'VIDEO') {
           v.setAttribute('height', 'auto');
@@ -544,8 +344,6 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
 
     processContent();
   }, [fullContent?.content, article.content, article.imageUrl]);
-
-  const hasMedia = !!article.mediaUrl;
 
   return (
     <motion.div 
@@ -598,11 +396,11 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
       {/* Article Content with Glass Container */}
       <div className="relative z-10 flex-1 py-4 px-2 sm:px-4 max-w-5xl mx-auto w-full">
         <div className="backdrop-blur-3xl bg-white/[0.03] border border-white/10 rounded-[2.5rem] overflow-hidden shadow-2xl mb-24">
-          {(readerImageUrl || (article.type === 'podcast' && feed?.imageUrl)) && (
+          {readerImageUrl && (
             <div className="relative group overflow-hidden bg-black/40">
               <CachedImage 
-                key={`${article.id}-${readerImageUrl || feed?.imageUrl}`}
-                src={getSafeUrl(readerImageUrl || (article.type === 'podcast' ? feed?.imageUrl : '') || '')}
+                key={`${article.id}-${readerImageUrl}`}
+                src={getSafeUrl(readerImageUrl || '')}
                 alt="" 
                 className="w-full h-auto object-contain max-h-[85vh] transition-transform duration-700 group-hover:scale-105"
                 referrerPolicy="no-referrer"
@@ -693,101 +491,19 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
                   whileHover={{ scale: 1.1, color: '#fff' }}
                   onClick={() => {
                     if (article) {
-                      if (article.type === 'podcast') {
-                        setIsQueued(isQueued ? 0 : 1);
-                        toggleQueue(article.id);
-                      } else {
-                        setIsFavorite(isFavorite ? 0 : 1);
-                        toggleFavorite(article.id);
-                      }
+                      setIsFavorite(isFavorite ? 0 : 1);
+                      toggleFavorite(article.id);
                     }
                   }}
                   className="transition-all duration-300"
-                  aria-label={
-                    article.type === 'podcast' 
-                      ? (isQueued ? "Remove from queue" : "Add to queue")
-                      : (isFavorite ? "Remove from favorites" : "Add to favorites")
-                  }
+                  aria-label={isFavorite ? "Remove from favorites" : "Add to favorites"}
                 >
-                  {article.type === 'podcast' ? (
-                    <Star className={`w-5 h-5 ${isQueued ? 'fill-current text-yellow-500' : ''}`} aria-hidden="true" />
-                  ) : (
-                    <Star className={`w-5 h-5 ${isFavorite ? 'fill-current text-yellow-500' : ''}`} aria-hidden="true" />
-                  )}
+                  <Star className={`w-5 h-5 ${isFavorite ? 'fill-current text-yellow-500' : ''}`} aria-hidden="true" />
                 </motion.button>
               </div>
             </header>
 
             <div className="h-px bg-gradient-to-r from-transparent via-white/10 to-transparent w-full mb-12" />
-
-            {article.type === 'podcast' && article.mediaUrl && (
-              <div className="mb-12 p-8 bg-white/[0.02] rounded-[2rem] border border-white/10 shadow-inner">
-                <div className="flex flex-col gap-8">
-                  
-                  <PodcastChapters article={article} isCurrentTrack={isCurrentTrack} />
-
-                  <ReaderProgressBar article={article} isCurrentTrack={isCurrentTrack} />
-
-                  {/* Controls */}
-                  <div className="flex items-center justify-center gap-4 w-full max-w-[320px] mx-auto">
-                    <motion.button
-                      whileTap={{ scale: 0.9 }}
-                      disabled={!prevInQueue}
-                      onClick={() => {
-                        if (prevInQueue) {
-                          play(prevInQueue);
-                          onSelectArticle?.(prevInQueue);
-                        }
-                      }}
-                      className={`p-2 rounded-full transition-colors ${prevInQueue ? 'text-gray-300 hover:bg-white/10' : 'text-gray-700'}`}
-                      aria-label="Previous in queue"
-                    >
-                      <SkipBack className="w-6 h-6 fill-current" />
-                    </motion.button>
-
-                    <SeekButtonReader direction="backward" article={article} isCurrentTrack={isCurrentTrack} />
-
-                    <motion.button
-                      whileTap={{ scale: 0.95 }}
-                      onClick={() => {
-                        if (isCurrentTrack) toggle();
-                        else play(article);
-                      }}
-                      className={cn(
-                        "w-16 h-16 bg-indigo-600 text-white rounded-full flex items-center justify-center shadow-[0_0_20px_rgba(79,70,229,0.4)] hover:bg-indigo-700 transition-all relative flex-shrink-0 group",
-                        isLoadingAudio && "animate-pulse"
-                      )}
-                      aria-label={isPlaying && isCurrentTrack ? "Pause" : "Play"}
-                    >
-                      {isLoadingAudio ? (
-                        <RefreshCw className="w-8 h-8 animate-spin" />
-                      ) : isPlaying && isCurrentTrack ? (
-                        <Pause className="w-8 h-8 fill-current transition-transform group-hover:scale-110" />
-                      ) : (
-                        <Play className="w-8 h-8 fill-current ml-1 transition-transform group-hover:scale-110" />
-                      )}
-                    </motion.button>
-
-                    <SeekButtonReader direction="forward" article={article} isCurrentTrack={isCurrentTrack} />
-
-                    <motion.button
-                      whileTap={{ scale: 0.9 }}
-                      disabled={!nextInQueue}
-                      onClick={() => {
-                        if (nextInQueue) {
-                          play(nextInQueue);
-                          onSelectArticle?.(nextInQueue);
-                        }
-                      }}
-                      className={`p-2 rounded-full transition-colors ${nextInQueue ? 'text-gray-300 hover:bg-white/10' : 'text-gray-700'}`}
-                      aria-label="Next in queue"
-                    >
-                      <SkipForward className="w-6 h-6 fill-current" />
-                    </motion.button>
-                  </div>
-                </div>
-              </div>
-            )}
 
             {isLoading ? (
               <div className="space-y-6 animate-pulse mt-8 max-w-4xl mx-auto">
@@ -836,103 +552,3 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
     </motion.div>
   );
 });
-
-/**
- * ⚡ Bolt: Isolated progress bar for the article reader.
- */
-const ReaderProgressBar = React.memo(function ReaderProgressBar({ article, isCurrentTrack }: { article: Article, isCurrentTrack: boolean }) {
-  if (isCurrentTrack) {
-    return <LiveReaderProgressBar article={article} />;
-  }
-
-  const totalSeconds = parseDurationToSeconds(article.duration);
-  const currentSeconds = article.progress ? article.progress * totalSeconds : 0;
-  const remainingSeconds = Math.max(0, totalSeconds - currentSeconds);
-  const progressPercent = totalSeconds > 0 ? (currentSeconds / totalSeconds) * 100 : 0;
-
-  return (
-    <div className="flex items-center gap-4 text-xs font-bold text-indigo-400">
-      <span className="w-14 flex-shrink-0 text-left whitespace-nowrap">{formatTime(currentSeconds)}</span>
-      <div className="relative flex-1 h-2 bg-gray-800 rounded-full overflow-hidden">
-        <div 
-          className="h-full bg-indigo-500 transition-all duration-300" 
-          style={{ width: `${progressPercent}%` }} 
-        />
-      </div>
-      <span className="w-14 flex-shrink-0 text-right whitespace-nowrap">{formatTime(remainingSeconds)}</span>
-    </div>
-  );
-});
-
-const LiveReaderProgressBar = ({ article }: { article: Article }) => {
-  const { progress, duration, seek } = useAudioStore(useShallow(s => ({
-    progress: s.progress,
-    duration: s.duration,
-    seek: s.seek
-  })));
-  
-  const totalSeconds = duration > 0 ? duration : parseDurationToSeconds(article.duration);
-  const currentSeconds = progress;
-  const remainingSeconds = Math.max(0, totalSeconds - currentSeconds);
-  const progressPercent = totalSeconds > 0 ? (currentSeconds / totalSeconds) * 100 : 0;
-
-  return (
-    <div className="flex items-center gap-4 text-xs font-bold text-indigo-400">
-      <span className="w-14 flex-shrink-0 text-left whitespace-nowrap">{formatTime(currentSeconds)}</span>
-      <div 
-        className="relative flex-1 h-2 bg-gray-800 rounded-full overflow-hidden cursor-pointer"
-        onClick={(e) => {
-          const rect = e.currentTarget.getBoundingClientRect();
-          const x = e.clientX - rect.left;
-          const percent = x / rect.width;
-          seek(percent * totalSeconds);
-        }}
-      >
-        <div 
-          className="h-full bg-indigo-500 transition-all duration-300" 
-          style={{ width: `${progressPercent}%` }} 
-        />
-      </div>
-      <span className="w-14 flex-shrink-0 text-right whitespace-nowrap">{formatTime(remainingSeconds)}</span>
-    </div>
-  );
-}
-
-/**
- * ⚡ Bolt: Isolated seek buttons for the article reader.
- */
-function SeekButtonReader({ direction, article, isCurrentTrack }: { direction: 'forward' | 'backward', article: Article, isCurrentTrack: boolean }) {
-  const { seek, progress, duration } = useAudioStore(useShallow(s => ({
-    seek: s.seek,
-    progress: s.progress,
-    duration: s.duration
-  })));
-
-  const handleSeek = () => {
-    if (!isCurrentTrack) return;
-    
-    if (direction === 'backward') {
-      seek(Math.max(0, progress - 15));
-    } else {
-      seek(Math.min(duration, progress + 15));
-    }
-  };
-
-  return (
-    <motion.button
-      whileTap={{ scale: 0.9 }}
-      onClick={handleSeek}
-      disabled={!isCurrentTrack}
-      className={cn(
-        "p-2 rounded-full transition-colors",
-        isCurrentTrack ? "text-gray-300 hover:bg-gray-800" : "text-gray-700"
-      )}
-      aria-label={direction === 'backward' ? "Back 15 seconds" : "Forward 15 seconds"}
-    >
-      <div className="relative">
-        {direction === 'backward' ? <RotateCcw className="w-6 h-6" /> : <RotateCw className="w-6 h-6" />}
-        <span className="absolute inset-0 flex items-center justify-center text-[8px] font-bold mt-0.5">15</span>
-      </div>
-    </motion.button>
-  );
-}

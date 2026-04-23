@@ -43,8 +43,7 @@ export const rssService = {
           
           try {
             const THREE_DAYS = 3 * 24 * 60 * 60 * 1000;
-            const ONE_WEEK = 7 * 24 * 60 * 60 * 1000;
-            const hardSinceDate = Date.now() - (feed.type === 'podcast' ? ONE_WEEK : THREE_DAYS);
+            const hardSinceDate = Date.now() - THREE_DAYS;
             const sinceDate = Math.max(feed.lastArticleDate || 0, hardSinceDate);
             
             const controller = new AbortController();

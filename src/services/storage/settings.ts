@@ -13,8 +13,6 @@ export const defaultSettings: Settings = {
   redditRetentionDays: 1,
   telegramRetentionDays: 1,
   articleRetentionDays: 30,
-  podcastRetentionDays: 30,
-  playbackRate: 1.0,
 };
 
 export const settingsStorage = {

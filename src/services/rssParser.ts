@@ -1,4 +1,4 @@
-import { Feed, Article, PodcastChapter } from '../types';
+import { Feed, Article } from '../types';
 import DOMPurify from 'dompurify';
 import he from 'he';
 import { getSafeUrl, resolveUrl } from '../lib/utils';
@@ -125,45 +125,6 @@ export function extractBestImage(content: string, baseUrl?: string): string | nu
   return null;
 }
 
-const HOUR_REGEX = /(\d+)\s*h/;
-const MINUTE_REGEX = /(\d+)\s*m/;
-const SECOND_REGEX = /(\d+)\s*s/;
-
-function parseTime(timeStr: string | null): number {
-  if (!timeStr) return 0;
-  
-  // Handle formats like "1h 23m 45s" or "23m 45s"
-  if (timeStr.includes('h') || timeStr.includes('m') || timeStr.includes('s')) {
-    let totalSeconds = 0;
-    const hMatch = timeStr.match(HOUR_REGEX);
-    const mMatch = timeStr.match(MINUTE_REGEX);
-    const sMatch = timeStr.match(SECOND_REGEX);
-    if (hMatch) totalSeconds += parseInt(hMatch[1]) * 3600;
-    if (mMatch) totalSeconds += parseInt(mMatch[1]) * 60;
-    if (sMatch) totalSeconds += parseInt(sMatch[1]);
-    if (totalSeconds > 0) return totalSeconds;
-  }
-
-  // Handle standard HH:MM:SS or MM:SS
-  const normalizedTime = timeStr.replace(',', '.');
-  let seconds = 0;
-  let multiplier = 1;
-  let lastIdx = normalizedTime.length;
-  
-  while (lastIdx > 0) {
-    let idx = normalizedTime.lastIndexOf(':', lastIdx - 1);
-    let part = idx !== -1 ? normalizedTime.substring(idx + 1, lastIdx) : normalizedTime.substring(0, lastIdx);
-    const val = parseFloat(part);
-    if (!isNaN(val)) {
-      seconds += val * multiplier;
-    }
-    multiplier *= 60;
-    lastIdx = idx;
-  }
-  
-  return seconds;
-}
-
 // Helper to get text content from a list of possible tags, including namespaced ones
 function getTagText(element: Element, tags: string[]): string {
   for (const tag of tags) {
@@ -252,17 +213,12 @@ export function parseRssXml(xmlString: string, feedUrl: string, sinceDate?: numb
             link: getSafeUrl(item.link),
             pubDate,
             imageUrl: imageUrl ? getSafeUrl(imageUrl) : undefined,
-            mediaUrl: getSafeUrl(mediaUrl, undefined),
-            mediaType,
             isRead: 0,
             isFavorite: 0,
-            isQueued: 0,
-            type: (mediaType?.startsWith('audio/') || mediaType?.startsWith('video/') || !!item.duration) ? 'podcast' : 'article',
+            type: 'article',
             contentSnippet: sanitizeSnippet(decodeHtmlEntities(item.content || item.description || '')),
           };
         }).filter(Boolean) as Article[];
-
-        const isPodcast = articles.some(a => a.type === 'podcast');
 
         return {
           feed: {
@@ -274,7 +230,7 @@ export function parseRssXml(xmlString: string, feedUrl: string, sinceDate?: numb
             imageUrl: getSafeUrl(data.feed.image, undefined),
             lastFetched: Date.now(),
             lastRefreshStatus: 'success',
-            type: isPodcast ? 'podcast' : 'article'
+            type: 'article'
           },
           articles
         };
@@ -428,100 +384,22 @@ export function parseRssXml(xmlString: string, feedUrl: string, sinceDate?: numb
         imageUrl = extractBestImage(sanitizedForImage, entryLink);
       }
 
-      let duration = getSingleTagText(tagDict, ['itunes:duration', 'duration', 'media:duration']);
-      if (!duration && mediaContentElements.length > 0) {
-        duration = mediaContentElements[0].getAttribute('duration') || '';
-      }
-
-      let chapters: PodcastChapter[] | undefined = undefined;
-      let chaptersUrl: string | undefined = undefined;
-      let episode: number | undefined = undefined;
-
-      const episodeText = getSingleTagText(tagDict, ['itunes:episode', 'podcast:episode', 'episode']);
-      if (episodeText) {
-        const epNum = parseInt(episodeText, 10);
-        if (!isNaN(epNum)) episode = epNum;
-      }
-
-      // 1. Look for inline chapters (PSC or similar)
-      const chapterContainers = [
-        ...(tagDict['chapters'] || []),
-        ...(tagDict['podcast:chapters'] || []),
-        ...(tagDict['structure'] || [])
-      ];
-
-      for (const container of chapterContainers) {
-        // Check if it has a URL (Podcast Index or external PSC)
-        const url = container.getAttribute('url') || container.getAttribute('href');
-        if (url) {
-          chaptersUrl = resolveUrl(url, feedUrl);
-        }
-
-        const chapterNodes = getElementsByLocalName(container, 'chapter');
-        if (chapterNodes.length > 0) {
-          const foundChapters: PodcastChapter[] = [];
-          for (const node of chapterNodes) {
-            const start = node.getAttribute('start') || node.getAttribute('startTime');
-            const title = node.getAttribute('title') || node.getAttribute('text');
-            const href = node.getAttribute('href') || node.getAttribute('url');
-            const image = node.getAttribute('image') || node.getAttribute('img');
-            if (start && title) {
-              foundChapters.push({
-                startTime: parseTime(start),
-                title: title,
-                url: href || undefined,
-                imageUrl: image || undefined,
-                img: image || undefined
-              });
-            }
-          }
-          if (foundChapters.length > 0) {
-            chapters = foundChapters;
-          }
-        }
-      }
-
-      // 2. Check for atom:link with rel="chapters"
-      if (!chaptersUrl) {
-        const atomLinks = tagDict['link'] || [];
-        for (const link of atomLinks) {
-          if (link.getAttribute('rel') === 'chapters') {
-            const href = link.getAttribute('href');
-            if (href) {
-              chaptersUrl = resolveUrl(href, feedUrl);
-            }
-          }
-        }
-      }
-
       articles.push({
         id: crypto.randomUUID(),
         feedId,
         title: decodeHtmlEntities(entryTitle),
         link: resolveUrl(entryLink, feedUrl),
         pubDate,
-        imageUrl: imageUrl ? resolveUrl(imageUrl, feedUrl) : (mediaType?.startsWith('audio/') ? resolveUrl(feedImage || '', feedUrl) : undefined),
+        imageUrl: imageUrl ? resolveUrl(imageUrl, feedUrl) : undefined,
         profileImageUrl: isBluesky ? (profileImageUrl ? resolveUrl(profileImageUrl, feedUrl) : undefined) : undefined,
         postImageUrls: extractAllImages(content, resolveUrl(entryLink, feedUrl)),
-        duration,
-        mediaUrl: mediaUrl ? resolveUrl(mediaUrl, feedUrl) : undefined,
-        mediaType,
         isRead: 0,
         isFavorite: 0,
-        isQueued: 0,
-        type: (mediaType?.startsWith('audio/') || mediaType?.startsWith('video/') || !!duration || episode !== undefined) ? 'podcast' : 'article',
-        chapters,
-        chaptersUrl,
-        episode,
+        type: 'article',
         contentSnippet: sanitizeSnippet(decodeHtmlEntities(content)),
         content: content,
       });
     }
-
-    const isPodcast = articles.some(a => a.type === 'podcast') || 
-                      xmlDoc.getElementsByTagName('itunes:author').length > 0 ||
-                      xmlDoc.getElementsByTagName('itunes:image').length > 0 ||
-                      xmlDoc.getElementsByTagName('itunes:category').length > 0;
 
     return {
       feed: {
@@ -533,7 +411,7 @@ export function parseRssXml(xmlString: string, feedUrl: string, sinceDate?: numb
         imageUrl: getSafeUrl(feedImage, undefined),
         lastFetched: Date.now(),
         lastRefreshStatus: 'success',
-        type: isPodcast ? 'podcast' : 'article'
+        type: 'article'
       },
       articles
     };
@@ -737,11 +615,6 @@ export function parseRssXml(xmlString: string, feedUrl: string, sinceDate?: numb
         const url = mediaContent.getAttribute('url');
         if (type?.startsWith('image/')) {
           if (url) imageUrl = resolveUrl(url, feedUrl);
-        } else if (type?.startsWith('audio/') || type?.startsWith('video/')) {
-          if (url) {
-            mediaUrl = resolveUrl(url, feedUrl);
-            mediaType = type;
-          }
         } else if (url) {
           imageUrl = resolveUrl(url, feedUrl);
         }
@@ -751,101 +624,22 @@ export function parseRssXml(xmlString: string, feedUrl: string, sinceDate?: numb
         imageUrl = extractBestImage(content, itemLink);
       }
 
-      let duration = getSingleTagText(tagDict, ['itunes:duration', 'duration', 'media:duration']);
-      if (!duration && mediaContentElements.length > 0) {
-        duration = mediaContentElements[0].getAttribute('duration') || '';
-      }
-
-      let chapters: PodcastChapter[] | undefined = undefined;
-      let chaptersUrl: string | undefined = undefined;
-      let episode: number | undefined = undefined;
-
-      const episodeText = getSingleTagText(tagDict, ['itunes:episode', 'podcast:episode', 'episode']);
-      if (episodeText) {
-        const epNum = parseInt(episodeText, 10);
-        if (!isNaN(epNum)) episode = epNum;
-      }
-
-      // 1. Look for inline chapters (PSC or similar)
-      const chapterContainers = [
-        ...(tagDict['chapters'] || []),
-        ...(tagDict['podcast:chapters'] || []),
-        ...(tagDict['structure'] || [])
-      ];
-
-      for (const container of chapterContainers) {
-        // Check if it has a URL (Podcast Index or external PSC)
-        const url = container.getAttribute('url') || container.getAttribute('href');
-        if (url) {
-          chaptersUrl = resolveUrl(url, feedUrl);
-        }
-
-        const chapterNodes = getElementsByLocalName(container, 'chapter');
-        if (chapterNodes.length > 0) {
-          const foundChapters: PodcastChapter[] = [];
-          for (const node of chapterNodes) {
-            const start = node.getAttribute('start') || node.getAttribute('startTime');
-            const title = node.getAttribute('title') || node.getAttribute('text');
-            const href = node.getAttribute('href') || node.getAttribute('url');
-            const image = node.getAttribute('image') || node.getAttribute('img');
-            if (start && title) {
-              foundChapters.push({
-                startTime: parseTime(start),
-                title: title,
-                url: href || undefined,
-                imageUrl: image || undefined,
-                img: image || undefined
-              });
-            }
-          }
-          if (foundChapters.length > 0) {
-            chapters = foundChapters;
-          }
-        }
-      }
-
-      // 2. Check for links with rel="chapters"
-      if (!chaptersUrl) {
-        const rssLinks = getElementsByLocalName(item, 'link');
-        for (const link of rssLinks) {
-          if (link.getAttribute('rel') === 'chapters') {
-            const href = link.getAttribute('href');
-            if (href) {
-              chaptersUrl = resolveUrl(href, feedUrl);
-              break;
-            }
-          }
-        }
-      }
-
       articles.push({
         id: crypto.randomUUID(),
         feedId,
         title: decodeHtmlEntities(itemTitle),
         link: resolveUrl(itemLink, feedUrl),
         pubDate,
-        imageUrl: imageUrl ? resolveUrl(imageUrl, feedUrl) : (mediaType?.startsWith('audio/') ? resolveUrl(feedImage || '', feedUrl) : undefined),
+        imageUrl: imageUrl ? resolveUrl(imageUrl, feedUrl) : undefined,
         profileImageUrl: isBluesky ? (profileImageUrl ? resolveUrl(profileImageUrl, feedUrl) : undefined) : undefined,
         postImageUrls: extractAllImages(content, resolveUrl(itemLink, feedUrl)),
-        duration,
-        mediaUrl: mediaUrl ? resolveUrl(mediaUrl, feedUrl) : undefined,
-        mediaType,
         isRead: 0,
         isFavorite: 0,
-        isQueued: 0,
-        type: (mediaType?.startsWith('audio/') || mediaType?.startsWith('video/') || !!duration || episode !== undefined) ? 'podcast' : 'article',
-        chapters,
-        chaptersUrl,
-        episode,
+        type: 'article',
         contentSnippet: sanitizeSnippet(decodeHtmlEntities(content)),
         content: content,
       });
     }
-
-    const isPodcast = articles.some(a => a.type === 'podcast') || 
-                      xmlDoc.getElementsByTagName('itunes:author').length > 0 ||
-                      xmlDoc.getElementsByTagName('itunes:image').length > 0 ||
-                      xmlDoc.getElementsByTagName('itunes:category').length > 0;
 
     return {
       feed: {
@@ -857,7 +651,7 @@ export function parseRssXml(xmlString: string, feedUrl: string, sinceDate?: numb
         imageUrl: getSafeUrl(feedImage, undefined),
         lastFetched: Date.now(),
         lastRefreshStatus: 'success',
-        type: isPodcast ? 'podcast' : 'article'
+        type: 'article'
       },
       articles
     };

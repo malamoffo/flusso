@@ -34,9 +34,9 @@ interface RssContextType {
   hasMoreArticles: boolean;
   loadMoreArticles: () => Promise<void>;
   updateInfo: any | null;
-  addFeedOrSubreddit: (url: string) => Promise<'article' | 'podcast' | 'reddit' | 'subreddit' | 'telegram' | void>;
+  addFeedOrSubreddit: (url: string) => Promise<'article' | 'reddit' | 'subreddit' | 'telegram' | void>;
   importOpml: (file: File | { text: () => Promise<string> }, append?: boolean) => Promise<void>;
-  exportFeeds: (types?: ('article' | 'podcast')[]) => Promise<string>;
+  exportFeeds: (types?: ('article')[]) => Promise<string>;
   removeFeed: (id: string) => void;
   refreshFeeds: (feedsToRefresh?: Feed[]) => Promise<void>;
   toggleRead: (id: string) => void;
@@ -44,7 +44,6 @@ interface RssContextType {
   markArticlesAsRead: (ids: string[]) => void;
   markAllAsRead: () => void;
   toggleFavorite: (id: string) => void;
-  toggleQueue: (id: string) => void;
   removeFromSaved: (id: string) => void;
   removeArticle: (article: Article) => Promise<void>;
   addArticle: (article: Article) => Promise<void>;
@@ -53,7 +52,7 @@ interface RssContextType {
   checkUpdates: (force?: boolean) => Promise<void>;
   globalSearch: (query: string) => { articles: Article[], redditPosts: RedditPost[] };
   markFilteredArticlesAsRead: (filters: {
-    type?: 'article' | 'podcast';
+    type?: 'article';
     feedId?: string;
     timeThreshold?: number;
     searchQuery?: string;
@@ -173,7 +172,7 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const lastCleanupTime = parseInt((await storage.get('lastCleanupTime')) || '0', 10);
       const ONE_DAY = 24 * 60 * 60 * 1000;
       if (Date.now() - lastCleanupTime > ONE_DAY) {
-        await storage.cleanUpOldArticles(settings.articleRetentionDays, settings.podcastRetentionDays);
+        await storage.cleanUpOldArticles(settings.articleRetentionDays);
         await storage.set('lastCleanupTime', Date.now().toString());
       }
 
@@ -204,7 +203,7 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     } finally {
       setIsLoading(false);
     }
-  }, [settings.articleRetentionDays, settings.podcastRetentionDays]);
+  }, [settings.articleRetentionDays]);
 
   const loadMoreArticles = useCallback(async () => {
     if (!hasMoreArticles || isLoading) return;
@@ -255,7 +254,6 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             ...newArt,
             id: existing.id, // Preserve original ID to avoid duplicates or losing connection
             isFavorite: existing.isFavorite,
-            isQueued: existing.isQueued,
             // Keep read status if already read, otherwise use new status
             isRead: existing.isRead ? 1 : 0,
             readAt: existing.isRead ? existing.readAt : undefined
@@ -362,7 +360,7 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return () => window.removeEventListener('app-resume', handleResume);
   }, [settings.autoCheckUpdates, settings.refreshInterval, refreshFeeds, checkUpdates]);
 
-  const addFeedOrSubreddit = useCallback(async (url: string): Promise<'article' | 'podcast' | 'reddit' | 'subreddit' | 'telegram' | void> => {
+  const addFeedOrSubreddit = useCallback(async (url: string): Promise<'article' | 'reddit' | 'subreddit' | 'telegram' | void> => {
     try {
       setIsLoading(true);
       setError(null);
@@ -387,7 +385,6 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       
       // 2. Check if it's an RSS feed (starts with http/https)
       if (lowerUrl.startsWith('http://') || lowerUrl.startsWith('https://')) {
-        // Force type to 'article' as requested (podcasts are added via search)
         const result = await storage.addFeed(cleanUrl, 'article');
         if (!result) {
           throw new Error("Impossibile caricare il feed. Controlla l'URL.");
@@ -558,7 +555,7 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   }, [updateCounts]);
 
   const markFilteredArticlesAsRead = useCallback(async (filters: {
-    type?: 'article' | 'podcast';
+    type?: 'article';
     feedId?: string;
     timeThreshold?: number;
     searchQuery?: string;
@@ -625,22 +622,10 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   }, [updateCounts]);
 
-  const toggleQueue = useCallback(async (id: string) => {
-    const article = await db.articles.get(id);
-    if (article) {
-      const updatedArticle = { ...article, isQueued: article.isQueued ? 0 : 1 };
-      await storage.saveArticles([updatedArticle]);
-      
-      setArticles(prev => prev.map(a => a.id === id ? updatedArticle : a));
-      
-      await updateCounts();
-    }
-  }, [updateCounts]);
-
   const removeFromSaved = useCallback(async (id: string) => {
     const article = await db.articles.get(id);
     if (article) {
-      const updatedArticle = { ...article, isFavorite: 0, isQueued: 0 };
+      const updatedArticle = { ...article, isFavorite: 0 };
       await storage.saveArticles([updatedArticle]);
       
       setArticles(prev => prev.map(a => a.id === id ? updatedArticle : a));
@@ -662,26 +647,6 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const removeArticle = useCallback(async (article: Article) => {
     setArticles(prev => prev.filter(a => a.id !== article.id));
     await storage.deleteArticle(article.id);
-    
-    if (article.type === 'podcast') {
-      let updatedFeed: Feed | undefined;
-      setFeeds(prev => {
-        const updated = prev.map(f => {
-          if (f.id === article.feedId) {
-            updatedFeed = {
-              ...f,
-              lastArticleDate: Math.max(f.lastArticleDate || 0, article.pubDate)
-            };
-            return updatedFeed;
-          }
-          return f;
-        });
-        return updated;
-      });
-      if (updatedFeed) {
-        await storage.saveFeeds([updatedFeed]);
-      }
-    }
   }, []);
 
   const addArticle = useCallback(async (article: Article) => {
@@ -712,7 +677,7 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   }, []);
 
-  const exportFeeds = useCallback(async (types?: ('article' | 'podcast')[]) => {
+  const exportFeeds = useCallback(async (types?: ('article')[]) => {
     return await storage.exportOpml(types);
   }, []);
 
@@ -726,7 +691,7 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const value = useMemo(() => ({
     feeds, articles, isLoading, progress, error, setError, errorLogs, clearErrorLogs,
     addFeedOrSubreddit, importOpml, toggleRead, markAsRead, markArticlesAsRead,
-    toggleFavorite, toggleQueue, removeFromSaved, markAllAsRead, refreshFeeds, removeFeed,
+    toggleFavorite, removeFromSaved, markAllAsRead, refreshFeeds, removeFeed,
     removeArticle, addArticle,
     updateFeed, updateArticle, exportFeeds,
     searchQuery, setSearchQuery, unreadCount, savedCount, hasMoreArticles, loadMoreArticles, updateInfo, checkUpdates,
@@ -734,7 +699,7 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   }), [
     feeds, articles, isLoading, progress, error, setError, errorLogs, clearErrorLogs,
     addFeedOrSubreddit, importOpml, toggleRead, markAsRead, markArticlesAsRead,
-    toggleFavorite, toggleQueue, removeFromSaved, markAllAsRead, refreshFeeds, removeFeed,
+    toggleFavorite, removeFromSaved, markAllAsRead, refreshFeeds, removeFeed,
     removeArticle, addArticle,
     updateFeed, updateArticle, exportFeeds,
     searchQuery, setSearchQuery, unreadCount, savedCount, hasMoreArticles, loadMoreArticles, updateInfo, checkUpdates,

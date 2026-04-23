@@ -3,9 +3,7 @@ import { Article } from '../types';
 
 interface UseFeedFilteringProps {
   articles: Article[];
-  inboxTypeFilter: 'all' | 'article' | 'podcast';
   inboxUnreadOnly: boolean;
-  savedTypeFilter: 'all' | 'article' | 'podcast';
   savedUnreadOnly: boolean;
   deferredSearchQuery: string;
   sourceFilter: string;
@@ -16,9 +14,7 @@ interface UseFeedFilteringProps {
 
 export const useFeedFiltering = ({
   articles,
-  inboxTypeFilter,
   inboxUnreadOnly,
-  savedTypeFilter,
   savedUnreadOnly,
   deferredSearchQuery,
   sourceFilter,
@@ -68,18 +64,16 @@ export const useFeedFiltering = ({
           matchesInbox = false;
         }
       }
-      if (inboxTypeFilter !== 'all' && article.type !== inboxTypeFilter) matchesInbox = false;
       if (matchesInbox) inbox.push(article);
 
       // Saved specific filtering
-      if (article.isFavorite || article.isQueued) {
+      if (article.isFavorite) {
         let matchesSaved = true;
         if (savedUnreadOnly && article.isRead) matchesSaved = false;
-        if (savedTypeFilter !== 'all' && article.type !== savedTypeFilter) matchesSaved = false;
         if (matchesSaved) saved.push(article);
       }
     }
 
     return { inboxArticles: inbox, savedArticles: saved };
-  }, [articles, inboxTypeFilter, inboxUnreadOnly, savedTypeFilter, savedUnreadOnly, deferredSearchQuery, sourceFilter, timeFilter, isSearchOpen, temporarilyVisibleUnreadIds]);
+  }, [articles, inboxUnreadOnly, savedUnreadOnly, deferredSearchQuery, sourceFilter, timeFilter, isSearchOpen, temporarilyVisibleUnreadIds]);
 };

@@ -19,7 +19,7 @@ export class FlussoDatabase extends Dexie {
     // Define tables and indexes
     this.version(6).stores({
       feeds: 'id, feedUrl',
-      articles: 'id, feedId, pubDate, isRead, isFavorite, isQueued, type',
+      articles: 'id, feedId, pubDate, isRead, isFavorite, type',
       subreddits: 'id, name',
       redditPosts: 'id, subredditId, createdUtc, isRead, isFavorite',
       telegramChannels: 'id, username',
@@ -41,13 +41,11 @@ export class FlussoDatabase extends Dexie {
       for (const article of articles) {
         const nextIsRead = convert(article.isRead);
         const nextIsFavorite = convert(article.isFavorite);
-        const nextIsQueued = convert(article.isQueued);
         
         // Always force update to ensure type is number
         await tx.table('articles').update(article.id, {
           isRead: nextIsRead,
-          isFavorite: nextIsFavorite,
-          isQueued: nextIsQueued
+          isFavorite: nextIsFavorite
         });
       }
 
