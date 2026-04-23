@@ -51,7 +51,7 @@ export const rssStorage = {
       // we must bypass the index and filter directly to ensure accuracy.
       const collection = db.articles.filter(a => {
           const val = a.isRead;
-          return val === 0 || val === false || val as any === '0' || !val;
+          return val === 0 || (val as any) === false || (val as any) === '0' || !val;
       });
       return await collection.count();
     } catch (e) {
@@ -517,7 +517,7 @@ export const rssStorage = {
   async markAllArticlesAsRead(): Promise<void> {
     const now = Date.now();
     // Use filter instead of where to bypass potentially corrupted index when modifying
-    const unreadIds = await db.articles.filter(a => a.isRead === 0 || a.isRead === false || a.isRead as any === '0' || !a.isRead).primaryKeys();
+    const unreadIds = await db.articles.filter(a => a.isRead === 0 || (a.isRead as any) === false || (a.isRead as any) === '0' || !a.isRead).primaryKeys();
     
     if (unreadIds.length > 0) {
       await db.articles.where(':id').anyOf(unreadIds).modify({ isRead: 1, readAt: now });
@@ -531,7 +531,7 @@ export const rssStorage = {
     searchQuery?: string;
   }): Promise<void> {
     const now = Date.now();
-    let collection = db.articles.filter(a => a.isRead === 0 || a.isRead === false || a.isRead as any === '0' || !a.isRead);
+    let collection = db.articles.filter(a => a.isRead === 0 || (a.isRead as any) === false || (a.isRead as any) === '0' || !a.isRead);
 
     if (filters.type && filters.type !== 'all' as any) {
       collection = collection.filter(a => a.type === filters.type);
