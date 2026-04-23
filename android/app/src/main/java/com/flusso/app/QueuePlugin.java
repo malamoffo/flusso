@@ -10,10 +10,10 @@ import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 
-@CapacitorPlugin(name = "FlussoQueue")
+@CapacitorPlugin(name = "QueuePlugin")
 public class QueuePlugin extends Plugin {
 
-    private static final String TAG = "FlussoQueue";
+    private static final String TAG = "QueuePlugin";
 
     private static QueuePlugin instance;
     private static JSArray currentQueue   = new JSArray();
@@ -24,12 +24,14 @@ public class QueuePlugin extends Plugin {
     public QueuePlugin() {
         super();
         instance = this;
+        Log.d(TAG, "QueuePlugin constructor called");
     }
 
     @Override
     public void load() {
         super.load();
         instance = this;
+        Log.d(TAG, "QueuePlugin load() called");
         // Precarica subito i file su disco in memoria statica,
         // così AndroidAutoService li trova anche prima del primo setQueue
         Context ctx = getContext();
@@ -58,6 +60,7 @@ public class QueuePlugin extends Plugin {
 
     @PluginMethod
     public void setQueue(PluginCall call) {
+        Log.d(TAG, "setQueue called");
         JSArray queue     = call.getArray("queue");
         JSArray recent    = call.getArray("recent");
         JSArray favorites = call.getArray("favorites");
@@ -65,7 +68,9 @@ public class QueuePlugin extends Plugin {
         if (queue != null) {
             currentQueue = queue;
             saveToFile("queue.json", queue.toString());
-            Log.d(TAG, "setQueue: queue=" + queue.length() + " items");
+            Log.d(TAG, "setQueue successful: queue=" + queue.length() + " items");
+        } else {
+            Log.d(TAG, "setQueue: queue is null");
         }
 
         if (recent != null) {

@@ -57,6 +57,6 @@ export const WebQueuePlugin: QueuePluginPlugin = {
   }
 };
 
-export const QueuePlugin = registerPlugin<QueuePluginPlugin>('FlussoQueue', {
+export const QueuePlugin = registerPlugin<QueuePluginPlugin>('QueuePlugin', {
   web: () => Promise.resolve(WebQueuePlugin)
 });

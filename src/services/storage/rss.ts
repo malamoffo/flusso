@@ -243,25 +243,10 @@ export const rssStorage = {
     } catch (e) {
       if (signal?.aborted) throw e;
       
-      // If we are in preview mode, return a mock article as fallback
-      // This is helpful for testing when proxies are blocked or failing
-      if (!Capacitor.isNativePlatform()) {
-        console.warn(`[Storage] Fetch failed for ${feedUrl}, generating mock data for preview.`);
-        
-        const feeds = await this.getFeeds();
-        const feed = feeds.find(f => f.feedUrl === feedUrl);
-        
-        const mockArticle = generateMockArticle(feedUrl, feed?.title || feedUrl, (feed?.type as any) || 'article');
-        
-        return { 
-          feed: (feed || { id: crypto.randomUUID(), feedUrl, title: feedUrl, type: 'article' }) as Feed, 
-          articles: [mockArticle],
-          bytesDownloaded: 0
-        };
-      }
-      
-      // Feed fetch failed silently as requested on native
-      return null;
+      // If we are in preview mode, we do NOT return mock articles anymore.
+      // throw e; // Rethrow to let the UI know it failed.
+      console.error(`[Storage] Fetch failed for ${feedUrl}, throwing error.`);                
+      throw e;
     }
   },
 
