@@ -757,7 +757,12 @@ export default function App() {
                         className="appearance-none text-xs bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-full pl-3 pr-8 py-1.5 border-none focus:ring-0 outline-none whitespace-nowrap"
                       >
                         <option value="all">All Sources</option>
-                        {sortedFeeds.filter(f => !f.feedUrl.includes('reddit.com')).map(f => (
+                        {sortedFeeds.filter(f => {
+                            try {
+                                const url = new URL(f.feedUrl);
+                                return url.hostname !== 'reddit.com' && !url.hostname.endsWith('.reddit.com');
+                            } catch { return !f.feedUrl.includes('reddit.com') }
+                        }).map(f => (
                           <option key={f.id} value={f.id}>{f.title}</option>
                         ))}
                       </select>

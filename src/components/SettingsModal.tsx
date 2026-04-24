@@ -132,8 +132,19 @@ export const SettingsModal = React.memo(function SettingsModal({
   };
 
   const selectedFeed = feeds.find(f => f.id === selectedFeedId);
-  const articleFeeds = React.useMemo(() => feeds.filter(f => f.type === 'article' && !f.feedUrl.includes('reddit.com')).sort((a, b) => a.title.localeCompare(b.title)), [feeds]);
-  const redditFeeds = React.useMemo(() => feeds.filter(f => f.feedUrl.includes('reddit.com')).sort((a, b) => (b.lastArticleDate || 0) - (a.lastArticleDate || 0)), [feeds]);
+  const articleFeeds = React.useMemo(() => feeds.filter(f => {
+      if (f.type !== 'article') return false;
+      try {
+          const url = new URL(f.feedUrl);
+          return url.hostname !== 'reddit.com' && !url.hostname.endsWith('.reddit.com');
+      } catch { return !f.feedUrl.includes('reddit.com') }
+  }).sort((a, b) => a.title.localeCompare(b.title)), [feeds]);
+  const redditFeeds = React.useMemo(() => feeds.filter(f => {
+      try {
+          const url = new URL(f.feedUrl);
+          return url.hostname === 'reddit.com' || url.hostname.endsWith('.reddit.com');
+      } catch { return f.feedUrl.includes('reddit.com') }
+  }).sort((a, b) => (b.lastArticleDate || 0) - (a.lastArticleDate || 0)), [feeds]);
   const sortedSubreddits = React.useMemo(() => subreddits.slice().sort((a, b) => a.name.localeCompare(b.name)), [subreddits]);
 
   return (

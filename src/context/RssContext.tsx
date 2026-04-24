@@ -384,22 +384,27 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       } 
       
       // 2. Check if it's an RSS feed (starts with http/https)
-      if (lowerUrl.startsWith('http://') || lowerUrl.startsWith('https://')) {
-        const result = await storage.addFeed(cleanUrl, 'article');
-        if (!result) {
-          throw new Error("Impossibile caricare il feed. Controlla l'URL.");
+      try {
+        const urlObj = new URL(cleanUrl);
+        if (urlObj.protocol === 'http:' || urlObj.protocol === 'https:') {
+            const result = await storage.addFeed(cleanUrl, 'article');
+            if (!result) {
+              throw new Error("Impossibile caricare il feed. Controlla l'URL.");
+            }
+            await loadData();
+            try {
+              const parsedFeedUrl = new URL(result.feed.feedUrl);
+              const host = parsedFeedUrl.hostname.toLowerCase();
+              if (host === 'reddit.com' || host.endsWith('.reddit.com')) {
+                return 'reddit';
+              }
+            } catch {
+              // If feedUrl is not a valid absolute URL, fall back to article classification.
+            }       
+            return 'article';
         }
-        await loadData();
-        try {
-          const parsedFeedUrl = new URL(result.feed.feedUrl);
-          const host = parsedFeedUrl.hostname.toLowerCase();
-          if (host === 'reddit.com' || host.endsWith('.reddit.com')) {
-            return 'reddit';
-          }
-        } catch {
-          // If feedUrl is not a valid absolute URL, fall back to article classification.
-        }       
-        return 'article';
+      } catch (e) {
+        // Invalid URL, continue to Telegram check
       }
 
       // 3. Otherwise, treat as Telegram channel
