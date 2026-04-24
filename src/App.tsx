@@ -96,6 +96,7 @@ export default function App() {
   const [selectedRedditPost, setSelectedRedditPost] = useState<any | null>(null);
   const [selectedTelegramChannel, setSelectedTelegramChannel] = useState<TelegramChannel | null>(null);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [headerScrolled, setHeaderScrolled] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [settingsTab, setSettingsTab] = useState<'main' | 'subscriptions' | 'about' | 'general' | undefined>(undefined);
   const [isMarkAllReadOpen, setIsMarkAllReadOpen] = useState(false);
@@ -532,6 +533,7 @@ export default function App() {
   const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>, filterType: 'inbox' | 'saved' | 'reddit') => {
     const container = e.currentTarget;
     isAtTop.current = container.scrollTop <= 0;
+    setHeaderScrolled(container.scrollTop > 20);
 
     // Throttle the bottom check
     requestAnimationFrame(() => {
@@ -617,9 +619,20 @@ export default function App() {
     return `${r}, ${g}, ${b}`;
   }, [settings.themeColor]);
 
+  const getBlobColors = () => {
+    switch (filter) {
+      case 'saved': return ['bg-yellow-600/20', 'bg-amber-600/15'];
+      case 'reddit': return ['bg-purple-700/20', 'bg-fuchsia-600/15'];
+      case 'telegram': return ['bg-green-600/20', 'bg-emerald-600/15'];
+      case 'inbox':
+      default: return ['bg-blue-600/20', 'bg-indigo-600/15'];
+    }
+  };
+  const [blob1, blob2] = getBlobColors();
+
   return (
     <div 
-      className="h-[100dvh] overflow-hidden flex flex-col transition-colors bg-black font-sans"
+      className="h-[100dvh] overflow-hidden flex flex-col transition-colors bg-[#0A0A10] font-sans relative"
       style={{ 
         '--theme-color': settings.themeColor,
         '--theme-color-rgb': themeColorRgb
@@ -628,6 +641,10 @@ export default function App() {
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
     >
+      <div className="fixed inset-0 z-[0] pointer-events-none overflow-hidden">
+        <div className={cn("absolute -top-[10%] -left-[20%] w-[120vw] h-[60vh] rounded-full blur-[100px] animate-[pulse_10s_ease-in-out_infinite] transition-colors duration-1000", blob1)} />
+        <div className={cn("absolute top-[50%] -right-[30%] w-[100vw] h-[70vh] rounded-full blur-[120px] animate-[pulse_12s_ease-in-out_infinite_reverse] transition-colors duration-1000", blob2)} style={{ animationDirection: 'reverse', animationDuration: '12s' }} />
+      </div>
       {filter !== 'reddit' && filter !== 'telegram' && (
         <motion.div 
           className="absolute top-0 left-0 right-0 flex justify-center py-2 pointer-events-none z-30"
@@ -639,8 +656,8 @@ export default function App() {
         </motion.div>
       )}
 
-      <div className="sticky top-0 z-20 shadow-sm transition-colors bg-black">
-        <header className="px-4 py-3 flex items-center justify-between">
+      <div className={cn("relative z-10 sticky top-0 transition-all duration-300", headerScrolled ? "bg-[#0A0A10]/60 backdrop-blur-xl border-b border-white/10 shadow-lg py-1" : "bg-transparent py-3")}>
+        <header className="px-4 flex items-center justify-between">
            <motion.button 
             whileTap={{ scale: 0.95 }}
             onClick={scrollToTop}
@@ -669,7 +686,7 @@ export default function App() {
         </header>
 
         {filter === 'reddit' && (
-          <div className="px-4 pb-3 flex items-center gap-2 overflow-x-auto scrollbar-hide">
+          <div className="px-4 pb-2 pt-2 flex items-center gap-2 overflow-x-auto scrollbar-hide">
             <button
               onClick={() => handleRedditSortChange('new')}
               className={cn(
@@ -692,7 +709,7 @@ export default function App() {
         )}
 
         {filter === 'telegram' && (
-          <div className="px-4 pb-3 flex items-center gap-2 overflow-x-auto scrollbar-hide">
+          <div className="px-4 pb-2 pt-2 flex items-center gap-2 overflow-x-auto scrollbar-hide">
             <button
               onClick={() => setTelegramFilter(telegramFilter === 'unread' ? 'all' : 'unread')}
               className={cn(
@@ -710,7 +727,7 @@ export default function App() {
         )}
 
         {filter === 'inbox' && (
-          <div className="px-4 pb-3 flex items-center gap-2 overflow-x-auto scrollbar-hide">
+          <div className="px-4 pb-2 pt-2 flex items-center gap-2 overflow-x-auto scrollbar-hide">
             <button
               onClick={() => handleTypeFilterChange('unread')}
               className={cn(
@@ -804,7 +821,7 @@ export default function App() {
           ref={inboxScrollRef}
           onScroll={(e) => handleScroll(e, 'inbox')}
           className={cn(
-            "absolute inset-0 overflow-y-auto pb-24 scroll-smooth bg-black transition-all duration-300 will-change-transform",
+            "absolute inset-0 overflow-y-auto pb-24 scroll-smooth transition-all duration-300 will-change-transform",
             filter === 'inbox' ? "z-10 opacity-100 pointer-events-auto" : "z-0 opacity-0 pointer-events-none"
           )}
         >
@@ -830,11 +847,11 @@ export default function App() {
           ref={savedScrollRef}
           onScroll={(e) => handleScroll(e, 'saved')}
           className={cn(
-            "absolute inset-0 overflow-y-auto pb-24 scroll-smooth bg-black transition-all duration-300 will-change-transform",
+            "absolute inset-0 overflow-y-auto pb-24 scroll-smooth transition-all duration-300 will-change-transform",
             filter === 'saved' ? "z-10 opacity-100 pointer-events-auto" : "z-0 opacity-0 pointer-events-none"
           )}
         >
-          <div className="flex-1 max-w-3xl mx-auto px-2 py-2 space-y-2">
+          <div className="flex-1 max-w-3xl mx-auto px-2 py-2 space-y-1">
             <AnimatePresence initial={false}>
               {Array.from(new Map(savedArticles.map(a => [a.id, a])).values())
                 .map(a => ({ ...a, itemType: 'article' as const }))
@@ -911,7 +928,7 @@ export default function App() {
         <ImageViewer imageUrl={selectedImage} onClose={() => setSelectedImage(null)} />
       )}
       
-      <div className="fixed bottom-0 left-0 right-0 border-t border-gray-800 flex justify-around pt-3 pb-5 px-3 z-20 transition-colors bg-black">
+      <div className="fixed bottom-0 left-0 right-0 border-t border-white/10 flex justify-around pt-3 pb-5 px-3 z-20 transition-colors bg-[#0A0A10]/60 backdrop-blur-xl">
         <motion.button
           whileTap={{ scale: 0.9 }}
           onClick={() => handleFilterChange('saved')}
@@ -1038,7 +1055,7 @@ export default function App() {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="w-full max-w-sm p-6 rounded-2xl shadow-2xl bg-black"
+              className="w-full max-w-sm p-6 rounded-3xl bg-[#0A0A10]/80 backdrop-blur-3xl border border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.25)]"
             >
               <h3 className="text-lg font-bold mb-2 text-gray-100">Mark all as read?</h3>
               <p className="text-gray-400 mb-6">This will mark all articles in the current view as read.</p>

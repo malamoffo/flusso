@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useDragControls } from 'framer-motion';
 import { RedditPost, RedditComment } from '../types';
 import { ArrowLeft, MessageSquare, ChevronUp, ChevronDown } from 'lucide-react';
 import { useReddit } from '../context/RedditContext';
@@ -51,6 +51,7 @@ const CommentNode: React.FC<{ comment: RedditComment }> = ({ comment }) => {
 };
 
 export const RedditPostReader = ({ post, onClose, onNext, onPrev, hasNext, hasPrev }: RedditPostReaderProps) => {
+  const controls = useDragControls();
   const [comments, setComments] = useState<RedditComment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -111,37 +112,65 @@ export const RedditPostReader = ({ post, onClose, onNext, onPrev, hasNext, hasPr
     loadComments();
   }, [post.permalink]);
 
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 50 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: 50 }}
-      transition={{ type: "spring", damping: 25, stiffness: 300 }}
-      className="fixed inset-0 z-50 bg-black flex flex-col"
-    >
-      <header className="flex items-center justify-between p-4 border-b border-gray-800 bg-black/80 backdrop-blur-md z-10">
-        <button onClick={onClose} className="p-2 rounded-full hover:bg-gray-800 text-gray-300 transition-colors">
-          <ArrowLeft className="w-6 h-6" />
-        </button>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={onPrev}
-            disabled={!hasPrev}
-            className="p-2 rounded-full hover:bg-gray-800 text-gray-300 transition-colors disabled:opacity-30"
-          >
-            <ChevronUp className="w-6 h-6" />
-          </button>
-          <button
-            onClick={onNext}
-            disabled={!hasNext}
-            className="p-2 rounded-full hover:bg-gray-800 text-gray-300 transition-colors disabled:opacity-30"
-          >
-            <ChevronDown className="w-6 h-6" />
-          </button>
-        </div>
-      </header>
+  useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = 'auto'; };
+  }, []);
 
-      <div className="flex-1 overflow-y-auto p-4 max-w-3xl mx-auto w-full">
+  return (
+    <>
+      <motion.div 
+        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+        className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[40]"
+        onClick={onClose}
+      />
+      <motion.div 
+        initial={{ y: '100%' }}
+        animate={{ y: 0 }}
+        exit={{ y: '100%' }}
+        transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+        className="fixed bottom-0 left-0 right-0 z-50 h-[92vh] overflow-hidden flex flex-col transition-colors break-words font-sans bg-[#0A0A10]/95 backdrop-blur-3xl rounded-t-[2.5rem] border-t border-white/10 shadow-[0_-10px_40px_rgba(0,0,0,0.5)]"
+        drag="y"
+        dragControls={controls}
+        dragListener={false}
+        dragConstraints={{ top: 0, bottom: 0 }}
+        dragElastic={{ top: 0.1, bottom: 0.8 }}
+        onDragEnd={(e, info) => {
+          if (info.offset.y > 100 || info.velocity.y > 500) {
+            onClose();
+          }
+        }}
+      >
+        <div 
+          onPointerDown={(e) => controls.start(e)}
+          className="absolute top-0 left-0 right-0 h-12 z-[60] cursor-grab active:cursor-grabbing flex items-center justify-center pointer-events-auto touch-none"
+        >
+          <div className="w-12 h-1.5 bg-white/20 rounded-full" />
+        </div>
+        
+        <header className="sticky top-0 z-20 px-4 py-6 mt-4 flex items-center justify-between bg-gradient-to-b from-[#0A0A10]/90 to-[#0A0A10]/0 pointer-events-none">
+          <button onClick={onClose} className="w-10 h-10 flex items-center justify-center rounded-full bg-white/10 border border-white/20 active:bg-white/20 text-white pointer-events-auto backdrop-blur-md transition-colors">
+            <ArrowLeft className="w-6 h-6" />
+          </button>
+          <div className="flex items-center gap-2 pointer-events-auto">
+            <button
+              onClick={onPrev}
+              disabled={!hasPrev}
+              className="w-10 h-10 flex items-center justify-center rounded-full bg-white/10 border border-white/20 active:bg-white/20 text-white backdrop-blur-md transition-colors disabled:opacity-30"
+            >
+              <ChevronUp className="w-6 h-6" />
+            </button>
+            <button
+              onClick={onNext}
+              disabled={!hasNext}
+              className="w-10 h-10 flex items-center justify-center rounded-full bg-white/10 border border-white/20 active:bg-white/20 text-white backdrop-blur-md transition-colors disabled:opacity-30"
+            >
+              <ChevronDown className="w-6 h-6" />
+            </button>
+          </div>
+        </header>
+
+        <div className="flex-1 overflow-y-auto p-4 max-w-3xl mx-auto w-full pb-20">
         <div className="mb-6">
           <div className="flex items-center gap-2 mb-2">
             <span className="text-sm font-bold text-purple-400 shadow-[0_0_8px_rgba(168,85,247,0.4)]">r/{post.subredditName}</span>
@@ -198,5 +227,6 @@ export const RedditPostReader = ({ post, onClose, onNext, onPrev, hasNext, hasPr
         </div>
       </div>
     </motion.div>
+    </>
   );
 };

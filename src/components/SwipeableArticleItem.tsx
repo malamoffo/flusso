@@ -266,8 +266,9 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
 
   return (
     <motion.div 
-      initial={{ opacity: 0, height: 0 }}
-      animate={{ opacity: 1, height: 'auto' }}
+      initial={{ opacity: 0, y: 20 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: "100px" }}
       exit={{ 
         opacity: 0, 
         height: 0,
@@ -279,8 +280,8 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
         } 
       }}
       transition={{ 
-        opacity: { duration: shouldReduceMotion ? 0 : 0.2 },
-        height: { duration: shouldReduceMotion ? 0 : 0.2 }
+        opacity: { duration: shouldReduceMotion ? 0 : 0.3 },
+        y: { type: "spring", stiffness: 300, damping: 25 }
       }}
       ref={(node) => {
         ref(node);
@@ -289,7 +290,7 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
       }} 
       className={cn(
         "relative w-full overflow-hidden will-change-transform content-visibility-auto",
-        isInboxOrSaved && "px-1.25 py-1"
+        isInboxOrSaved && "px-1.25 py-2"
       )}
       style={{
         transform: 'translateZ(0)',
@@ -297,8 +298,8 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
       } as React.CSSProperties}
     >
       <div className={cn(
-        "relative w-full overflow-hidden",
-        isInboxOrSaved ? "rounded-2xl border-2 border-blue-500/80 shadow-md" : ""
+        "relative w-full overflow-hidden rounded-3xl",
+        isInboxOrSaved ? "shadow-md" : ""
       )}>
         <motion.div 
           className="absolute inset-0 z-0"
@@ -351,13 +352,14 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
             right: (isSavedSection || settings.swipeRightAction === 'toggleFavorite') ? 0.7 : 0 
           } : 0}
           dragPropagation={false}
-          dragTransition={{ bounceStiffness: 300, bounceDamping: 25 }}
+          dragTransition={{ bounceStiffness: 1000, bounceDamping: 50 }}
           onDragEnd={handleDragEnd}
           onClick={handleArticleClick}
           exit={{ x: exitX, opacity: 0, transition: { duration: 0.2, ease: "easeOut" } }}
           className={cn(
-            "relative z-20 w-full p-3 cursor-pointer bg-black select-none",
-            !isInboxOrSaved && "border-b border-gray-800"
+            "relative z-20 w-full p-4 flex flex-col gap-3 cursor-pointer select-none rounded-[inherit] bg-black active:scale-[0.98] active:bg-gray-900 transition-all",
+            !isInboxOrSaved ? "border-b border-gray-800" : "border-2",
+            filter === 'saved' ? "border-yellow-500/50" : filter === 'inbox' ? "border-blue-500/50" : "border-gray-800"
           )}
         >
           <div className="flex flex-col gap-2">

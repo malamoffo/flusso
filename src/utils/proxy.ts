@@ -14,7 +14,7 @@ function getHeader(headers: Record<string, string | undefined> | Headers, name: 
   return undefined;
 }
 
-export async function fetchWithProxy(url: string, isRss: boolean = true, sinceDate?: number, signal?: AbortSignal, etag?: string, lastModified?: string): Promise<{ data: string, etag?: string, lastModified?: string }> {
+export async function fetchWithProxy(url: string, isRss: boolean = true, sinceDate?: number, signal?: AbortSignal, etag?: string, lastModified?: string, isHtml: boolean = false): Promise<{ data: string, etag?: string, lastModified?: string }> {
   // On native platforms, we don't need proxies as there's no CORS restriction
   if (Capacitor.isNativePlatform()) {
     try {
@@ -227,9 +227,9 @@ export async function fetchWithProxy(url: string, isRss: boolean = true, sinceDa
               continue;
             }
           } else {
-            // For non-RSS (likely JSON/API), ensure it doesn't look like HTML unless it's a known HTML source like Telegram
+            // For non-RSS (likely JSON/API), ensure it doesn't look like HTML unless it's a known HTML source like Telegram or explicitly requested
             const isTelegram = url.includes('t.me/');
-            if (!isTelegram && trimmed.startsWith('<') && (trimmed.toLowerCase().includes('<html') || trimmed.toLowerCase().includes('<body') || trimmed.toLowerCase().includes('<!doctype'))) {
+            if (!isHtml && !isTelegram && trimmed.startsWith('<') && (trimmed.toLowerCase().includes('<html') || trimmed.toLowerCase().includes('<body') || trimmed.toLowerCase().includes('<!doctype'))) {
               lastError = new Error(`Proxy ${proxy.name} returned HTML instead of expected JSON/API response`);
               continue;
             }

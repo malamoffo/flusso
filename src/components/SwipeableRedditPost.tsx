@@ -123,16 +123,17 @@ export const SwipeableRedditPost = React.memo(function SwipeableRedditPost({
 
   return (
     <motion.div 
-      initial={{ opacity: 0, height: 0 }}
-      animate={{ opacity: 1, height: 'auto' }}
+      initial={{ opacity: 0, y: 20 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: "100px" }}
       exit={{ 
         opacity: 0, 
         height: 0,
         transition: { duration: shouldReduceMotion ? 0 : 0.2, ease: "easeInOut" } 
       }}
       transition={{ 
-        opacity: { duration: shouldReduceMotion ? 0 : 0.2 },
-        height: { duration: shouldReduceMotion ? 0 : 0.2 }
+        opacity: { duration: shouldReduceMotion ? 0 : 0.3 },
+        y: { type: "spring", stiffness: 300, damping: 25 }
       }}
       ref={(node) => {
         ref(node);
@@ -140,7 +141,7 @@ export const SwipeableRedditPost = React.memo(function SwipeableRedditPost({
       }}
       className={cn(
         "relative w-full overflow-hidden will-change-transform",
-        (filter === 'saved' || filter === 'reddit') && "px-1.25 py-1"
+        (filter === 'saved' || filter === 'reddit') && "px-1.25 py-2"
       )}
       style={{
         contentVisibility: 'auto',
@@ -149,8 +150,8 @@ export const SwipeableRedditPost = React.memo(function SwipeableRedditPost({
       } as React.CSSProperties}
     >
       <div className={cn(
-        "relative w-full rounded-2xl overflow-hidden",
-        (filter === 'saved' || filter === 'reddit') ? "border-2 border-purple-500/80 shadow-md bg-black" : ""
+        "relative w-full rounded-3xl overflow-hidden",
+        (filter === 'saved' || filter === 'reddit') ? "shadow-md" : ""
       )}>
         {!post.isRead && (
           <span className="absolute top-2 right-2 z-30 px-2 py-0.5 bg-purple-600 text-[9px] font-black text-white rounded-full shadow-[0_0_10px_rgba(168,85,247,0.6)] border border-purple-400 uppercase tracking-widest">
@@ -188,12 +189,14 @@ export const SwipeableRedditPost = React.memo(function SwipeableRedditPost({
             right: (isSavedSection || settings.swipeRightAction !== 'none') ? 0.7 : 0 
           } : 0}
           dragPropagation={false}
-          dragTransition={{ bounceStiffness: 300, bounceDamping: 25 }}
+          dragTransition={{ bounceStiffness: 1000, bounceDamping: 50 }}
           onDragEnd={handleDragEnd}
           onClick={handlePostClick}
           exit={{ x: exitX, opacity: 0, transition: { duration: 0.15, ease: "easeOut" } }}
           className={cn(
-            "relative z-20 w-full p-3 cursor-pointer transition-all bg-black select-none",
+            "relative z-20 w-full p-4 flex flex-col gap-3 cursor-pointer select-none rounded-[inherit] bg-black active:scale-[0.98] active:bg-gray-900 transition-all",
+            filter !== 'saved' && filter !== 'reddit' ? "border-b border-gray-800" : "border-2",
+            filter === 'saved' ? "border-yellow-500/50" : filter === 'reddit' ? "border-purple-500/50" : "border-gray-800",
             (filter !== 'saved') && "opacity-100"
           )}
         >

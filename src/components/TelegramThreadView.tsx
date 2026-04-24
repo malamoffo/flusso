@@ -1,5 +1,5 @@
 import React, { memo, useEffect, useRef, useState } from 'react';
-import { motion } from 'framer-motion';
+import { motion, useDragControls } from 'framer-motion';
 import { TelegramChannel, TelegramMessage } from '../types';
 import { ArrowLeft, RefreshCw, MessageSquare } from 'lucide-react';
 import { format } from 'date-fns';
@@ -14,6 +14,7 @@ interface TelegramThreadViewProps {
 }
 
 export const TelegramThreadView = memo(({ channel, messages, onClose, onRefresh, onLoadMore }: TelegramThreadViewProps) => {
+  const controls = useDragControls();
   const scrollRef = useRef<HTMLDivElement>(null);
   const isInitialMount = useRef(true);
   const [isFetchingMore, setIsFetchingMore] = useState(false);
@@ -66,15 +67,43 @@ export const TelegramThreadView = memo(({ channel, messages, onClose, onRefresh,
     }
   }, [messages?.length]);
 
+  useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = 'auto'; };
+  }, []);
+
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 50 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: 50 }}
-      transition={{ type: "spring", damping: 25, stiffness: 300 }}
-      className="fixed inset-0 z-50 bg-black flex flex-col"
-    >
-      <style dangerouslySetInnerHTML={{ __html: `
+    <>
+      <motion.div 
+        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+        className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[40]"
+        onClick={onClose}
+      />
+      <motion.div 
+        initial={{ y: '100%' }}
+        animate={{ y: 0 }}
+        exit={{ y: '100%' }}
+        transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+        className="fixed bottom-0 left-0 right-0 z-50 h-[92vh] overflow-hidden flex flex-col transition-colors break-words font-sans bg-[#0A0A10]/95 backdrop-blur-3xl rounded-t-[2.5rem] border-t border-white/10 shadow-[0_-10px_40px_rgba(0,0,0,0.5)]"
+        drag="y"
+        dragControls={controls}
+        dragListener={false}
+        dragConstraints={{ top: 0, bottom: 0 }}
+        dragElastic={{ top: 0.1, bottom: 0.8 }}
+        onDragEnd={(e, info) => {
+          if (info.offset.y > 100 || info.velocity.y > 500) {
+            onClose();
+          }
+        }}
+      >
+        <div 
+          onPointerDown={(e) => controls.start(e)}
+          className="absolute top-0 left-0 right-0 h-12 z-[60] cursor-grab active:cursor-grabbing flex items-center justify-center pointer-events-auto touch-none"
+        >
+          <div className="w-12 h-1.5 bg-white/20 rounded-full" />
+        </div>
+        
+        <style dangerouslySetInnerHTML={{ __html: `
         .telegram-message-text a {
           color: #4ade80;
           text-decoration: none;
@@ -83,28 +112,28 @@ export const TelegramThreadView = memo(({ channel, messages, onClose, onRefresh,
           text-decoration: underline;
         }
       `}} />
-      <header className="flex items-center p-4 border-b border-gray-800 bg-black/80 backdrop-blur-md z-10">
-        <button onClick={onClose} className="p-2 rounded-full hover:bg-gray-800 text-gray-300 transition-colors">
-          <ArrowLeft className="w-6 h-6" />
-        </button>
-        <div className="flex items-center ml-4 gap-3">
-          {channel.imageUrl && (
-            <img 
-              src={channel.imageUrl} 
-              alt="" 
-              className="w-8 h-8 rounded-full object-cover" 
-              referrerPolicy="no-referrer"
-            />
-          )}
-          <h2 className="text-lg font-bold text-white">{channel.name}</h2>
-        </div>
-      </header>
+        <header className="sticky top-0 z-20 px-4 py-6 mt-4 flex items-center bg-gradient-to-b from-[#0A0A10]/90 to-[#0A0A10]/0 pointer-events-none">
+          <button onClick={onClose} className="w-10 h-10 flex items-center justify-center rounded-full bg-white/10 border border-white/20 active:bg-white/20 text-white pointer-events-auto backdrop-blur-md transition-colors">
+            <ArrowLeft className="w-6 h-6" />
+          </button>
+          <div className="flex items-center ml-4 gap-3 pointer-events-auto backdrop-blur-md px-4 py-2 rounded-full border border-white/10 bg-white/5 shadow-xl">
+            {channel.imageUrl && (
+              <img 
+                src={channel.imageUrl} 
+                alt="" 
+                className="w-6 h-6 rounded-full object-cover" 
+                referrerPolicy="no-referrer"
+              />
+            )}
+            <h2 className="text-sm font-bold text-white tracking-wide">{channel.name}</h2>
+          </div>
+        </header>
 
-      <div 
-        ref={scrollRef}
-        onScroll={handleScroll}
-        className="flex-1 overflow-y-auto p-4 max-w-3xl mx-auto w-full"
-      >
+        <div 
+          ref={scrollRef}
+          onScroll={handleScroll}
+          className="flex-1 overflow-y-auto px-4 pb-20 max-w-3xl mx-auto w-full"
+        >
         {isFetchingMore && (
           <div className="flex justify-center py-4">
             <div className="w-6 h-6 border-2 border-green-500 border-t-transparent rounded-full animate-spin" />
@@ -137,7 +166,7 @@ export const TelegramThreadView = memo(({ channel, messages, onClose, onRefresh,
             const isNew = message.date > (channel.lastOpened || 0);
             return (
               <div key={`${message.channelId}-${message.id}`} className={cn(
-                "mb-4 p-4 bg-black rounded-2xl border-2 border-green-500/80 shadow-md relative transition-all"
+                "mb-4 p-5 rounded-[2rem] relative transition-all shadow-lg select-none bg-black/40 backdrop-blur-xl border-2 border-green-500/30"
               )}>
                 {isNew && (
                   <span className="absolute top-2 right-2 z-30 px-2 py-0.5 bg-green-500 text-[9px] font-black text-black rounded-full shadow-[0_0_10px_rgba(34,197,94,0.6)] border border-green-400 uppercase tracking-widest">
@@ -163,5 +192,6 @@ export const TelegramThreadView = memo(({ channel, messages, onClose, onRefresh,
         )}
       </div>
     </motion.div>
+    </>
   );
 });

@@ -89,7 +89,7 @@ class ContentFetcherQueue {
         }
       }
     } else {
-      const res = await fetchWithProxy(safeUrl, false);
+      const res = await fetchWithProxy(safeUrl, false, undefined, undefined, undefined, undefined, true);
       html = res.data;
     }
 
@@ -124,7 +124,7 @@ class ContentFetcherQueue {
         if (fullArticleUrl) {
           try {
             const resolvedUrl = new URL(fullArticleUrl, url).toString();
-            const fullResData = isNative ? (await CapacitorHttp.get({ url: resolvedUrl })).data : (await fetchWithProxy(resolvedUrl, false)).data;
+            const fullResData = isNative ? (await CapacitorHttp.get({ url: resolvedUrl })).data : (await fetchWithProxy(resolvedUrl, false, undefined, undefined, undefined, undefined, true)).data;
             const fullDoc = new DOMParser().parseFromString(fullResData, 'text/html');
             const fullReader = new Readability(fullDoc);
             const fullArticleData = fullReader.parse();

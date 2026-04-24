@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { ArrowLeft, FileText, AlignLeft, X, Share2, Star, EyeOff, ChevronUp, ChevronDown, Calendar, User, ExternalLink, RefreshCw, Bookmark, List, FastForward } from 'lucide-react';
 import { Article, FullArticleContent } from '../types';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useDragControls } from 'framer-motion';
 import { useRss } from '../context/RssContext';
 import { useSettings } from '../context/SettingsContext';
 import DOMPurify from 'dompurify';
@@ -28,6 +28,7 @@ interface ArticleReaderProps {
 }
 
 export const ArticleReader = React.memo(function ArticleReader({ article, onClose, onNext, onPrev, hasNext, hasPrev }: ArticleReaderProps) {
+  const controls = useDragControls();
   const [fullContent, setFullContent] = useState<FullArticleContent | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [articleThemeColor, setArticleThemeColor] = useState<string | null>(null);
@@ -108,7 +109,7 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
             }
           }
         } else {
-          const res = await fetchWithProxy(safeUrl, false);
+          const res = await fetchWithProxy(safeUrl, false, undefined, undefined, undefined, undefined, true);
           html = res.data;
         }
 
@@ -345,56 +346,79 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
     processContent();
   }, [fullContent?.content, article.content, article.imageUrl]);
 
+  useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = 'auto'; };
+  }, []);
+
   return (
-    <motion.div 
-      initial={{ x: '100%' }}
-      animate={{ x: 0 }}
-      exit={{ x: '-100%' }}
-      transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-      className="fixed inset-0 z-50 overflow-y-auto overflow-x-hidden flex flex-col transition-colors break-words bg-black font-sans"
-    >
-      {/* Animated Background Gradients (Glass Style) */}
-      <div className="fixed inset-0 z-0 pointer-events-none">
-        <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-blue-600/10 rounded-full blur-[120px] animate-pulse" />
-        <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-purple-600/10 rounded-full blur-[120px] animate-pulse" style={{ animationDelay: '2s' }} />
-      </div>
-
-      {/* Top App Bar */}
-      <div 
-        className="sticky top-0 z-20 backdrop-blur-md border-b border-gray-800 px-4 py-3 flex items-center justify-between transition-colors bg-black/80"
+    <>
+      <motion.div 
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.3 }}
+        className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[40]"
+        onClick={onClose}
+      />
+      <motion.div 
+        initial={{ y: '100%' }}
+        animate={{ y: 0 }}
+        exit={{ y: '100%' }}
+        transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+        className="fixed bottom-0 left-0 right-0 z-50 h-[92vh] overflow-hidden flex flex-col transition-colors break-words font-sans bg-[#0A0A10]/95 backdrop-blur-3xl rounded-t-[2.5rem] border-t border-white/10 shadow-[0_-10px_40px_rgba(0,0,0,0.5)]"
+        drag="y"
+        dragControls={controls}
+        dragListener={false}
+        dragConstraints={{ top: 0, bottom: 0 }}
+        dragElastic={{ top: 0.1, bottom: 0.8 }}
+        onDragEnd={(e, info) => {
+          if (info.offset.y > 100 || info.velocity.y > 500) {
+            onClose();
+          }
+        }}
       >
-        <motion.button
-          whileTap={{ scale: 0.9 }}
-          onClick={onClose}
-          className="p-2 rounded-full hover:bg-gray-800"
-          aria-label="Close article"
+        <div 
+          onPointerDown={(e) => controls.start(e)}
+          className="absolute top-0 left-0 right-0 h-12 z-[60] cursor-grab active:cursor-grabbing flex items-center justify-center pointer-events-auto touch-none"
         >
-          <X className="w-6 h-6 text-gray-200" aria-hidden="true" />
-        </motion.button>
-        <div className="flex items-center gap-2">
-          <motion.button
-            whileTap={{ scale: 0.9 }}
-            onClick={onPrev}
-            disabled={!hasPrev}
-            className="p-2 rounded-full hover:bg-gray-800 disabled:opacity-30 disabled:pointer-events-none"
-            aria-label="Previous article"
-          >
-            <ChevronUp className="w-6 h-6 text-gray-200" aria-hidden="true" />
-          </motion.button>
-          <motion.button
-            whileTap={{ scale: 0.9 }}
-            onClick={onNext}
-            disabled={!hasNext}
-            className="p-2 rounded-full hover:bg-gray-800 disabled:opacity-30 disabled:pointer-events-none"
-            aria-label="Next article"
-          >
-            <ChevronDown className="w-6 h-6 text-gray-200" aria-hidden="true" />
-          </motion.button>
+          <div className="w-12 h-1.5 bg-white/20 rounded-full" />
         </div>
-      </div>
+        
+        {/* Top App Bar */}
+        <div className="sticky top-0 z-20 px-4 py-6 mt-4 flex items-center justify-between bg-gradient-to-b from-[#0A0A10]/90 to-[#0A0A10]/0 pointer-events-none">
+          <motion.button
+            whileTap={{ scale: 0.9 }}
+            onClick={onClose}
+            className="w-10 h-10 flex items-center justify-center rounded-full bg-white/10 border border-white/20 active:bg-white/20 text-white pointer-events-auto backdrop-blur-md"
+            aria-label="Close article"
+          >
+            <ArrowLeft className="w-5 h-5 text-gray-200" aria-hidden="true" />
+          </motion.button>
+          <div className="flex items-center gap-2 pointer-events-auto">
+            <motion.button
+              whileTap={{ scale: 0.9 }}
+              onClick={onPrev}
+              disabled={!hasPrev}
+              className="w-10 h-10 flex items-center justify-center rounded-full bg-white/10 border border-white/20 active:bg-white/20 text-white backdrop-blur-md disabled:opacity-30 disabled:pointer-events-none"
+              aria-label="Previous article"
+            >
+              <ChevronUp className="w-5 h-5 text-gray-200" aria-hidden="true" />
+            </motion.button>
+            <motion.button
+              whileTap={{ scale: 0.9 }}
+              onClick={onNext}
+              disabled={!hasNext}
+              className="w-10 h-10 flex items-center justify-center rounded-full bg-white/10 border border-white/20 active:bg-white/20 text-white backdrop-blur-md disabled:opacity-30 disabled:pointer-events-none"
+              aria-label="Next article"
+            >
+              <ChevronDown className="w-5 h-5 text-gray-200" aria-hidden="true" />
+            </motion.button>
+          </div>
+        </div>
 
-      {/* Article Content with Glass Container */}
-      <div className="relative z-10 flex-1 py-4 px-2 sm:px-4 max-w-5xl mx-auto w-full">
+        {/* Article Content with Glass Container */}
+        <div className="relative z-10 flex-1 px-2 sm:px-4 max-w-5xl mx-auto w-full pb-20 overflow-y-auto">
         <div className="backdrop-blur-3xl bg-white/[0.03] border border-white/10 rounded-[2.5rem] overflow-hidden shadow-2xl mb-24">
           {readerImageUrl && (
             <div className="relative group overflow-hidden bg-black/40">
@@ -550,5 +574,6 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
         </div>
       </div>
     </motion.div>
+    </>
   );
 });
