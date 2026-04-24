@@ -62,7 +62,7 @@ export default function App() {
     articles, feeds, isLoading, error, setError,
     refreshFeeds, toggleRead, markAsRead, markArticlesAsRead,
     markAllAsRead, markFilteredArticlesAsRead, searchQuery, setSearchQuery, unreadCount, savedCount,
-    toggleFavorite, removeFromSaved, removeArticle, addArticle
+    toggleFavorite, removeFromSaved, removeArticle, addArticle, loadAllUnreadArticles
   } = useRss();
 
   const {
@@ -271,9 +271,17 @@ export default function App() {
       if (newType === 'unread') {
         const nextValue = !inboxUnreadOnly;
         setInboxUnreadOnly(nextValue);
+        
+        if (nextValue) {
+          loadAllUnreadArticles();
+          setTemporarilyVisibleUnreadIds(new Set());
+        }
+        
         // Clear temporary visibility when explicitly disabling the unread filter
         if (!nextValue) {
           setTemporarilyVisibleUnreadIds(new Set());
+          // Optional: we might want to reset pagination here if we were showing everything
+          resetPagination(); 
         }
       }
       if (inboxScrollRef.current) inboxScrollRef.current.scrollTop = 0;

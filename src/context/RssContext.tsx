@@ -58,6 +58,7 @@ interface RssContextType {
     searchQuery?: string;
   }) => Promise<void>;
   prefetch: (article: Article) => Promise<void>;
+  loadAllUnreadArticles: () => Promise<void>;
 }
 
 const RssContext = createContext<RssContextType | undefined>(undefined);
@@ -693,6 +694,24 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   }, []);
 
+  const loadAllUnreadArticles = useCallback(async () => {
+      try {
+        setIsLoading(true);
+        // Assuming we need all unread ones
+        const unreadArticles = await storage.getAllUnreadArticles();
+        setArticles(prev => {
+            const existingIds = new Set(prev.map(a => a.id));
+            const newArticles = unreadArticles.filter(a => !existingIds.has(a.id));
+            return [...prev, ...newArticles].sort((a,b) => b.pubDate - a.pubDate);
+        });
+        setHasMoreArticles(false); // Disable pagination as we loaded everything
+      } catch (err) {
+        console.error('Failed to load all unread articles:', err);
+      } finally {
+        setIsLoading(false);
+      }
+  }, []);
+
   const value = useMemo(() => ({
     feeds, articles, isLoading, progress, error, setError, errorLogs, clearErrorLogs,
     addFeedOrSubreddit, importOpml, toggleRead, markAsRead, markArticlesAsRead,
@@ -700,7 +719,7 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     removeArticle, addArticle,
     updateFeed, updateArticle, exportFeeds,
     searchQuery, setSearchQuery, unreadCount, savedCount, hasMoreArticles, loadMoreArticles, updateInfo, checkUpdates,
-    globalSearch, prefetch, markFilteredArticlesAsRead
+    globalSearch, prefetch, markFilteredArticlesAsRead, loadAllUnreadArticles
   }), [
     feeds, articles, isLoading, progress, error, setError, errorLogs, clearErrorLogs,
     addFeedOrSubreddit, importOpml, toggleRead, markAsRead, markArticlesAsRead,
@@ -708,7 +727,7 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     removeArticle, addArticle,
     updateFeed, updateArticle, exportFeeds,
     searchQuery, setSearchQuery, unreadCount, savedCount, hasMoreArticles, loadMoreArticles, updateInfo, checkUpdates,
-    globalSearch, prefetch, markFilteredArticlesAsRead
+    globalSearch, prefetch, markFilteredArticlesAsRead, loadAllUnreadArticles
   ]);
 
   return (

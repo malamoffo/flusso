@@ -54,6 +54,18 @@ export const rssStorage = {
     }
   },
 
+  async getAllUnreadArticles(): Promise<Article[]> {
+    try {
+      return await db.articles.filter(a => {
+          const val = a.isRead;
+          return val === 0 || (val as any) === false || (val as any) === '0' || !val;
+      }).toArray();
+    } catch (e) {
+      console.error('Failed to load all unread articles:', e);
+      return [];
+    }
+  },
+
   async getSavedCount(): Promise<number> {
     try {
       return await db.articles.where('isFavorite').equals(1).count();
