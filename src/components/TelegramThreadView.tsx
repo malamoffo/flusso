@@ -166,7 +166,7 @@ export const TelegramThreadView = memo(({ channel, messages, onClose, onRefresh,
             const isNew = message.date > (channel.lastOpened || 0);
             return (
               <div key={`${message.channelId}-${message.id}`} className={cn(
-                "mb-4 p-5 rounded-[2rem] relative transition-all shadow-lg select-none bg-black/40 backdrop-blur-xl border-2 border-green-500/30"
+                "mb-4 p-5 rounded-[2rem] relative transition-all shadow-xl select-none bg-white/[0.08] border border-white/[0.15] border-green-500/20"
               )}>
                 {isNew && (
                   <span className="absolute top-2 right-2 z-30 px-2 py-0.5 bg-green-500 text-[9px] font-black text-black rounded-full shadow-[0_0_10px_rgba(34,197,94,0.6)] border border-green-400 uppercase tracking-widest">

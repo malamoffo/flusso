@@ -64,7 +64,7 @@ export const TelegramListView = memo(({ isActive, channels, onChannelClick, filt
               transition={{ type: "spring", stiffness: 300, damping: 25, delay: i * 0.05 }}
               onClick={() => onChannelClick(channel)}
               className={cn(
-                "relative p-4 rounded-3xl shadow-md flex items-center gap-4 cursor-pointer bg-black border-2 border-green-500/50 transition-all active:scale-[0.98] active:bg-gray-900"
+                "relative p-4 rounded-3xl shadow-xl flex items-center gap-4 cursor-pointer bg-white/[0.08] backdrop-blur-xl border border-white/[0.15] border-green-500/20 transition-all active:scale-[0.98] active:bg-white/5"
               )}
             >
               {channel.imageUrl ? (

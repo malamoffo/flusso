@@ -21,7 +21,7 @@ const CommentNode: React.FC<{ comment: RedditComment }> = ({ comment }) => {
   const [isCollapsed, setIsCollapsed] = useState(false);
 
   return (
-    <div className="mb-3 text-sm">
+    <div className="mb-3 p-4 text-sm bg-white/[0.08] backdrop-blur-xl border border-white/[0.15] rounded-2xl shadow-xl">
       <div 
         className="flex items-center gap-2 mb-1 cursor-pointer hover:bg-gray-800 p-1 rounded"
         onClick={() => setIsCollapsed(!isCollapsed)}
@@ -171,7 +171,7 @@ export const RedditPostReader = ({ post, onClose, onNext, onPrev, hasNext, hasPr
         </header>
 
         <div className="flex-1 overflow-y-auto p-4 max-w-3xl mx-auto w-full pb-20">
-        <div className="mb-6">
+        <div className="mb-6 p-5 bg-white/[0.08] backdrop-blur-xl border border-white/[0.15] rounded-3xl shadow-xl">
           <div className="flex items-center gap-2 mb-2">
             <span className="text-sm font-bold text-purple-400 shadow-[0_0_8px_rgba(168,85,247,0.4)]">r/{post.subredditName}</span>
             <span className="text-xs text-gray-500">• u/{post.author}</span>

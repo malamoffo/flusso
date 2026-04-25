@@ -69,18 +69,14 @@ export const SwipeableRedditPost = React.memo(function SwipeableRedditPost({
   };
 
   const getActionColor = (action: string, isSaved: boolean) => {
-    if (isSaved) return '#ef4444';
-    return action === 'none' ? 'rgba(0, 0, 0, 0)' : '#a855f7';
+    return 'rgba(0, 0, 0, 0)';
   };
 
   const leftBackground = getActionColor(isSavedSection ? 'remove' : settings.swipeLeftAction, !!isSavedSection);
   const rightBackground = getActionColor(isSavedSection ? 'remove' : settings.swipeRightAction, !!isSavedSection);
 
   const backgroundTransform = useTransform(x, (val) => {
-    const numVal = typeof val === 'number' ? val : parseFloat(val);
-    if (numVal > 5) return rightBackground;
-    if (numVal < -5) return leftBackground;
-    return 'transparent';
+    return 'rgba(0, 0, 0, 0)';
   });
 
   const [exitX, setExitX] = useState<number | string>(0);
@@ -133,7 +129,7 @@ export const SwipeableRedditPost = React.memo(function SwipeableRedditPost({
       }}
       transition={{ 
         opacity: { duration: shouldReduceMotion ? 0 : 0.3 },
-        y: { type: "spring", stiffness: 300, damping: 25 }
+        y: { type: "spring", stiffness: 150, damping: 30 }
       }}
       ref={(node) => {
         ref(node);
@@ -166,14 +162,14 @@ export const SwipeableRedditPost = React.memo(function SwipeableRedditPost({
         <div className="absolute inset-0 flex items-center justify-between px-6 z-10">
           <div className="flex items-center text-white font-medium">
             {isSavedSection ? (
-              <Trash2 className="w-6 h-6" />
+              <Trash2 className="w-6 h-6 text-red-500" />
             ) : (
               null
             )}
           </div>
           <div className="flex items-center text-white font-medium">
             {isSavedSection ? (
-              <Trash2 className="w-6 h-6" />
+              <Trash2 className="w-6 h-6 text-red-500" />
             ) : (
               null
             )}
@@ -185,22 +181,34 @@ export const SwipeableRedditPost = React.memo(function SwipeableRedditPost({
           drag={!disableGestures && (isSavedSection || (settings.swipeLeftAction !== 'none' || settings.swipeRightAction !== 'none')) ? "x" : false}
           dragConstraints={{ left: 0, right: 0 }}
           dragElastic={!disableGestures ? { 
-            left: (isSavedSection || settings.swipeLeftAction !== 'none') ? 0.7 : 0, 
-            right: (isSavedSection || settings.swipeRightAction !== 'none') ? 0.7 : 0 
+            left: (isSavedSection || settings.swipeLeftAction !== 'none') ? 0.2 : 0, 
+            right: (isSavedSection || settings.swipeRightAction !== 'none') ? 0.2 : 0 
           } : 0}
           dragPropagation={false}
-          dragTransition={{ bounceStiffness: 1000, bounceDamping: 50 }}
+          dragTransition={{ bounceStiffness: 200, bounceDamping: 30 }}
           onDragEnd={handleDragEnd}
           onClick={handlePostClick}
           exit={{ x: exitX, opacity: 0, transition: { duration: 0.15, ease: "easeOut" } }}
           className={cn(
-            "relative z-20 w-full p-4 flex flex-col gap-3 cursor-pointer select-none rounded-[inherit] bg-black active:scale-[0.98] active:bg-gray-900 transition-all",
-            filter !== 'saved' && filter !== 'reddit' ? "border-b border-gray-800" : "border-2",
+            "relative z-20 w-full p-4 flex flex-col gap-3 cursor-pointer select-none rounded-[inherit] transition-colors",
+            filter !== 'saved' && filter !== 'reddit' ? "border-b border-gray-800" : "border",
             filter === 'saved' ? "border-yellow-500/50" : filter === 'reddit' ? "border-purple-500/50" : "border-gray-800",
             (filter !== 'saved') && "opacity-100"
           )}
         >
-        <div className="flex flex-col gap-2">
+          {/* Glow spots */}
+          {filter === 'saved' ? (
+            <div className="absolute -top-20 -left-20 w-48 h-48 bg-yellow-600/20 rounded-full blur-[100px]" />
+          ) : filter === 'reddit' ? (
+            <div className="absolute -top-20 -left-20 w-48 h-48 bg-purple-600/20 rounded-full blur-[100px]" />
+          ) : (
+             <div className="absolute -top-20 -left-20 w-48 h-48 bg-gray-600/20 rounded-full blur-[100px]" />
+          )}
+
+          {/* Glass Surface */}
+          <div className="absolute inset-0 z-0 bg-white/[0.08] backdrop-blur-xl border border-white/[0.15] rounded-[inherit] shadow-xl" />
+
+        <div className="relative z-10 flex flex-col gap-2">
           {/* Image at the top */}
           {decodedImageUrl && (
             <CachedImage 

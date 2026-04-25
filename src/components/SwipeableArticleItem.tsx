@@ -176,12 +176,6 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
   };
 
   const getActionColor = (action: string, isSaved: boolean) => {
-    if (isSaved) {
-      return '#ef4444'; // Red for removal
-    }
-    if (action === 'toggleFavorite') {
-      return '#f59e0b'; // Yellow for favorite
-    }
     return 'rgba(0, 0, 0, 0)';
   };
 
@@ -189,9 +183,6 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
   const rightBackground = getActionColor(isSavedSection ? 'remove' : settings.swipeRightAction, !!isSavedSection);
 
   const backgroundTransform = useTransform(x, (val) => {
-    const numVal = typeof val === 'number' ? val : parseFloat(val);
-    if (numVal > 0.1) return rightBackground;
-    if (numVal < -0.1) return leftBackground;
     return 'rgba(0, 0, 0, 0)';
   });
 
@@ -281,7 +272,7 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
       }}
       transition={{ 
         opacity: { duration: shouldReduceMotion ? 0 : 0.3 },
-        y: { type: "spring", stiffness: 300, damping: 25 }
+        y: { type: "spring", stiffness: 150, damping: 30 }
       }}
       ref={(node) => {
         ref(node);
@@ -311,22 +302,22 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
         <div className="absolute inset-0 flex items-center justify-between px-6 z-10">
           <div className="flex items-center font-medium">
             {isSavedSection ? (
-              <Trash2 className="w-6 h-6 text-white" />
+              <Trash2 className="w-6 h-6 text-red-500" />
             ) : (
               <>
                 {settings.swipeRightAction === 'toggleFavorite' && (
-                  <Star className="w-6 h-6 text-white fill-white" />
+                  <Star className="w-6 h-6 text-yellow-500 fill-yellow-500" />
                 )}
               </>
             )}
           </div>
           <div className="flex items-center font-medium">
             {isSavedSection ? (
-              <Trash2 className="w-6 h-6 text-white" />
+              <Trash2 className="w-6 h-6 text-red-500" />
             ) : (
               <>
                 {settings.swipeLeftAction === 'toggleFavorite' && (
-                  <Star className="w-6 h-6 text-white fill-white" />
+                  <Star className="w-6 h-6 text-yellow-500 fill-yellow-500" />
                 )}
               </>
             )}
@@ -348,21 +339,33 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
           dragDirectionLock={true} // Lock direction to prevent diagonal dragging
           dragConstraints={{ left: 0, right: 0 }}
           dragElastic={!disableGestures ? { 
-            left: (isSavedSection || settings.swipeLeftAction === 'toggleFavorite') ? 0.7 : 0, 
-            right: (isSavedSection || settings.swipeRightAction === 'toggleFavorite') ? 0.7 : 0 
+            left: (isSavedSection || settings.swipeLeftAction === 'toggleFavorite') ? 0.2 : 0, 
+            right: (isSavedSection || settings.swipeRightAction === 'toggleFavorite') ? 0.2 : 0 
           } : 0}
           dragPropagation={false}
-          dragTransition={{ bounceStiffness: 1000, bounceDamping: 50 }}
+          dragTransition={{ bounceStiffness: 200, bounceDamping: 30 }}
           onDragEnd={handleDragEnd}
           onClick={handleArticleClick}
           exit={{ x: exitX, opacity: 0, transition: { duration: 0.2, ease: "easeOut" } }}
           className={cn(
-            "relative z-20 w-full p-4 flex flex-col gap-3 cursor-pointer select-none rounded-[inherit] bg-black active:scale-[0.98] active:bg-gray-900 transition-all",
-            !isInboxOrSaved ? "border-b border-gray-800" : "border-2",
+            "relative z-20 w-full p-4 flex flex-col gap-3 cursor-pointer select-none rounded-[inherit] transition-colors",
+            !isInboxOrSaved ? "border-b border-gray-800" : "border",
             filter === 'saved' ? "border-yellow-500/50" : filter === 'inbox' ? "border-blue-500/50" : "border-gray-800"
           )}
         >
-          <div className="flex flex-col gap-2">
+          {/* Glow spots */}
+          {filter === 'saved' ? (
+            <div className="absolute -top-20 -left-20 w-48 h-48 bg-yellow-600/20 rounded-full blur-[100px]" />
+          ) : filter === 'inbox' ? (
+            <div className="absolute -top-20 -left-20 w-48 h-48 bg-blue-600/20 rounded-full blur-[100px]" />
+          ) : (
+             <div className="absolute -top-20 -left-20 w-48 h-48 bg-gray-600/20 rounded-full blur-[100px]" />
+          )}
+
+          {/* Glass Surface */}
+          <div className="absolute inset-0 z-0 bg-white/[0.08] backdrop-blur-xl border border-white/[0.15] rounded-[inherit] shadow-xl" />
+
+          <div className="relative z-10 flex flex-col gap-2">
             {hasImage ? (
               <div className="relative overflow-hidden flex-shrink-0 w-full h-auto rounded-2xl">
               <CachedImage 
