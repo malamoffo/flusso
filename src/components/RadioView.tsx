@@ -103,6 +103,12 @@ export const RadioView = memo(({ isActive, searchQuery }: RadioViewProps) => {
       if (Capacitor.isNativePlatform()) {
         try {
           Logger.log('Native: Setting up MediaSession handlers');
+          
+          // Track app state to debug background behavior
+          CapacitorApp.addListener('appStateChange', ({ isActive }) => {
+            Logger.log(`Native: App state changed to ${isActive ? 'active' : 'inactive'}`);
+          });
+
           if (MediaSession && typeof MediaSession.setActionHandler === 'function') {
             MediaSession.setActionHandler({ action: 'play' }, () => {
               Logger.log('Native: MediaSession Action: play');
