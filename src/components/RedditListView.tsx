@@ -58,29 +58,21 @@ export const RedditListView = memo(({
         </div>
       ) : (
         <div className="flex-1 max-w-3xl mx-auto px-2 py-2 space-y-2">
-          <AnimatePresence initial={false} mode="popLayout">
+          <AnimatePresence initial={false}>
             {posts.map(post => (
-              <motion.div
+              <SwipeableRedditPost
                 key={`${post.subredditName}-${post.id}`}
-                layout
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                transition={{ duration: 0.2 }}
-              >
-                <SwipeableRedditPost
-                  post={post}
-                  settings={settings}
-                  onClick={onPostClick}
-                  onImageClick={onImageClick}
-                  onMarkAsRead={onMarkAsRead}
-                  onVisibilityChange={onVisibilityChange}
-                  toggleRead={toggleRead}
-                  toggleFavorite={toggleFavorite}
-                  filter="reddit"
-                  disableGestures={true}
-                />
-              </motion.div>
+                post={post}
+                settings={settings}
+                onClick={onPostClick}
+                onImageClick={onImageClick}
+                onMarkAsRead={onMarkAsRead}
+                onVisibilityChange={onVisibilityChange}
+                toggleRead={toggleRead}
+                toggleFavorite={toggleFavorite}
+                filter="reddit"
+                disableGestures={true}
+              />
             ))}
           </AnimatePresence>
           

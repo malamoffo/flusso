@@ -852,7 +852,7 @@ export default function App() {
           )}
         >
           <div className="flex-1 max-w-3xl mx-auto px-2 py-2 space-y-1">
-            <AnimatePresence initial={false} mode="popLayout">
+            <AnimatePresence initial={false}>
               {Array.from(new Map(savedArticles.map(a => [a.id, a])).values())
                 .map(a => ({ ...a, itemType: 'article' as const }))
                 .sort((a, b) => {
@@ -1127,7 +1127,7 @@ export default function App() {
         onSelectArticle={setSelectedArticle}
       />
 
-      <AnimatePresence>
+      <AnimatePresence mode="wait">
         {selectedRedditPost && (() => {
           const activeRedditIndex = redditPosts.findIndex(p => p.id === selectedRedditPost.id);
           const hasNextReddit = activeRedditIndex !== -1 && activeRedditIndex < redditPosts.length - 1;
@@ -1135,6 +1135,7 @@ export default function App() {
 
           return (
             <RedditPostReader
+              key="reddit-modal"
               post={selectedRedditPost}
               onClose={() => {
                 setSelectedRedditPost(null);
@@ -1157,6 +1158,7 @@ export default function App() {
         })()}
         {selectedTelegramChannel && (
           <TelegramThreadView
+            key="telegram-modal"
             channel={selectedTelegramChannel}
             messages={telegramMessages[selectedTelegramChannel.id]}
             onClose={() => {
@@ -1172,13 +1174,14 @@ export default function App() {
         )}
       </AnimatePresence>
 
-       <AnimatePresence>
+       <AnimatePresence mode="wait">
         {selectedArticle && (() => {
           const hasNext = activeIndex !== -1 && activeIndex < activeArticles.length - 1;
           const hasPrev = activeIndex > 0;
           
           return (
             <ArticleReader
+              key="article-modal"
               article={selectedArticle}
               onClose={() => setSelectedArticle(null)}
               onSelectArticle={(a) => setSelectedArticle(a)}

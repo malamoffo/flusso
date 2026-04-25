@@ -146,7 +146,7 @@ export const SwipeableRedditPost = React.memo(function SwipeableRedditPost({
       } as React.CSSProperties}
     >
       <div className={cn(
-        "relative w-full rounded-3xl overflow-hidden bg-[#0A0A10]",
+        "relative w-full rounded-3xl overflow-hidden",
         (filter === 'saved' || filter === 'reddit') ? "shadow-md" : ""
       )}>
         {!post.isRead && (
@@ -197,19 +197,16 @@ export const SwipeableRedditPost = React.memo(function SwipeableRedditPost({
           )}
         >
           {/* Glow spots */}
-          <div className="absolute inset-0 z-0 overflow-hidden rounded-[inherit]">
-            <div className={cn(
-              "absolute -top-1/2 -left-1/2 w-full h-full rounded-full blur-[100px] animate-float mix-blend-screen",
-              filter === 'saved' ? "bg-yellow-600/20" : filter === 'reddit' ? "bg-purple-600/20" : "bg-purple-600/20"
-            )} />
-            <div className={cn(
-              "absolute -bottom-1/2 -right-1/2 w-full h-full rounded-full blur-[100px] animate-float [animation-delay:2s] mix-blend-screen",
-              filter === 'saved' ? "bg-orange-500/10" : filter === 'reddit' ? "bg-indigo-500/10" : "bg-indigo-500/10"
-            )} />
-          </div>
+          {filter === 'saved' ? (
+            <div className="absolute -top-10 -left-10 w-24 h-24 bg-yellow-600/20 rounded-full blur-[40px]" />
+          ) : filter === 'reddit' ? (
+            <div className="absolute -top-10 -left-10 w-24 h-24 bg-purple-600/20 rounded-full blur-[40px]" />
+          ) : (
+             <div className="absolute -top-10 -left-10 w-24 h-24 bg-gray-600/20 rounded-full blur-[40px]" />
+          )}
 
           {/* Glass Surface */}
-          <div className="absolute inset-0 z-10 bg-white/[0.08] backdrop-blur-xl border border-white/[0.15] rounded-[inherit] shadow-xl" />
+          <div className="absolute inset-0 z-0 bg-[#0A0A10]/85 backdrop-blur-xl border border-white/10 rounded-[inherit]" />
 
         <div className="relative z-10 flex flex-col gap-2">
           {/* Image at the top */}

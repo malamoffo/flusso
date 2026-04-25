@@ -347,8 +347,13 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
   }, [fullContent?.content, article.content, article.imageUrl]);
 
   useEffect(() => {
+    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
     document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = 'auto'; };
+    document.body.style.paddingRight = `${scrollbarWidth}px`;
+    return () => { 
+      document.body.style.overflow = '';
+      document.body.style.paddingRight = ''; 
+    };
   }, []);
 
   return (
@@ -357,16 +362,16 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        transition={{ duration: 0.3 }}
-        className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[40]"
+        transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+        className="fixed inset-0 bg-black/80 z-[40]"
         onClick={onClose}
       />
       <motion.div 
         initial={{ y: '100%' }}
         animate={{ y: 0 }}
         exit={{ y: '100%' }}
-        transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-        className="fixed bottom-0 left-0 right-0 z-50 h-[92vh] overflow-hidden flex flex-col transition-colors break-words font-sans bg-[#0A0A10]/95 backdrop-blur-3xl rounded-t-[2.5rem] border-t border-white/10 shadow-[0_-10px_40px_rgba(0,0,0,0.5)]"
+        transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+        className="fixed bottom-0 left-0 right-0 z-50 h-[92vh] overflow-hidden flex flex-col transition-colors break-words font-sans bg-[#0A0A10] sm:bg-[#0A0A10]/95 sm:backdrop-blur-3xl rounded-t-[2.5rem] border-t border-white/10 shadow-[0_-10px_40px_rgba(0,0,0,0.5)]"
         drag="y"
         dragControls={controls}
         dragListener={false}
@@ -418,8 +423,8 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
         </div>
 
         {/* Article Content with Glass Container */}
-        <div className="relative z-10 flex-1 px-2 sm:px-4 max-w-5xl mx-auto w-full pb-20 overflow-y-auto">
-        <div className="backdrop-blur-xl bg-white/[0.08] border border-white/[0.15] rounded-[2.5rem] overflow-hidden shadow-2xl mb-24">
+        <div className="relative z-10 flex-1 px-2 sm:px-4 max-w-5xl mx-auto w-full pb-20 overflow-y-auto overscroll-contain">
+        <div className="backdrop-blur-3xl bg-white/[0.03] border border-white/10 rounded-[2.5rem] overflow-hidden shadow-2xl mb-24">
           {readerImageUrl && (
             <div className="relative group overflow-hidden bg-black/40">
               <CachedImage 

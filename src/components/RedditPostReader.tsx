@@ -21,7 +21,7 @@ const CommentNode: React.FC<{ comment: RedditComment }> = ({ comment }) => {
   const [isCollapsed, setIsCollapsed] = useState(false);
 
   return (
-    <div className="mb-3 p-4 text-sm bg-white/[0.08] backdrop-blur-xl border border-white/[0.15] rounded-2xl shadow-xl">
+    <div className="mb-3 text-sm">
       <div 
         className="flex items-center gap-2 mb-1 cursor-pointer hover:bg-gray-800 p-1 rounded"
         onClick={() => setIsCollapsed(!isCollapsed)}
@@ -113,23 +113,29 @@ export const RedditPostReader = ({ post, onClose, onNext, onPrev, hasNext, hasPr
   }, [post.permalink]);
 
   useEffect(() => {
+    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
     document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = 'auto'; };
+    document.body.style.paddingRight = `${scrollbarWidth}px`;
+    return () => { 
+      document.body.style.overflow = '';
+      document.body.style.paddingRight = ''; 
+    };
   }, []);
 
   return (
     <>
       <motion.div 
         initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-        className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[40]"
+        transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+        className="fixed inset-0 bg-black/80 z-[40]"
         onClick={onClose}
       />
       <motion.div 
         initial={{ y: '100%' }}
         animate={{ y: 0 }}
         exit={{ y: '100%' }}
-        transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-        className="fixed bottom-0 left-0 right-0 z-50 h-[92vh] overflow-hidden flex flex-col transition-colors break-words font-sans bg-[#0A0A10]/95 backdrop-blur-3xl rounded-t-[2.5rem] border-t border-white/10 shadow-[0_-10px_40px_rgba(0,0,0,0.5)]"
+        transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+        className="fixed bottom-0 left-0 right-0 z-50 h-[92vh] overflow-hidden flex flex-col transition-colors break-words font-sans bg-[#0A0A10] sm:bg-[#0A0A10]/95 sm:backdrop-blur-3xl rounded-t-[2.5rem] border-t border-white/10 shadow-[0_-10px_40px_rgba(0,0,0,0.5)]"
         drag="y"
         dragControls={controls}
         dragListener={false}
@@ -170,8 +176,8 @@ export const RedditPostReader = ({ post, onClose, onNext, onPrev, hasNext, hasPr
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto p-4 max-w-3xl mx-auto w-full pb-20">
-        <div className="mb-6 p-5 bg-white/[0.08] backdrop-blur-xl border border-white/[0.15] rounded-3xl shadow-xl">
+        <div className="flex-1 overflow-y-auto overscroll-contain p-4 max-w-3xl mx-auto w-full pb-20">
+        <div className="mb-6">
           <div className="flex items-center gap-2 mb-2">
             <span className="text-sm font-bold text-purple-400 shadow-[0_0_8px_rgba(168,85,247,0.4)]">r/{post.subredditName}</span>
             <span className="text-xs text-gray-500">• u/{post.author}</span>
