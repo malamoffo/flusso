@@ -6,6 +6,7 @@ import { RadioStation } from '../types';
 import { MediaSession } from '@capgo/capacitor-media-session';
 import { App as CapacitorApp } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
+import { Logger } from '../lib/logger';
 
 interface RadioViewProps {
   isActive: boolean;
@@ -36,26 +37,46 @@ export const RadioView = memo(({ isActive, searchQuery }: RadioViewProps) => {
   }, [favorites]);
 
   useEffect(() => {
+    Logger.log('RadioView: Initializing audio element and listeners');
     if (!audioRef.current) {
       audioRef.current = new Audio();
-      audioRef.current.addEventListener('playing', () => {
+      
+      const audio = audioRef.current;
+
+      audio.addEventListener('playing', () => {
+        Logger.log('Audio: playing event');
         setIsPlaying(true);
         setIsAudioLoading(false);
         if (Capacitor.isNativePlatform()) {
           if (MediaSession && typeof MediaSession.setPlaybackState === 'function') {
-            MediaSession.setPlaybackState({ playbackState: 'playing' }).catch(() => {});
+            Logger.log('Native: setting playbackState to playing');
+            MediaSession.setPlaybackState({ playbackState: 'playing' }).catch(err => {
+              Logger.error('Native: setPlaybackState error', err);
+            });
           }
         }
       });
-      audioRef.current.addEventListener('pause', () => {
+
+      audio.addEventListener('pause', () => {
+        Logger.log('Audio: pause event');
         setIsPlaying(false);
         if (Capacitor.isNativePlatform()) {
           if (MediaSession && typeof MediaSession.setPlaybackState === 'function') {
-            MediaSession.setPlaybackState({ playbackState: 'paused' }).catch(() => {});
+            Logger.log('Native: setting playbackState to paused');
+            MediaSession.setPlaybackState({ playbackState: 'paused' }).catch(err => {
+              Logger.error('Native: setPlaybackState error', err);
+            });
           }
         }
       });
-      audioRef.current.addEventListener('error', () => {
+
+      audio.addEventListener('error', (e) => {
+        const error = (e.target as any).error;
+        Logger.error('Audio: error event', { 
+          code: error?.code, 
+          message: error?.message, 
+          src: audio.src 
+        });
         setIsPlaying(false);
         setIsAudioLoading(false);
         if (Capacitor.isNativePlatform()) {
@@ -64,32 +85,48 @@ export const RadioView = memo(({ isActive, searchQuery }: RadioViewProps) => {
           }
         }
       });
-      audioRef.current.addEventListener('waiting', () => setIsAudioLoading(true));
-      audioRef.current.addEventListener('canplay', () => setIsAudioLoading(false));
+
+      audio.addEventListener('waiting', () => {
+        Logger.log('Audio: waiting event');
+        setIsAudioLoading(true);
+      });
+
+      audio.addEventListener('canplay', () => {
+        Logger.log('Audio: canplay event');
+        setIsAudioLoading(false);
+      });
+
+      audio.addEventListener('loadstart', () => Logger.log('Audio: loadstart event'));
+      audio.addEventListener('loadedmetadata', () => Logger.log('Audio: loadedmetadata event'));
 
       // Setup platform handlers
       if (Capacitor.isNativePlatform()) {
         try {
-          // Check if functions exist before calling to avoid UNIMPLEMENTED errors
+          Logger.log('Native: Setting up MediaSession handlers');
           if (MediaSession && typeof MediaSession.setActionHandler === 'function') {
             MediaSession.setActionHandler({ action: 'play' }, () => {
-              audioRef.current?.play().catch(err => console.error("Native play error", err));
-            }).catch(err => console.warn("Failed to set native play handler", err));
+              Logger.log('Native: MediaSession Action: play');
+              audioRef.current?.play().catch(err => Logger.error("Native play handler error", err));
+            }).catch(err => Logger.warn("Failed to set native play handler", err));
             
             MediaSession.setActionHandler({ action: 'pause' }, () => {
+              Logger.log('Native: MediaSession Action: pause');
               audioRef.current?.pause();
-            }).catch(err => console.warn("Failed to set native pause handler", err));
+            }).catch(err => Logger.warn("Failed to set native pause handler", err));
             
             MediaSession.setActionHandler({ action: 'stop' }, () => {
+              Logger.log('Native: MediaSession Action: stop');
               audioRef.current?.pause();
               setCurrentStation(null);
               if (typeof MediaSession.setPlaybackState === 'function') {
                 MediaSession.setPlaybackState({ playbackState: 'none' }).catch(() => {});
               }
-            }).catch(err => console.warn("Failed to set native stop handler", err));
+            }).catch(err => Logger.warn("Failed to set native stop handler", err));
+          } else {
+            Logger.warn('Native: MediaSession or setActionHandler not available');
           }
         } catch (e) {
-          console.warn("MediaSession API not properly supported on this platform.", e);
+          Logger.error("Native: MediaSession initialization exception", e);
         }
       }
     }
@@ -146,15 +183,27 @@ export const RadioView = memo(({ isActive, searchQuery }: RadioViewProps) => {
   };
 
   const playStation = async (station: RadioStation) => {
+    Logger.log('Radio: playStation called', { name: station.name, url: station.url_resolved });
+    
     if (currentStation?.stationuuid === station.stationuuid) {
+      Logger.log('Radio: Same station, toggling playback');
       if (isPlaying) {
-        audioRef.current?.pause();
+        Logger.log('Radio: Pausing');
+        try {
+          audioRef.current?.pause();
+        } catch (e) {
+          Logger.error('Radio: Pause error', e);
+        }
       } else {
+        Logger.log('Radio: Resuming');
         setIsAudioLoading(true);
-        audioRef.current?.play().catch(err => {
-          console.error("Playback resume failed", err);
+        try {
+          await audioRef.current?.play();
+          Logger.log('Radio: Resume success');
+        } catch (err) {
+          Logger.error("Playback resume failed", err);
           setIsAudioLoading(false);
-        });
+        }
       }
       return;
     }
@@ -164,67 +213,105 @@ export const RadioView = memo(({ isActive, searchQuery }: RadioViewProps) => {
     setIsPlaying(false);
     
     if (audioRef.current) {
-      // Clear previous source to avoid issues
-      audioRef.current.pause();
-      audioRef.current.removeAttribute('src');
-      audioRef.current.load();
+      Logger.log('Radio: Preparing audio element for new source');
+      const audio = audioRef.current;
       
-      audioRef.current.src = station.url_resolved;
       try {
-        await audioRef.current.play();
+        audio.pause();
+        audio.src = ''; 
+        audio.load();
+        
+        Logger.log('Radio: Setting new src', station.url_resolved);
+        // Basic check for valid URL
+        if (!station.url_resolved || !station.url_resolved.startsWith('http')) {
+          throw new Error('Invalid radio URL');
+        }
+
+        audio.src = station.url_resolved;
+        
+        Logger.log('Radio: Starting play() promise');
+        const playPromise = audio.play();
+        
+        if (playPromise !== undefined) {
+          await playPromise;
+          Logger.log('Radio: play() promise resolved');
+        } else {
+          Logger.log('Radio: play() returned undefined (legacy behavior)');
+        }
       } catch (err) {
-        console.error("Playback start failed", err);
+        Logger.error("Playback start failed", err);
         setIsAudioLoading(false);
-        return; // Don't proceed to metadata if play fails
+        return; 
       }
     }
 
-    if (Capacitor.isNativePlatform() && MediaSession) {
-      try {
-        if (typeof MediaSession.setMetadata === 'function') {
-          const metadata: any = {
-            title: station.name || 'Radio',
-            artist: station.tags ? station.tags.split(',')[0].trim() : 'Radio',
-            album: 'Flusso Radio'
+    // Update Media Session after a small delay to ensure audio is actually flowing 
+    // and avoid hitting native layer too hard at once
+    setTimeout(async () => {
+      if (Capacitor.isNativePlatform() && MediaSession) {
+        Logger.log('Native: Attempting to set metadata');
+        try {
+          if (typeof MediaSession.setMetadata === 'function') {
+            const metadata: any = {
+              title: station.name || 'Radio',
+              artist: station.tags ? station.tags.split(',')[0].trim() : 'Radio',
+              album: 'Flusso Radio'
+            };
+
+            // Only use favicon if it's a valid URL and not too large
+            if (station.favicon && station.favicon.startsWith('http')) {
+              Logger.log('Native: metadata using favicon', station.favicon);
+              metadata.artwork = [{ 
+                src: station.favicon, 
+                sizes: '192x192', // Smaller size might be safer
+                type: 'image/png' 
+              }];
+            } else {
+              Logger.log('Native: metadata using fallback icon');
+              // Use a known safe fallback or nothing
+            }
+
+            await MediaSession.setMetadata(metadata);
+            Logger.log('Native: setMetadata success');
+          }
+        } catch (e) {
+          Logger.error("Native: setMetadata exception", e);
+        }
+      } else if ('mediaSession' in navigator && window.MediaMetadata) {
+        Logger.log('Browser: Attempting to set MediaSession metadata');
+        try {
+          const browserMetadata: any = {
+            title: station.name,
+            artist: 'Radio'
           };
 
-          if (station.favicon) {
-            metadata.artwork = [{ 
-              src: station.favicon, 
-              sizes: '512x512', 
-              type: 'image/png' 
-            }];
+          if (station.favicon && station.favicon.startsWith('http')) {
+            browserMetadata.artwork = [
+              { src: station.favicon, sizes: '512x512', type: 'image/png' }
+            ];
           }
 
-          await MediaSession.setMetadata(metadata);
-        }
-      } catch (e) {
-        console.warn("Could not set metadata for native media session", e);
-      }
-    } else if ('mediaSession' in navigator && window.MediaMetadata) {
-      try {
-        navigator.mediaSession.metadata = new window.MediaMetadata({
-          title: station.name,
-          artist: 'Radio',
-          artwork: [
-            { src: station.favicon || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?fit=crop&w=512&h=512&q=80', sizes: '512x512', type: 'image/png' }
-          ]
-        });
+          navigator.mediaSession.metadata = new window.MediaMetadata(browserMetadata);
 
-        navigator.mediaSession.setActionHandler('play', () => {
-          audioRef.current?.play();
-        });
-        navigator.mediaSession.setActionHandler('pause', () => {
-          audioRef.current?.pause();
-        });
-        navigator.mediaSession.setActionHandler('stop', () => {
-          audioRef.current?.pause();
-          setCurrentStation(null);
-        });
-      } catch (e) {
-        console.warn("Browser mediaSession error", e);
+          navigator.mediaSession.setActionHandler('play', () => {
+            Logger.log('Browser: MediaSession Action: play');
+            audioRef.current?.play().catch(e => Logger.error('MS Play error', e));
+          });
+          navigator.mediaSession.setActionHandler('pause', () => {
+            Logger.log('Browser: MediaSession Action: pause');
+            audioRef.current?.pause();
+          });
+          navigator.mediaSession.setActionHandler('stop', () => {
+            Logger.log('Browser: MediaSession Action: stop');
+            audioRef.current?.pause();
+            setCurrentStation(null);
+          });
+          Logger.log('Browser: MediaSession handlers set');
+        } catch (e) {
+          Logger.error("Browser: mediaSession error", e);
+        }
       }
-    }
+    }, 500);
   };
 
   const displayStations = useMemo(() => {

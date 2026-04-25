@@ -18,6 +18,7 @@ import { format } from 'date-fns';
 import { APP_VERSION, APP_BUILD, updateSW } from '../main';
 
 import { BrowserLogsModal } from './BrowserLogsModal';
+import { PersistentLogsModal } from './PersistentLogsModal';
 
 export const SettingsModal = React.memo(function SettingsModal({
   isOpen,
@@ -36,6 +37,7 @@ export const SettingsModal = React.memo(function SettingsModal({
   const { subreddits, removeSubreddit } = useReddit();
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isBrowserLogsOpen, setIsBrowserLogsOpen] = useState(false);
+  const [isPersistentLogsOpen, setIsPersistentLogsOpen] = useState(false);
   const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
   const [activeTab, setActiveTab] = useState<'main' | 'general' | 'subscriptions' | 'retention' | 'about'>('main');
   const [editingFeedId, setEditingFeedId] = useState<string | null>(null);
@@ -875,6 +877,14 @@ export const SettingsModal = React.memo(function SettingsModal({
                       <Terminal className="w-4 h-4" />
                       View Console Logs
                     </button>
+                    
+                    <button
+                      onClick={() => setIsPersistentLogsOpen(true)}
+                      className="mt-2 w-full flex items-center justify-center gap-2 p-3 rounded-xl bg-red-950/20 border border-red-900/30 text-red-400 hover:bg-red-950/40 hover:text-red-300 transition-all text-xs font-bold uppercase tracking-wider"
+                    >
+                      <Terminal className="w-4 h-4" />
+                      View Persistent Logs
+                    </button>
                   </div>
 
                   {errorLogs.length > 0 && (
@@ -937,6 +947,10 @@ export const SettingsModal = React.memo(function SettingsModal({
           <BrowserLogsModal
             isOpen={isBrowserLogsOpen}
             onClose={() => setIsBrowserLogsOpen(false)}
+          />
+          <PersistentLogsModal
+            isOpen={isPersistentLogsOpen}
+            onClose={() => setIsPersistentLogsOpen(false)}
           />
         </>
       )}
