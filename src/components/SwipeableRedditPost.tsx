@@ -177,7 +177,7 @@ export const SwipeableRedditPost = React.memo(function SwipeableRedditPost({
         </div>
 
         <motion.div
-          style={{ x, willChange: 'transform' }}
+          style={{ x }}
           drag={!disableGestures && (isSavedSection || (settings.swipeLeftAction !== 'none' || settings.swipeRightAction !== 'none')) ? "x" : false}
           dragConstraints={{ left: 0, right: 0 }}
           dragElastic={!disableGestures ? { 
@@ -206,7 +206,7 @@ export const SwipeableRedditPost = React.memo(function SwipeableRedditPost({
           )}
 
           {/* Glass Surface */}
-          <div className="absolute inset-0 z-0 bg-[#0A0A10]/85 backdrop-blur-xl border border-white/10 rounded-[inherit]" />
+          <div className="absolute inset-0 z-0 bg-[#0A0A10]/100 sm:bg-[#0A0A10]/85 sm:backdrop-blur-xl border border-white/10 rounded-[inherit]" />
 
         <div className="relative z-10 flex flex-col gap-2">
           {/* Image at the top */}

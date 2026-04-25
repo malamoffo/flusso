@@ -327,7 +327,6 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
         <motion.div
           style={{ 
             x, 
-            willChange: 'transform',
             touchAction: 'pan-y', // Prevent scroll/swipe conflicts
           }}
           drag={
@@ -363,7 +362,7 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
           )}
 
           {/* Glass Surface */}
-          <div className="absolute inset-0 z-0 bg-[#0A0A10]/85 backdrop-blur-xl border border-white/10 rounded-[inherit]" />
+          <div className="absolute inset-0 z-0 bg-[#0A0A10]/100 sm:bg-[#0A0A10]/85 sm:backdrop-blur-xl border border-white/10 rounded-[inherit]" />
 
           <div className="relative z-10 flex flex-col gap-2">
             {hasImage ? (
