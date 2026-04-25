@@ -42,20 +42,26 @@ export const RadioView = memo(({ isActive, searchQuery }: RadioViewProps) => {
         setIsPlaying(true);
         setIsAudioLoading(false);
         if (Capacitor.isNativePlatform()) {
-          MediaSession.setPlaybackState({ playbackState: 'playing' }).catch(() => {});
+          if (MediaSession && typeof MediaSession.setPlaybackState === 'function') {
+            MediaSession.setPlaybackState({ playbackState: 'playing' }).catch(() => {});
+          }
         }
       });
       audioRef.current.addEventListener('pause', () => {
         setIsPlaying(false);
         if (Capacitor.isNativePlatform()) {
-          MediaSession.setPlaybackState({ playbackState: 'paused' }).catch(() => {});
+          if (MediaSession && typeof MediaSession.setPlaybackState === 'function') {
+            MediaSession.setPlaybackState({ playbackState: 'paused' }).catch(() => {});
+          }
         }
       });
       audioRef.current.addEventListener('error', () => {
         setIsPlaying(false);
         setIsAudioLoading(false);
         if (Capacitor.isNativePlatform()) {
-          MediaSession.setPlaybackState({ playbackState: 'none' }).catch(() => {});
+          if (MediaSession && typeof MediaSession.setPlaybackState === 'function') {
+            MediaSession.setPlaybackState({ playbackState: 'none' }).catch(() => {});
+          }
         }
       });
       audioRef.current.addEventListener('waiting', () => setIsAudioLoading(true));
@@ -64,19 +70,26 @@ export const RadioView = memo(({ isActive, searchQuery }: RadioViewProps) => {
       // Setup platform handlers
       if (Capacitor.isNativePlatform()) {
         try {
-          MediaSession.setActionHandler({ action: 'play' }, () => {
-            audioRef.current?.play();
-          }).catch(() => {});
-          MediaSession.setActionHandler({ action: 'pause' }, () => {
-            audioRef.current?.pause();
-          }).catch(() => {});
-          MediaSession.setActionHandler({ action: 'stop' }, () => {
-            audioRef.current?.pause();
-            setCurrentStation(null);
-            MediaSession.setPlaybackState({ playbackState: 'none' }).catch(() => {});
-          }).catch(() => {});
+          // Check if functions exist before calling to avoid UNIMPLEMENTED errors
+          if (MediaSession && typeof MediaSession.setActionHandler === 'function') {
+            MediaSession.setActionHandler({ action: 'play' }, () => {
+              audioRef.current?.play().catch(err => console.error("Native play error", err));
+            }).catch(err => console.warn("Failed to set native play handler", err));
+            
+            MediaSession.setActionHandler({ action: 'pause' }, () => {
+              audioRef.current?.pause();
+            }).catch(err => console.warn("Failed to set native pause handler", err));
+            
+            MediaSession.setActionHandler({ action: 'stop' }, () => {
+              audioRef.current?.pause();
+              setCurrentStation(null);
+              if (typeof MediaSession.setPlaybackState === 'function') {
+                MediaSession.setPlaybackState({ playbackState: 'none' }).catch(() => {});
+              }
+            }).catch(err => console.warn("Failed to set native stop handler", err));
+          }
         } catch (e) {
-          console.warn("MediaSession API not initialized properly.", e);
+          console.warn("MediaSession API not properly supported on this platform.", e);
         }
       }
     }
@@ -85,24 +98,22 @@ export const RadioView = memo(({ isActive, searchQuery }: RadioViewProps) => {
   const fetchStations = async (query: string = '') => {
     setIsLoading(true);
     try {
-      const body = {
-        countrycode: 'IT',
-        limit: 100,
-        name: query,
-        hidebroken: true,
-        order: 'clickcount',
-        reverse: true,
-      };
-      
       const response = await fetch('https://de1.api.radio-browser.info/json/stations/search', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(body),
+        body: JSON.stringify({
+          countrycode: 'IT',
+          limit: 100,
+          name: query,
+          hidebroken: true,
+          order: 'clickcount',
+          reverse: true,
+        }),
       });
       const data = await response.json();
-      setStations(data);
+      setStations(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Failed to fetch stations:', error);
     } finally {
@@ -140,7 +151,10 @@ export const RadioView = memo(({ isActive, searchQuery }: RadioViewProps) => {
         audioRef.current?.pause();
       } else {
         setIsAudioLoading(true);
-        audioRef.current?.play().catch(console.error);
+        audioRef.current?.play().catch(err => {
+          console.error("Playback resume failed", err);
+          setIsAudioLoading(false);
+        });
       }
       return;
     }
@@ -150,49 +164,66 @@ export const RadioView = memo(({ isActive, searchQuery }: RadioViewProps) => {
     setIsPlaying(false);
     
     if (audioRef.current) {
+      // Clear previous source to avoid issues
+      audioRef.current.pause();
+      audioRef.current.removeAttribute('src');
+      audioRef.current.load();
+      
       audioRef.current.src = station.url_resolved;
       try {
         await audioRef.current.play();
       } catch (err) {
-        console.error("Playback failed", err);
+        console.error("Playback start failed", err);
         setIsAudioLoading(false);
+        return; // Don't proceed to metadata if play fails
       }
     }
 
-    if (Capacitor.isNativePlatform()) {
+    if (Capacitor.isNativePlatform() && MediaSession) {
       try {
-        MediaSession.setMetadata({
-          title: station.name || 'Radio',
-          artist: station.tags ? station.tags.split(',')[0] : 'Radio',
-          album: 'Flusso Radio',
-          artwork: station.favicon ? [
-            { src: station.favicon, sizes: '512x512', type: 'image/png' }
-          ] : []
-        }).catch(() => {});
+        if (typeof MediaSession.setMetadata === 'function') {
+          const metadata: any = {
+            title: station.name || 'Radio',
+            artist: station.tags ? station.tags.split(',')[0].trim() : 'Radio',
+            album: 'Flusso Radio'
+          };
+
+          if (station.favicon) {
+            metadata.artwork = [{ 
+              src: station.favicon, 
+              sizes: '512x512', 
+              type: 'image/png' 
+            }];
+          }
+
+          await MediaSession.setMetadata(metadata);
+        }
       } catch (e) {
         console.warn("Could not set metadata for native media session", e);
       }
-    }
+    } else if ('mediaSession' in navigator && window.MediaMetadata) {
+      try {
+        navigator.mediaSession.metadata = new window.MediaMetadata({
+          title: station.name,
+          artist: 'Radio',
+          artwork: [
+            { src: station.favicon || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?fit=crop&w=512&h=512&q=80', sizes: '512x512', type: 'image/png' }
+          ]
+        });
 
-    if ('mediaSession' in navigator) {
-      navigator.mediaSession.metadata = new MediaMetadata({
-        title: station.name,
-        artist: 'Radio',
-        artwork: [
-          { src: station.favicon || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?fit=crop&w=512&h=512&q=80', sizes: '512x512', type: 'image/png' }
-        ]
-      });
-
-      navigator.mediaSession.setActionHandler('play', () => {
-        audioRef.current?.play();
-      });
-      navigator.mediaSession.setActionHandler('pause', () => {
-        audioRef.current?.pause();
-      });
-      navigator.mediaSession.setActionHandler('stop', () => {
-        audioRef.current?.pause();
-        setCurrentStation(null);
-      });
+        navigator.mediaSession.setActionHandler('play', () => {
+          audioRef.current?.play();
+        });
+        navigator.mediaSession.setActionHandler('pause', () => {
+          audioRef.current?.pause();
+        });
+        navigator.mediaSession.setActionHandler('stop', () => {
+          audioRef.current?.pause();
+          setCurrentStation(null);
+        });
+      } catch (e) {
+        console.warn("Browser mediaSession error", e);
+      }
     }
   };
 

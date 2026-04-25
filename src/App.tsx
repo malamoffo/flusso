@@ -794,7 +794,7 @@ export default function App() {
               </button>
             </div>
             <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide">
-                {filter !== 'reddit' && filter !== 'telegram' && (
+                {filter !== 'reddit' && filter !== 'telegram' && filter !== 'radio' && (
                   <>
                     <div className="relative">
                       <select
@@ -828,6 +828,24 @@ export default function App() {
                       <ChevronDown className="w-3.5 h-3.5 absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none z-10" />
                     </div>
                   </>
+                )}
+                {filter === 'radio' && (
+                  <div className="flex items-center gap-2">
+                    {['Pop', 'Rock', 'Jazz', 'Dance', 'News', 'Classical'].map((cat) => (
+                      <button
+                        key={cat}
+                        onClick={() => setSearchQuery(cat)}
+                        className={cn(
+                          "px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap",
+                          searchQuery.toLowerCase() === cat.toLowerCase()
+                            ? "bg-red-600 text-white shadow-sm"
+                            : "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700"
+                        )}
+                      >
+                        {cat}
+                      </button>
+                    ))}
+                  </div>
                 )}
             </div>
           </div>

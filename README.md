@@ -14,25 +14,25 @@
 *   **Real-time Weather**: Integrated weather widget that automatically detects your location to provide current conditions.
 *   **Synchronized Clock**: A minimalist design that integrates time and weather directly into your news flow.
 
-### 🎙️ Advanced Podcast Experience
-*   **Integrated Player**: Full-featured podcast player with real-time progress, remaining time, and queue controls.
-*   **Playback Progress**: Automatically saves and resumes playback position for every podcast episode.
-*   **Queue Management**: Easily add podcasts to your queue and navigate through them directly from the player.
-*   **Visual Progress**: Podcast-specific list items with progress bars and remaining time.
-*   **Optimized Layout**: Podcast items always feature a left-aligned image for better scannability, regardless of global settings.
+### 🎙️ Radio & Audio Experience (New!)
+*   **Live Radio Streaming**: Access thousands of Italian and international radio stations via the *Radio-Browser API*.
+*   **Continuous Playback**: Listen to your favorite stations even with the screen off or app in background.
+*   **Native Media Controls**: Full integration with Android/iOS media sessions for playback management from notifications and lock screen.
+*   **Smart Favorites**: Pin your most-listened stations to the top of the list for instant access.
+*   **Search & Discover**: Filter stations by name, tag, or category with a dedicated search interface.
+*   **Visual Feedback**: Red-themed audio interface with dynamic loading states and high-quality favicons.
 
-### 🤖 Reddit & Telegram Integration (New!)
-*   **Subreddit Support**: Follow your favorite subreddits directly within Flusso.
-*   **Telegram Channels**: Stay updated with public Telegram channels without leaving the app.
-*   **Native Experience**: Browse Reddit posts with a dedicated purple theme and Telegram messages with a vibrant green theme.
-*   **On-Demand Comments**: Load and read Reddit comments only when you open a post, saving data and battery.
-*   **Smart Scraping**: Telegram messages are fetched and parsed efficiently, with support for media and formatted text.
-*   **Management**: Easily add, view, and remove subreddits and Telegram channels from your subscription list.
+### 🤖 Reddit & Telegram Integration
+*   **Subreddit Support**: Follow your favorite subreddits directly within Flusso with dedicated purple-themed UI.
+*   **Telegram Channels**: Stay updated with public Telegram channels with a native green-themed experience.
+*   **On-Demand Content**: Load Reddit comments and full Telegram threads only when needed to save data.
+*   **Smart Retention**: Customizable retention policies to keep your feeds fast and relevant.
 
 ### 📖 Immersive Reading Experience
 *   **Smart Feed Discovery**: Simply enter a website URL, and Flusso will automatically find the RSS/Atom feed for you.
 *   **Distraction-Free Mode**: Automatic content extraction via *Mozilla Readability* for a clean and consistent reading experience.
-*   **Search & Organization**: Integrated search engine to quickly find articles across all your feeds and simplified subscription management.
+*   **Search & Organization**: Integrated search engine to quickly find articles across all your feeds.
+*   **Ambient Background**: Dynamic but static color blobs and glows that provide depth without distracting from content.
 *   **Smart Prefetching**: Articles are pre-loaded in the background to ensure instant opening, even offline.
 *   **Uncompromised Images**: Optimized display of full-height images (no cropping) in both the preview and the full article.
 *   **Vertical Navigation**: Swipe up and down in the article reader to seamlessly move between articles.
@@ -62,6 +62,7 @@
 *   **Animations**: Framer Motion (Fluid transitions and visual haptic feedback)
 *   **Storage**: idb-keyval (IndexedDB)
 *   **Native Bridge**: Capacitor (Access to native Android/iOS APIs)
+*   **Media Session**: @capgo/capacitor-media-session (Lock screen audio controls)
 *   **Content Engine**: @mozilla/readability
 
 ---
