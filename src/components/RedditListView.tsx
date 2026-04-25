@@ -45,7 +45,7 @@ export const RedditListView = memo(({
       ref={scrollRef as any}
       onScroll={handleScroll}
       className={cn(
-        "absolute inset-0 overflow-y-auto transition-all duration-300 will-change-transform pb-32 bg-transparent",
+        "absolute inset-0 overflow-y-auto transition-opacity duration-300 will-change-transform pb-32 bg-transparent",
         isActive ? "z-10 opacity-100 pointer-events-auto" : "z-0 opacity-0 pointer-events-none"
       )}
       initial={false}
@@ -57,7 +57,7 @@ export const RedditListView = memo(({
           <p className="text-sm">Add a subreddit in settings to see posts here.</p>
         </div>
       ) : (
-        <div className="flex-1 max-w-3xl mx-auto px-2 py-2 space-y-2">
+        <div className="flex-1 max-w-3xl mx-auto px-2 pt-0 pb-2 space-y-2">
           <AnimatePresence initial={false}>
             {posts.map(post => (
               <SwipeableRedditPost

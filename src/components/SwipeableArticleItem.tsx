@@ -282,7 +282,7 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
         visibleRef(node);
       }} 
       className={cn(
-        "relative w-full overflow-hidden will-change-transform isolate content-visibility-auto",
+        "relative w-full overflow-hidden will-change-transform isolate",
         isInboxOrSaved && "px-1.25 py-2"
       )}
       style={{
@@ -370,12 +370,12 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
 
           <div className="relative z-10 flex flex-col gap-2">
             {hasImage ? (
-              <div className="relative overflow-hidden flex-shrink-0 w-full h-auto rounded-2xl">
+              <div className="relative overflow-hidden flex-shrink-0 w-full aspect-[2/1] rounded-2xl bg-gray-800/50">
               <CachedImage 
                 key={`${article.id}-${article.imageUrl}`}
                 src={getSafeUrl(article.imageUrl || '')}
                 alt="" 
-                className="w-full h-full object-cover bg-gray-800 transition-opacity h-auto"
+                className="absolute inset-0 w-full h-full object-cover bg-gray-800 transition-opacity"
                 referrerPolicy="no-referrer"
               />
             </div>

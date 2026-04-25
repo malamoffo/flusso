@@ -19,8 +19,9 @@ import { TelegramThreadView } from './components/TelegramThreadView';
 import { TelegramChannel, TelegramMessage } from './types';
 import { ImageViewer } from './components/ImageViewer';
 import { ErrorNotification } from './components/ErrorNotification';
+import { RadioView } from './components/RadioView';
 import { motion, AnimatePresence, useMotionValue, useTransform, animate } from 'framer-motion';
-import { Loader2, Search, X, Check, Rss, Settings, Star, CheckCircle2, RefreshCw, Layers, FileText, Inbox, MessageSquare, ChevronDown, Flame } from 'lucide-react';
+import { Loader2, Search, X, Check, Rss, Settings, Star, CheckCircle2, RefreshCw, Layers, FileText, Inbox, MessageSquare, ChevronDown, Flame, Radio } from 'lucide-react';
 import { useInView } from 'react-intersection-observer';
 import { cn } from './lib/utils';
 import { Article, Feed } from './types';
@@ -126,7 +127,7 @@ export default function App() {
     });
   }, []);
   
-  const [filter, setFilter] = useState<'inbox' | 'saved' | 'reddit' | 'telegram'>('inbox');
+  const [filter, setFilter] = useState<'inbox' | 'saved' | 'reddit' | 'telegram' | 'radio'>('inbox');
   const scrollPositions = useRef<Record<string, number>>({});
   const activeSectionRef = useRef<React.RefObject<HTMLDivElement> | null>(null);
 
@@ -230,7 +231,7 @@ export default function App() {
   } = usePullToRefresh({
     onRefresh: refreshFeeds,
     isLoading,
-    isDisabled: isSettingsOpen || filter === 'reddit' || filter === 'telegram' || filter === 'saved',
+    isDisabled: isSettingsOpen || filter === 'reddit' || filter === 'telegram' || filter === 'saved' || filter === 'radio' || !!selectedArticle || !!selectedRedditPost || !!selectedTelegramChannel,
     scrollRefs: {
       inbox: inboxScrollRef as RefObject<HTMLDivElement>,
       saved: savedScrollRef as RefObject<HTMLDivElement>,
@@ -642,8 +643,8 @@ export default function App() {
       onTouchEnd={handleTouchEnd}
     >
       <div className="fixed inset-0 z-[0] pointer-events-none overflow-hidden">
-        <div className={cn("absolute -top-[10%] -left-[20%] w-[120vw] h-[60vh] rounded-full blur-[100px] animate-[pulse_10s_ease-in-out_infinite] transition-colors duration-1000", blob1)} />
-        <div className={cn("absolute top-[50%] -right-[30%] w-[100vw] h-[70vh] rounded-full blur-[120px] animate-[pulse_12s_ease-in-out_infinite_reverse] transition-colors duration-1000", blob2)} style={{ animationDirection: 'reverse', animationDuration: '12s' }} />
+        <div className={cn("absolute -top-[10%] -left-[20%] w-[120vw] h-[60vh] rounded-full blur-[100px] transition-colors duration-1000 opacity-60", blob1)} />
+        <div className={cn("absolute top-[50%] -right-[30%] w-[100vw] h-[70vh] rounded-full blur-[120px] transition-colors duration-1000 opacity-50", blob2)} />
       </div>
       {filter !== 'reddit' && filter !== 'telegram' && (
         <motion.div 
@@ -664,14 +665,34 @@ export default function App() {
             className="flex items-center gap-3 active:opacity-70 transition-opacity focus-visible:ring-2 focus-visible:ring-indigo-500 rounded-lg px-1 outline-none"
             aria-label="Scroll to top"
           >
-            <div className="w-10 h-10 rounded-2xl flex items-center justify-center shadow-inner relative transition-colors" style={{ backgroundColor: filter === 'reddit' ? 'rgba(147, 51, 234, 0.1)' : filter === 'telegram' ? 'rgba(34, 197, 94, 0.1)' : filter === 'saved' ? 'rgba(234, 179, 8, 0.1)' : 'rgba(37, 99, 235, 0.1)' }}>
-              <Rss className={cn("w-6 h-6 transition-colors", filter === 'reddit' ? "text-purple-600 dark:text-purple-400" : filter === 'telegram' ? "text-green-600 dark:text-green-400" : filter === 'saved' ? "text-yellow-600 dark:text-yellow-400" : "text-blue-600 dark:text-blue-400")} />
+            <div className="w-10 h-10 rounded-2xl flex items-center justify-center shadow-inner relative transition-colors" style={{ backgroundColor: filter === 'radio' ? 'rgba(239, 68, 68, 0.1)' : filter === 'reddit' ? 'rgba(147, 51, 234, 0.1)' : filter === 'telegram' ? 'rgba(34, 197, 94, 0.1)' : filter === 'saved' ? 'rgba(234, 179, 8, 0.1)' : 'rgba(37, 99, 235, 0.1)' }}>
+              {filter === 'radio' ? (
+                <Radio className="w-6 h-6 transition-colors text-red-600 dark:text-red-400" />
+              ) : (
+                <Rss className={cn("w-6 h-6 transition-colors", filter === 'reddit' ? "text-purple-600 dark:text-purple-400" : filter === 'telegram' ? "text-green-600 dark:text-green-400" : filter === 'saved' ? "text-yellow-600 dark:text-yellow-400" : "text-blue-600 dark:text-blue-400")} />
+              )}
             </div>
             <div className="flex items-baseline gap-4">
               <h1 className="text-xl font-bold text-gray-900 dark:text-white tracking-tight">flusso</h1>
             </div>
           </motion.button>
           <div className="flex items-center gap-2">
+            <button 
+              onClick={() => {
+                if (filter === 'radio') {
+                  setFilter('inbox');
+                } else {
+                  setFilter('radio');
+                }
+              }}
+              className={cn(
+                "p-2 rounded-full transition-colors",
+                filter === 'radio' ? "text-red-600 bg-red-50 dark:bg-red-900/30" : "text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
+              )}
+              aria-label="Open Radio"
+            >
+              <Radio className="w-5 h-5" aria-hidden="true" />
+            </button>
             <button 
               onClick={() => setIsSearchOpen(true)}
               className={cn(
@@ -754,9 +775,9 @@ export default function App() {
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder={filter === 'reddit' ? "Search Reddit posts..." : filter === 'telegram' ? "Search channels..." : "Search articles..."}
+                placeholder={filter === 'reddit' ? "Search Reddit posts..." : filter === 'telegram' ? "Search channels..." : filter === 'radio' ? "Cerca stazioni radio..." : "Search articles..."}
                 className="flex-1 bg-transparent text-gray-900 dark:text-white focus:outline-none"
-                aria-label={filter === 'reddit' ? "Search Reddit posts" : filter === 'telegram' ? "Search channels" : "Search articles"}
+                aria-label={filter === 'reddit' ? "Search Reddit posts" : filter === 'telegram' ? "Search channels" : filter === 'radio' ? "Cerca stazioni radio" : "Search articles"}
                 autoFocus
               />
               <button 
@@ -821,7 +842,7 @@ export default function App() {
           ref={inboxScrollRef}
           onScroll={(e) => handleScroll(e, 'inbox')}
           className={cn(
-            "absolute inset-0 overflow-y-auto pb-24 scroll-smooth transition-all duration-300 will-change-transform",
+            "absolute inset-0 overflow-y-auto pb-24 scroll-smooth transition-opacity duration-300 will-change-transform",
             filter === 'inbox' ? "z-10 opacity-100 pointer-events-auto" : "z-0 opacity-0 pointer-events-none"
           )}
         >
@@ -847,7 +868,7 @@ export default function App() {
           ref={savedScrollRef}
           onScroll={(e) => handleScroll(e, 'saved')}
           className={cn(
-            "absolute inset-0 overflow-y-auto pb-24 scroll-smooth transition-all duration-300 will-change-transform",
+            "absolute inset-0 overflow-y-auto pb-24 scroll-smooth transition-opacity duration-300 will-change-transform",
             filter === 'saved' ? "z-10 opacity-100 pointer-events-auto" : "z-0 opacity-0 pointer-events-none"
           )}
         >
@@ -911,6 +932,10 @@ export default function App() {
           toggleFavorite={toggleRedditFavorite}
           scrollRef={redditScrollRef}
           handleScroll={(e) => handleScroll(e, 'reddit')}
+        />
+        <RadioView
+          isActive={filter === 'radio'}
+          searchQuery={searchQuery}
         />
         <TelegramListView
           isActive={filter === 'telegram'}

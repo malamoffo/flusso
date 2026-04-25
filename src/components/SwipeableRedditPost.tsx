@@ -141,8 +141,6 @@ export const SwipeableRedditPost = React.memo(function SwipeableRedditPost({
         (filter === 'saved' || filter === 'reddit') && "px-1.25 py-2"
       )}
       style={{
-        contentVisibility: 'auto',
-        containIntrinsicSize: '0 120px',
         transform: 'translateZ(0)'
       } as React.CSSProperties}
     >
@@ -218,7 +216,7 @@ export const SwipeableRedditPost = React.memo(function SwipeableRedditPost({
               src={getSafeUrl(decodedImageUrl)}
               alt="" 
               className={cn(
-                "rounded-lg flex-shrink-0 bg-gray-800 transition-opacity w-full object-cover mb-1 h-auto min-h-[120px]"
+                "rounded-lg flex-shrink-0 bg-gray-800/50 transition-opacity w-full object-cover mb-1 aspect-[16/9]"
               )}
               referrerPolicy="no-referrer"
               onClick={(e) => { e.stopPropagation(); onImageClick(decodedImageUrl); }}
