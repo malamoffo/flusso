@@ -289,7 +289,7 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
       } as React.CSSProperties}
     >
       <div className={cn(
-        "relative w-full overflow-hidden rounded-3xl",
+        "relative w-full overflow-hidden rounded-3xl bg-[#0A0A10]",
         isInboxOrSaved ? "shadow-md" : ""
       )}>
         <motion.div 
@@ -354,16 +354,19 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
           )}
         >
           {/* Glow spots */}
-          {filter === 'saved' ? (
-            <div className="absolute -top-20 -left-20 w-48 h-48 bg-yellow-600/20 rounded-full blur-[100px]" />
-          ) : filter === 'inbox' ? (
-            <div className="absolute -top-20 -left-20 w-48 h-48 bg-blue-600/20 rounded-full blur-[100px]" />
-          ) : (
-             <div className="absolute -top-20 -left-20 w-48 h-48 bg-gray-600/20 rounded-full blur-[100px]" />
-          )}
+          <div className="absolute inset-0 z-0 overflow-hidden rounded-[inherit]">
+            <div className={cn(
+              "absolute -top-1/2 -left-1/2 w-full h-full rounded-full blur-[100px] animate-float mix-blend-screen",
+              filter === 'saved' ? "bg-yellow-600/20" : filter === 'inbox' ? "bg-blue-600/20" : "bg-purple-600/20"
+            )} />
+            <div className={cn(
+              "absolute -bottom-1/2 -right-1/2 w-full h-full rounded-full blur-[100px] animate-float [animation-delay:2s] mix-blend-screen",
+              filter === 'saved' ? "bg-orange-500/10" : filter === 'inbox' ? "bg-cyan-500/10" : "bg-indigo-500/10"
+            )} />
+          </div>
 
           {/* Glass Surface */}
-          <div className="absolute inset-0 z-0 bg-white/[0.08] backdrop-blur-xl border border-white/[0.15] rounded-[inherit] shadow-xl" />
+          <div className="absolute inset-0 z-10 bg-white/[0.08] backdrop-blur-xl border border-white/[0.15] rounded-[inherit] shadow-xl" />
 
           <div className="relative z-10 flex flex-col gap-2">
             {hasImage ? (

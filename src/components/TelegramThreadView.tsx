@@ -1,5 +1,5 @@
 import React, { memo, useEffect, useRef, useState } from 'react';
-import { motion, useDragControls } from 'framer-motion';
+import { motion, useDragControls, AnimatePresence } from 'framer-motion';
 import { TelegramChannel, TelegramMessage } from '../types';
 import { ArrowLeft, RefreshCw, MessageSquare } from 'lucide-react';
 import { format } from 'date-fns';
@@ -161,34 +161,43 @@ export const TelegramThreadView = memo(({ channel, messages, onClose, onRefresh,
               Aggiorna Canale
             </button>
           </div>
-        ) : (
-          Array.from(new Map(messages?.map(m => [m.id, m])).values()).map(message => {
-            const isNew = message.date > (channel.lastOpened || 0);
-            return (
-              <div key={`${message.channelId}-${message.id}`} className={cn(
-                "mb-4 p-5 rounded-[2rem] relative transition-all shadow-xl select-none bg-white/[0.08] border border-white/[0.15] border-green-500/20"
-              )}>
-                {isNew && (
-                  <span className="absolute top-2 right-2 z-30 px-2 py-0.5 bg-green-500 text-[9px] font-black text-black rounded-full shadow-[0_0_10px_rgba(34,197,94,0.6)] border border-green-400 uppercase tracking-widest">
-                    NEW
-                  </span>
-                )}
-                <div 
-                  className="text-gray-300 whitespace-pre-wrap break-words telegram-message-text"
-                  dangerouslySetInnerHTML={{ __html: message.text }}
-                />
-                {message.imageUrl && (
-                  <img 
-                    src={message.imageUrl} 
-                    alt="" 
-                    className="mt-2 rounded-lg max-h-96 w-full object-cover" 
-                    referrerPolicy="no-referrer"
+         ) : (
+          <AnimatePresence initial={false} mode="popLayout">
+            {Array.from(new Map(messages?.map(m => [m.id, m])).values()).map(message => {
+              const isNew = message.date > (channel.lastOpened || 0);
+              return (
+                <motion.div 
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  transition={{ duration: 0.3 }}
+                  key={`${message.channelId}-${message.id}`} 
+                  className={cn(
+                    "mb-4 p-5 rounded-[2rem] relative transition-all shadow-xl select-none bg-white/[0.08] border border-white/[0.15] border-green-500/20"
+                  )}
+                >
+                  {isNew && (
+                    <span className="absolute top-2 right-2 z-30 px-2 py-0.5 bg-green-500 text-[9px] font-black text-black rounded-full shadow-[0_0_10px_rgba(34,197,94,0.6)] border border-green-400 uppercase tracking-widest">
+                      NEW
+                    </span>
+                  )}
+                  <div 
+                    className="text-gray-300 whitespace-pre-wrap break-words telegram-message-text"
+                    dangerouslySetInnerHTML={{ __html: message.text }}
                   />
-                )}
-                <p className="text-xs text-gray-500 mt-2">{format(message.date, 'HH:mm dd/MM/yy')}</p>
-              </div>
-            );
-          })
+                  {message.imageUrl && (
+                    <img 
+                      src={message.imageUrl} 
+                      alt="" 
+                      className="mt-2 rounded-lg max-h-96 w-full object-cover" 
+                      referrerPolicy="no-referrer"
+                    />
+                  )}
+                  <p className="text-xs text-gray-500 mt-2">{format(message.date, 'HH:mm dd/MM/yy')}</p>
+                </motion.div>
+              );
+            })}
+          </AnimatePresence>
         )}
       </div>
     </motion.div>
