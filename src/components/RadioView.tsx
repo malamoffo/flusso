@@ -224,11 +224,36 @@ export const RadioView = memo(({ isActive, searchQuery }: RadioViewProps) => {
       
       try {
         audio.pause();
-        audio.src = ''; 
+        // Remove direct src assignment to avoid invalid state errors on some Android versions
+        audio.removeAttribute('src');
         audio.load();
         
+        Logger.log('Radio: Preparing metadata');
+        const metadata: any = {
+          title: station.name || 'Radio',
+          artist: station.tags ? station.tags.split(',')[0].trim() : 'Radio',
+          album: 'Flusso Radio'
+        };
+
+        if (station.favicon && station.favicon.startsWith('http')) {
+          metadata.artwork = [{ 
+            src: station.favicon, 
+            sizes: '192x192',
+            type: 'image/png' 
+          }];
+        }
+
+        // Set metadata BEFORE playing to avoid crash on some Android versions
+        if (Capacitor.isNativePlatform() && MediaSession) {
+          if (typeof MediaSession.setMetadata === 'function') {
+            Logger.log('Native: Setting metadata before play');
+            await MediaSession.setMetadata(metadata).catch(e => Logger.error('Native: pre-play setMetadata error', e));
+          }
+        } else if ('mediaSession' in navigator && window.MediaMetadata) {
+          navigator.mediaSession.metadata = new window.MediaMetadata(metadata);
+        }
+
         Logger.log('Radio: Setting new src', station.url_resolved);
-        // Basic check for valid URL
         if (!station.url_resolved || !station.url_resolved.startsWith('http')) {
           throw new Error('Invalid radio URL');
         }
@@ -241,83 +266,39 @@ export const RadioView = memo(({ isActive, searchQuery }: RadioViewProps) => {
         if (playPromise !== undefined) {
           await playPromise;
           Logger.log('Radio: play() promise resolved');
-        } else {
-          Logger.log('Radio: play() returned undefined (legacy behavior)');
         }
       } catch (err) {
         Logger.error("Playback start failed", err);
         setIsAudioLoading(false);
+        if (Capacitor.isNativePlatform() && MediaSession && typeof MediaSession.setPlaybackState === 'function') {
+          MediaSession.setPlaybackState({ playbackState: 'none' }).catch(() => {});
+        }
         return; 
       }
     }
 
-    // Update Media Session after a small delay to ensure audio is actually flowing 
-    // and avoid hitting native layer too hard at once
-    setTimeout(async () => {
-      if (Capacitor.isNativePlatform() && MediaSession) {
-        Logger.log('Native: Attempting to set metadata');
+    // Set actions with a small delay
+    setTimeout(() => {
+      if ('mediaSession' in navigator) {
         try {
-          if (typeof MediaSession.setMetadata === 'function') {
-            const metadata: any = {
-              title: station.name || 'Radio',
-              artist: station.tags ? station.tags.split(',')[0].trim() : 'Radio',
-              album: 'Flusso Radio'
-            };
-
-            // Only use favicon if it's a valid URL and not too large
-            if (station.favicon && station.favicon.startsWith('http')) {
-              Logger.log('Native: metadata using favicon', station.favicon);
-              metadata.artwork = [{ 
-                src: station.favicon, 
-                sizes: '192x192', // Smaller size might be safer
-                type: 'image/png' 
-              }];
-            } else {
-              Logger.log('Native: metadata using fallback icon');
-              // Use a known safe fallback or nothing
-            }
-
-            await MediaSession.setMetadata(metadata);
-            Logger.log('Native: setMetadata success');
-          }
-        } catch (e) {
-          Logger.error("Native: setMetadata exception", e);
-        }
-      } else if ('mediaSession' in navigator && window.MediaMetadata) {
-        Logger.log('Browser: Attempting to set MediaSession metadata');
-        try {
-          const browserMetadata: any = {
-            title: station.name,
-            artist: 'Radio'
-          };
-
-          if (station.favicon && station.favicon.startsWith('http')) {
-            browserMetadata.artwork = [
-              { src: station.favicon, sizes: '512x512', type: 'image/png' }
-            ];
-          }
-
-          navigator.mediaSession.metadata = new window.MediaMetadata(browserMetadata);
-
           navigator.mediaSession.setActionHandler('play', () => {
-            Logger.log('Browser: MediaSession Action: play');
+            Logger.log('MediaSession Action: play');
             audioRef.current?.play().catch(e => Logger.error('MS Play error', e));
           });
           navigator.mediaSession.setActionHandler('pause', () => {
-            Logger.log('Browser: MediaSession Action: pause');
+            Logger.log('MediaSession Action: pause');
             audioRef.current?.pause();
           });
           navigator.mediaSession.setActionHandler('stop', () => {
-            Logger.log('Browser: MediaSession Action: stop');
+            Logger.log('MediaSession Action: stop');
             audioRef.current?.pause();
             setCurrentStation(null);
           });
-          Logger.log('Browser: MediaSession handlers set');
         } catch (e) {
-          Logger.error("Browser: mediaSession error", e);
+          Logger.error("MediaSession handlers error", e);
         }
       }
-    }, 500);
+    }, 200);
   };
 
   const displayStations = useMemo(() => {
