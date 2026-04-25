@@ -159,6 +159,10 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         }
       }
     } catch (e) {
+      if (e instanceof Error && e.message === 'Failed to fetch') {
+        // Silently ignore network errors for update checks
+        return;
+      }
       console.error('Failed to check for updates', e);
     }
   }, []);

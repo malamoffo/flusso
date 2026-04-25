@@ -874,7 +874,7 @@ export default function App() {
                     toggleFavorite={toggleFavorite}
                     onRemove={handleRemoveArticle}
                     isSavedSection={true}
-                    filter={filter}
+                    filter="saved"
                   />
                 ))}
             </AnimatePresence>
@@ -1153,6 +1153,7 @@ export default function App() {
               } : undefined}
               hasNext={hasNextReddit}
               hasPrev={hasPrevReddit}
+              sourceFilter={filter}
             />
           );
         })()}
@@ -1201,6 +1202,7 @@ export default function App() {
               }}
               hasNext={hasNext}
               hasPrev={hasPrev}
+              sourceFilter={filter}
             />
           );
         })()}

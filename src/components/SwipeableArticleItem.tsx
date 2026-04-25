@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { motion, useMotionValue, useTransform, PanInfo, animate, useReducedMotion } from 'framer-motion';
+import { motion, useMotionValue, useTransform, PanInfo, animate, useReducedMotion, useAnimation } from 'framer-motion';
 import { format, isToday } from 'date-fns';
 import { Trash2, FileText, Star } from 'lucide-react';
 import he from 'he';
@@ -107,6 +107,8 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
   style,
   disableGestures = false
 }: SwipeableArticleItemProps) {
+  const controls = useAnimation();
+
   // Initialize x from swipeState[id]
   const x = useMotionValue(swipeState[article.id] || 0);
   
@@ -121,10 +123,10 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
   // Reset x to 0 on mount to ensure items are centered, especially in Saved section
   useEffect(() => {
     if (swipeState[article.id]) {
-      animate(x, 0, { duration: 0 });
+      controls.start({ x: 0, transition: { duration: 0 } });
       swipeState[article.id] = 0;
     }
-  }, [article.id, x]);
+  }, [article.id, controls]);
 
   const [feedThemeColor, setFeedThemeColor] = useState<string | null>(null);
 
@@ -209,15 +211,15 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
         swipeState[article.id] = 0;
         onRemove?.(article.id);
       } else if (action === 'toggleFavorite') {
-        animate(x, 0, { type: "spring", stiffness: 250, damping: 25, restDelta: 0.1 });
+        controls.start({ x: 0, transition: { type: "spring", stiffness: 250, damping: 25, restDelta: 0.1 } });
         swipeState[article.id] = 0; // Reset state
         toggleFavorite(article.id);
       } else {
-        animate(x, 0, { type: "spring", stiffness: 250, damping: 25, restDelta: 0.1 });
+        controls.start({ x: 0, transition: { type: "spring", stiffness: 250, damping: 25, restDelta: 0.1 } });
         swipeState[article.id] = 0; // Reset state
       }
     } else {
-      animate(x, 0, { type: "spring", stiffness: 200, damping: 25 });
+      controls.start({ x: 0, transition: { type: "spring", stiffness: 200, damping: 25 } });
     }
   };
 
@@ -280,7 +282,7 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
         visibleRef(node);
       }} 
       className={cn(
-        "relative w-full overflow-hidden will-change-transform content-visibility-auto",
+        "relative w-full overflow-hidden will-change-transform isolate content-visibility-auto",
         isInboxOrSaved && "px-1.25 py-2"
       )}
       style={{
@@ -324,7 +326,9 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
           </div>
         </div>
 
-        <motion.div
+        <motion.article
+          layoutId={`article-${article.id}-${filter}`}
+          animate={controls}
           style={{ 
             x, 
             touchAction: 'pan-y', // Prevent scroll/swipe conflicts
@@ -354,15 +358,15 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
         >
           {/* Glow spots */}
           {filter === 'saved' ? (
-            <div className="absolute -top-10 -left-10 w-24 h-24 bg-yellow-600/20 rounded-full blur-[40px]" />
+            <div className="absolute -top-10 -left-10 w-32 h-32 bg-yellow-500/30 rounded-full blur-[80px]" />
           ) : filter === 'inbox' ? (
-            <div className="absolute -top-10 -left-10 w-24 h-24 bg-blue-600/20 rounded-full blur-[40px]" />
+            <div className="absolute -top-10 -left-10 w-32 h-32 bg-blue-500/30 rounded-full blur-[80px]" />
           ) : (
-             <div className="absolute -top-10 -left-10 w-24 h-24 bg-gray-600/20 rounded-full blur-[40px]" />
+             <div className="absolute -top-10 -left-10 w-32 h-32 bg-gray-500/30 rounded-full blur-[80px]" />
           )}
 
           {/* Glass Surface */}
-          <div className="absolute inset-0 z-0 bg-[#0A0A10]/100 sm:bg-[#0A0A10]/85 sm:backdrop-blur-xl border border-white/10 rounded-[inherit]" />
+          <div className="absolute inset-0 z-0 bg-white/[0.08] backdrop-blur-xl border border-white/[0.15] rounded-[inherit]" />
 
           <div className="relative z-10 flex flex-col gap-2">
             {hasImage ? (
@@ -434,7 +438,7 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
             </div>
           </div>
         </div>
-      </motion.div>
+        </motion.article>
       </div>
     </motion.div>
   );

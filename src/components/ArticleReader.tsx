@@ -25,9 +25,10 @@ interface ArticleReaderProps {
   onSelectArticle?: (article: Article) => void;
   hasNext?: boolean;
   hasPrev?: boolean;
+  sourceFilter?: string;
 }
 
-export const ArticleReader = React.memo(function ArticleReader({ article, onClose, onNext, onPrev, hasNext, hasPrev }: ArticleReaderProps) {
+export const ArticleReader = React.memo(function ArticleReader({ article, onClose, onNext, onPrev, hasNext, hasPrev, sourceFilter = 'inbox' }: ArticleReaderProps) {
   const controls = useDragControls();
   const [fullContent, setFullContent] = useState<FullArticleContent | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -359,6 +360,7 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
   return (
     <>
       <motion.div 
+        key={`backdrop-${article.id}`}
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
@@ -366,12 +368,14 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
         className="fixed inset-0 bg-black/80 z-[40]"
         onClick={onClose}
       />
-      <motion.div 
+      <motion.article 
+        key={`modal-${article.id}`}
+        layoutId={`article-${article.id}-${sourceFilter}`}
         initial={{ y: '100%' }}
         animate={{ y: 0 }}
         exit={{ y: '100%' }}
         transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-        className="fixed bottom-0 left-0 right-0 z-50 h-[92vh] overflow-hidden flex flex-col transition-colors break-words font-sans bg-[#0A0A10] sm:bg-[#0A0A10]/95 sm:backdrop-blur-3xl rounded-t-[2.5rem] border-t border-white/10 shadow-[0_-10px_40px_rgba(0,0,0,0.5)]"
+        className="fixed bottom-0 left-0 right-0 z-50 h-[92vh] overflow-hidden flex flex-col transition-colors break-words font-sans bg-[#0A0A10] sm:bg-[#0A0A10]/95 sm:backdrop-blur-xl rounded-t-[2.5rem] border-t border-white/10 shadow-[0_-10px_40px_rgba(0,0,0,0.5)] will-change-transform isolate"
         drag="y"
         dragControls={controls}
         dragListener={false}
@@ -578,7 +582,7 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
           </div>
         </div>
       </div>
-    </motion.div>
+    </motion.article>
     </>
   );
 });

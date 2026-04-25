@@ -57,6 +57,7 @@ export const TelegramListView = memo(({ isActive, channels, onChannelClick, filt
         <div className="flex-1 max-w-3xl mx-auto px-2 py-2 space-y-2">
           {filteredChannels.map((channel, i) => (
             <motion.div 
+              layoutId={`telegram-${channel.id}`}
               key={channel.id}
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
@@ -64,9 +65,14 @@ export const TelegramListView = memo(({ isActive, channels, onChannelClick, filt
               transition={{ type: "spring", stiffness: 300, damping: 25, delay: i * 0.05 }}
               onClick={() => onChannelClick(channel)}
               className={cn(
-                "relative p-4 rounded-3xl shadow-md flex items-center gap-4 cursor-pointer bg-black/40 backdrop-blur-md border border-white/10 mix-blend-screen transition-all active:scale-[0.98] active:bg-gray-900"
+                "relative z-0 p-4 rounded-[2rem] flex items-center gap-4 cursor-pointer transition-all active:scale-[0.98] will-change-transform isolate"
               )}
             >
+              {/* Glow spots */}
+              <div className="absolute -top-10 -left-10 w-32 h-32 bg-green-500/30 rounded-full blur-[80px] pointer-events-none" />
+              
+              {/* Glass Surface */}
+              <div className="absolute inset-0 -z-10 bg-white/[0.08] backdrop-blur-xl border border-white/[0.15] rounded-[inherit] pointer-events-none" />
               {channel.imageUrl ? (
                 <img 
                   src={channel.imageUrl} 

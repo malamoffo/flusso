@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { motion, useMotionValue, useTransform, PanInfo, animate, useReducedMotion } from 'framer-motion';
+import { motion, useMotionValue, useTransform, PanInfo, animate, useReducedMotion, useAnimation } from 'framer-motion';
 import { format, isToday } from 'date-fns';
 import { Check, Trash2, Bookmark, MessageSquare } from 'lucide-react';
 import { RedditPost, Settings } from '../types';
@@ -39,6 +39,7 @@ export const SwipeableRedditPost = React.memo(function SwipeableRedditPost({
   disableGestures = false
 }: SwipeableRedditPostProps) {
   const x = useMotionValue(0);
+  const controls = useAnimation();
   
   const { ref, inView, entry } = useInView({
     threshold: 0,
@@ -93,15 +94,15 @@ export const SwipeableRedditPost = React.memo(function SwipeableRedditPost({
         setExitX(isRight ? '100%' : '-100%');
         onRemove?.(post.id);
       } else {
-        animate(x, 0, { type: "spring", stiffness: 400, damping: 30, restDelta: 0.5 });
+        controls.start({ x: 0, transition: { type: "spring", stiffness: 400, damping: 30, restDelta: 0.5 } });
 
         if (action === 'toggleFavorite') {
           // Favorites disabled for Reddit as requested
-          animate(x, 0, { type: "spring", stiffness: 400, damping: 30, restDelta: 0.5 });
+          controls.start({ x: 0, transition: { type: "spring", stiffness: 400, damping: 30, restDelta: 0.5 } });
         }
       }
     } else {
-      animate(x, 0, { type: "spring", stiffness: 300, damping: 25 });
+      controls.start({ x: 0, transition: { type: "spring", stiffness: 300, damping: 25 } });
     }
   };
 
@@ -136,7 +137,7 @@ export const SwipeableRedditPost = React.memo(function SwipeableRedditPost({
         visibleRef(node);
       }}
       className={cn(
-        "relative w-full overflow-hidden will-change-transform",
+        "relative w-full overflow-hidden will-change-transform isolate",
         (filter === 'saved' || filter === 'reddit') && "px-1.25 py-2"
       )}
       style={{
@@ -176,7 +177,9 @@ export const SwipeableRedditPost = React.memo(function SwipeableRedditPost({
           </div>
         </div>
 
-        <motion.div
+        <motion.article
+          layoutId={`reddit-${post.id}-${filter}`}
+          animate={controls}
           style={{ x }}
           drag={!disableGestures && (isSavedSection || (settings.swipeLeftAction !== 'none' || settings.swipeRightAction !== 'none')) ? "x" : false}
           dragConstraints={{ left: 0, right: 0 }}
@@ -198,15 +201,15 @@ export const SwipeableRedditPost = React.memo(function SwipeableRedditPost({
         >
           {/* Glow spots */}
           {filter === 'saved' ? (
-            <div className="absolute -top-10 -left-10 w-24 h-24 bg-yellow-600/20 rounded-full blur-[40px]" />
+            <div className="absolute -top-10 -left-10 w-32 h-32 bg-yellow-500/30 rounded-full blur-[80px]" />
           ) : filter === 'reddit' ? (
-            <div className="absolute -top-10 -left-10 w-24 h-24 bg-purple-600/20 rounded-full blur-[40px]" />
+            <div className="absolute -top-10 -left-10 w-32 h-32 bg-purple-500/30 rounded-full blur-[80px]" />
           ) : (
-             <div className="absolute -top-10 -left-10 w-24 h-24 bg-gray-600/20 rounded-full blur-[40px]" />
+             <div className="absolute -top-10 -left-10 w-32 h-32 bg-gray-500/30 rounded-full blur-[80px]" />
           )}
 
           {/* Glass Surface */}
-          <div className="absolute inset-0 z-0 bg-[#0A0A10]/100 sm:bg-[#0A0A10]/85 sm:backdrop-blur-xl border border-white/10 rounded-[inherit]" />
+          <div className="absolute inset-0 z-0 bg-white/[0.08] backdrop-blur-xl border border-white/[0.15] rounded-[inherit]" />
 
         <div className="relative z-10 flex flex-col gap-2">
           {/* Image at the top */}
@@ -252,7 +255,7 @@ export const SwipeableRedditPost = React.memo(function SwipeableRedditPost({
             </div>
           </div>
         </div>
-      </motion.div>
+      </motion.article>
       </div>
     </motion.div>
   );
