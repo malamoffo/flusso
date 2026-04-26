@@ -23,19 +23,22 @@ export const updateSW = registerSW({
   },
 });
 
-// Use Capacitor App plugin to detect resume and check for updates
+import { Capacitor } from '@capacitor/core';
 import { App as CapacitorApp } from '@capacitor/app';
 
 if (typeof window !== 'undefined' && 'Capacitor' in window) {
-  CapacitorApp.addListener('appStateChange', ({ isActive }) => {
-    if (isActive) {
-      updateSW();
-      
-      // Also potentially trigger a feed refresh if we haven't in a while
-      // This is handled by RssContext internally usually, but we can signal it.
-      window.dispatchEvent(new CustomEvent('app-resume'));
-    }
-  });
+  const isWeb = Capacitor.getPlatform() === 'web';
+  if (!isWeb && Capacitor.isPluginAvailable('App')) {
+    CapacitorApp.addListener('appStateChange', ({ isActive }) => {
+      if (isActive) {
+        updateSW();
+        
+        // Also potentially trigger a feed refresh if we haven't in a while
+        // This is handled by RssContext internally usually, but we can signal it.
+        window.dispatchEvent(new CustomEvent('app-resume'));
+      }
+    });
+  }
 }
 
 // Check for updates every hour

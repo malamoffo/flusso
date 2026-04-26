@@ -345,7 +345,8 @@ export default function App() {
     };
     
     let listener: any;
-    if (typeof window !== 'undefined' && (window as any).Capacitor?.isNativePlatform()) {
+    const isAppAvailable = Capacitor.isNativePlatform() && Capacitor.getPlatform() !== 'web' && Capacitor.isPluginAvailable('App');
+    if (typeof window !== 'undefined' && isAppAvailable) {
       CapacitorApp.addListener('backButton', handleBackButton).then(l => {
         listener = l;
       });
@@ -474,6 +475,8 @@ export default function App() {
     };
 
     const setupListener = async () => {
+      const isAppAvailable = Capacitor.isNativePlatform() && Capacitor.getPlatform() !== 'web' && Capacitor.isPluginAvailable('App');
+      if (!isAppAvailable) return null;
       const listener = await CapacitorApp.addListener('backButton', handleBackButton);
       return listener;
     };

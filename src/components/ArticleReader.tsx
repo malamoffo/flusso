@@ -9,6 +9,7 @@ import he from 'he';
 import { CachedImage } from './CachedImage';
 import { cn, getSafeUrl } from '../lib/utils';
 import { Capacitor, CapacitorHttp } from '@capacitor/core';
+import { isPluginAvailable, isNative } from '../utils/platform';
 import { Share } from '@capacitor/share';
 import { imagePersistence } from '../utils/imagePersistence';
 import { Readability } from '@mozilla/readability';
@@ -84,7 +85,9 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
           return;
         }
 
-        const isNative = typeof window !== 'undefined' && (window as any).Capacitor?.isNativePlatform();
+        const isNativePlatform = typeof window !== 'undefined' && (window as any).Capacitor?.isNativePlatform();
+        const isWeb = typeof window !== 'undefined' && (window as any).Capacitor?.getPlatform() === 'web';
+        const isNative = isNativePlatform && !isWeb && (window as any).Capacitor?.isPluginAvailable?.('CapacitorHttp');
         let html = '';
         const safeUrl = getSafeUrl(article.link, article.link);
 
@@ -204,10 +207,12 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
       // --- DEEP CLEANING: Remove labels and boilerplate ---
       // 1. Remove leading/trailing boilerplate patterns (Source:, Written by:, etc.)
       const boilerplatePatterns = [
-        /^(<p[^>]*>)?\s*(Source|Written by|Autor|By|Di|Fonte|Traduzione di|Articolo originale|Traduzione|Pubblicato il|Ore fa|Minuti fa)\s*[:\-\u2013\u2014].*?<\/p>/i,
-        /<p[^>]*>\s*(Leggi anche|Continua a leggere|Condividi|Tags|Etichette|Potrebbe interessarti|Sostienici|Sito ufficiale|Seguici su|Iscriviti alla newsletter)\s*[:\-\u2013\u2014].*?<\/p>\s*$/i,
-        /^(<p[^>]*>)?\s*(Photo|Immagine|Credit)\s*[:\-\u2013\u2014].*?<\/p>/i,
-        /<p[^>]*>\s*(L'articolo|Questo post).*?apparsa su.*?<\/p>/i
+        /^(<p[^>]*>)?\s*(Source|Written by|Autor|By|Di|Fonte|Traduzione di|Articolo originale|Traduzione|Pubblicato il|Ore fa|Minuti fa|Aggiornato il|Last updated|Reading time|Tempo di lettura|Credits|Foto di|Photocredit|Immagine di|Copertina di|Illustrazione di|Sintesi|In breve|TL;DR|Autore|Data pubblicazione)\s*[:\-\u2013\u2014].*?<\/p>/i,
+        /<p[^>]*>\s*(Leggi anche|Continua a leggere|Condividi|Tags|Etichette|Potrebbe interessarti|Sostienici|Sito ufficiale|Seguici su|Iscriviti alla newsletter|Abbonati|Sostieni il giornalismo|Se ti è piaciuto l'articolo|Fai una donazione|Seguici sui social|Commenta l'articolo)\s*[:\-\u2013\u2014].*?<\/p>\s*$/i,
+        /^(<p[^>]*>)?\s*(Photo|Immagine|Credit|Copyright)\s*[:\-\u2013\u2014].*?<\/p>/i,
+        /<p[^>]*>\s*(L'articolo|Questo post).*?apparsa su.*?<\/p>/i,
+        /^(<p[^>]*>)?\s*(In breve|Sintesi|TL;DR)\s*[:\-\u2013\u2014].*?<\/p>/i,
+        /<p[^>]*>\s*(Fonte foto|Credit foto|Ufficio stampa|Redazione|Link correlati|Argomenti|Temi).*?<\/p>/gi
       ];
 
       boilerplatePatterns.forEach(pattern => {
@@ -496,7 +501,8 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
                     };
 
                     try {
-                      if (Capacitor.isNativePlatform()) {
+                      const isShareAvailable = isNative() && isPluginAvailable('Share');
+                      if (isShareAvailable) {
                         await Share.share({
                           ...shareData,
                           dialogTitle: 'Condividi articolo'

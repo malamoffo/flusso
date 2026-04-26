@@ -78,7 +78,7 @@ export const TelegramListView = memo(({ isActive, channels, onChannelClick, filt
             >
               {/* Light Source */}
               <div className="absolute inset-0 z-0 rounded-[inherit] overflow-hidden pointer-events-none">
-                <div className="absolute -top-10 -left-10 w-48 h-48 bg-green-500/60 rounded-full blur-3xl" />
+                <div className="absolute -top-10 -left-10 w-64 h-64 bg-green-500/60 rounded-full blur-[80px]" />
               </div>
 
               {/* Glass Surface */}

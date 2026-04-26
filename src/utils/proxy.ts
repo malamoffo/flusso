@@ -16,8 +16,15 @@ function getHeader(headers: Record<string, string | undefined> | Headers, name: 
 
 export async function fetchWithProxy(url: string, isRss: boolean = true, sinceDate?: number, signal?: AbortSignal, etag?: string, lastModified?: string, isHtml: boolean = false): Promise<{ data: string, etag?: string, lastModified?: string }> {
   // On native platforms, we don't need proxies as there's no CORS restriction
-  if (Capacitor.isNativePlatform()) {
+  const isWeb = Capacitor.getPlatform() === 'web';
+  if (Capacitor.isNativePlatform() && !isWeb) {
     try {
+      // Check if the Http plugin is actually registered/available to avoid UNIMPLEMENTED
+      const isHttpAvailable = Capacitor.isPluginAvailable('CapacitorHttp');
+      if (!isHttpAvailable) {
+        throw new Error('CapacitorHttp plugin not available');
+      }
+
       const headers: Record<string, string> = {
         'User-Agent': 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.6312.40 Mobile Safari/537.36',
         ...(isRss ? { 'Accept': 'application/rss+xml, application/xml, text/xml, */*' } : {})

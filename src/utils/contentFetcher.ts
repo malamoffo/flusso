@@ -63,11 +63,16 @@ class ContentFetcherQueue {
   }
 
   private async fetchAndCache(articleId: string, url: string) {
-    const isNative = typeof window !== 'undefined' && (window as any).Capacitor?.isNativePlatform();
+    const isNativePlatform = typeof window !== 'undefined' && (window as any).Capacitor?.isNativePlatform();
+    const isWeb = typeof window !== 'undefined' && (window as any).Capacitor?.getPlatform() === 'web';
+    const isNative = isNativePlatform && !isWeb;
+    
+    const isNativeHttp = isNative && (window as any).Capacitor?.isPluginAvailable?.('CapacitorHttp');
+    
     let html = '';
     const safeUrl = getSafeUrl(url, url);
 
-    if (isNative) {
+    if (isNativeHttp) {
       let currentUrl = safeUrl;
       let maxRedirects = 3;
       
@@ -124,7 +129,7 @@ class ContentFetcherQueue {
         if (fullArticleUrl) {
           try {
             const resolvedUrl = new URL(fullArticleUrl, url).toString();
-            const fullResData = isNative ? (await CapacitorHttp.get({ url: resolvedUrl })).data : (await fetchWithProxy(resolvedUrl, false, undefined, undefined, undefined, undefined, true)).data;
+            const fullResData = isNativeHttp ? (await CapacitorHttp.get({ url: resolvedUrl })).data : (await fetchWithProxy(resolvedUrl, false, undefined, undefined, undefined, undefined, true)).data;
             const fullDoc = new DOMParser().parseFromString(fullResData, 'text/html');
             const fullReader = new Readability(fullDoc);
             const fullArticleData = fullReader.parse();

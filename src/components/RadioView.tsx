@@ -7,6 +7,7 @@ import { MediaSession } from '@capgo/capacitor-media-session';
 import { App as CapacitorApp } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
 import { Logger } from '../lib/logger';
+import { isPluginAvailable, isNative } from '../utils/platform';
 
 interface RadioViewProps {
   isActive: boolean;
@@ -47,7 +48,7 @@ export const RadioView = memo(({ isActive, searchQuery }: RadioViewProps) => {
         Logger.log('Audio: playing event');
         setIsPlaying(true);
         setIsAudioLoading(false);
-        if (Capacitor.isNativePlatform()) {
+        if (isNative() && isPluginAvailable('MediaSession')) {
           if (MediaSession && typeof MediaSession.setPlaybackState === 'function') {
             Logger.log('Native: setting playbackState to playing');
             MediaSession.setPlaybackState({ playbackState: 'playing' }).catch(err => {
@@ -60,7 +61,7 @@ export const RadioView = memo(({ isActive, searchQuery }: RadioViewProps) => {
       audio.addEventListener('pause', () => {
         Logger.log('Audio: pause event');
         setIsPlaying(false);
-        if (Capacitor.isNativePlatform()) {
+        if (isNative() && isPluginAvailable('MediaSession')) {
           if (MediaSession && typeof MediaSession.setPlaybackState === 'function') {
             Logger.log('Native: setting playbackState to paused');
             MediaSession.setPlaybackState({ playbackState: 'paused' }).catch(err => {
@@ -79,7 +80,7 @@ export const RadioView = memo(({ isActive, searchQuery }: RadioViewProps) => {
         });
         setIsPlaying(false);
         setIsAudioLoading(false);
-        if (Capacitor.isNativePlatform()) {
+        if (isNative() && isPluginAvailable('MediaSession')) {
           if (MediaSession && typeof MediaSession.setPlaybackState === 'function') {
             MediaSession.setPlaybackState({ playbackState: 'none' }).catch(() => {});
           }
@@ -100,15 +101,10 @@ export const RadioView = memo(({ isActive, searchQuery }: RadioViewProps) => {
       audio.addEventListener('loadedmetadata', () => Logger.log('Audio: loadedmetadata event'));
 
       // Setup platform handlers
-      if (Capacitor.isNativePlatform()) {
+      if (isNative() && isPluginAvailable('MediaSession')) {
         try {
           Logger.log('Native: Setting up MediaSession handlers');
           
-          // Track app state to debug background behavior
-          CapacitorApp.addListener('appStateChange', ({ isActive }) => {
-            Logger.log(`Native: App state changed to ${isActive ? 'active' : 'inactive'}`);
-          });
-
           if (MediaSession && typeof MediaSession.setActionHandler === 'function') {
             MediaSession.setActionHandler({ action: 'play' }, () => {
               Logger.log('Native: MediaSession Action: play');
@@ -204,7 +200,10 @@ export const RadioView = memo(({ isActive, searchQuery }: RadioViewProps) => {
         Logger.log('Radio: Resuming');
         setIsAudioLoading(true);
         try {
-          await audioRef.current?.play();
+          const playPromise = audioRef.current?.play();
+          if (playPromise !== undefined) {
+             await playPromise;
+          }
           Logger.log('Radio: Resume success');
         } catch (err) {
           Logger.error("Playback resume failed", err);
@@ -244,7 +243,7 @@ export const RadioView = memo(({ isActive, searchQuery }: RadioViewProps) => {
         }
 
         // Set metadata BEFORE playing to avoid crash on some Android versions
-        if (Capacitor.isNativePlatform() && MediaSession) {
+        if (isNative() && isPluginAvailable('MediaSession')) {
           if (typeof MediaSession.setMetadata === 'function') {
             Logger.log('Native: Setting metadata before play');
             await MediaSession.setMetadata(metadata).catch(e => Logger.error('Native: pre-play setMetadata error', e));
@@ -270,8 +269,10 @@ export const RadioView = memo(({ isActive, searchQuery }: RadioViewProps) => {
       } catch (err) {
         Logger.error("Playback start failed", err);
         setIsAudioLoading(false);
-        if (Capacitor.isNativePlatform() && MediaSession && typeof MediaSession.setPlaybackState === 'function') {
-          MediaSession.setPlaybackState({ playbackState: 'none' }).catch(() => {});
+        if (isNative() && isPluginAvailable('MediaSession')) {
+          if (MediaSession && typeof MediaSession.setPlaybackState === 'function') {
+            MediaSession.setPlaybackState({ playbackState: 'none' }).catch(() => {});
+          }
         }
         return; 
       }

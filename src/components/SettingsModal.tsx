@@ -89,7 +89,11 @@ export const SettingsModal = React.memo(function SettingsModal({
   };
 
   const downloadOpml = async (opml: string, filename: string) => {
-    if (Capacitor.isNativePlatform()) {
+    const isWeb = Capacitor.getPlatform() === 'web';
+    const isFilesystemAvailable = Capacitor.isNativePlatform() && !isWeb && Capacitor.isPluginAvailable('Filesystem');
+    const isShareAvailable = Capacitor.isNativePlatform() && !isWeb && Capacitor.isPluginAvailable('Share');
+
+    if (isFilesystemAvailable && isShareAvailable) {
       try {
         const result = await Filesystem.writeFile({
           path: filename,

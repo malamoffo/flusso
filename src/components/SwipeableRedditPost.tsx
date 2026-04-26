@@ -70,11 +70,11 @@ export const SwipeableRedditPost = React.memo(function SwipeableRedditPost({
   };
 
   const getActionColor = (action: string, isSaved: boolean) => {
-    if (isSaved) return 'rgba(0, 0, 0, 0)';
+    if (isSaved) return 'rgba(255, 255, 255, 0.08)'; // Glass-like color
     switch (action) {
       case 'toggleFavorite': return 'rgba(234, 179, 8, 1)';
       case 'markRead': return 'rgba(59, 130, 246, 1)';
-      default: return 'rgba(0, 0, 0, 0)';
+      default: return 'rgba(255, 255, 255, 0.08)'; // Default to glass
     }
   };
 
@@ -159,7 +159,7 @@ export const SwipeableRedditPost = React.memo(function SwipeableRedditPost({
         (filter === 'saved' || filter === 'reddit') ? "shadow-md" : ""
       )}>
         <motion.div 
-          className="absolute inset-0 z-0"
+          className="absolute inset-0 z-0 backdrop-blur-xl border border-white/[0.15]"
           style={{ backgroundColor: backgroundTransform, opacity: backgroundOpacity }}
         />
 
@@ -210,9 +210,9 @@ export const SwipeableRedditPost = React.memo(function SwipeableRedditPost({
           {/* Light Source */}
           <div className="absolute inset-0 z-0 rounded-[inherit] overflow-hidden pointer-events-none">
             {filter === 'saved' || isSavedSection ? (
-              <div className="absolute -top-10 -left-10 w-48 h-48 bg-yellow-500/60 rounded-full blur-3xl" />
+              <div className="absolute -top-10 -left-10 w-64 h-64 bg-yellow-500/60 rounded-full blur-[80px]" />
             ) : (
-              <div className="absolute -top-10 -left-10 w-48 h-48 bg-purple-500/60 rounded-full blur-3xl" />
+              <div className="absolute -top-10 -left-10 w-64 h-64 bg-purple-500/60 rounded-full blur-[80px]" />
             )}
           </div>
 

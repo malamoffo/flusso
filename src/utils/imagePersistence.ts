@@ -64,7 +64,13 @@ export const imagePersistence = {
    */
   async getCachedUrl(url: string): Promise<string | null> {
     if (!Capacitor.isNativePlatform()) return null;
+    const isWeb = Capacitor.getPlatform() === 'web';
+    if (isWeb) return null; // Avoid calling native plugins on web even if labeled native
     
+    // Check plugin availability to avoid UNIMPLEMENTED errors
+    const isFilesystemAvailable = Capacitor.isPluginAvailable('Filesystem');
+    if (!isFilesystemAvailable) return null;
+
     if (!this.isInitialized) await this.init();
     if (this.resolvedLocalUrls.has(url)) return this.resolvedLocalUrls.get(url)!;
 
@@ -99,6 +105,14 @@ export const imagePersistence = {
    */
   async getLocalUrl(url: string): Promise<string> {
     if (!Capacitor.isNativePlatform()) return url;
+    const isWeb = Capacitor.getPlatform() === 'web';
+    if (isWeb) return url;
+
+    // Check plugin availability to avoid UNIMPLEMENTED errors
+    const isFilesystemAvailable = Capacitor.isPluginAvailable('Filesystem');
+    const isHttpAvailable = Capacitor.isPluginAvailable('CapacitorHttp');
+    
+    if (!isFilesystemAvailable || !isHttpAvailable) return url;
 
     const filename = this.getFilename(url);
     const path = `${CACHE_DIR}/${filename}`;
