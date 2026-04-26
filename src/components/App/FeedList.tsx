@@ -52,7 +52,7 @@ export const FeedList = memo(({
 
   return (
     <div className="flex-1 max-w-3xl mx-auto px-2 pt-0 pb-2 space-y-2">
-      <AnimatePresence initial={false}>
+      <AnimatePresence initial={false} mode="popLayout">
         {Array.from(new Map(articles.map(a => [a.id, a])).values()).map((article: Article) => {
           const feed = feedsMap.get(article.feedId);
           return (

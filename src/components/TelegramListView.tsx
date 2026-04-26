@@ -1,5 +1,5 @@
 import React, { memo } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { TelegramChannel } from '../types';
 import { cn } from '../lib/utils';
 import { format, isToday, isYesterday } from 'date-fns';
@@ -55,52 +55,66 @@ export const TelegramListView = memo(({ isActive, channels, onChannelClick, filt
         </div>
       ) : (
         <div className="flex-1 max-w-3xl mx-auto px-2 pt-0 pb-2 space-y-2">
+          <AnimatePresence initial={false} mode="popLayout">
           {filteredChannels.map((channel, i) => (
             <motion.div 
               layoutId={`telegram-${channel.id}`}
               key={channel.id}
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: "100px" }}
-              transition={{ type: "spring", stiffness: 300, damping: 25, delay: i * 0.05 }}
+              initial={{ opacity: 0, y: 30, scale: 0.95 }}
+              whileInView={{ opacity: 1, y: 0, scale: 1 }}
+              viewport={{ once: true, margin: "50px" }}
+              exit={{ 
+                opacity: 0, 
+                height: 0,
+                marginTop: 0,
+                marginBottom: 0,
+                scale: 0.9 
+              }}
+              transition={{ type: "spring", stiffness: 250, damping: 25 }}
               onClick={() => onChannelClick(channel)}
               className={cn(
-                "relative z-0 p-4 rounded-[2rem] flex items-center gap-4 cursor-pointer transition-all active:scale-[0.98] will-change-transform isolate"
+                "relative z-0 p-4 rounded-3xl flex items-center gap-4 cursor-pointer transition-colors active:scale-[0.98] select-none"
               )}
             >
-              {/* Glow spots */}
-              <div className="absolute -top-10 -left-10 w-32 h-32 bg-green-500/30 rounded-full blur-[80px] pointer-events-none" />
-              
-              {/* Glass Surface */}
-              <div className="absolute inset-0 -z-10 bg-white/[0.08] backdrop-blur-xl border border-white/[0.15] rounded-[inherit] pointer-events-none" />
-              {channel.imageUrl ? (
-                <img 
-                  src={channel.imageUrl} 
-                  alt={channel.name} 
-                  className="w-12 h-12 rounded-full object-cover" 
-                  referrerPolicy="no-referrer"
-                />
-              ) : (
-                <div className="w-12 h-12 rounded-full bg-green-900 flex items-center justify-center text-green-300 font-bold">
-                  {channel.name[0]}
-                </div>
-              )}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-baseline justify-between gap-2">
-                  <h3 className="font-semibold text-white truncate">{channel.name}</h3>
-                  {channel.lastMessageDate && (
-                    <span className="text-[10px] text-gray-500 whitespace-nowrap">
-                      {formatChannelDate(channel.lastMessageDate)}
-                    </span>
-                  )}
-                </div>
-                <p className="text-sm text-gray-400 truncate">@{channel.username}</p>
+              {/* Light Source */}
+              <div className="absolute inset-0 z-0 rounded-[inherit] overflow-hidden pointer-events-none">
+                <div className="absolute -top-10 -left-10 w-48 h-48 bg-green-500/60 rounded-full blur-3xl" />
               </div>
-              {(channel.unreadCount || 0) > 0 && (
-                <div className="w-3 h-3 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]" />
-              )}
+
+              {/* Glass Surface */}
+              <div className="absolute inset-0 z-0 bg-white/[0.08] backdrop-blur-xl border border-white/[0.15] rounded-[inherit] pointer-events-none" />
+              
+              <div className="relative z-10 flex w-full items-center gap-4">
+                {channel.imageUrl ? (
+                  <img 
+                    src={channel.imageUrl} 
+                    alt={channel.name} 
+                    className="w-12 h-12 rounded-full object-cover shrink-0" 
+                    referrerPolicy="no-referrer"
+                  />
+                ) : (
+                  <div className="w-12 h-12 rounded-full bg-green-900 flex items-center justify-center text-green-300 font-bold shrink-0">
+                    {channel.name[0]}
+                  </div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <h3 className="font-semibold text-white truncate">{channel.name}</h3>
+                    {channel.lastMessageDate && (
+                      <span className="text-[10px] text-gray-500 whitespace-nowrap shrink-0">
+                        {formatChannelDate(channel.lastMessageDate)}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-sm text-gray-400 truncate">@{channel.username}</p>
+                </div>
+                {(channel.unreadCount || 0) > 0 && (
+                  <div className="w-3 h-3 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)] shrink-0" />
+                )}
+              </div>
             </motion.div>
           ))}
+          </AnimatePresence>
         </div>
       )}
     </motion.main>

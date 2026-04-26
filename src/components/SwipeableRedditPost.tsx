@@ -70,15 +70,29 @@ export const SwipeableRedditPost = React.memo(function SwipeableRedditPost({
   };
 
   const getActionColor = (action: string, isSaved: boolean) => {
-    return 'rgba(0, 0, 0, 0)';
+    if (isSaved) return 'rgba(0, 0, 0, 0)';
+    switch (action) {
+      case 'toggleFavorite': return 'rgba(234, 179, 8, 1)';
+      case 'markRead': return 'rgba(59, 130, 246, 1)';
+      default: return 'rgba(0, 0, 0, 0)';
+    }
   };
 
   const leftBackground = getActionColor(isSavedSection ? 'remove' : settings.swipeLeftAction, !!isSavedSection);
   const rightBackground = getActionColor(isSavedSection ? 'remove' : settings.swipeRightAction, !!isSavedSection);
 
   const backgroundTransform = useTransform(x, (val) => {
+    if (val > 0) return leftBackground;
+    if (val < 0) return rightBackground;
     return 'rgba(0, 0, 0, 0)';
   });
+
+  const backgroundOpacity = useTransform(x, [-100, 0, 100], [0.8, 0, 0.8]);
+
+  const leftIconOpacity = useTransform(x, [10, 50], [0, 1], { clamp: true });
+  const rightIconOpacity = useTransform(x, [-50, -10], [1, 0], { clamp: true });
+  const leftIconScale = useTransform(x, [10, 50], [0.5, 1], { clamp: true });
+  const rightIconScale = useTransform(x, [-50, -10], [1, 0.5], { clamp: true });
 
   const [exitX, setExitX] = useState<number | string>(0);
 
@@ -120,59 +134,56 @@ export const SwipeableRedditPost = React.memo(function SwipeableRedditPost({
 
   return (
     <motion.div 
-      initial={{ opacity: 0, y: 20 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: "100px" }}
+      initial={{ opacity: 0, y: 30, scale: 0.95 }}
+      whileInView={{ opacity: 1, y: 0, scale: 1 }}
+      viewport={{ once: true, margin: "50px" }}
       exit={{ 
         opacity: 0, 
         height: 0,
         transition: { duration: shouldReduceMotion ? 0 : 0.2, ease: "easeInOut" } 
       }}
       transition={{ 
-        opacity: { duration: shouldReduceMotion ? 0 : 0.3 },
-        y: { type: "spring", stiffness: 150, damping: 30 }
+        type: "spring", stiffness: 250, damping: 25 
       }}
       ref={(node) => {
         ref(node);
         visibleRef(node);
       }}
       className={cn(
-        "relative w-full overflow-hidden will-change-transform isolate",
+        "relative w-full",
         (filter === 'saved' || filter === 'reddit') && "px-1.25 py-2"
       )}
-      style={{
-        transform: 'translateZ(0)'
-      } as React.CSSProperties}
     >
       <div className={cn(
         "relative w-full rounded-3xl overflow-hidden",
         (filter === 'saved' || filter === 'reddit') ? "shadow-md" : ""
       )}>
+        <motion.div 
+          className="absolute inset-0 z-0"
+          style={{ backgroundColor: backgroundTransform, opacity: backgroundOpacity }}
+        />
+
         {!post.isRead && (
           <span className="absolute top-2 right-2 z-30 px-2 py-0.5 bg-purple-600 text-[9px] font-black text-white rounded-full shadow-[0_0_10px_rgba(168,85,247,0.6)] border border-purple-400 uppercase tracking-widest">
             NEW
           </span>
         )}
-        <motion.div 
-          className="absolute inset-0 z-0"
-          style={{ backgroundColor: backgroundTransform }}
-        />
 
-        <div className="absolute inset-0 flex items-center justify-between px-6 z-10">
-          <div className="flex items-center text-white font-medium">
+        <div className="absolute inset-0 flex items-center justify-between px-6 z-10 pointer-events-none">
+          <motion.div style={{ opacity: leftIconOpacity, scale: leftIconScale }} className="flex items-center text-white font-medium">
             {isSavedSection ? (
               <Trash2 className="w-6 h-6 text-red-500" />
             ) : (
               null
             )}
-          </div>
-          <div className="flex items-center text-white font-medium">
+          </motion.div>
+          <motion.div style={{ opacity: rightIconOpacity, scale: rightIconScale }} className="flex items-center text-white font-medium">
             {isSavedSection ? (
               <Trash2 className="w-6 h-6 text-red-500" />
             ) : (
               null
             )}
-          </div>
+          </motion.div>
         </div>
 
         <motion.article
@@ -182,8 +193,8 @@ export const SwipeableRedditPost = React.memo(function SwipeableRedditPost({
           drag={!disableGestures && (isSavedSection || (settings.swipeLeftAction !== 'none' || settings.swipeRightAction !== 'none')) ? "x" : false}
           dragConstraints={{ left: 0, right: 0 }}
           dragElastic={!disableGestures ? { 
-            left: (isSavedSection || settings.swipeLeftAction !== 'none') ? 0.2 : 0, 
-            right: (isSavedSection || settings.swipeRightAction !== 'none') ? 0.2 : 0 
+            left: (isSavedSection || settings.swipeLeftAction !== 'none') ? 0.8 : 0, 
+            right: (isSavedSection || settings.swipeRightAction !== 'none') ? 0.8 : 0 
           } : 0}
           dragPropagation={false}
           dragTransition={{ bounceStiffness: 200, bounceDamping: 30 }}
@@ -191,23 +202,22 @@ export const SwipeableRedditPost = React.memo(function SwipeableRedditPost({
           onClick={handlePostClick}
           exit={{ x: exitX, opacity: 0, transition: { duration: 0.15, ease: "easeOut" } }}
           className={cn(
-            "relative z-20 w-full p-4 flex flex-col gap-3 cursor-pointer select-none rounded-[inherit] transition-colors",
-            filter !== 'saved' && filter !== 'reddit' ? "border-b border-gray-800" : "border",
-            filter === 'saved' ? "border-yellow-500/50" : filter === 'reddit' ? "border-purple-500/50" : "border-gray-800",
-            (filter !== 'saved') && "opacity-100"
+            "relative z-20 w-full p-4 flex flex-col gap-3 cursor-pointer select-none rounded-[inherit] transition-colors border-transparent",
+            filter === 'saved' && "shadow-[0_0_15px_rgba(234,179,8,0.15)]",
+            filter === 'reddit' && "shadow-[0_0_15px_rgba(168,85,247,0.15)]"
           )}
         >
-          {/* Glow spots */}
-          {filter === 'saved' ? (
-            <div className="absolute -top-10 -left-10 w-32 h-32 bg-yellow-500/30 rounded-full blur-[80px]" />
-          ) : filter === 'reddit' ? (
-            <div className="absolute -top-10 -left-10 w-32 h-32 bg-purple-500/30 rounded-full blur-[80px]" />
-          ) : (
-             <div className="absolute -top-10 -left-10 w-32 h-32 bg-gray-500/30 rounded-full blur-[80px]" />
-          )}
+          {/* Light Source */}
+          <div className="absolute inset-0 z-0 rounded-[inherit] overflow-hidden pointer-events-none">
+            {filter === 'saved' || isSavedSection ? (
+              <div className="absolute -top-10 -left-10 w-48 h-48 bg-yellow-500/60 rounded-full blur-3xl" />
+            ) : (
+              <div className="absolute -top-10 -left-10 w-48 h-48 bg-purple-500/60 rounded-full blur-3xl" />
+            )}
+          </div>
 
           {/* Glass Surface */}
-          <div className="absolute inset-0 z-0 bg-white/[0.08] backdrop-blur-xl border border-white/[0.15] rounded-[inherit]" />
+          <div className="absolute inset-0 z-0 bg-white/[0.08] backdrop-blur-xl border border-white/[0.15] rounded-[inherit] pointer-events-none" />
 
         <div className="relative z-10 flex flex-col gap-2">
           {/* Image at the top */}
