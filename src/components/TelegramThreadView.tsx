@@ -90,11 +90,11 @@ export const TelegramThreadView = memo(({ channel, messages, onClose, onRefresh,
       />
       <motion.article 
         key={`modal-${channel.id}`}
-        layout
-        layoutId={`telegram-${channel.id}`}
+        initial={{ y: '100%' }}
+        animate={{ y: 0 }}
         exit={{ y: '100%', opacity: 0 }}
         transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-        className="fixed bottom-0 left-0 right-0 z-50 h-[92vh] overflow-hidden flex flex-col transition-colors break-words font-sans bg-[#0A0A10] sm:bg-[#0A0A10]/95 sm:backdrop-blur-xl rounded-t-[2.5rem] border-t border-white/10 shadow-[0_-10px_40px_rgba(0,0,0,0.5)] isolate"
+        className="fixed bottom-0 left-0 right-0 z-50 h-[92vh] overflow-hidden flex flex-col transition-colors break-words font-sans bg-emerald-950/80 backdrop-blur-2xl rounded-t-[2.5rem] border-t border-white/10 shadow-[0_-10px_40px_rgba(0,0,0,0.5)] isolate"
         drag="y"
         dragControls={controls}
         dragListener={false}
@@ -122,8 +122,8 @@ export const TelegramThreadView = memo(({ channel, messages, onClose, onRefresh,
           text-decoration: underline;
         }
       `}} />
-        <header className="sticky top-0 z-20 px-4 py-6 mt-4 flex items-center bg-gradient-to-b from-[#0A0A10]/90 to-[#0A0A10]/0 pointer-events-none">
-          <button onClick={onClose} className="w-10 h-10 flex items-center justify-center rounded-full bg-white/10 border border-white/20 active:bg-white/20 text-white pointer-events-auto backdrop-blur-md transition-colors">
+        <header className="sticky top-0 z-20 px-4 py-6 mt-4 flex items-center bg-gradient-to-b from-transparent to-transparent pointer-events-none">
+          <button onClick={onClose} className="w-10 h-10 shrink-0 flex items-center justify-center rounded-full bg-white/10 border border-white/20 active:bg-white/20 text-white pointer-events-auto backdrop-blur-md transition-colors">
             <ArrowLeft className="w-6 h-6" />
           </button>
           <div className="flex items-center ml-4 gap-3 pointer-events-auto backdrop-blur-md px-4 py-2 rounded-full border border-white/10 bg-white/5 shadow-xl min-w-0">
@@ -176,7 +176,7 @@ export const TelegramThreadView = memo(({ channel, messages, onClose, onRefresh,
             const isNew = message.date > (channel.lastOpened || 0);
             return (
               <div key={`${message.channelId}-${message.id}`} className={cn(
-                "mb-4 p-5 rounded-[2rem] relative transition-all shadow-lg select-none bg-[#161622] border-2 border-green-500/30"
+                "mb-4 p-5 rounded-[2rem] relative transition-all shadow-lg select-none bg-green-900/40 backdrop-blur-md border border-green-500/20"
               )}>
                 {isNew && (
                   <span className="absolute top-2 right-2 z-30 px-2 py-0.5 bg-green-500 text-[9px] font-black text-black rounded-full shadow-[0_0_10px_rgba(34,197,94,0.6)] border border-green-400 uppercase tracking-widest">

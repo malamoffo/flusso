@@ -332,7 +332,7 @@ export const RadioView = memo(({ isActive, searchQuery }: RadioViewProps) => {
   return (
     <motion.main
       className={cn(
-        "absolute inset-0 overflow-y-auto transition-opacity duration-300 will-change-transform pb-32 bg-transparent",
+        "absolute inset-0 overflow-y-auto transition-opacity duration-300 will-change-transform pb-32 bg-red-950/20 backdrop-blur-xl",
         isActive ? "z-10 opacity-100 pointer-events-auto" : "z-0 opacity-0 pointer-events-none"
       )}
       initial={false}
@@ -360,8 +360,8 @@ export const RadioView = memo(({ isActive, searchQuery }: RadioViewProps) => {
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.95 }}
                   className={cn(
-                    "relative overflow-hidden rounded-2xl bg-gray-900/40 backdrop-blur-md border",
-                    isCurrent ? "border-red-500/50 shadow-lg shadow-red-500/10" : "border-white/5",
+                    "relative overflow-hidden rounded-2xl bg-red-900/20 backdrop-blur-xl border",
+                    isCurrent ? "border-red-500/50 shadow-lg shadow-red-500/10" : "border-white/10",
                     "cursor-pointer"
                   )}
                   onClick={() => playStation(station)}

@@ -368,6 +368,17 @@ export default function App() {
     markAsRead(id);
   }, [markAsRead, filter, inboxUnreadOnly]);
 
+  const toggleReadWithPersistence = useCallback((id: string) => {
+    if (filter === 'inbox' && inboxUnreadOnly) {
+      setTemporarilyVisibleUnreadIds(prev => {
+        const next = new Set(prev);
+        next.add(id);
+        return next;
+      });
+    }
+    toggleRead(id);
+  }, [toggleRead, filter, inboxUnreadOnly]);
+
   const markArticlesAsReadWithPersistence = useCallback((ids: string[]) => {
     if (filter === 'inbox' && inboxUnreadOnly) {
       setTemporarilyVisibleUnreadIds(prev => {
@@ -628,15 +639,30 @@ export default function App() {
       case 'saved': return ['bg-yellow-600/20', 'bg-amber-600/15'];
       case 'reddit': return ['bg-purple-700/20', 'bg-fuchsia-600/15'];
       case 'telegram': return ['bg-green-600/20', 'bg-emerald-600/15'];
+      case 'radio': return ['bg-red-600/20', 'bg-orange-600/15'];
       case 'inbox':
       default: return ['bg-blue-600/20', 'bg-indigo-600/15'];
     }
   };
   const [blob1, blob2] = getBlobColors();
 
+  const getSectionBg = () => {
+    switch (filter) {
+      case 'saved': return 'bg-[#0F0E0A]';
+      case 'reddit': return 'bg-[#0D0A12]';
+      case 'telegram': return 'bg-[#09100D]';
+      case 'radio': return 'bg-[#120909]';
+      case 'inbox':
+      default: return 'bg-[#090B12]';
+    }
+  };
+
   return (
     <div 
-      className="h-[100dvh] overflow-hidden flex flex-col transition-colors bg-[#0A0A10] font-sans relative"
+      className={cn(
+        "h-[100dvh] overflow-hidden flex flex-col transition-colors duration-500 font-sans relative",
+        getSectionBg()
+      )}
       style={{ 
         '--theme-color': settings.themeColor,
         '--theme-color-rgb': themeColorRgb
@@ -660,7 +686,7 @@ export default function App() {
         </motion.div>
       )}
 
-      <div className={cn("relative z-10 sticky top-0 transition-all duration-300", headerScrolled ? "bg-[#0A0A10]/60 backdrop-blur-xl border-b border-white/10 shadow-lg py-1" : "bg-transparent py-3")}>
+      <div className={cn("relative z-10 sticky top-0 transition-all duration-300", headerScrolled ? "bg-black/20 backdrop-blur-2xl border-b border-white/5 shadow-lg py-1" : "bg-transparent py-3")}>
         <header className="px-4 flex items-center justify-between">
            <motion.button 
             whileTap={{ scale: 0.95 }}
@@ -771,7 +797,7 @@ export default function App() {
         )}
 
         {isSearchOpen && (
-          <div className="px-4 py-3 border-t border-gray-100 dark:border-gray-800 flex flex-col gap-3">
+          <div className="px-4 py-3 border-t border-white/5 bg-white/5 backdrop-blur-2xl flex flex-col gap-3">
             <div className="flex items-center gap-2">
               <Search className="w-5 h-5 text-gray-400" aria-hidden="true" />
               <input
@@ -803,7 +829,7 @@ export default function App() {
                       <select
                         value={sourceFilter}
                         onChange={(e) => setSourceFilter(e.target.value)}
-                        className="appearance-none text-xs bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-full pl-3 pr-8 py-1.5 border-none focus:ring-0 outline-none whitespace-nowrap"
+                        className="appearance-none text-xs bg-white/10 text-gray-700 dark:text-gray-300 rounded-full pl-3 pr-8 py-1.5 border-none focus:ring-0 outline-none whitespace-nowrap"
                       >
                         <option value="all">All Sources</option>
                         {sortedFeeds.filter(f => {
@@ -821,7 +847,7 @@ export default function App() {
                       <select
                         value={timeFilter}
                         onChange={(e) => setTimeFilter(e.target.value)}
-                        className="appearance-none text-xs bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-full pl-3 pr-8 py-1.5 border-none focus:ring-0 outline-none whitespace-nowrap"
+                        className="appearance-none text-xs bg-white/10 text-gray-700 dark:text-gray-300 rounded-full pl-3 pr-8 py-1.5 border-none focus:ring-0 outline-none whitespace-nowrap"
                       >
                         <option value="all">Any Time</option>
                         <option value="today">Past 24 Hours</option>
@@ -872,8 +898,8 @@ export default function App() {
               feedsMap={feedsMap}
               settings={settings}
               handleArticleClick={handleArticleClick}
-              markAsRead={markAsRead}
-              toggleRead={toggleRead}
+              markAsRead={markAsReadWithPersistence}
+              toggleRead={toggleReadWithPersistence}
               toggleFavorite={toggleFavorite}
               handleRemoveArticle={handleRemoveArticle}
               onVisibilityChange={filter === 'inbox' ? handleVisibilityChange : undefined}
@@ -911,8 +937,8 @@ export default function App() {
                     feedImageUrl={feedsMap.get((item as any).feedId)?.imageUrl}
                     settings={settings}
                     onClick={handleArticleClick}
-                    onMarkAsRead={markAsRead}
-                    toggleRead={toggleRead}
+                    onMarkAsRead={markAsReadWithPersistence}
+                    toggleRead={toggleReadWithPersistence}
                     toggleFavorite={toggleFavorite}
                     onRemove={handleRemoveArticle}
                     isSavedSection={true}
@@ -974,7 +1000,7 @@ export default function App() {
         <ImageViewer imageUrl={selectedImage} onClose={() => setSelectedImage(null)} />
       )}
       
-      <div className="fixed bottom-0 left-0 right-0 border-t border-white/10 flex justify-around pt-3 pb-5 px-3 z-20 transition-colors bg-[#0A0A10]/60 backdrop-blur-xl">
+      <div className="fixed bottom-0 left-0 right-0 border-t border-white/5 flex justify-around pt-3 pb-5 px-3 z-20 transition-colors bg-black/40 backdrop-blur-2xl">
         <motion.button
           whileTap={{ scale: 0.9 }}
           onClick={() => handleFilterChange('saved')}
@@ -1101,7 +1127,12 @@ export default function App() {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="w-full max-w-sm p-6 rounded-3xl bg-[#0A0A10]/80 backdrop-blur-3xl border border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.25)]"
+              className={cn(
+                "w-full max-w-sm p-6 rounded-3xl backdrop-blur-3xl border border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.25)]",
+                filter === 'reddit' ? "bg-purple-950/60" : 
+                filter === 'telegram' ? "bg-emerald-950/60" : 
+                "bg-indigo-950/60"
+              )}
             >
               <h3 className="text-lg font-bold mb-2 text-gray-100">Mark all as read?</h3>
               <p className="text-gray-400 mb-6">This will mark all articles in the current view as read.</p>

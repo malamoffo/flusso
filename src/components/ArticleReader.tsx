@@ -375,11 +375,17 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
       />
       <motion.article 
         key={`modal-${article.id}`}
-        layout
-        layoutId={`article-${article.id}-${sourceFilter}`}
+        initial={{ y: '100%' }}
+        animate={{ y: 0 }}
         exit={{ y: '100%', opacity: 0 }}
         transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-        className="fixed bottom-0 left-0 right-0 z-50 h-[92vh] overflow-hidden flex flex-col transition-colors break-words font-sans bg-[#0A0A10] sm:bg-[#0A0A10]/95 sm:backdrop-blur-xl rounded-t-[2.5rem] border-t border-white/10 shadow-[0_-10px_40px_rgba(0,0,0,0.5)] isolate"
+        className={cn(
+          "fixed bottom-0 left-0 right-0 z-50 h-[92vh] overflow-hidden flex flex-col transition-colors break-words font-sans rounded-t-[2.5rem] border-t border-white/10 shadow-[0_-10px_40px_rgba(0,0,0,0.5)] isolate backdrop-blur-2xl",
+          sourceFilter === 'reddit' ? "bg-purple-950/80" : 
+          sourceFilter === 'telegram' ? "bg-emerald-950/80" : 
+          sourceFilter === 'saved' ? "bg-amber-950/80" : 
+          "bg-indigo-950/80"
+        )}
         drag="y"
         dragControls={controls}
         dragListener={false}
@@ -399,11 +405,11 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
         </div>
         
         {/* Top App Bar */}
-        <div className="sticky top-0 z-20 px-4 py-6 mt-4 flex items-center justify-between bg-gradient-to-b from-[#0A0A10]/90 to-[#0A0A10]/0 pointer-events-none">
+        <div className="sticky top-0 z-20 px-4 py-6 mt-4 flex items-center justify-between bg-gradient-to-b from-transparent to-transparent pointer-events-none">
           <motion.button
             whileTap={{ scale: 0.9 }}
             onClick={onClose}
-            className="w-10 h-10 flex items-center justify-center rounded-full bg-white/10 border border-white/20 active:bg-white/20 text-white pointer-events-auto backdrop-blur-md"
+            className="w-10 h-10 shrink-0 flex items-center justify-center rounded-full bg-white/10 border border-white/20 active:bg-white/20 text-white pointer-events-auto backdrop-blur-md"
             aria-label="Close article"
           >
             <ArrowLeft className="w-5 h-5 text-gray-200" aria-hidden="true" />
@@ -432,7 +438,7 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
 
         {/* Article Content with Glass Container */}
         <div className="relative z-10 flex-1 px-2 sm:px-4 max-w-5xl mx-auto w-full pb-20 overflow-y-auto overscroll-contain">
-        <div className="bg-[#12121A] sm:bg-white/[0.03] sm:backdrop-blur-3xl border border-white/10 rounded-[2.5rem] overflow-hidden shadow-2xl mb-24">
+        <div className="bg-white/5 sm:bg-white/5 backdrop-blur-3xl border border-white/10 rounded-[2.5rem] overflow-hidden shadow-2xl mb-24">
           {readerImageUrl && (
             <div className="relative group overflow-hidden bg-black/40">
               <CachedImage 

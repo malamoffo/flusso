@@ -337,7 +337,6 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
         </div>
 
         <motion.article
-          layoutId={`article-${article.id}-${filter}`}
           animate={controls}
           style={{ 
             x

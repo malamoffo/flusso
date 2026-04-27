@@ -134,10 +134,11 @@ export const RedditPostReader = ({ post, onClose, onNext, onPrev, hasNext, hasPr
       />
       <motion.article 
         key={`modal-${post.id}`}
-        layoutId={`reddit-${post.id}-${sourceFilter}`}
+        initial={{ y: '100%' }}
+        animate={{ y: 0 }}
         exit={{ y: '100%', opacity: 0 }}
         transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-        className="fixed bottom-0 left-0 right-0 z-50 h-[92vh] overflow-hidden flex flex-col transition-colors break-words font-sans bg-[#0A0A10] sm:bg-[#0A0A10]/95 sm:backdrop-blur-xl rounded-t-[2.5rem] border-t border-white/10 shadow-[0_-10px_40px_rgba(0,0,0,0.5)] will-change-transform isolate"
+        className="fixed bottom-0 left-0 right-0 z-50 h-[92vh] overflow-hidden flex flex-col transition-colors break-words font-sans bg-purple-950/80 backdrop-blur-2xl rounded-t-[2.5rem] border-t border-white/10 shadow-[0_-10px_40px_rgba(0,0,0,0.5)] will-change-transform isolate"
         drag="y"
         dragControls={controls}
         dragListener={false}
@@ -156,8 +157,8 @@ export const RedditPostReader = ({ post, onClose, onNext, onPrev, hasNext, hasPr
           <div className="w-12 h-1.5 bg-white/20 rounded-full" />
         </div>
         
-        <header className="sticky top-0 z-20 px-4 py-6 mt-4 flex items-center justify-between bg-gradient-to-b from-[#0A0A10]/90 to-[#0A0A10]/0 pointer-events-none">
-          <button onClick={onClose} className="w-10 h-10 flex items-center justify-center rounded-full bg-white/10 border border-white/20 active:bg-white/20 text-white pointer-events-auto backdrop-blur-md transition-colors">
+        <header className="sticky top-0 z-20 px-4 py-6 mt-4 flex items-center justify-between bg-gradient-to-b from-transparent to-transparent pointer-events-none">
+          <button onClick={onClose} className="w-10 h-10 shrink-0 flex items-center justify-center rounded-full bg-white/10 border border-white/20 active:bg-white/20 text-white pointer-events-auto backdrop-blur-md transition-colors">
             <ArrowLeft className="w-6 h-6" />
           </button>
           <div className="flex items-center gap-2 pointer-events-auto">

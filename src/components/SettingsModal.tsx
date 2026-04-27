@@ -169,9 +169,9 @@ export const SettingsModal = React.memo(function SettingsModal({
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className="fixed bottom-0 left-0 right-0 rounded-t-[28px] z-50 px-6 pb-8 pt-0 max-h-[90vh] overflow-y-auto shadow-2xl transition-colors bg-black"
+            className="fixed bottom-0 left-0 right-0 rounded-t-[28px] z-50 px-6 pb-8 pt-0 max-h-[90vh] overflow-y-auto shadow-2xl transition-colors bg-gray-950/80 backdrop-blur-2xl"
           >
-            <div className="sticky top-0 pt-4 pb-4 z-20 border-b border-gray-800 mb-6 -mx-6 px-6 transition-colors bg-black">
+            <div className="sticky top-0 pt-4 pb-4 z-20 border-b border-white/5 mb-6 -mx-6 px-6 transition-colors bg-transparent">
               
               <div className="flex justify-between items-center">
                 <div className="flex items-center gap-3">
