@@ -90,10 +90,11 @@ export const TelegramThreadView = memo(({ channel, messages, onClose, onRefresh,
       />
       <motion.article 
         key={`modal-${channel.id}`}
+        layout
         layoutId={`telegram-${channel.id}`}
         exit={{ y: '100%', opacity: 0 }}
         transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-        className="fixed bottom-0 left-0 right-0 z-50 h-[92vh] overflow-hidden flex flex-col transition-colors break-words font-sans bg-[#0A0A10] sm:bg-[#0A0A10]/95 sm:backdrop-blur-xl rounded-t-[2.5rem] border-t border-white/10 shadow-[0_-10px_40px_rgba(0,0,0,0.5)] will-change-transform isolate"
+        className="fixed bottom-0 left-0 right-0 z-50 h-[92vh] overflow-hidden flex flex-col transition-colors break-words font-sans bg-[#0A0A10] sm:bg-[#0A0A10]/95 sm:backdrop-blur-xl rounded-t-[2.5rem] border-t border-white/10 shadow-[0_-10px_40px_rgba(0,0,0,0.5)] isolate"
         drag="y"
         dragControls={controls}
         dragListener={false}
@@ -125,16 +126,16 @@ export const TelegramThreadView = memo(({ channel, messages, onClose, onRefresh,
           <button onClick={onClose} className="w-10 h-10 flex items-center justify-center rounded-full bg-white/10 border border-white/20 active:bg-white/20 text-white pointer-events-auto backdrop-blur-md transition-colors">
             <ArrowLeft className="w-6 h-6" />
           </button>
-          <div className="flex items-center ml-4 gap-3 pointer-events-auto backdrop-blur-md px-4 py-2 rounded-full border border-white/10 bg-white/5 shadow-xl">
+          <div className="flex items-center ml-4 gap-3 pointer-events-auto backdrop-blur-md px-4 py-2 rounded-full border border-white/10 bg-white/5 shadow-xl min-w-0">
             {channel.imageUrl && (
               <img 
                 src={channel.imageUrl} 
                 alt="" 
-                className="w-6 h-6 rounded-full object-cover" 
+                className="w-6 h-6 rounded-full object-cover shrink-0" 
                 referrerPolicy="no-referrer"
               />
             )}
-            <h2 className="text-sm font-bold text-white tracking-wide">{channel.name}</h2>
+            <h2 className="text-sm font-bold text-white tracking-wide truncate">{channel.name}</h2>
           </div>
         </header>
 

@@ -358,7 +358,6 @@ export default function App() {
   }, [selectedArticle, selectedRedditPost, selectedTelegramChannel, isSettingsOpen, isSearchOpen, filter, sourceFilter, timeFilter, setSearchQuery, enforceTelegramRetention, enforceRedditRetention]);
 
   const markAsReadWithPersistence = useCallback((id: string) => {
-    markAsRead(id);
     if (filter === 'inbox' && inboxUnreadOnly) {
       setTemporarilyVisibleUnreadIds(prev => {
         const next = new Set(prev);
@@ -366,10 +365,10 @@ export default function App() {
         return next;
       });
     }
+    markAsRead(id);
   }, [markAsRead, filter, inboxUnreadOnly]);
 
   const markArticlesAsReadWithPersistence = useCallback((ids: string[]) => {
-    markArticlesAsRead(ids);
     if (filter === 'inbox' && inboxUnreadOnly) {
       setTemporarilyVisibleUnreadIds(prev => {
         const next = new Set(prev);
@@ -377,6 +376,7 @@ export default function App() {
         return next;
       });
     }
+    markArticlesAsRead(ids);
   }, [markArticlesAsRead, filter, inboxUnreadOnly]);
 
   const { inboxArticles, savedArticles } = useFeedFiltering({
@@ -646,8 +646,8 @@ export default function App() {
       onTouchEnd={handleTouchEnd}
     >
       <div className="fixed inset-0 z-[0] pointer-events-none overflow-hidden">
-        <div className={cn("absolute -top-[10%] -left-[20%] w-[120vw] h-[60vh] rounded-full blur-[100px] transition-colors duration-1000 opacity-60", blob1)} />
-        <div className={cn("absolute top-[50%] -right-[30%] w-[100vw] h-[70vh] rounded-full blur-[120px] transition-colors duration-1000 opacity-50", blob2)} />
+        <div className={cn("absolute -top-[10%] -left-[20%] w-[120vw] h-[60vh] rounded-full blur-[100px] opacity-60", blob1)} />
+        <div className={cn("absolute top-[50%] -right-[30%] w-[100vw] h-[70vh] rounded-full blur-[120px] opacity-50", blob2)} />
       </div>
       {filter !== 'reddit' && filter !== 'telegram' && (
         <motion.div 
