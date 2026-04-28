@@ -303,11 +303,11 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
       } as React.CSSProperties}
     >
       <div className={cn(
-        "relative w-full overflow-hidden rounded-3xl",
+        "relative w-full rounded-3xl",
         isInboxOrSaved ? "shadow-md" : ""
       )}>
         <motion.div 
-          className="absolute inset-0 z-0 backdrop-blur-xl border border-white/[0.15]"
+          className="absolute inset-0 z-0 backdrop-blur-xl border border-white/[0.15] rounded-3xl"
           style={{ backgroundColor: backgroundTransform, opacity: backgroundOpacity }}
         />
 
@@ -364,14 +364,19 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
             filter === 'inbox' && "shadow-[0_0_15px_rgba(59,130,246,0.15)]"
           )}
         >
+          {!isReadForDisplay && filter !== 'saved' && (
+            <span className="absolute -top-2 right-4 z-30 px-2 py-0.5 bg-blue-600 text-[9px] font-black text-white rounded-full shadow-[0_0_10px_rgba(59,130,246,0.6)] border border-blue-400 uppercase tracking-widest">
+              NEW
+            </span>
+          )}
           <div className="relative z-10 flex flex-col gap-2">
             {hasImage ? (
-              <div className="relative overflow-hidden flex-shrink-0 w-full aspect-[2/1] rounded-2xl bg-gray-800/50">
+              <div className="relative overflow-hidden flex-shrink-0 w-full rounded-2xl bg-gray-800/50">
               <CachedImage 
                 key={`${article.id}-${article.imageUrl}`}
                 src={getSafeUrl(article.imageUrl || '')}
                 alt="" 
-                className="absolute inset-0 w-full h-full object-cover bg-gray-800 transition-opacity"
+                className="w-full h-auto max-h-[70vh] object-cover bg-gray-800 transition-opacity"
                 referrerPolicy="no-referrer"
               />
             </div>
@@ -411,9 +416,8 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
             <div className="min-w-0">
               <h3 
                 className={cn(
-                  "font-bold leading-tight transition-colors",
+                  "font-bold leading-tight transition-colors text-gray-100",
                   getTitleSize(),
-                  isReadForDisplay ? 'text-gray-500' : 'text-gray-100',
                   !isReadForDisplay && "group-hover:text-[var(--theme-color)]"
                 )}
                 dangerouslySetInnerHTML={{ __html: article.title }}

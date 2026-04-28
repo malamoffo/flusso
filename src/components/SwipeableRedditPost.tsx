@@ -155,19 +155,13 @@ export const SwipeableRedditPost = React.memo(function SwipeableRedditPost({
       )}
     >
       <div className={cn(
-        "relative w-full rounded-3xl overflow-hidden",
+        "relative w-full rounded-3xl",
         (filter === 'saved' || filter === 'reddit') ? "shadow-md" : ""
       )}>
         <motion.div 
-          className="absolute inset-0 z-0 backdrop-blur-xl border border-white/[0.15]"
+          className="absolute inset-0 z-0 backdrop-blur-xl border border-white/[0.15] rounded-3xl"
           style={{ backgroundColor: backgroundTransform, opacity: backgroundOpacity }}
         />
-
-        {!post.isRead && (
-          <span className="absolute top-2 right-2 z-30 px-2 py-0.5 bg-purple-600 text-[9px] font-black text-white rounded-full shadow-[0_0_10px_rgba(168,85,247,0.6)] border border-purple-400 uppercase tracking-widest">
-            NEW
-          </span>
-        )}
 
         <div className="absolute inset-0 flex items-center justify-between px-6 z-10 pointer-events-none">
           <motion.div style={{ opacity: leftIconOpacity, scale: leftIconScale }} className="flex items-center text-white font-medium">
@@ -206,6 +200,11 @@ export const SwipeableRedditPost = React.memo(function SwipeableRedditPost({
             filter === 'reddit' && "shadow-[0_0_15px_rgba(168,85,247,0.15)]"
           )}
         >
+          {!post.isRead && (
+            <span className="absolute -top-2 right-4 z-30 px-2 py-0.5 bg-purple-600 text-[9px] font-black text-white rounded-full shadow-[0_0_10px_rgba(168,85,247,0.6)] border border-purple-400 uppercase tracking-widest">
+              NEW
+            </span>
+          )}
         <div className="relative z-10 flex flex-col gap-2">
           {/* Image at the top */}
           {decodedImageUrl && (
@@ -213,7 +212,7 @@ export const SwipeableRedditPost = React.memo(function SwipeableRedditPost({
               src={getSafeUrl(decodedImageUrl)}
               alt="" 
               className={cn(
-                "rounded-lg flex-shrink-0 bg-gray-800/50 transition-opacity w-full object-cover mb-1 aspect-[16/9]"
+                "rounded-lg flex-shrink-0 bg-gray-800/50 transition-opacity w-full h-auto max-h-[70vh] object-cover mb-1"
               )}
               referrerPolicy="no-referrer"
               onClick={(e) => { e.stopPropagation(); onImageClick(decodedImageUrl); }}

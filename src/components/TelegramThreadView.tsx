@@ -179,7 +179,7 @@ export const TelegramThreadView = memo(({ channel, messages, onClose, onRefresh,
                 "mb-4 p-5 rounded-[2rem] relative transition-all shadow-lg select-none bg-green-900/40 backdrop-blur-md border border-green-500/20"
               )}>
                 {isNew && (
-                  <span className="absolute top-2 right-2 z-30 px-2 py-0.5 bg-green-500 text-[9px] font-black text-black rounded-full shadow-[0_0_10px_rgba(34,197,94,0.6)] border border-green-400 uppercase tracking-widest">
+                  <span className="absolute -top-2 right-6 z-30 px-2 py-0.5 bg-green-500 text-[9px] font-black text-black rounded-full shadow-[0_0_10px_rgba(34,197,94,0.6)] border border-green-400 uppercase tracking-widest">
                     NEW
                   </span>
                 )}
