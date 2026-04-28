@@ -26,6 +26,42 @@ async function startServer() {
     res.json({ status: "ok", time: new Date().toISOString() });
   });
 
+  // API routes
+  app.post("/api/gemini/context", async (req: Request, res: Response) => {
+    console.log("[API/GEMINI] Received context request:", { 
+      title: req.body.title, 
+      snippetLength: req.body.snippet?.length 
+    });
+    
+    try {
+      const { title, snippet } = req.body;
+      const apiKey = process.env.API_KEY || process.env.GEMINI_API_KEY;
+      
+      if (!apiKey) {
+        console.error("[API/GEMINI] API_KEY missing in environment variables");
+        return res.status(500).json({ error: "Gemini API key not configured (API_KEY missing)" });
+      }
+
+      const ai = new GoogleGenAI({ apiKey });
+      const prompt = `Non riassumere questo articolo. Piuttosto fornisci esclusivamente i fatti precedenti, i pregressi e il contesto storico o politico che hanno portato a questa notizia, per aiutarmi a capire meglio la vicenda. Quali sono gli antefatti? Mantieni la risposta concisa (max 4-6 brevi frasi), adatta al colpo d'occhio su smartphone. Non usare parole come "contesto", "in breve" o testo in grassetto.\n\nTitolo: ${title}\n\nSnippet/Contenuto: ${snippet}`;
+
+      const response = await ai.models.generateContent({
+        model: "gemini-3.1-flash-lite-preview",
+        contents: prompt,
+        config: {
+          tools: [{ googleSearch: {} }],
+        },
+      });
+
+      console.log("[API/GEMINI] Gemini response received successfully");
+      res.json({ text: response.text || "Nessun contesto disponibile." });
+    } catch (error) {
+      console.error("[API/GEMINI] Error details:", error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      res.status(500).json({ error: `Errore durante la generazione del contesto: ${errorMessage}` });
+    }
+  });
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({

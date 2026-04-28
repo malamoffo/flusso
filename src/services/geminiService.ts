@@ -1,27 +1,30 @@
-import { GoogleGenAI } from "@google/genai";
-
-// Initialize the API client. Prefer user-provided API_KEY, fallback to system GEMINI_API_KEY.
-// Note: In some environments/native apps, process.env might be shimmed or injected.
-const apiKey = process.env.API_KEY || process.env.GEMINI_API_KEY;
-const ai = new GoogleGenAI({ apiKey: apiKey! });
-
 export const generateArticleContext = async (articleTitle: string, articleSnippet: string): Promise<string> => {
   try {
-    if (!apiKey) {
-      throw new Error("Chiave API Gemini non configurata.");
-    }
-
-    const prompt = `Non riassumere questo articolo. Piuttosto fornisci esclusivamente i fatti precedenti, i pregressi e il contesto storico o politico che hanno portato a questa notizia, per aiutarmi a capire meglio la vicenda. Quali sono gli antefatti? Mantieni la risposta concisa (max 4-6 brevi frasi), adatta al colpo d'occhio su smartphone. Non usare parole come "contesto", "in breve" o testo in grassetto.\n\nTitolo: ${articleTitle}\n\nSnippet/Contenuto: ${articleSnippet}`;
-
-    const response = await ai.models.generateContent({
-      model: "gemini-3.1-flash-lite-preview",
-      contents: prompt,
-      config: {
-        tools: [{ googleSearch: {} }],
+    const response = await fetch("/api/gemini/context", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
       },
+      body: JSON.stringify({
+        title: articleTitle,
+        snippet: articleSnippet,
+      }),
     });
 
-    return response.text || "Nessun contesto disponibile.";
+    const contentType = response.headers.get("content-type");
+    if (!contentType || !contentType.includes("application/json")) {
+      const text = await response.text();
+      console.error("Non-JSON response received:", text.substring(0, 100));
+      throw new Error(`Risposta del server non valida (HTML invece di JSON). Stato: ${response.status}`);
+    }
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || "Errore nella chiamata API");
+    }
+
+    const data = await response.json();
+    return data.text || "Nessun contesto disponibile.";
   } catch (error) {
     console.error("Errore durante la chiamata a Gemini:", error);
     const errorMessage = error instanceof Error ? error.message : String(error);
