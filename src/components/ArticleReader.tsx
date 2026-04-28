@@ -407,7 +407,7 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
           <motion.button
             whileTap={{ scale: 0.9 }}
             onClick={onClose}
-            className="w-10 h-10 shrink-0 flex items-center justify-center rounded-full bg-white/10 border border-white/20 active:bg-white/20 text-white pointer-events-auto backdrop-blur-md"
+            className="w-10 h-10 shrink-0 flex items-center justify-center rounded-full bg-black border border-white/20 active:bg-white/20 text-white pointer-events-auto"
             aria-label="Close article"
           >
             <ArrowLeft className="w-5 h-5 text-gray-200" aria-hidden="true" />
