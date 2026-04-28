@@ -76,7 +76,7 @@ export const AddFeedModal = React.memo(function AddFeedModal({ isOpen, onClose, 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/60 z-[60] backdrop-blur-md"
+            className="fixed inset-0 bg-black z-[60]"
             onClick={onClose}
           />
           <motion.div 
@@ -84,7 +84,7 @@ export const AddFeedModal = React.memo(function AddFeedModal({ isOpen, onClose, 
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className="fixed bottom-0 left-0 right-0 rounded-t-[28px] z-[70] p-6 pb-8 border-t shadow-[0_-8px_30px_rgb(0,0,0,0.5)] border-white/10 dark:border-white/5 bg-white/5 dark:bg-black/20 backdrop-blur-xl"
+            className="fixed bottom-0 left-0 right-0 rounded-t-[28px] z-[70] p-6 pb-8 border-t shadow-[0_-8px_30px_rgb(0,0,0,0.5)] border-white/10 dark:border-white/5 bg-black"
           >
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-xl font-bold text-white">Add Item</h2>

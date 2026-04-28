@@ -374,7 +374,7 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-        className="fixed inset-0 bg-black/80 z-[40]"
+        className="fixed inset-0 bg-black z-[40]"
         onClick={onClose}
       />
       <motion.article 
@@ -383,13 +383,7 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
         animate={{ y: 0 }}
         exit={{ y: '100%', opacity: 0 }}
         transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-        className={cn(
-          "fixed bottom-0 left-0 right-0 z-50 h-[92vh] overflow-hidden flex flex-col transition-colors break-words font-sans rounded-t-[2.5rem] border-t border-white/10 shadow-[0_-10px_40px_rgba(0,0,0,0.5)] isolate backdrop-blur-2xl transform-gpu",
-          sourceFilter === 'reddit' ? "bg-[#251240]/95" : 
-          sourceFilter === 'telegram' ? "bg-[#0d251c]/95" : 
-          sourceFilter === 'saved' ? "bg-[#2a1b0a]/95" : 
-          "bg-[#11112a]/95"
-        )}
+        className="fixed bottom-0 left-0 right-0 z-50 h-[92vh] overflow-hidden flex flex-col transition-colors break-words font-sans rounded-t-[2.5rem] border-t border-white/10 shadow-[0_-10px_40px_rgba(0,0,0,0.5)] isolate transform-gpu bg-black"
         drag="y"
         dragControls={controls}
         dragListener={false}
@@ -423,7 +417,7 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
               whileTap={{ scale: 0.9 }}
               onClick={onPrev}
               disabled={!hasPrev}
-              className="w-10 h-10 flex items-center justify-center rounded-full bg-white/10 border border-white/20 active:bg-white/20 text-white backdrop-blur-md disabled:opacity-30 disabled:pointer-events-none"
+              className="w-10 h-10 flex items-center justify-center rounded-full bg-black border border-white/20 active:bg-white/20 text-white disabled:opacity-30 disabled:pointer-events-none"
               aria-label="Previous article"
             >
               <ChevronUp className="w-5 h-5 text-gray-200" aria-hidden="true" />
@@ -432,7 +426,7 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
               whileTap={{ scale: 0.9 }}
               onClick={onNext}
               disabled={!hasNext}
-              className="w-10 h-10 flex items-center justify-center rounded-full bg-white/10 border border-white/20 active:bg-white/20 text-white backdrop-blur-md disabled:opacity-30 disabled:pointer-events-none"
+              className="w-10 h-10 flex items-center justify-center rounded-full bg-black border border-white/20 active:bg-white/20 text-white disabled:opacity-30 disabled:pointer-events-none"
               aria-label="Next article"
             >
               <ChevronDown className="w-5 h-5 text-gray-200" aria-hidden="true" />
@@ -442,7 +436,7 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
 
         {/* Article Content with Glass Container */}
         <div className="relative z-10 flex-1 px-2 sm:px-4 max-w-5xl mx-auto w-full pb-20 overflow-y-auto overscroll-contain">
-        <div className="bg-white/5 sm:bg-white/5 backdrop-blur-3xl border border-white/10 rounded-[2.5rem] overflow-hidden shadow-2xl mb-24">
+        <div className="bg-black border border-white/10 rounded-[2.5rem] overflow-hidden shadow-2xl mb-24">
           {readerImageUrl && (
             <div className="relative group overflow-hidden bg-black/40">
               <CachedImage 
@@ -635,7 +629,7 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="fixed inset-0 bg-black/60 z-[70] backdrop-blur-sm"
+            className="fixed inset-0 bg-black z-[70]"
             onClick={() => setIsAiModalOpen(false)}
           />
           <motion.div 
@@ -644,13 +638,7 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
             animate={{ y: 0 }}
             exit={{ y: '100%', opacity: 0 }}
             transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-            className={cn(
-              "fixed bottom-0 left-0 right-0 z-[80] h-[85vh] overflow-hidden flex flex-col transition-colors break-words font-sans rounded-t-[2.5rem] border-t shadow-[0_-10px_40px_rgba(0,0,0,0.5)] isolate backdrop-blur-2xl transform-gpu border-blue-500/30",
-              sourceFilter === 'reddit' ? "bg-[#251240]/95" : 
-              sourceFilter === 'telegram' ? "bg-[#0d251c]/95" : 
-              sourceFilter === 'saved' ? "bg-[#2a1b0a]/95" : 
-              "bg-[#11112a]/95"
-            )}
+            className="fixed bottom-0 left-0 right-0 z-[80] h-[85vh] overflow-hidden flex flex-col transition-colors break-words font-sans rounded-t-[2.5rem] border-t shadow-[0_-10px_40px_rgba(0,0,0,0.5)] isolate transform-gpu border-blue-500/30 bg-black"
             drag="y"
             dragConstraints={{ top: 0, bottom: 0 }}
             dragElastic={{ top: 0.1, bottom: 0.8 }}
@@ -668,12 +656,12 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
               <motion.button
                 whileTap={{ scale: 0.9 }}
                 onClick={() => setIsAiModalOpen(false)}
-                className="w-10 h-10 shrink-0 flex items-center justify-center rounded-full bg-white/10 border border-white/20 active:bg-white/20 text-white pointer-events-auto backdrop-blur-md"
+                className="w-10 h-10 shrink-0 flex items-center justify-center rounded-full bg-black border border-white/20 active:bg-white/20 text-white pointer-events-auto"
                 aria-label="Back to article"
               >
                 <ArrowLeft className="w-5 h-5 text-gray-200" aria-hidden="true" />
               </motion.button>
-              <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-500/20 border border-blue-500/30 pointer-events-auto backdrop-blur-md text-blue-300">
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-900 border border-blue-500/30 pointer-events-auto text-blue-300">
                 <Sparkles className="w-4 h-4" />
                 <span className="text-xs font-bold tracking-widest uppercase">Contesto AI</span>
               </div>

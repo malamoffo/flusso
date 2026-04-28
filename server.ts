@@ -1,8 +1,9 @@
-import express, { Request, Response } from "express";
+import express, { Request, Response, NextFunction } from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
 import { fileURLToPath } from "url";
 import { GoogleGenAI } from "@google/genai";
+import cors from "cors";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -11,35 +12,18 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
+  app.use(cors());
   app.use(express.json());
 
-  // API routes
-  app.post("/api/gemini/context", async (req: Request, res: Response) => {
-    try {
-      const { title, snippet } = req.body;
-      const apiKey = process.env.API_KEY;
-      
-      if (!apiKey) {
-        return res.status(500).json({ error: "Gemini API key not configured" });
-      }
+  // Request logger
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    console.log(`[SERVER] ${req.method} ${req.url}`);
+    next();
+  });
 
-      const ai = new GoogleGenAI({ apiKey });
-      const prompt = `Non riassumere questo articolo. Piuttosto fornisci esclusivamente i fatti precedenti, i pregressi e il contesto storico o politico che hanno portato a questa notizia, per aiutarmi a capire meglio la vicenda. Quali sono gli antefatti? Mantieni la risposta concisa (max 4-6 brevi frasi), adatta al colpo d'occhio su smartphone. Non usare parole come "contesto", "in breve" o testo in grassetto.\n\nTitolo: ${title}\n\nSnippet/Contenuto: ${snippet}`;
-
-      const response = await ai.models.generateContent({
-        model: "gemini-3.1-flash-lite-preview",
-        contents: prompt,
-        config: {
-          tools: [{ googleSearch: {} }],
-        },
-      });
-
-      res.json({ text: response.text || "Nessun contesto disponibile." });
-    } catch (error) {
-      console.error("Gemini API Error:", error);
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      res.status(500).json({ error: `Errore durante la generazione del contesto: ${errorMessage}` });
-    }
+  // API Status
+  app.get("/api/health", (req: Request, res: Response) => {
+    res.json({ status: "ok", time: new Date().toISOString() });
   });
 
   // Vite middleware for development

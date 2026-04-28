@@ -15,12 +15,12 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({ imageUrl, onClose }) =
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4"
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black p-4"
         onClick={onClose}
       >
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 p-2 bg-black/50 rounded-full text-white hover:bg-black/70 transition-colors z-10"
+          className="absolute top-4 right-4 p-2 bg-black rounded-full text-white hover:bg-gray-800 transition-colors z-10"
         >
           <X className="w-6 h-6" />
         </button>

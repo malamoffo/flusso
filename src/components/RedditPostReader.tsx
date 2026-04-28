@@ -129,7 +129,7 @@ export const RedditPostReader = ({ post, onClose, onNext, onPrev, hasNext, hasPr
         key={`backdrop-${post.id}`}
         initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
         transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-        className="fixed inset-0 bg-black/80 z-[40]"
+        className="fixed inset-0 bg-black z-[40]"
         onClick={onClose}
       />
       <motion.article 
@@ -138,7 +138,7 @@ export const RedditPostReader = ({ post, onClose, onNext, onPrev, hasNext, hasPr
         animate={{ y: 0 }}
         exit={{ y: '100%', opacity: 0 }}
         transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-        className="fixed bottom-0 left-0 right-0 z-50 h-[92vh] overflow-hidden flex flex-col transition-colors break-words font-sans bg-[#251240]/95 backdrop-blur-2xl rounded-t-[2.5rem] border-t border-white/10 shadow-[0_-10px_40px_rgba(0,0,0,0.5)] transform-gpu isolate"
+        className="fixed bottom-0 left-0 right-0 z-50 h-[92vh] overflow-hidden flex flex-col transition-colors break-words font-sans bg-black rounded-t-[2.5rem] border-t border-white/10 shadow-[0_-10px_40px_rgba(0,0,0,0.5)] transform-gpu isolate"
         drag="y"
         dragControls={controls}
         dragListener={false}
@@ -158,21 +158,21 @@ export const RedditPostReader = ({ post, onClose, onNext, onPrev, hasNext, hasPr
         </div>
         
         <header className="sticky top-0 z-20 px-4 py-6 mt-4 flex items-center justify-between bg-gradient-to-b from-transparent to-transparent pointer-events-none">
-          <button onClick={onClose} className="w-10 h-10 shrink-0 flex items-center justify-center rounded-full bg-white/10 border border-white/20 active:bg-white/20 text-white pointer-events-auto backdrop-blur-md transition-colors">
+          <button onClick={onClose} className="w-10 h-10 shrink-0 flex items-center justify-center rounded-full bg-black border border-white/20 active:bg-white/20 text-white pointer-events-auto transition-colors">
             <ArrowLeft className="w-6 h-6" />
           </button>
           <div className="flex items-center gap-2 pointer-events-auto">
             <button
               onClick={onPrev}
               disabled={!hasPrev}
-              className="w-10 h-10 flex items-center justify-center rounded-full bg-white/10 border border-white/20 active:bg-white/20 text-white backdrop-blur-md transition-colors disabled:opacity-30"
+              className="w-10 h-10 flex items-center justify-center rounded-full bg-black border border-white/20 active:bg-white/20 text-white transition-colors disabled:opacity-30"
             >
               <ChevronUp className="w-6 h-6" />
             </button>
             <button
               onClick={onNext}
               disabled={!hasNext}
-              className="w-10 h-10 flex items-center justify-center rounded-full bg-white/10 border border-white/20 active:bg-white/20 text-white backdrop-blur-md transition-colors disabled:opacity-30"
+              className="w-10 h-10 flex items-center justify-center rounded-full bg-black border border-white/20 active:bg-white/20 text-white transition-colors disabled:opacity-30"
             >
               <ChevronDown className="w-6 h-6" />
             </button>
