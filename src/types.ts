@@ -47,7 +47,6 @@ export interface Article {
   readAt?: number;
   isFavorite: number; // 0 or 1
   type: 'article';
-  aiSummary?: string;
 }
 
 export interface RefreshLog {
