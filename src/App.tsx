@@ -636,33 +636,19 @@ export default function App() {
 
   const getBlobColors = () => {
     switch (filter) {
-      case 'saved': return ['bg-yellow-600/20', 'bg-amber-600/15'];
-      case 'reddit': return ['bg-purple-700/20', 'bg-fuchsia-600/15'];
-      case 'telegram': return ['bg-green-600/20', 'bg-emerald-600/15'];
-      case 'radio': return ['bg-red-600/20', 'bg-orange-600/15'];
+      case 'saved': return ['bg-yellow-500/60', 'bg-amber-500/50', 'bg-yellow-400/50', 'bg-orange-500/40'];
+      case 'reddit': return ['bg-purple-500/60', 'bg-fuchsia-500/50', 'bg-violet-500/50', 'bg-purple-400/40'];
+      case 'telegram': return ['bg-green-500/60', 'bg-emerald-500/50', 'bg-teal-500/50', 'bg-green-400/40'];
+      case 'radio': return ['bg-red-500/60', 'bg-orange-500/50', 'bg-rose-500/50', 'bg-red-400/40'];
       case 'inbox':
-      default: return ['bg-blue-600/20', 'bg-indigo-600/15'];
+      default: return ['bg-blue-500/60', 'bg-indigo-500/50', 'bg-sky-500/50', 'bg-blue-400/40'];
     }
   };
-  const [blob1, blob2] = getBlobColors();
-
-  const getSectionBg = () => {
-    switch (filter) {
-      case 'saved': return 'bg-[#0F0E0A]';
-      case 'reddit': return 'bg-[#0D0A12]';
-      case 'telegram': return 'bg-[#09100D]';
-      case 'radio': return 'bg-[#120909]';
-      case 'inbox':
-      default: return 'bg-[#090B12]';
-    }
-  };
+  const [blob1, blob2, blob3, blob4] = getBlobColors();
 
   return (
     <div 
-      className={cn(
-        "h-[100dvh] overflow-hidden flex flex-col transition-colors duration-500 font-sans relative",
-        getSectionBg()
-      )}
+      className="h-[100dvh] overflow-hidden flex flex-col transition-colors duration-500 font-sans relative bg-[#0A0A10]"
       style={{ 
         '--theme-color': settings.themeColor,
         '--theme-color-rgb': themeColorRgb
@@ -672,8 +658,10 @@ export default function App() {
       onTouchEnd={handleTouchEnd}
     >
       <div className="fixed inset-0 z-[0] pointer-events-none overflow-hidden">
-        <div className={cn("absolute -top-[10%] -left-[20%] w-[120vw] h-[60vh] rounded-full blur-[100px] opacity-60", blob1)} />
-        <div className={cn("absolute top-[50%] -right-[30%] w-[100vw] h-[70vh] rounded-full blur-[120px] opacity-50", blob2)} />
+        <div className={cn("absolute -top-[10%] -left-[10%] w-[70vw] h-[70vh] rounded-full blur-[80px] opacity-100 transition-colors duration-700 transform-gpu", blob1)} />
+        <div className={cn("absolute top-[20%] -right-[10%] w-[60vw] h-[60vh] rounded-full blur-[80px] opacity-100 transition-colors duration-700 delay-100 transform-gpu", blob2)} />
+        <div className={cn("absolute -bottom-[10%] left-[10%] w-[60vw] h-[60vh] rounded-full blur-[80px] opacity-90 transition-colors duration-700 delay-200 transform-gpu", blob3)} />
+        <div className={cn("absolute bottom-[10%] right-[20%] w-[70vw] h-[70vh] rounded-full blur-[80px] opacity-90 transition-colors duration-700 transform-gpu", blob4)} />
       </div>
       {filter !== 'reddit' && filter !== 'telegram' && (
         <motion.div 
@@ -686,7 +674,7 @@ export default function App() {
         </motion.div>
       )}
 
-      <div className={cn("relative z-10 sticky top-0 transition-all duration-300", headerScrolled ? "bg-black/20 backdrop-blur-2xl border-b border-white/5 shadow-lg py-1" : "bg-transparent py-3")}>
+      <div className={cn("relative z-10 sticky top-0 transition-all duration-300", headerScrolled ? "bg-white/5 dark:bg-black/20 backdrop-blur-xl border-b border-white/10 dark:border-white/5 shadow-lg py-1" : "bg-transparent py-3")}>
         <header className="px-4 flex items-center justify-between">
            <motion.button 
             whileTap={{ scale: 0.95 }}
@@ -797,7 +785,7 @@ export default function App() {
         )}
 
         {isSearchOpen && (
-          <div className="px-4 py-3 border-t border-white/5 bg-white/5 backdrop-blur-2xl flex flex-col gap-3">
+          <div className="px-4 py-3 border-t border-white/10 dark:border-white/5 bg-white/5 dark:bg-black/20 backdrop-blur-xl flex flex-col gap-3">
             <div className="flex items-center gap-2">
               <Search className="w-5 h-5 text-gray-400" aria-hidden="true" />
               <input
@@ -1000,7 +988,7 @@ export default function App() {
         <ImageViewer imageUrl={selectedImage} onClose={() => setSelectedImage(null)} />
       )}
       
-      <div className="fixed bottom-0 left-0 right-0 border-t border-white/5 flex justify-around pt-3 pb-5 px-3 z-20 transition-colors bg-black/40 backdrop-blur-2xl">
+      <div className="fixed bottom-0 left-0 right-0 border-t border-white/10 dark:border-white/5 flex justify-around pt-3 pb-5 px-3 z-20 transition-colors bg-white/5 dark:bg-black/20 backdrop-blur-xl">
         <motion.button
           whileTap={{ scale: 0.9 }}
           onClick={() => handleFilterChange('saved')}
@@ -1128,10 +1116,7 @@ export default function App() {
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
               className={cn(
-                "w-full max-w-sm p-6 rounded-3xl backdrop-blur-3xl border border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.25)]",
-                filter === 'reddit' ? "bg-purple-950/60" : 
-                filter === 'telegram' ? "bg-emerald-950/60" : 
-                "bg-indigo-950/60"
+                "w-full max-w-sm p-6 rounded-3xl backdrop-blur-xl border border-white/10 dark:border-white/5 bg-white/5 dark:bg-black/20 shadow-[0_8px_32px_rgba(0,0,0,0.25)] transform-gpu"
               )}
             >
               <h3 className="text-lg font-bold mb-2 text-gray-100">Mark all as read?</h3>

@@ -359,23 +359,11 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
           onClick={handleArticleClick}
           exit={{ x: exitX, opacity: 0, transition: { duration: 0.2, ease: "easeOut" } }}
           className={cn(
-            "relative z-20 w-full p-4 flex flex-col gap-3 cursor-pointer select-none rounded-[inherit] transition-colors border-transparent",
+            "relative z-20 w-full p-4 flex flex-col gap-3 cursor-pointer select-none rounded-[inherit] transition-colors border border-white/10 dark:border-white/5 bg-white/5 dark:bg-black/20 backdrop-blur-xl transform-gpu",
             filter === 'saved' && "shadow-[0_0_15px_rgba(234,179,8,0.15)]",
             filter === 'inbox' && "shadow-[0_0_15px_rgba(59,130,246,0.15)]"
           )}
         >
-          {/* Light Source */}
-          <div className="absolute inset-0 z-0 rounded-[inherit] overflow-hidden pointer-events-none">
-            {filter === 'saved' || isSavedSection ? (
-              <div className="absolute -top-10 -left-10 w-64 h-64 bg-yellow-500/60 rounded-full blur-[80px]" />
-            ) : (
-              <div className="absolute -top-10 -left-10 w-64 h-64 bg-blue-500/60 rounded-full blur-[80px]" />
-            )}
-          </div>
-
-          {/* Glass Surface */}
-          <div className="absolute inset-0 z-0 bg-white/[0.08] backdrop-blur-xl border border-white/[0.15] rounded-[inherit] pointer-events-none" />
-
           <div className="relative z-10 flex flex-col gap-2">
             {hasImage ? (
               <div className="relative overflow-hidden flex-shrink-0 w-full aspect-[2/1] rounded-2xl bg-gray-800/50">

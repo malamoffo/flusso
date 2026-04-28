@@ -84,7 +84,7 @@ export const AddFeedModal = React.memo(function AddFeedModal({ isOpen, onClose, 
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className="fixed bottom-0 left-0 right-0 rounded-t-3xl z-[70] p-6 pb-8 bg-gray-950/80 backdrop-blur-2xl border-t border-white/10 shadow-[0_-8px_30px_rgb(0,0,0,0.5)]"
+            className="fixed bottom-0 left-0 right-0 rounded-t-[28px] z-[70] p-6 pb-8 border-t shadow-[0_-8px_30px_rgb(0,0,0,0.5)] border-white/10 dark:border-white/5 bg-white/5 dark:bg-black/20 backdrop-blur-xl"
           >
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-xl font-bold text-white">Add Item</h2>
