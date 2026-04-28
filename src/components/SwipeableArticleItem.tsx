@@ -296,7 +296,7 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
       }} 
       className={cn(
         "relative w-full",
-        isInboxOrSaved && "px-1.25 py-2"
+        isInboxOrSaved && "px-1.25 py-0.5"
       )}
       style={{
         ...style
@@ -338,6 +338,7 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
 
         <motion.article
           animate={controls}
+          whileTap={{ scale: 0.98 }}
           style={{ 
             x
           }}

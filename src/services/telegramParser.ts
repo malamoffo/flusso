@@ -97,8 +97,16 @@ export const fetchTelegramMessages = async (channelUsername: string, sinceDate?:
       }
 
       if (!imageUrl) {
-        // Try background image directly on wrap or children
-        const bgEl = el.querySelector('[style*="background-image"]');
+        // Try background image directly on wrap or children, ignoring avatars and reactions
+        const bgEls = Array.from(el.querySelectorAll('[style*="background-image"]'));
+        const bgEl = bgEls.find(e => {
+          return !e.closest('.tgme_widget_message_user_pic') && 
+                 !e.closest('.tgme_widget_message_author') &&
+                 !e.closest('.tgme_widget_message_info') &&
+                 !e.closest('.tgme_widget_message_reaction') &&
+                 !e.closest('.tgme_widget_message_reply') &&
+                 !e.classList.contains('emoji');
+        });
         if (bgEl) {
           const style = bgEl.getAttribute('style');
           if (style) {

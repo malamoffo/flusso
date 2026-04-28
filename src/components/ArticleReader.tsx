@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { ArrowLeft, FileText, AlignLeft, X, Share2, Star, EyeOff, ChevronUp, ChevronDown, Calendar, User, ExternalLink, RefreshCw, Bookmark, List, FastForward } from 'lucide-react';
+import { ArrowLeft, FileText, AlignLeft, X, Share2, Star, EyeOff, ChevronUp, ChevronDown, Calendar, User, ExternalLink, RefreshCw, Bookmark, List, FastForward, Sparkles, Loader2 } from 'lucide-react';
 import { Article, FullArticleContent } from '../types';
 import { motion, AnimatePresence, useDragControls } from 'framer-motion';
 import { useRss } from '../context/RssContext';
@@ -16,6 +16,7 @@ import { Readability } from '@mozilla/readability';
 import { fetchWithProxy } from '../utils/proxy';
 import { contentFetcher } from '../utils/contentFetcher';
 import { extractBestImage } from '../services/rssParser';
+import { generateArticleContext } from '../services/geminiService';
 
 interface ArticleReaderProps {
   key?: React.Key;
@@ -36,7 +37,10 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
   const [articleThemeColor, setArticleThemeColor] = useState<string | null>(null);
   const [readerImageUrl, setReaderImageUrl] = useState<string | null>(article.imageUrl || null);
   const [isFavorite, setIsFavorite] = useState(article.isFavorite);
-  const { feeds, toggleFavorite, toggleRead } = useRss();
+  const [isAiModalOpen, setIsAiModalOpen] = useState(false);
+  const [aiContent, setAiContent] = useState<string | null>(article.aiSummary || null);
+  const [isAiLoading, setIsAiLoading] = useState(false);
+  const { feeds, toggleFavorite, toggleRead, updateArticle } = useRss();
   const { settings } = useSettings();
   const feed = feeds.find(f => f.id === article.feedId);
 
@@ -381,10 +385,10 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
         transition={{ type: 'spring', stiffness: 300, damping: 30 }}
         className={cn(
           "fixed bottom-0 left-0 right-0 z-50 h-[92vh] overflow-hidden flex flex-col transition-colors break-words font-sans rounded-t-[2.5rem] border-t border-white/10 shadow-[0_-10px_40px_rgba(0,0,0,0.5)] isolate backdrop-blur-2xl transform-gpu",
-          sourceFilter === 'reddit' ? "bg-purple-950/80" : 
-          sourceFilter === 'telegram' ? "bg-emerald-950/80" : 
-          sourceFilter === 'saved' ? "bg-amber-950/80" : 
-          "bg-indigo-950/80"
+          sourceFilter === 'reddit' ? "bg-[#251240]/95" : 
+          sourceFilter === 'telegram' ? "bg-[#0d251c]/95" : 
+          sourceFilter === 'saved' ? "bg-[#2a1b0a]/95" : 
+          "bg-[#11112a]/95"
         )}
         drag="y"
         dragControls={controls}
@@ -544,6 +548,33 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
                 >
                   <Star className={`w-5 h-5 ${isFavorite ? 'fill-current text-yellow-500' : ''}`} aria-hidden="true" />
                 </motion.button>
+                <motion.button
+                  whileTap={{ scale: 0.9 }}
+                  whileHover={{ scale: 1.1, color: '#fff' }}
+                  onClick={async () => {
+                    setIsAiModalOpen(true);
+                    if (!aiContent && !article.aiSummary) {
+                      try {
+                        setIsAiLoading(true);
+                        const snippet = article.contentSnippet || sanitizedContent || article.title;
+                        const summary = await generateArticleContext(article.title, snippet);
+                        setAiContent(summary);
+                        updateArticle(article.id, { aiSummary: summary });
+                      } catch (err) {
+                        console.error('Failed to generate AI context:', err);
+                        setAiContent('Non è stato possibile generare il contesto. Riprova più tardi.');
+                      } finally {
+                        setIsAiLoading(false);
+                      }
+                    } else if (article.aiSummary && !aiContent) {
+                      setAiContent(article.aiSummary);
+                    }
+                  }}
+                  className="transition-all duration-300 relative"
+                  aria-label="Ask AI for context"
+                >
+                  <Sparkles className="w-5 h-5 text-blue-400" aria-hidden="true" />
+                </motion.button>
               </div>
             </header>
 
@@ -594,6 +625,80 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
         </div>
       </div>
     </motion.article>
+
+    <AnimatePresence>
+      {isAiModalOpen && (
+        <>
+          <motion.div 
+            key={`ai-backdrop-${article.id}`}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 bg-black/60 z-[70] backdrop-blur-sm"
+            onClick={() => setIsAiModalOpen(false)}
+          />
+          <motion.div 
+            key={`ai-modal-${article.id}`}
+            initial={{ y: '100%' }}
+            animate={{ y: 0 }}
+            exit={{ y: '100%', opacity: 0 }}
+            transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+            className={cn(
+              "fixed bottom-0 left-0 right-0 z-[80] h-[85vh] overflow-hidden flex flex-col transition-colors break-words font-sans rounded-t-[2.5rem] border-t shadow-[0_-10px_40px_rgba(0,0,0,0.5)] isolate backdrop-blur-2xl transform-gpu border-blue-500/30",
+              sourceFilter === 'reddit' ? "bg-[#251240]/95" : 
+              sourceFilter === 'telegram' ? "bg-[#0d251c]/95" : 
+              sourceFilter === 'saved' ? "bg-[#2a1b0a]/95" : 
+              "bg-[#11112a]/95"
+            )}
+            drag="y"
+            dragConstraints={{ top: 0, bottom: 0 }}
+            dragElastic={{ top: 0.1, bottom: 0.8 }}
+            onDragEnd={(e, info) => {
+              if (info.offset.y > 100 || info.velocity.y > 500) {
+                setIsAiModalOpen(false);
+              }
+            }}
+          >
+            <div className="absolute top-0 left-0 right-0 h-10 z-[60] cursor-grab active:cursor-grabbing flex items-center justify-center pointer-events-auto touch-none">
+              <div className="w-12 h-1.5 bg-white/20 rounded-full" />
+            </div>
+            
+            <div className="sticky top-0 z-20 px-4 py-4 mt-2 flex items-center justify-between border-b border-white/5 pointer-events-none">
+              <motion.button
+                whileTap={{ scale: 0.9 }}
+                onClick={() => setIsAiModalOpen(false)}
+                className="w-10 h-10 shrink-0 flex items-center justify-center rounded-full bg-white/10 border border-white/20 active:bg-white/20 text-white pointer-events-auto backdrop-blur-md"
+                aria-label="Back to article"
+              >
+                <ArrowLeft className="w-5 h-5 text-gray-200" aria-hidden="true" />
+              </motion.button>
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-500/20 border border-blue-500/30 pointer-events-auto backdrop-blur-md text-blue-300">
+                <Sparkles className="w-4 h-4" />
+                <span className="text-xs font-bold tracking-widest uppercase">Contesto AI</span>
+              </div>
+            </div>
+
+            <div className="relative z-10 flex-1 px-4 sm:px-6 max-w-3xl mx-auto w-full pb-20 overflow-y-auto overscroll-contain">
+              <div className="mt-8">
+                {isAiLoading ? (
+                  <div className="flex flex-col items-center justify-center h-64 text-blue-400/80 space-y-4">
+                    <Loader2 className="w-10 h-10 animate-spin" />
+                    <p className="text-sm font-medium tracking-wide">Analisi del contesto in corso...</p>
+                  </div>
+                ) : (
+                  <div className={`text-sm leading-relaxed font-sans text-gray-200`}>
+                    {aiContent?.split('\n').map((paragraph, idx) => (
+                      paragraph ? <p className="mb-3" key={idx}>{paragraph}</p> : null
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </motion.div>
+        </>
+      )}
+    </AnimatePresence>
     </>
   );
 });

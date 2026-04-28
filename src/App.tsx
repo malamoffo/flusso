@@ -674,7 +674,7 @@ export default function App() {
         </motion.div>
       )}
 
-      <div className={cn("relative z-10 sticky top-0 transition-all duration-300", headerScrolled ? "bg-white/5 dark:bg-black/20 backdrop-blur-xl border-b border-white/10 dark:border-white/5 shadow-lg py-1" : "bg-transparent py-3")}>
+      <div className={cn("relative z-10 sticky top-0 transition-all duration-300", headerScrolled ? "bg-white/5 dark:bg-black/20 backdrop-blur-xl border-b border-white/10 dark:border-white/5 shadow-lg py-3" : "bg-transparent border-b border-transparent py-3")}>
         <header className="px-4 flex items-center justify-between">
            <motion.button 
             whileTap={{ scale: 0.95 }}
@@ -988,7 +988,7 @@ export default function App() {
         <ImageViewer imageUrl={selectedImage} onClose={() => setSelectedImage(null)} />
       )}
       
-      <div className="fixed bottom-0 left-0 right-0 border-t border-white/10 dark:border-white/5 flex justify-around pt-3 pb-5 px-3 z-20 transition-colors bg-white/5 dark:bg-black/20 backdrop-blur-xl">
+      <div className="fixed bottom-0 left-0 right-0 border-t border-white/10 dark:border-white/5 flex justify-around pt-2 pb-3 px-3 z-20 transition-colors bg-white/5 dark:bg-black/20 backdrop-blur-xl">
         <motion.button
           whileTap={{ scale: 0.9 }}
           onClick={() => handleFilterChange('saved')}

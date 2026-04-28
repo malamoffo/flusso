@@ -54,13 +54,14 @@ export const TelegramListView = memo(({ isActive, channels, onChannelClick, filt
           </p>
         </div>
       ) : (
-        <div className="flex-1 max-w-3xl mx-auto px-2 pt-0 pb-2 space-y-2">
+        <div className="flex-1 max-w-3xl mx-auto px-2 pt-0 pb-2 space-y-0">
           <AnimatePresence initial={false} mode="popLayout">
           {filteredChannels.map((channel, i) => (
             <motion.div 
               key={channel.id}
               initial={{ opacity: 0, y: 30, scale: 0.95 }}
               whileInView={{ opacity: 1, y: 0, scale: 1 }}
+              whileTap={{ scale: 0.98 }}
               viewport={{ once: true, margin: "50px" }}
               exit={{ 
                 opacity: 0, 

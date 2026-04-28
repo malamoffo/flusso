@@ -1,5 +1,6 @@
 import React, { memo, useEffect, useRef, useState } from 'react';
-import { motion, useDragControls } from 'framer-motion';
+import { motion, useDragControls, AnimatePresence } from 'framer-motion';
+import { useInView } from 'react-intersection-observer';
 import { TelegramChannel, TelegramMessage } from '../types';
 import { ArrowLeft, RefreshCw, MessageSquare } from 'lucide-react';
 import { format } from 'date-fns';
@@ -12,6 +13,48 @@ interface TelegramThreadViewProps {
   onRefresh?: () => void;
   onLoadMore?: () => Promise<void>;
 }
+
+const TelegramMessageItem = memo(({ message, isNewInitial }: { message: TelegramMessage, isNewInitial: boolean }) => {
+  const { ref, inView } = useInView({ threshold: 0.1, triggerOnce: true });
+  const [isNew, setIsNew] = useState(isNewInitial);
+
+  useEffect(() => {
+    if (inView && isNew) {
+      setIsNew(false);
+    }
+  }, [inView, isNew]);
+
+  return (
+    <div ref={ref} className={cn(
+      "mb-4 p-5 rounded-[2rem] relative transition-all shadow-lg select-none bg-green-900/40 backdrop-blur-md border border-green-500/20"
+    )}>
+      <AnimatePresence>
+        {isNew && (
+          <motion.span 
+            initial={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.5, transition: { duration: 0.3 } }}
+            className="absolute -top-2 right-6 z-30 px-2 py-0.5 bg-green-500 text-[9px] font-black text-black rounded-full shadow-[0_0_10px_rgba(34,197,94,0.6)] border border-green-400 uppercase tracking-widest"
+          >
+            NEW
+          </motion.span>
+        )}
+      </AnimatePresence>
+      <div 
+        className="text-gray-300 whitespace-pre-wrap break-words telegram-message-text"
+        dangerouslySetInnerHTML={{ __html: message.text }}
+      />
+      {message.imageUrl && (
+        <img 
+          src={message.imageUrl} 
+          alt="" 
+          className="mt-2 rounded-lg max-h-96 w-full object-cover" 
+          referrerPolicy="no-referrer"
+        />
+      )}
+      <p className="text-xs text-gray-500 mt-2">{format(message.date, 'HH:mm dd/MM/yy')}</p>
+    </div>
+  );
+});
 
 export const TelegramThreadView = memo(({ channel, messages, onClose, onRefresh, onLoadMore }: TelegramThreadViewProps) => {
   const controls = useDragControls();
@@ -94,7 +137,7 @@ export const TelegramThreadView = memo(({ channel, messages, onClose, onRefresh,
         animate={{ y: 0 }}
         exit={{ y: '100%', opacity: 0 }}
         transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-        className="fixed bottom-0 left-0 right-0 z-50 h-[92vh] overflow-hidden flex flex-col transition-colors break-words font-sans bg-emerald-950/80 backdrop-blur-2xl rounded-t-[2.5rem] border-t border-white/10 shadow-[0_-10px_40px_rgba(0,0,0,0.5)] transform-gpu isolate"
+        className="fixed bottom-0 left-0 right-0 z-50 h-[92vh] overflow-hidden flex flex-col transition-colors break-words font-sans bg-[#0d251c]/95 backdrop-blur-2xl rounded-t-[2.5rem] border-t border-white/10 shadow-[0_-10px_40px_rgba(0,0,0,0.5)] transform-gpu isolate"
         drag="y"
         dragControls={controls}
         dragListener={false}
@@ -175,28 +218,7 @@ export const TelegramThreadView = memo(({ channel, messages, onClose, onRefresh,
           Array.from(new Map(messages?.map(m => [m.id, m])).values()).map(message => {
             const isNew = message.date > (channel.lastOpened || 0);
             return (
-              <div key={`${message.channelId}-${message.id}`} className={cn(
-                "mb-4 p-5 rounded-[2rem] relative transition-all shadow-lg select-none bg-green-900/40 backdrop-blur-md border border-green-500/20"
-              )}>
-                {isNew && (
-                  <span className="absolute -top-2 right-6 z-30 px-2 py-0.5 bg-green-500 text-[9px] font-black text-black rounded-full shadow-[0_0_10px_rgba(34,197,94,0.6)] border border-green-400 uppercase tracking-widest">
-                    NEW
-                  </span>
-                )}
-                <div 
-                  className="text-gray-300 whitespace-pre-wrap break-words telegram-message-text"
-                  dangerouslySetInnerHTML={{ __html: message.text }}
-                />
-                {message.imageUrl && (
-                  <img 
-                    src={message.imageUrl} 
-                    alt="" 
-                    className="mt-2 rounded-lg max-h-96 w-full object-cover" 
-                    referrerPolicy="no-referrer"
-                  />
-                )}
-                <p className="text-xs text-gray-500 mt-2">{format(message.date, 'HH:mm dd/MM/yy')}</p>
-              </div>
+              <TelegramMessageItem key={`${message.channelId}-${message.id}`} message={message} isNewInitial={isNew} />
             );
           })
         )}
