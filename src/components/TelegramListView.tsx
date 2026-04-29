@@ -35,7 +35,7 @@ export const TelegramListView = memo(({ isActive, channels, onChannelClick, filt
   return (
     <motion.main
       className={cn(
-        "absolute inset-0 overflow-y-auto transition-opacity duration-300 transform-gpu will-change-scroll pb-32 bg-transparent",
+        "absolute inset-0 overflow-y-auto transition-opacity duration-300 transform-gpu will-change-scroll pb-32 pt-4 bg-transparent",
         isActive ? "z-10 opacity-100 pointer-events-auto" : "z-0 opacity-0 pointer-events-none"
       )}
       initial={false}
@@ -77,7 +77,7 @@ export const TelegramListView = memo(({ isActive, channels, onChannelClick, filt
               )}
             >
               {(channel.unreadCount || 0) > 0 && (
-                <div className="animated-border-mask z-30 pointer-events-none rounded-[inherit]">
+                <div className="animated-border-mask z-20 pointer-events-none rounded-[inherit]">
                   <div className="absolute top-1/2 left-1/2 w-[800px] h-[800px] -translate-x-1/2 -translate-y-1/2 animate-[spin_2.5s_linear_infinite] bg-[conic-gradient(from_0deg,transparent_0_270deg,#22c55e_360deg)]" />
                 </div>
               )}
