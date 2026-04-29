@@ -45,7 +45,7 @@ export const RedditListView = memo(({
       ref={scrollRef as any}
       onScroll={handleScroll}
       className={cn(
-        "absolute inset-0 overflow-y-auto transition-opacity duration-300 will-change-transform pb-32 bg-transparent",
+        "absolute inset-0 overflow-y-auto transition-opacity duration-300 transform-gpu will-change-scroll pb-32 bg-transparent",
         isActive ? "z-10 opacity-100 pointer-events-auto" : "z-0 opacity-0 pointer-events-none"
       )}
       initial={false}

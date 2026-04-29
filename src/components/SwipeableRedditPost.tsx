@@ -202,9 +202,14 @@ export const SwipeableRedditPost = React.memo(function SwipeableRedditPost({
           )}
         >
           {!post.isRead && (
-            <span className="absolute -top-2 right-4 z-30 px-2 py-0.5 bg-purple-600 text-[9px] font-black text-white rounded-full shadow-[0_0_10px_rgba(168,85,247,0.6)] border border-purple-400 uppercase tracking-widest">
-              NEW
-            </span>
+            <>
+              <span className="absolute -top-2 right-4 z-30 px-2 py-0.5 bg-purple-600 text-[9px] font-black text-white rounded-full shadow-[0_0_10px_rgba(168,85,247,0.6)] border border-purple-400 uppercase tracking-widest">
+                NEW
+              </span>
+              <div className="animated-border-mask z-30 pointer-events-none rounded-[inherit]">
+                <div className="absolute top-1/2 left-1/2 w-[800px] h-[800px] -translate-x-1/2 -translate-y-1/2 animate-[spin_2.5s_linear_infinite] bg-[conic-gradient(from_0deg,transparent_0_270deg,#a855f7_360deg)]" />
+              </div>
+            </>
           )}
         <div className="relative z-10 flex flex-col gap-2">
           {/* Image at the top */}

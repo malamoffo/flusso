@@ -185,7 +185,7 @@ export const TelegramThreadView = memo(({ channel, messages, onClose, onRefresh,
         <div 
           ref={scrollRef}
           onScroll={handleScroll}
-          className="flex-1 overflow-y-auto overscroll-contain px-4 pb-20 max-w-3xl mx-auto w-full"
+          className="flex-1 overflow-y-auto overscroll-contain px-4 pb-20 max-w-3xl mx-auto w-full transform-gpu will-change-scroll"
         >
         {isFetchingMore && (
           <div className="flex justify-center py-4">

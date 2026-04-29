@@ -877,7 +877,7 @@ export default function App() {
           ref={inboxScrollRef}
           onScroll={(e) => handleScroll(e, 'inbox')}
           className={cn(
-            "absolute inset-0 overflow-y-auto pb-24 scroll-smooth transition-opacity duration-300 will-change-transform",
+            "absolute inset-0 overflow-y-auto pb-24 scroll-smooth transition-opacity duration-300 transform-gpu will-change-scroll",
             filter === 'inbox' ? "z-10 opacity-100 pointer-events-auto" : "z-0 opacity-0 pointer-events-none"
           )}
         >
@@ -903,7 +903,7 @@ export default function App() {
           ref={savedScrollRef}
           onScroll={(e) => handleScroll(e, 'saved')}
           className={cn(
-            "absolute inset-0 overflow-y-auto pb-24 scroll-smooth transition-opacity duration-300 will-change-transform",
+            "absolute inset-0 overflow-y-auto pb-24 scroll-smooth transition-opacity duration-300 transform-gpu will-change-scroll",
             filter === 'saved' ? "z-10 opacity-100 pointer-events-auto" : "z-0 opacity-0 pointer-events-none"
           )}
         >

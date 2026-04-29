@@ -179,7 +179,7 @@ export const RedditPostReader = ({ post, onClose, onNext, onPrev, hasNext, hasPr
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto overscroll-contain p-4 max-w-3xl mx-auto w-full pb-20">
+        <div className="flex-1 overflow-y-auto overscroll-contain p-4 max-w-3xl mx-auto w-full pb-20 transform-gpu will-change-scroll">
         <div className="mb-6">
           <div className="flex items-center gap-2 mb-2">
             <span className="text-sm font-bold text-purple-400 shadow-[0_0_8px_rgba(168,85,247,0.4)]">r/{post.subredditName}</span>
