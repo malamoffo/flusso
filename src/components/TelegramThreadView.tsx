@@ -26,7 +26,7 @@ const TelegramMessageItem = memo(({ message, isNewInitial }: { message: Telegram
 
   return (
     <div ref={ref} className={cn(
-      "mb-4 p-5 rounded-[2rem] relative transition-all shadow-lg select-none bg-green-900/40 backdrop-blur-md border border-green-500/20"
+      "mb-4 p-5 rounded-[2rem] relative transition-all shadow-lg select-none bg-[#162a1e] border border-green-500/10"
     )}>
       <AnimatePresence>
         {isNew && (

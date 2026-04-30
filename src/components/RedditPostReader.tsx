@@ -24,7 +24,7 @@ const CommentNode: React.FC<{ comment: RedditComment }> = ({ comment }) => {
   return (
     <div className="mb-3 text-sm">
       <div 
-        className="flex items-center gap-2 mb-1 cursor-pointer hover:bg-gray-800 p-1 rounded"
+        className="flex items-center gap-2 mb-2 cursor-pointer hover:bg-gray-800 p-1 rounded transition-colors"
         onClick={() => setIsCollapsed(!isCollapsed)}
       >
         <span className="font-medium text-purple-400 text-xs">u/{comment.author}</span>
@@ -180,7 +180,7 @@ export const RedditPostReader = ({ post, onClose, onNext, onPrev, hasNext, hasPr
         </header>
 
         <div className="flex-1 overflow-y-auto overscroll-contain p-4 max-w-3xl mx-auto w-full pb-20 transform-gpu will-change-scroll">
-        <div className="mb-6">
+        <div className="mb-8 bg-[#1e162a] p-6 rounded-[2.5rem] border border-purple-500/10 shadow-xl">
           <div className="flex items-center gap-2 mb-2">
             <span className="text-sm font-bold text-purple-400 shadow-[0_0_8px_rgba(168,85,247,0.4)]">r/{post.subredditName}</span>
             <span className="text-xs text-gray-500">• u/{post.author}</span>

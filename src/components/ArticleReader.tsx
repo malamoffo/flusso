@@ -432,7 +432,7 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
 
         {/* Article Content with Glass Container */}
         <div className="relative z-10 flex-1 px-2 sm:px-4 max-w-5xl mx-auto w-full pb-20 overflow-y-auto overscroll-contain transform-gpu will-change-scroll">
-        <div className="bg-black border border-white/10 rounded-[2.5rem] overflow-hidden shadow-2xl mb-24">
+        <div className="bg-[#121e36] border border-blue-500/10 rounded-[2.5rem] overflow-hidden shadow-2xl mb-24">
           {readerImageUrl && (
             <div className="relative group overflow-hidden bg-black/40">
               <CachedImage 
