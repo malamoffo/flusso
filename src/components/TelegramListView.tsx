@@ -42,7 +42,7 @@ export const TelegramListView = memo(({ isActive, channels, onChannelClick, filt
     >
       {filteredChannels.length === 0 ? (
         <div className="flex flex-col items-center justify-center h-64 text-gray-500 px-6 text-center">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-16 h-16 mb-4 text-green-500/40 shadow-[0_0_20px_rgba(34,197,94,0.2)]">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-16 h-16 mb-4 text-green-500/40 drop-shadow-[0_0_10px_rgba(34,197,94,0.3)]">
             <path d="M21.5 2L2 11.5l6.5 2.5 2 6.5L14 17l5.5 4.5L21.5 2z"></path>
             <path d="M21.5 2L8.5 14"></path>
           </svg>
@@ -105,9 +105,6 @@ export const TelegramListView = memo(({ isActive, channels, onChannelClick, filt
                   </div>
                   <p className="text-sm text-gray-400 truncate">@{channel.username}</p>
                 </div>
-                {(channel.unreadCount || 0) > 0 && (
-                  <div className="w-3 h-3 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)] shrink-0" />
-                )}
               </div>
             </motion.div>
           ))}

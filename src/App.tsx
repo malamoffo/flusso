@@ -682,7 +682,7 @@ export default function App() {
             className="flex items-center gap-3 active:opacity-70 transition-opacity focus-visible:ring-2 focus-visible:ring-indigo-500 rounded-lg px-1 outline-none"
             aria-label="Scroll to top"
           >
-            <div className="w-10 h-10 rounded-2xl flex items-center justify-center shadow-inner relative transition-colors" style={{ backgroundColor: filter === 'radio' ? 'rgba(239, 68, 68, 0.1)' : filter === 'reddit' ? 'rgba(147, 51, 234, 0.1)' : filter === 'telegram' ? 'rgba(34, 197, 94, 0.1)' : filter === 'saved' ? 'rgba(234, 179, 8, 0.1)' : 'rgba(37, 99, 235, 0.1)' }}>
+            <div className="w-10 h-10 rounded-full flex items-center justify-center relative transition-colors" style={{ backgroundColor: filter === 'radio' ? 'rgba(239, 68, 68, 0.1)' : filter === 'reddit' ? 'rgba(147, 51, 234, 0.1)' : filter === 'telegram' ? 'rgba(34, 197, 94, 0.1)' : filter === 'saved' ? 'rgba(234, 179, 8, 0.1)' : 'rgba(37, 99, 235, 0.1)' }}>
               {filter === 'radio' ? (
                 <Radio className="w-6 h-6 transition-colors text-red-600 dark:text-red-400" />
               ) : (
@@ -992,11 +992,14 @@ export default function App() {
         <motion.button
           whileTap={{ scale: 0.9 }}
           onClick={() => handleFilterChange('saved')}
-          className={`${filter === 'saved' ? "text-yellow-500" : "text-gray-500"} relative`}
+          className={cn(
+            "relative p-2 rounded-full border-none outline-none",
+            filter === 'saved' ? "text-yellow-500" : "text-gray-500"
+          )}
           aria-label="Saved articles"
           aria-pressed={filter === 'saved'}
         >
-          <Star className={cn("w-6 h-6", filter === 'saved' && "shadow-[0_0_15px_rgba(234,179,8,0.5)]")} aria-hidden="true" />
+          <Star className={cn("w-6 h-6", filter === 'saved' && "drop-shadow-[0_0_8px_rgba(234,179,8,0.5)]")} aria-hidden="true" />
           {savedCount > 0 && (
             <span className="absolute -top-1 -right-1 bg-yellow-500 text-black text-[10px] font-bold px-1.5 py-0.5 rounded-full border-2 border-black">
               {savedCount > 99 ? '99+' : savedCount}
@@ -1006,11 +1009,14 @@ export default function App() {
         <motion.button
           whileTap={{ scale: 0.9 }}
           onClick={() => handleFilterChange('inbox')}
-          className={`${filter === 'inbox' ? "text-blue-500" : "text-gray-500"} relative`}
+          className={cn(
+            "relative p-2 rounded-full border-none outline-none",
+            filter === 'inbox' ? "text-blue-500" : "text-gray-500"
+          )}
           aria-label="Inbox"
           aria-pressed={filter === 'inbox'}
         >
-          <Inbox className={cn("w-6 h-6", filter === 'inbox' && "shadow-[0_0_15px_rgba(59,130,246,0.5)]")} aria-hidden="true" />
+          <Inbox className={cn("w-6 h-6", filter === 'inbox' && "drop-shadow-[0_0_8px_rgba(59,130,246,0.5)]")} aria-hidden="true" />
           {unreadCount > 0 && (
             <span className="absolute -top-1 -right-1 bg-blue-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full border-2 border-black">
               {unreadCount > 99 ? '99+' : unreadCount}
@@ -1020,11 +1026,14 @@ export default function App() {
         <motion.button
           whileTap={{ scale: 0.9 }}
           onClick={() => handleFilterChange('reddit')}
-          className={`${filter === 'reddit' ? "text-purple-500" : "text-gray-500"} relative`}
+          className={cn(
+            "relative p-2 rounded-full border-none outline-none",
+            filter === 'reddit' ? "text-purple-500" : "text-gray-500"
+          )}
           aria-label="Reddit"
           aria-pressed={filter === 'reddit'}
         >
-          <MessageSquare className={cn("w-6 h-6", filter === 'reddit' && "shadow-[0_0_15px_rgba(168,85,247,0.5)]")} aria-hidden="true" />
+          <MessageSquare className={cn("w-6 h-6", filter === 'reddit' && "drop-shadow-[0_0_8px_rgba(168,85,247,0.5)]")} aria-hidden="true" />
           {redditUnreadCount > 0 && (
             <span className="absolute -top-1 -right-1 bg-purple-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full border-2 border-black">
               {redditUnreadCount > 99 ? '99+' : redditUnreadCount}
@@ -1034,11 +1043,14 @@ export default function App() {
         <motion.button
           whileTap={{ scale: 0.9 }}
           onClick={() => handleFilterChange('telegram')}
-          className={`${filter === 'telegram' ? "text-green-500" : "text-gray-500"} relative`}
+          className={cn(
+            "relative p-2 rounded-full border-none outline-none",
+            filter === 'telegram' ? "text-green-500" : "text-gray-500"
+          )}
           aria-label="Telegram"
           aria-pressed={filter === 'telegram'}
         >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={cn("w-6 h-6", filter === 'telegram' && "shadow-[0_0_15px_rgba(34,197,94,0.5)]")} aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={cn("w-6 h-6", filter === 'telegram' && "drop-shadow-[0_0_8px_rgba(34,197,94,0.5)]")} aria-hidden="true">
             <path d="M21.5 2L2 11.5l6.5 2.5 2 6.5L14 17l5.5 4.5L21.5 2z"></path>
             <path d="M21.5 2L8.5 14"></path>
           </svg>

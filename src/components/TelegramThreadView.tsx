@@ -151,7 +151,7 @@ export const TelegramThreadView = memo(({ channel, messages, onClose, onRefresh,
       >
         <div 
           onPointerDown={(e) => controls.start(e)}
-          className="absolute top-0 left-0 right-0 h-12 z-[60] cursor-grab active:cursor-grabbing flex items-center justify-center pointer-events-auto touch-none"
+          className="absolute top-0 left-16 right-16 h-12 z-[60] cursor-grab active:cursor-grabbing flex items-center justify-center pointer-events-auto touch-none"
         >
           <div className="w-12 h-1.5 bg-white/20 rounded-full" />
         </div>
@@ -165,11 +165,17 @@ export const TelegramThreadView = memo(({ channel, messages, onClose, onRefresh,
           text-decoration: underline;
         }
       `}} />
-        <header className="sticky top-0 z-20 px-4 py-6 mt-4 flex items-center bg-gradient-to-b from-transparent to-transparent pointer-events-none">
-          <button onClick={onClose} className="w-10 h-10 shrink-0 flex items-center justify-center rounded-full bg-black border border-white/20 active:bg-white/20 text-white pointer-events-auto transition-colors">
+        <header className="sticky top-0 z-[70] px-4 py-4 flex items-center bg-black min-h-[4rem]">
+          <button 
+            onClick={(e) => {
+              e.stopPropagation();
+              onClose();
+            }} 
+            className="w-10 h-10 shrink-0 flex items-center justify-center rounded-full bg-black hover:bg-white/10 text-white transition-colors border-none outline-none relative z-[80]"
+          >
             <ArrowLeft className="w-6 h-6" />
           </button>
-          <div className="flex items-center ml-4 gap-3 pointer-events-auto px-4 py-2 rounded-full border border-white/10 bg-black shadow-xl min-w-0">
+          <div className="flex items-center ml-4 gap-3 px-4 py-2 rounded-full border border-white/10 bg-black shadow-xl min-w-0">
             {channel.imageUrl && (
               <img 
                 src={channel.imageUrl} 

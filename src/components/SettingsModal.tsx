@@ -551,11 +551,11 @@ export const SettingsModal = React.memo(function SettingsModal({
                                         <CachedImage 
                                           src={sub.iconUrl} 
                                           alt="" 
-                                          className="w-6 h-6 rounded-full flex-shrink-0 object-cover bg-gray-900 shadow-[0_0_8px_rgba(168,85,247,0.4)]"
+                                          className="w-6 h-6 rounded-full flex-shrink-0 object-cover bg-gray-900 drop-shadow-[0_0_5px_rgba(168,85,247,0.4)]"
                                           referrerPolicy="no-referrer"
                                         />
                                       ) : (
-                                        <div className="w-6 h-6 rounded-full flex-shrink-0 bg-purple-500/20 flex items-center justify-center shadow-[0_0_8px_rgba(168,85,247,0.4)]">
+                                        <div className="w-6 h-6 rounded-full flex-shrink-0 bg-purple-500/20 flex items-center justify-center drop-shadow-[0_0_5px_rgba(168,85,247,0.4)]">
                                           <MessageSquare className="w-3 h-3 text-purple-400" />
                                         </div>
                                       )}
@@ -587,7 +587,7 @@ export const SettingsModal = React.memo(function SettingsModal({
                                           <CachedImage 
                                             src={`https://icons.duckduckgo.com/ip3/${domain}.ico`} 
                                             alt="" 
-                                            className="w-6 h-6 rounded-full flex-shrink-0 object-cover bg-gray-900 shadow-[0_0_8px_rgba(168,85,247,0.4)]"
+                                            className="w-6 h-6 rounded-full flex-shrink-0 object-cover bg-gray-900 drop-shadow-[0_0_5px_rgba(168,85,247,0.4)]"
                                             referrerPolicy="no-referrer"
                                             onError={(e) => {
                                               const img = e.target as HTMLImageElement;
@@ -595,7 +595,7 @@ export const SettingsModal = React.memo(function SettingsModal({
                                             }}
                                           />
                                         ) : (
-                                          <div className="w-6 h-6 rounded-full flex-shrink-0 bg-purple-500/20 flex items-center justify-center shadow-[0_0_8px_rgba(168,85,247,0.4)]">
+                                          <div className="w-6 h-6 rounded-full flex-shrink-0 bg-purple-500/20 flex items-center justify-center drop-shadow-[0_0_5px_rgba(168,85,247,0.4)]">
                                             <MessageSquare className="w-3 h-3 text-purple-400" />
                                           </div>
                                         )}
@@ -670,11 +670,11 @@ export const SettingsModal = React.memo(function SettingsModal({
                                       <CachedImage 
                                         src={channel.imageUrl} 
                                         alt="" 
-                                        className="w-6 h-6 rounded-full flex-shrink-0 object-cover bg-gray-900 shadow-[0_0_8px_rgba(34,197,94,0.4)]"
+                                        className="w-6 h-6 rounded-full flex-shrink-0 object-cover bg-gray-900 drop-shadow-[0_0_5px_rgba(34,197,94,0.4)]"
                                         referrerPolicy="no-referrer"
                                       />
                                     ) : (
-                                      <div className="w-6 h-6 rounded-full flex-shrink-0 bg-green-500/20 flex items-center justify-center shadow-[0_0_8px_rgba(34,197,94,0.4)]">
+                                      <div className="w-6 h-6 rounded-full flex-shrink-0 bg-green-500/20 flex items-center justify-center drop-shadow-[0_0_5px_rgba(34,197,94,0.4)]">
                                         <span className="text-[10px] font-bold text-green-400">{channel.name[0]}</span>
                                       </div>
                                     )}

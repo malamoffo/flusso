@@ -22,9 +22,9 @@ const CommentNode: React.FC<{ comment: RedditComment }> = ({ comment }) => {
   const [isCollapsed, setIsCollapsed] = useState(false);
 
   return (
-    <div className="mb-3 text-sm">
+    <div className="mb-2 text-sm bg-black/40 p-3 rounded-xl border border-white/5">
       <div 
-        className="flex items-center gap-2 mb-2 cursor-pointer hover:bg-gray-800 p-1 rounded transition-colors"
+        className="flex items-center gap-2 mb-2 cursor-pointer hover:bg-neutral-800 p-1 rounded transition-colors"
         onClick={() => setIsCollapsed(!isCollapsed)}
       >
         <span className="font-medium text-purple-400 text-xs">u/{comment.author}</span>
@@ -35,11 +35,11 @@ const CommentNode: React.FC<{ comment: RedditComment }> = ({ comment }) => {
       {!isCollapsed && (
         <>
           <div 
-            className="text-gray-300 reddit-comment-body"
+            className="text-gray-300 reddit-comment-body pl-2"
             dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(comment.bodyHtml, { FORBID_ATTR: ['id', 'name'] }) }}
           />
           {comment.replies && comment.replies.length > 0 && (
-            <div className="mt-2 pl-3 border-l-2 border-gray-800">
+            <div className="mt-4 pl-5 border-l-2 border-purple-500/20 space-y-4">
               {comment.replies.map(reply => (
                 <CommentNode key={reply.id} comment={reply} />
               ))}
@@ -182,7 +182,7 @@ export const RedditPostReader = ({ post, onClose, onNext, onPrev, hasNext, hasPr
         <div className="flex-1 overflow-y-auto overscroll-contain p-4 max-w-3xl mx-auto w-full pb-20 transform-gpu will-change-scroll">
         <div className="mb-8 bg-[#1e162a] p-6 rounded-[2.5rem] border border-purple-500/10 shadow-xl">
           <div className="flex items-center gap-2 mb-2">
-            <span className="text-sm font-bold text-purple-400 shadow-[0_0_8px_rgba(168,85,247,0.4)]">r/{post.subredditName}</span>
+            <span className="text-sm font-bold text-purple-400 drop-shadow-[0_0_5px_rgba(168,85,247,0.4)]">r/{post.subredditName}</span>
             <span className="text-xs text-gray-500">• u/{post.author}</span>
             <span className="text-xs text-gray-500">• {format(post.createdUtc, 'HH:mm dd/MM/yy')}</span>
           </div>
@@ -203,7 +203,7 @@ export const RedditPostReader = ({ post, onClose, onNext, onPrev, hasNext, hasPr
           )}
 
           <div className="flex items-center gap-4 mt-4 py-3 border-y border-gray-800 text-sm font-medium text-gray-400">
-            <span className="flex items-center gap-1"><span className="text-purple-400 shadow-[0_0_5px_rgba(168,85,247,0.6)]">↑</span> {post.score}</span>
+            <span className="flex items-center gap-1"><span className="text-purple-400 drop-shadow-[0_0_3px_rgba(168,85,247,0.6)]">↑</span> {post.score}</span>
             <span className="flex items-center gap-1"><MessageSquare className="w-4 h-4 text-purple-400" /> {post.numComments} Comments</span>
           </div>
         </div>
