@@ -370,9 +370,7 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
               <span className="absolute -top-2 right-4 z-40 px-2 py-0.5 bg-blue-600 text-[9px] font-black text-white rounded-full shadow-[0_0_10px_rgba(59,130,246,0.6)] border border-blue-400 uppercase tracking-widest">
                 NEW
               </span>
-              <div className="animated-border-mask z-20 pointer-events-none rounded-[inherit]">
-                <div className="absolute top-1/2 left-1/2 w-[800px] h-[800px] -translate-x-1/2 -translate-y-1/2 animate-[spin_2.5s_linear_infinite] bg-[conic-gradient(from_0deg,transparent_0_270deg,#3b82f6_360deg)]" />
-              </div>
+              <div className="absolute inset-0 z-20 pointer-events-none rounded-[inherit] border-2 border-blue-500/80 shadow-[0_0_20px_rgba(59,130,246,0.5)]" />
             </>
           )}
           <div className="relative z-10 flex flex-col gap-2">

@@ -151,9 +151,9 @@ export const TelegramThreadView = memo(({ channel, messages, onClose, onRefresh,
       >
         <div 
           onPointerDown={(e) => controls.start(e)}
-          className="absolute top-0 left-16 right-16 h-12 z-[60] cursor-grab active:cursor-grabbing flex items-center justify-center pointer-events-auto touch-none"
+          className="absolute top-0 left-20 right-20 h-8 z-[90] cursor-grab active:cursor-grabbing flex items-center justify-center pointer-events-auto touch-none"
         >
-          <div className="w-12 h-1.5 bg-white/20 rounded-full" />
+          <div className="w-12 h-1.5 bg-white/30 rounded-full" />
         </div>
         
         <style dangerouslySetInnerHTML={{ __html: `

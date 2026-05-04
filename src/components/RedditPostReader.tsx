@@ -152,9 +152,9 @@ export const RedditPostReader = ({ post, onClose, onNext, onPrev, hasNext, hasPr
       >
         <div 
           onPointerDown={(e) => controls.start(e)}
-          className="absolute top-0 left-0 right-0 h-12 z-[60] cursor-grab active:cursor-grabbing flex items-center justify-center pointer-events-auto touch-none"
+          className="absolute top-0 left-20 right-20 h-8 z-[90] cursor-grab active:cursor-grabbing flex items-center justify-center pointer-events-auto touch-none"
         >
-          <div className="w-12 h-1.5 bg-white/20 rounded-full" />
+          <div className="w-12 h-1.5 bg-white/30 rounded-full" />
         </div>
         
         <header className="sticky top-0 z-20 px-4 py-6 mt-4 flex items-center justify-between bg-gradient-to-b from-transparent to-transparent pointer-events-none">

@@ -77,9 +77,7 @@ export const TelegramListView = memo(({ isActive, channels, onChannelClick, filt
               )}
             >
               {(channel.unreadCount || 0) > 0 && (
-                <div className="animated-border-mask z-20 pointer-events-none rounded-[inherit]">
-                  <div className="absolute top-1/2 left-1/2 w-[800px] h-[800px] -translate-x-1/2 -translate-y-1/2 animate-[spin_2.5s_linear_infinite] bg-[conic-gradient(from_0deg,transparent_0_270deg,#22c55e_360deg)]" />
-                </div>
+                <div className="absolute inset-0 z-20 pointer-events-none rounded-[inherit] border-2 border-green-500/80 shadow-[0_0_20px_rgba(34,197,94,0.5)]" />
               )}
               <div className="relative z-10 flex w-full items-center gap-4">
                 {channel.imageUrl ? (
