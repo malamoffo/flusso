@@ -3,6 +3,7 @@ import { motion, useMotionValue, useTransform, PanInfo, animate, useReducedMotio
 import { format, isToday } from 'date-fns';
 import { Trash2, FileText, Star } from 'lucide-react';
 import he from 'he';
+import DOMPurify from 'dompurify';
 import { Article, Settings } from '../types';
 import { useInView } from 'react-intersection-observer';
 import { contentFetcher } from '../utils/contentFetcher';
@@ -424,7 +425,7 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
                   getTitleSize(),
                   !isReadForDisplay && "group-hover:text-[var(--theme-color)]"
                 )}
-                dangerouslySetInnerHTML={{ __html: article.title }}
+                dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(article.title, { FORBID_ATTR: ['id', 'name'] }) }}
               />
               
               {article.contentSnippet && (

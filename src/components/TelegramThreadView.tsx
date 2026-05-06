@@ -3,6 +3,7 @@ import { motion, useDragControls, AnimatePresence } from 'framer-motion';
 import { useInView } from 'react-intersection-observer';
 import { TelegramChannel, TelegramMessage } from '../types';
 import { ArrowLeft, RefreshCw, MessageSquare } from 'lucide-react';
+import DOMPurify from 'dompurify';
 import { format } from 'date-fns';
 import { cn } from '../lib/utils';
 
@@ -41,7 +42,7 @@ const TelegramMessageItem = memo(({ message, isNewInitial }: { message: Telegram
       </AnimatePresence>
       <div 
         className="text-gray-300 whitespace-pre-wrap break-words telegram-message-text"
-        dangerouslySetInnerHTML={{ __html: message.text }}
+        dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(message.text, { FORBID_ATTR: ['id', 'name'] }) }}
       />
       {message.imageUrl && (
         <img 

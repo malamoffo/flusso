@@ -64,13 +64,7 @@ export const imagePersistence = {
    */
   async getCachedUrl(url: string): Promise<string | null> {
     if (!Capacitor.isNativePlatform()) return null;
-    const isWeb = Capacitor.getPlatform() === 'web';
-    if (isWeb) return null; // Avoid calling native plugins on web even if labeled native
     
-    // Check plugin availability to avoid UNIMPLEMENTED errors
-    const isFilesystemAvailable = Capacitor.isPluginAvailable('Filesystem');
-    if (!isFilesystemAvailable) return null;
-
     if (!this.isInitialized) await this.init();
     if (this.resolvedLocalUrls.has(url)) return this.resolvedLocalUrls.get(url)!;
 
@@ -105,14 +99,6 @@ export const imagePersistence = {
    */
   async getLocalUrl(url: string): Promise<string> {
     if (!Capacitor.isNativePlatform()) return url;
-    const isWeb = Capacitor.getPlatform() === 'web';
-    if (isWeb) return url;
-
-    // Check plugin availability to avoid UNIMPLEMENTED errors
-    const isFilesystemAvailable = Capacitor.isPluginAvailable('Filesystem');
-    const isHttpAvailable = Capacitor.isPluginAvailable('CapacitorHttp');
-    
-    if (!isFilesystemAvailable || !isHttpAvailable) return url;
 
     const filename = this.getFilename(url);
     const path = `${CACHE_DIR}/${filename}`;
@@ -173,7 +159,7 @@ export const imagePersistence = {
         return localUrl;
       }
     } catch (downloadErr) {
-      console.warn('[IMAGE_CACHE] Failed to download/cache image:', url);
+      console.error('[IMAGE_CACHE] Failed to download/cache image:', url, downloadErr);
     }
 
     return url;
@@ -224,9 +210,8 @@ export const imagePersistence = {
 
       const now = Date.now();
       const maxAgeMs = maxAgeDays * 24 * 60 * 60 * 1000;
-      let deletedCount = 0;
 
-      for (const file of result.files) {
+      const deletePromises = result.files.map(async (file) => {
         try {
           const stat = await Filesystem.stat({
             path: `${CACHE_DIR}/${file.name}`,
@@ -238,7 +223,7 @@ export const imagePersistence = {
               path: `${CACHE_DIR}/${file.name}`,
               directory: Directory.Data
             });
-            deletedCount++;
+            return 1;
             
             // Remove from resolved map if we can find the original URL
             // This is tricky since we only have the filename.
@@ -247,7 +232,11 @@ export const imagePersistence = {
         } catch (e) {
           // Skip if file error
         }
-      }
+        return 0;
+      });
+
+      const deletionResults = await Promise.all(deletePromises);
+      const deletedCount = deletionResults.reduce((sum, count) => sum + count, 0 as number);
 
       if (deletedCount > 0) {
         // Re-sync map by checking which URLs still exist
@@ -263,7 +252,7 @@ export const imagePersistence = {
         this.saveMap();
       }
     } catch (e) {
-      console.warn('[IMAGE_CACHE] Cleanup failed:', e);
+      console.error('[IMAGE_CACHE] Cleanup failed:', e);
     }
   },
 
