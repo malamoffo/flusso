@@ -30,9 +30,9 @@ import { Capacitor } from '@capacitor/core';
 
 const PAGE_SIZE = 30;
 
-const ProgressBanner = memo(() => {
+const ProgressBanner = memo(({ filter }: { filter: string }) => {
   const { progress } = useRss();
-  if (!progress) return null;
+  if (!progress || filter === 'radio') return null;
   
   const mbDownloaded = progress.bytesDownloaded ? (progress.bytesDownloaded / (1024 * 1024)).toFixed(2) : '0.00';
   
@@ -792,9 +792,9 @@ export default function App() {
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder={filter === 'reddit' ? "Search Reddit posts..." : filter === 'telegram' ? "Search channels..." : filter === 'radio' ? "Cerca stazioni radio..." : "Search articles..."}
+                placeholder={filter === 'reddit' ? "Search Reddit posts..." : filter === 'telegram' ? "Search channels..." : filter === 'radio' ? "Search radio stations..." : "Search articles..."}
                 className="flex-1 bg-transparent text-gray-900 dark:text-white focus:outline-none"
-                aria-label={filter === 'reddit' ? "Search Reddit posts" : filter === 'telegram' ? "Search channels" : filter === 'radio' ? "Cerca stazioni radio" : "Search articles"}
+                aria-label={filter === 'reddit' ? "Search Reddit posts" : filter === 'telegram' ? "Search channels" : filter === 'radio' ? "Search radio stations" : "Search articles"}
                 autoFocus
               />
               <button 
@@ -868,7 +868,7 @@ export default function App() {
           </div>
         )}
 
-        <ProgressBanner />
+        <ProgressBanner filter={filter} />
         <ErrorNotification error={error} onClear={() => setError(null)} />
       </div>
 

@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { TelegramChannel } from '../types';
 import { cn } from '../lib/utils';
 import { format, isToday, isYesterday } from 'date-fns';
-import { it } from 'date-fns/locale';
+import { enUS } from 'date-fns/locale';
 
 interface TelegramListViewProps {
   isActive: boolean;
@@ -18,9 +18,9 @@ const formatChannelDate = (date: number) => {
     return format(d, 'HH:mm');
   }
   if (isYesterday(d)) {
-    return 'Ieri ' + format(d, 'HH:mm');
+    return 'Yesterday ' + format(d, 'HH:mm');
   }
-  return format(d, 'dd/MM HH:mm', { locale: it });
+  return format(d, 'dd/MM HH:mm', { locale: enUS });
 };
 
 export const TelegramListView = memo(({ isActive, channels, onChannelClick, filter }: TelegramListViewProps) => {
@@ -47,10 +47,10 @@ export const TelegramListView = memo(({ isActive, channels, onChannelClick, filt
             <path d="M21.5 2L8.5 14"></path>
           </svg>
           <p className="text-lg font-medium text-white mb-1">
-            {filter === 'unread' ? "Nessun messaggio non letto" : "Nessun canale Telegram"}
+            {filter === 'unread' ? "No unread messages" : "No Telegram channels"}
           </p>
           <p className="text-sm">
-            {filter === 'unread' ? "Sei in pari con tutto!" : "Aggiungi un canale nelle impostazioni per vedere i messaggi."}
+            {filter === 'unread' ? "You are all caught up!" : "Add a channel in settings to see messages."}
           </p>
         </div>
       ) : (

@@ -202,14 +202,14 @@ export const TelegramThreadView = memo(({ channel, messages, onClose, onRefresh,
         {isLoading ? (
           <div className="flex flex-col items-center justify-center h-full text-gray-500 space-y-4">
             <div className="w-8 h-8 border-2 border-green-500 border-t-transparent rounded-full animate-spin shadow-[0_0_10px_rgba(34,197,94,0.4)]" />
-            <p className="text-sm font-medium">Caricamento messaggi...</p>
+            <p className="text-sm font-medium">Loading messages...</p>
           </div>
         ) : isEmpty ? (
           <div className="flex flex-col items-center justify-center h-full text-gray-500 space-y-4 p-6 text-center">
             <MessageSquare className="w-12 h-12 opacity-20" />
             <div>
-              <p className="text-sm font-medium text-white">Nessun messaggio recente</p>
-              <p className="text-xs mt-1">I messaggi fuori dal periodo di retention sono stati nascosti.</p>
+              <p className="text-sm font-medium text-white">No recent messages</p>
+              <p className="text-xs mt-1">Messages outside the retention period have been hidden.</p>
             </div>
             <button 
               onClick={() => {
@@ -218,7 +218,7 @@ export const TelegramThreadView = memo(({ channel, messages, onClose, onRefresh,
               className="px-6 py-2.5 bg-green-600 text-white rounded-full text-sm font-bold hover:bg-green-700 transition-all shadow-[0_0_15px_rgba(34,197,94,0.3)] flex items-center gap-2 active:scale-95"
             >
               <RefreshCw className="w-4 h-4" />
-              Aggiorna Canale
+              Refresh Channel
             </button>
           </div>
         ) : (

@@ -305,28 +305,39 @@ export const RadioView = memo(({ isActive, searchQuery }: RadioViewProps) => {
   const displayStations = useMemo(() => {
     if (!stations) return [];
     
-    // Convert favorites dict to array for sorting
-    const favArray = Object.values(favorites);
+    // Remove duplicates
+    const uniqueStations = Array.from(new Map(stations.map(s => [s.stationuuid, s])).values());
+    
+    // Sort all stations alphabetically first
+    const sortedAll = [...uniqueStations].sort((a, b) => a.name.localeCompare(b.name));
+    
+    // Convert favorites dict to array
+    const favArray = Object.values(favorites).sort((a, b) => a.name.localeCompare(b.name));
     
     // Create a map of favorite UUIDs
     const favSet = new Set(Object.keys(favorites));
     
     // Filter out favorites from regular stations
-    const nonFavStations = stations.filter(s => !favSet.has(s.stationuuid));
+    const nonFavStations = sortedAll.filter(s => !favSet.has(s.stationuuid));
     
-    // If no search query, return favorites then top stations
+    // If no search query, return favorites then non-favorites
     if (!searchQuery) {
       return [...favArray, ...nonFavStations];
     }
     
-    // If search query, filter favorites matching query, then add fetched stations
+    // If search query, filter both and return
     const searchLower = searchQuery.toLowerCase();
     const matchingFavs = favArray.filter(f => 
       f.name.toLowerCase().includes(searchLower) || 
       (f.tags && f.tags.toLowerCase().includes(searchLower))
     );
     
-    return [...matchingFavs, ...nonFavStations];
+    const matchingNonFavs = nonFavStations.filter(s => 
+      s.name.toLowerCase().includes(searchLower) || 
+      (s.tags && s.tags.toLowerCase().includes(searchLower))
+    );
+    
+    return [...matchingFavs, ...matchingNonFavs];
   }, [stations, favorites, searchQuery]);
 
   return (
@@ -382,10 +393,17 @@ export const RadioView = memo(({ isActive, searchQuery }: RadioViewProps) => {
                       )}
                     </div>
                     
-                    <div className="flex-1 min-w-0">
-                      <h3 className="text-white font-medium truncate flex items-center gap-2">
-                        {station.name}
-                      </h3>
+                    <div className="flex-1 min-w-0 overflow-hidden group/item">
+                      <div className="flex whitespace-nowrap">
+                        <h3 className={cn("text-white font-medium pr-8", station.name.length > 20 && "animate-marquee")}>
+                          {station.name}
+                        </h3>
+                        {station.name.length > 20 && (
+                          <h3 className="text-white font-medium pr-8 animate-marquee" aria-hidden="true">
+                            {station.name}
+                          </h3>
+                        )}
+                      </div>
                       {station.tags && (
                         <p className="text-xs text-gray-400 truncate mt-1">
                           {station.tags.split(',').slice(0, 3).join(', ')}
