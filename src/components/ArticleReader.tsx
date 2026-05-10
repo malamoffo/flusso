@@ -7,7 +7,7 @@ import { useSettings } from '../context/SettingsContext';
 import DOMPurify from 'dompurify';
 import he from 'he';
 import { CachedImage } from './CachedImage';
-import { cn, getSafeUrl } from '../lib/utils';
+import { cn, getSafeUrl, resolveUrl } from '../lib/utils';
 import { Capacitor, CapacitorHttp } from '@capacitor/core';
 import { isPluginAvailable, isNative } from '../utils/platform';
 import { Share } from '@capacitor/share';
@@ -245,12 +245,44 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
         if (node.tagName === 'IFRAME') {
           node.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-popups allow-forms');
         }
+
+        if (node.tagName === 'IMG') {
+          const possibleSrcs = ['data-src', 'data-lazy-src', 'data-original', 'srcset', 'data-srcset'];
+          let finalSrc = node.getAttribute('src');
+          if (!finalSrc || finalSrc.includes('data:image/gif') || finalSrc.includes('data:image/svg') || finalSrc === '') {
+             for (const attr of possibleSrcs) {
+                if (node.hasAttribute(attr)) {
+                   const val = node.getAttribute(attr);
+                   const parsed = val ? val.split(' ')[0] : '';
+                   if (parsed && !parsed.includes('data:image/')) {
+                      finalSrc = parsed;
+                      break;
+                   }
+                }
+             }
+          }
+          if (finalSrc) {
+            node.setAttribute('src', finalSrc);
+          }
+          node.removeAttribute('srcset');
+          node.removeAttribute('sizes');
+        }
+
         if (node.hasAttribute('src')) {
-          node.setAttribute('src', getSafeUrl(node.getAttribute('src'), ''));
+          let src = node.getAttribute('src') || '';
+          if (src) {
+            src = resolveUrl(src, article.link);
+            node.setAttribute('src', getSafeUrl(src, ''));
+          }
         }
         if (node.hasAttribute('href')) {
-          node.setAttribute('href', getSafeUrl(node.getAttribute('href'), ''));
+          let href = node.getAttribute('href') || '';
+          if (href && !href.startsWith('#')) {
+            href = resolveUrl(href, article.link);
+            node.setAttribute('href', getSafeUrl(href, ''));
+          }
         }
+
         if (node.tagName === 'IMG') {
           const src = node.getAttribute('src') || '';
           const lowerSrc = src.toLowerCase();
@@ -556,8 +588,8 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
               <div 
                 onClick={handleContentClick}
                 className={`prose ${getProseSize()} prose-invert max-w-4xl mx-auto overflow-hidden leading-[1.75] text-gray-200 font-serif
-                  prose-img:rounded-2xl prose-img:w-full prose-img:object-cover prose-img:max-w-full prose-img:my-10 prose-img:shadow-2xl
-                  prose-video:w-full prose-video:rounded-2xl prose-video:my-10
+                  prose-img:rounded-xl prose-img:h-auto prose-img:mx-auto prose-img:max-w-full prose-img:my-8 prose-img:shadow-xl
+                  prose-video:w-full prose-video:rounded-xl prose-video:my-8
                   [&_iframe]:w-full [&_iframe]:aspect-video [&_iframe]:rounded-2xl [&_iframe]:border-0 [&_iframe]:my-10 [&_iframe]:shadow-2xl
                   prose-a:text-indigo-400 prose-a:decoration-indigo-400/30 prose-a:underline-offset-4 hover:prose-a:decoration-indigo-400 transition-all
                   prose-headings:font-sans prose-headings:font-black prose-headings:tracking-tight prose-headings:text-white prose-headings:mt-12 prose-headings:mb-6
