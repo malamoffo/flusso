@@ -18,7 +18,6 @@ import { format } from 'date-fns';
 import { APP_VERSION, APP_BUILD, updateSW } from '../main';
 
 import { BrowserLogsModal } from './BrowserLogsModal';
-import { PersistentLogsModal } from './PersistentLogsModal';
 
 export const SettingsModal = React.memo(function SettingsModal({
   isOpen,
@@ -37,7 +36,6 @@ export const SettingsModal = React.memo(function SettingsModal({
   const { subreddits, removeSubreddit } = useReddit();
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isBrowserLogsOpen, setIsBrowserLogsOpen] = useState(false);
-  const [isPersistentLogsOpen, setIsPersistentLogsOpen] = useState(false);
   const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
   const [activeTab, setActiveTab] = useState<'main' | 'general' | 'subscriptions' | 'retention' | 'about'>('main');
   const [editingFeedId, setEditingFeedId] = useState<string | null>(null);
@@ -951,10 +949,6 @@ export const SettingsModal = React.memo(function SettingsModal({
           <BrowserLogsModal
             isOpen={isBrowserLogsOpen}
             onClose={() => setIsBrowserLogsOpen(false)}
-          />
-          <PersistentLogsModal
-            isOpen={isPersistentLogsOpen}
-            onClose={() => setIsPersistentLogsOpen(false)}
           />
         </>
       )}
