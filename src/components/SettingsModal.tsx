@@ -879,14 +879,6 @@ export const SettingsModal = React.memo(function SettingsModal({
                       <Terminal className="w-4 h-4" />
                       View Console Logs
                     </button>
-                    
-                    <button
-                      onClick={() => setIsPersistentLogsOpen(true)}
-                      className="mt-2 w-full flex items-center justify-center gap-2 p-3 rounded-xl bg-red-950/20 border border-red-900/30 text-red-400 hover:bg-red-950/40 hover:text-red-300 transition-all text-xs font-bold uppercase tracking-wider"
-                    >
-                      <Terminal className="w-4 h-4" />
-                      View Persistent Logs
-                    </button>
                   </div>
 
                   {errorLogs.length > 0 && (

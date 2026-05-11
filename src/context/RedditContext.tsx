@@ -313,20 +313,14 @@ export const RedditProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     }
   }, []);
 
-  const removeSubreddit = useCallback((id: string) => {
-    setSubreddits(prev => {
-      const next = prev.filter(s => s.id !== id);
-      storage.saveSubreddits(next);
-      return next;
-    });
-    // Also remove posts from that subreddit
-    setRedditPosts(prev => {
-      const sub = subreddits.find(s => s.id === id);
-      if (!sub) return prev;
-      const next = prev.filter(p => (p.subredditName || '').toLowerCase() !== sub.name.toLowerCase());
-      storage.saveRedditPosts(next);
-      return next;
-    });
+  const removeSubreddit = useCallback(async (id: string) => {
+    const sub = subreddits.find(s => s.id === id);
+    if (!sub) return;
+
+    setSubreddits(prev => prev.filter(s => s.id !== id));
+    setRedditPosts(prev => prev.filter(p => (p.subredditName || '').toLowerCase() !== sub.name.toLowerCase()));
+    
+    await storage.removeSubreddit(id);
   }, [subreddits]);
 
   const addSubreddit = useCallback(async (url: string) => {

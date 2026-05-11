@@ -356,31 +356,48 @@ export const redditStorage = {
       const now = Date.now();
       
       const posts = await this.getRedditPosts();
-      if (posts.length <= 5) return;
+      
+      // 1. Orphaned posts cleanup (subreddits no longer in list)
+      const subreddits = await this.getSubreddits();
+      const validSubNames = new Set(subreddits.map(s => s.name.toLowerCase()));
+      const orphanedPosts = posts.filter(p => !validSubNames.has((p.subredditName || '').toLowerCase()) && !p.isFavorite);
+      
+      if (posts.length <= 5 && orphanedPosts.length === 0) return;
 
+      // 2. Retention-based cleanup
       const oldPosts = posts
-        .filter(p => !p.isFavorite && (now - (p.createdUtc || 0)) > retentionMs)
+        .filter(p => !p.isFavorite && (now - (p.createdUtc || 0)) > retentionMs && validSubNames.has((p.subredditName || '').toLowerCase()))
         .sort((a, b) => (b.createdUtc || 0) - (a.createdUtc || 0)); // Newest first
       
-      if (oldPosts.length > 0) {
-      const postsToKeep = 5;
-      const postsAfterCleanup = posts.length - oldPosts.length;
+      let idsToDelete: string[] = orphanedPosts.map(p => p.id);
       
-      let idsToDelete;
-      if (postsAfterCleanup < postsToKeep) {
-        const numberToRemove = oldPosts.length - (postsToKeep - postsAfterCleanup);
-        if (numberToRemove <= 0) return;
-        idsToDelete = oldPosts.slice(oldPosts.length - numberToRemove).map(p => p.id);
-      } else {
-        idsToDelete = oldPosts.map(p => p.id);
+      if (oldPosts.length > 0) {
+        const postsToKeep = 5;
+        const postsAfterCleanup = posts.length - oldPosts.length - orphanedPosts.length;
+        
+        if (postsAfterCleanup < postsToKeep) {
+          const numberToRemove = oldPosts.length - (postsToKeep - postsAfterCleanup);
+          if (numberToRemove > 0) {
+            idsToDelete = [...idsToDelete, ...oldPosts.slice(oldPosts.length - numberToRemove).map(p => p.id)];
+          }
+        } else {
+          idsToDelete = [...idsToDelete, ...oldPosts.map(p => p.id)];
+        }
       }
 
       if (idsToDelete.length > 0) {
         await db.redditPosts.bulkDelete(idsToDelete);
       }
-    }
     } catch (e) {
       console.error('Failed to cleanup old reddit posts:', e);
     }
+  },
+
+  async removeSubreddit(id: string): Promise<void> {
+    if (!id) return;
+    await db.subreddits.delete(id);
+    const posts = await db.redditPosts.where('subredditId').equals(id).toArray();
+    const idsToDelete = posts.map(p => p.id);
+    await db.redditPosts.bulkDelete(idsToDelete);
   }
 };

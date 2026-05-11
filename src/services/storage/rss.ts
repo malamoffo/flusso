@@ -98,6 +98,7 @@ export const rssStorage = {
     const ARTICLE_LIMIT = articleRetentionDays * 24 * 60 * 60 * 1000;
     const now = Date.now();
 
+    // 1. Retention-based cleanup
     const oldArticles = await db.articles
       .filter(a => {
         if (a.isFavorite) return false;
@@ -106,7 +107,16 @@ export const rssStorage = {
       })
       .toArray();
 
-    const idsToDelete = oldArticles.map(a => a.id);
+    // 2. Orphaned articles cleanup (feeds that no longer exist)
+    const allFeeds = await db.feeds.toArray();
+    const validFeedIds = new Set(allFeeds.map(f => f.id));
+    const orphanedArticles = await db.articles.filter(a => !validFeedIds.has(a.feedId) && !a.isFavorite).toArray();
+
+    const idsToDelete = Array.from(new Set([
+      ...oldArticles.map(a => a.id),
+      ...orphanedArticles.map(a => a.id)
+    ]));
+
     if (idsToDelete.length > 0) {
       await db.articles.bulkDelete(idsToDelete);
       await db.articleContents.bulkDelete(idsToDelete);

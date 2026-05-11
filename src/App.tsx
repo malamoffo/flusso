@@ -921,7 +921,7 @@ export default function App() {
                   <SwipeableArticleItem
                     key={item.id}
                     article={item as any}
-                    feedName={feedsMap.get((item as any).feedId)?.title || 'Unknown'}
+                    feedName={feedsMap.get((item as any).feedId)?.title || 'Unknown Feed'}
                     feedImageUrl={feedsMap.get((item as any).feedId)?.imageUrl}
                     settings={settings}
                     onClick={handleArticleClick}
