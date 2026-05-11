@@ -1,6 +1,7 @@
 import { Filesystem, Directory } from '@capacitor/filesystem';
 import { Capacitor, CapacitorHttp } from '@capacitor/core';
 import { db } from '../services/db';
+import { isNative as checkIsNative, isPluginAvailable } from './platform';
 
 const CACHE_DIR = 'image_cache';
 
@@ -25,7 +26,10 @@ export const imagePersistence = {
       const settings = await db.settings.get('user_settings');
       // Use articleRetentionDays as the base for image retention
       const retentionDays = settings?.articleRetentionDays || 30;
-      await this.cleanupOldImages(retentionDays);
+      
+      if (checkIsNative() && isPluginAvailable('Filesystem')) {
+        await this.cleanupOldImages(retentionDays);
+      }
     } catch (e) {
     }
     this.isInitialized = true;
@@ -63,7 +67,7 @@ export const imagePersistence = {
    * Returns null if not cached.
    */
   async getCachedUrl(url: string): Promise<string | null> {
-    if (!Capacitor.isNativePlatform()) return null;
+    if (!checkIsNative() || !isPluginAvailable('Filesystem')) return null;
     
     if (!this.isInitialized) await this.init();
     if (this.resolvedLocalUrls.has(url)) return this.resolvedLocalUrls.get(url)!;
@@ -98,7 +102,7 @@ export const imagePersistence = {
    * Retrieves an image from the local filesystem or downloads it if not found.
    */
   async getLocalUrl(url: string): Promise<string> {
-    if (!Capacitor.isNativePlatform()) return url;
+    if (!checkIsNative() || !isPluginAvailable('Filesystem')) return url;
 
     const filename = this.getFilename(url);
     const path = `${CACHE_DIR}/${filename}`;
@@ -122,44 +126,48 @@ export const imagePersistence = {
     }
 
     // Download and cache
-    try {
-      const downloadResult = await CapacitorHttp.get({
-        url,
-        responseType: 'arraybuffer'
-      });
+    if (isPluginAvailable('CapacitorHttp')) {
+      try {
+        const downloadResult = await CapacitorHttp.get({
+          url,
+          responseType: 'arraybuffer'
+        });
 
-      if (downloadResult.status === 200) {
-        // Convert arraybuffer to base64
-        const base64Data = await this.arrayBufferToBase64(downloadResult.data);
-        
-        // Ensure directory exists
-        try {
-          await Filesystem.mkdir({
-            path: CACHE_DIR,
-            directory: Directory.Data,
-            recursive: true
+        if (downloadResult.status === 200) {
+          // Convert arraybuffer to base64
+          const base64Data = await this.arrayBufferToBase64(downloadResult.data);
+          
+          // Ensure directory exists
+          try {
+            await Filesystem.mkdir({
+              path: CACHE_DIR,
+              directory: Directory.Data,
+              recursive: true
+            });
+          } catch (dirErr) {
+            // Directory might already exist
+          }
+
+          await Filesystem.writeFile({
+            path,
+            data: base64Data,
+            directory: Directory.Data
           });
-        } catch (dirErr) {
-          // Directory might already exist
+
+          const uriResult = await Filesystem.getUri({
+            path,
+            directory: Directory.Data
+          });
+          const localUrl = Capacitor.convertFileSrc(uriResult.uri);
+          this.resolvedLocalUrls.set(url, localUrl);
+          this.saveMap();
+          return localUrl;
         }
-
-        await Filesystem.writeFile({
-          path,
-          data: base64Data,
-          directory: Directory.Data
-        });
-
-        const uriResult = await Filesystem.getUri({
-          path,
-          directory: Directory.Data
-        });
-        const localUrl = Capacitor.convertFileSrc(uriResult.uri);
-        this.resolvedLocalUrls.set(url, localUrl);
-        this.saveMap();
-        return localUrl;
+      } catch (downloadErr: any) {
+        if (downloadErr?.code !== 'UNIMPLEMENTED') {
+          console.error('[IMAGE_CACHE] Failed to download/cache image:', url, downloadErr);
+        }
       }
-    } catch (downloadErr) {
-      console.error('[IMAGE_CACHE] Failed to download/cache image:', url, downloadErr);
     }
 
     return url;
@@ -169,7 +177,7 @@ export const imagePersistence = {
    * Clears the image cache directory.
    */
   async clearCache(): Promise<void> {
-    if (!Capacitor.isNativePlatform()) return;
+    if (!checkIsNative() || !isPluginAvailable('Filesystem')) return;
     try {
       const exists = await Filesystem.stat({
         path: CACHE_DIR,
@@ -193,7 +201,7 @@ export const imagePersistence = {
    * Cleans up images older than maxAgeDays.
    */
   async cleanupOldImages(maxAgeDays: number): Promise<void> {
-    if (!Capacitor.isNativePlatform()) return;
+    if (!checkIsNative() || !isPluginAvailable('Filesystem')) return;
     
     try {
       const exists = await Filesystem.stat({

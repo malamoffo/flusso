@@ -65,33 +65,53 @@ class ContentFetcherQueue {
   private async fetchAndCache(articleId: string, url: string) {
     const isNativePlatform = typeof window !== 'undefined' && (window as any).Capacitor?.isNativePlatform();
     const isWeb = typeof window !== 'undefined' && (window as any).Capacitor?.getPlatform() === 'web';
-    const isNative = isNativePlatform && !isWeb;
     
-    const isNativeHttp = isNative && (window as any).Capacitor?.isPluginAvailable?.('CapacitorHttp');
+    const isNativeHttp = !isWeb && isNativePlatform && (() => {
+      try {
+        return (window as any).Capacitor?.isPluginAvailable?.('CapacitorHttp');
+      } catch (e) {
+        return false;
+      }
+    })();
     
     let html = '';
     const safeUrl = getSafeUrl(url, url);
 
     if (isNativeHttp) {
-      let currentUrl = safeUrl;
-      let maxRedirects = 3;
-      
-      while (maxRedirects > 0) {
-        const response = await CapacitorHttp.get({ url: currentUrl });
-        if (response.status === 200) {
-          html = response.data;
-          break;
-        } else if ([301, 302, 303, 307, 308].includes(response.status)) {
-          const location = response.headers['Location'] || response.headers['location'];
-          if (location) {
-            currentUrl = getSafeUrl(location, location);
-            maxRedirects--;
+      try {
+        let currentUrl = safeUrl;
+        let maxRedirects = 3;
+        
+        while (maxRedirects > 0) {
+          const response = await CapacitorHttp.get({ 
+            url: currentUrl,
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
+              'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            }
+          });
+          if (response.status === 200) {
+            html = typeof response.data === 'string' ? response.data : JSON.stringify(response.data);
+            break;
+          } else if ([301, 302, 303, 307, 308].includes(response.status)) {
+            const location = response.headers['Location'] || response.headers['location'];
+            if (location) {
+              currentUrl = getSafeUrl(location, location);
+              maxRedirects--;
+            } else {
+              throw new Error(`Redirect without location: ${response.status}`);
+            }
           } else {
-            throw new Error(`Redirect without location: ${response.status}`);
+            throw new Error(`Failed to fetch article: ${response.status}`);
           }
-        } else {
-          throw new Error(`Failed to fetch article: ${response.status}`);
         }
+      } catch (e: any) {
+        if (e?.code === 'UNIMPLEMENTED') {
+          console.warn('[Fetcher] CapacitorHttp UNIMPLEMENTED, falling back to proxy');
+        }
+        // Fallback to proxy
+        const res = await fetchWithProxy(safeUrl, false, undefined, undefined, undefined, undefined, true);
+        html = res.data;
       }
     } else {
       const res = await fetchWithProxy(safeUrl, false, undefined, undefined, undefined, undefined, true);

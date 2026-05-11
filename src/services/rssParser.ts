@@ -173,6 +173,14 @@ export function parseRssXml(xmlString: string, feedUrl: string, sinceDate?: numb
     throw new Error('Received empty response from the feed URL.');
   }
 
+  // Pre-process XML string to remove leading/trailing whitespace and potentially problematic prefixes
+  // (e.g. WordPress feeds sometimes have an empty line before <?xml)
+  xmlString = xmlString.trim();
+  const firstTagIndex = xmlString.indexOf('<');
+  if (firstTagIndex > 0) {
+    xmlString = xmlString.substring(firstTagIndex);
+  }
+
   // Check if it's a JSON response from rss2json fallback
   if (xmlString.trim().startsWith('{')) {
     try {

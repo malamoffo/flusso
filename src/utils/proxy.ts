@@ -17,16 +17,21 @@ function getHeader(headers: Record<string, string | undefined> | Headers, name: 
 export async function fetchWithProxy(url: string, isRss: boolean = true, sinceDate?: number, signal?: AbortSignal, etag?: string, lastModified?: string, isHtml: boolean = false): Promise<{ data: string, etag?: string, lastModified?: string }> {
   // On native platforms, we don't need proxies as there's no CORS restriction
   const isWeb = Capacitor.getPlatform() === 'web';
-  if (Capacitor.isNativePlatform() && !isWeb) {
+  
+  // Use a more robust check for native CapacitorHttp to avoid UNIMPLEMENTED
+  const canUseNativeHttp = !isWeb && Capacitor.isNativePlatform() && (() => {
     try {
-      // Check if the Http plugin is actually registered/available to avoid UNIMPLEMENTED
-      const isHttpAvailable = Capacitor.isPluginAvailable('CapacitorHttp');
-      if (!isHttpAvailable) {
-        throw new Error('CapacitorHttp plugin not available');
-      }
+      return (window as any).Capacitor?.isPluginAvailable?.('CapacitorHttp');
+    } catch (e) {
+      return false;
+    }
+  })();
 
+  if (canUseNativeHttp) {
+    try {
       const headers: Record<string, string> = {
-        'User-Agent': 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.6312.40 Mobile Safari/537.36',
+        'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
         ...(isRss ? { 'Accept': 'application/rss+xml, application/xml, text/xml, */*' } : {})
       };
 
@@ -60,8 +65,12 @@ export async function fetchWithProxy(url: string, isRss: boolean = true, sinceDa
         };
       }
       throw new Error(`Native fetch failed with status ${response.status}`);
-    } catch (e) {
-      // Fallback to standard fetch if CapacitorHttp fails for some reason
+    } catch (e: any) {
+      if (e?.code === 'UNIMPLEMENTED') {
+        console.warn('[Proxy] CapacitorHttp UNIMPLEMENTED, falling back to web proxies');
+      } else {
+        console.warn('[Proxy] CapacitorHttp failed, falling back to web proxies', e);
+      }
     }
   }
 
@@ -145,16 +154,15 @@ export async function fetchWithProxy(url: string, isRss: boolean = true, sinceDa
   const proxies: { name: string, url: string, type: 'text' | 'json' | 'rss2json', timeout?: number }[] = [];
   
   const baseProxies: { name: string, url: string, type: 'text' | 'json' | 'rss2json', timeout?: number }[] = [
-    { name: 'AllOrigins JSON', url: `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`, type: 'json', timeout: 5000 },
     { name: 'AllOrigins Raw', url: `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`, type: 'text', timeout: 5000 },
-    { name: 'CorsProxy.io', url: `https://corsproxy.io/?${encodeURIComponent(url)}`, type: 'text', timeout: 5000 },
+    { name: 'AllOrigins JSON', url: `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`, type: 'json', timeout: 5000 },
+    { name: 'CorsProxy.io', url: `https://corsproxy.io/?${encodeURIComponent(url)}`, type: 'text', timeout: 6000 },
+    { name: 'CodeTabs', url: `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`, type: 'text', timeout: 6000 },
+    { name: 'YACDN', url: `https://yacdn.org/proxy/${url}`, type: 'text', timeout: 6000 },
     { name: 'CorsProxy.org', url: `https://corsproxy.org/?url=${encodeURIComponent(url)}`, type: 'text', timeout: 5000 },
     { name: 'Cloudflare Worker', url: `https://cors-anywhere.azm.workers.dev/${url}`, type: 'text', timeout: 5000 },
-    { name: 'CodeTabs', url: `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`, type: 'text', timeout: 5000 },
-    { name: 'YACDN', url: `https://yacdn.org/proxy/${url}`, type: 'text', timeout: 5000 },
     { name: 'ThingProxy', url: `https://thingproxy.freeboard.io/fetch/${url}`, type: 'text', timeout: 5000 },
-    { name: 'CORS-Anywhere Demo', url: `https://cors-anywhere.herokuapp.com/${url}`, type: 'text', timeout: 5000 },
-    { name: 'CORS.sh', url: `https://proxy.cors.sh/${url}`, type: 'text', timeout: 5000 }
+    { name: 'CORS-Anywhere Demo', url: `https://cors-anywhere.herokuapp.com/${url}`, type: 'text', timeout: 8000 },
   ];
 
   // Remove shuffling of proxies to prevent IP-based rate limiting on services

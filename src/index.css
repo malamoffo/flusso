@@ -67,8 +67,32 @@
     max-width: 100% !important;
     aspect-ratio: 16 / 9;
     height: auto !important;
-    border-radius: 0.75rem;
+    border-radius: 1.25rem;
     border: 0;
+    margin: 2rem auto;
+    box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+  }
+
+  .prose img {
+    margin-top: 2.5rem !important;
+    margin-bottom: 2.5rem !important;
+    border-radius: 1.25rem !important;
+    box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  }
+
+  .prose p {
+    margin-bottom: 1.75rem !important;
+    line-height: 1.8 !important;
+  }
+
+  .prose blockquote {
+    font-style: italic;
+    border-left-width: 4px;
+    border-color: var(--theme-color);
+    background-color: rgba(79, 70, 229, 0.05);
+    padding: 1.5rem 2rem !important;
+    border-radius: 0 1rem 1rem 0;
+    margin: 2.5rem 0 !important;
   }
 }
 

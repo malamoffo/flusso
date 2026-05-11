@@ -106,6 +106,7 @@ export interface RedditComment {
   createdUtc: number;
   depth: number;
   replies?: RedditComment[];
+  mediaUrls?: string[];
 }
 
 export interface TelegramChannel {

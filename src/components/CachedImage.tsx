@@ -3,6 +3,7 @@ import { cn } from '../lib/utils';
 import { imagePersistence } from '../utils/imagePersistence';
 import { Capacitor } from '@capacitor/core';
 import { FileText } from 'lucide-react';
+import { isNative as checkIsNative } from '../utils/platform';
 
 // Persistent cache for image URLs to avoid re-rendering on section change
 // Now using imagePersistence.memoryCache and imagePersistence.loadedUrls
@@ -66,7 +67,7 @@ export function CachedImage({ src, className, fallback, alt, ...props }: CachedI
     if (imagePersistence.resolvedLocalUrls.has(src)) return;
 
     const initImage = async () => {
-      if (typeof window !== 'undefined' && Capacitor.isNativePlatform()) {
+      if (typeof window !== 'undefined' && checkIsNative()) {
         try {
           const cachedUri = await imagePersistence.getCachedUrl(src);
           if (cachedUri && isMounted) {

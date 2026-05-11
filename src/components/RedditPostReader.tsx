@@ -38,6 +38,19 @@ const CommentNode: React.FC<{ comment: RedditComment }> = ({ comment }) => {
             className="text-gray-300 reddit-comment-body pl-2"
             dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(comment.bodyHtml, { FORBID_ATTR: ['id', 'name'] }) }}
           />
+          {comment.mediaUrls && comment.mediaUrls.length > 0 && (
+            <div className="mt-2 pl-2 space-y-2">
+              {comment.mediaUrls.map((url, idx) => (
+                <div key={idx} className="relative max-w-full overflow-hidden rounded-lg border border-white/10">
+                  <CachedImage 
+                    src={getSafeUrl(url)} 
+                    alt="Comment attachment" 
+                    className="w-full h-auto object-contain max-h-[300px]"
+                  />
+                </div>
+              ))}
+            </div>
+          )}
           {comment.replies && comment.replies.length > 0 && (
             <div className="mt-4 pl-5 border-l-2 border-purple-500/20 space-y-4">
               {comment.replies.map(reply => (
@@ -77,6 +90,59 @@ export const RedditPostReader = ({ post, onClose, onNext, onPrev, hasNext, hasPr
            setComments([]);
            return;
         }
+        const extractMediaUrls = (data: any): string[] => {
+          const urls: string[] = [];
+          
+          // 1. Check media_metadata (standard for Reddit's internal image/gif uploads in comments)
+          if (data.media_metadata) {
+            Object.values(data.media_metadata).forEach((item: any) => {
+              if (item.status === 'valid') {
+                const url = item.s?.u || item.s?.gif;
+                if (url) urls.push(url.replace(/&amp;/g, '&'));
+              }
+            });
+          }
+          
+          // 2. Check for image/gif/video links in the body text
+          const bodyText = data.body || '';
+          
+          // Pattern for direct image links
+          const directImageRegex = /https?:\/\/\S+?\.(?:png|jpg|jpeg|gif|webp)(?:\?\S+)?/gi;
+          let match;
+          while ((match = directImageRegex.exec(bodyText)) !== null) {
+            const url = match[0];
+            if (!urls.includes(url)) {
+              urls.push(url);
+            }
+          }
+
+          // Pattern for Giphy/Imgur links that don't end in the extension but are likely images
+          const commonImageHosts = [
+            /https?:\/\/giphy\.com\/gifs\/\S+?-(\w+)(?:\/\S+)?/gi,
+            /https?:\/\/v\.redd\.it\/\w+/gi,
+            /https?:\/\/i\.imgur\.com\/\w+/gi,
+          ];
+
+          commonImageHosts.forEach(regex => {
+            let m;
+            while ((m = regex.exec(bodyText)) !== null) {
+              let url = m[0];
+              // Transform Giphy links to direct gif if possible
+              if (url.includes('giphy.com/gifs/')) {
+                const id = m[1];
+                if (id) {
+                  url = `https://media.giphy.com/media/${id}/giphy.gif`;
+                }
+              }
+              if (!urls.includes(url)) {
+                urls.push(url);
+              }
+            }
+          });
+          
+          return urls;
+        };
+
         const parseComments = (children: any[], depth: number): RedditComment[] => {
           if (!Array.isArray(children)) return [];
           return children.map(child => {
@@ -96,7 +162,8 @@ export const RedditPostReader = ({ post, onClose, onNext, onPrev, hasNext, hasPr
               score: data.score,
               createdUtc: data.created_utc * 1000,
               depth,
-              replies
+              replies,
+              mediaUrls: extractMediaUrls(data)
             };
           }).filter(Boolean) as RedditComment[];
         };
