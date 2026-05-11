@@ -28,8 +28,12 @@ export const AddFeedModal = React.memo(function AddFeedModal({ isOpen, onClose, 
       let cleanUrl = url.trim();
       const lowerUrl = cleanUrl.toLowerCase();
 
-      // Ensure https:// is prepended if no protocol is specified and it's not a special shortcut
-      if (!lowerUrl.startsWith('http://') && !lowerUrl.startsWith('https://') && !lowerUrl.startsWith('r/') && !lowerUrl.startsWith('@')) {
+      // Ensure https:// is prepended if it's a domain or www but missing protocol
+      const isHttp = lowerUrl.startsWith('http://') || lowerUrl.startsWith('https://');
+      const isWww = lowerUrl.startsWith('www.');
+      const isDomain = /^[a-zA-Z0-9-]+\.[a-zA-Z]{2,}/.test(lowerUrl); // Matches something.tld
+
+      if (!isHttp && (isWww || isDomain) && !lowerUrl.startsWith('r/') && !lowerUrl.startsWith('@')) {
         cleanUrl = 'https://' + cleanUrl;
       }
 

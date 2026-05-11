@@ -263,11 +263,11 @@ export function parseRssXml(xmlString: string, feedUrl: string, sinceDate?: numb
     throw new Error('Failed to parse XML: ' + parserError.textContent);
   }
 
-  const isAtom = xmlDoc.getElementsByTagName('feed').length > 0;
+  const isAtom = xmlDoc.getElementsByTagName('feed').length > 0 || xmlDoc.documentElement.nodeName.toLowerCase() === 'feed';
   const feedId = crypto.randomUUID();
   
   if (isAtom) {
-    const feedNode = xmlDoc.getElementsByTagName('feed')[0];
+    const feedNode = xmlDoc.getElementsByTagName('feed')[0] || xmlDoc.documentElement;
     const title = getTagText(feedNode, ['title', 'dc:title']) || 'Untitled Atom Feed';
     const description = getTagText(feedNode, ['subtitle', 'description', 'summary']) || '';
     const link = feedNode.getElementsByTagName('link')[0]?.getAttribute('href') || '';
@@ -424,13 +424,28 @@ export function parseRssXml(xmlString: string, feedUrl: string, sinceDate?: numb
       articles
     };
   } else {
+    // Check if it's accidentally HTML
+    if (xmlDoc.documentElement.nodeName.toLowerCase() === 'html') {
+      throw new Error('Received HTML instead of RSS/Atom XML.');
+    }
+
     // Assume RSS 2.0
     let channel = xmlDoc.getElementsByTagName('channel')[0];
     if (!channel) {
       // Try to find RSS 1.0 (RDF)
-      channel = xmlDoc.getElementsByTagName('rdf:RDF')[0] || xmlDoc.getElementsByTagName('RDF')[0];
+      channel = xmlDoc.getElementsByTagName('rdf:RDF')[0] || xmlDoc.getElementsByTagName('RDF')[0] || xmlDoc.documentElement;
+      
+      // If the root element is RDF then it might be the channel representation in RSS 1.0
+      if (channel.nodeName.toLowerCase().includes('rdf')) {
+        // In RSS 1.0, channel is a child of rdf:RDF
+        const nestedChannel = xmlDoc.getElementsByTagName('channel')[0];
+        if (nestedChannel) channel = nestedChannel;
+      }
     }
-    if (!channel) throw new Error('Invalid RSS feed: missing <channel>');
+    
+    if (!channel || (channel.nodeName.toLowerCase() !== 'channel' && channel.getElementsByTagName('item').length === 0)) {
+      throw new Error('Invalid RSS feed: missing <channel> or <item> elements');
+    }
     
     const title = getTagText(channel, ['title', 'dc:title']) || 'Untitled RSS Feed';
     const description = getTagText(channel, ['description', 'subtitle', 'summary']) || '';

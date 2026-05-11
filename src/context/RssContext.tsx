@@ -370,8 +370,18 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setIsLoading(true);
       setError(null);
       
-      const cleanUrl = url.trim();
-      const lowerUrl = cleanUrl.toLowerCase();
+      let cleanUrl = url.trim();
+      let lowerUrl = cleanUrl.toLowerCase();
+
+      // Normalize URL if it's a domain or www but missing protocol
+      const isHttp = lowerUrl.startsWith('http://') || lowerUrl.startsWith('https://');
+      const isWww = lowerUrl.startsWith('www.');
+      const isDomain = /^[a-zA-Z0-9-]+\.[a-zA-Z]{2,}/.test(lowerUrl); // Matches something.tld
+
+      if (!isHttp && (isWww || isDomain) && !lowerUrl.startsWith('r/') && !lowerUrl.startsWith('@')) {
+        cleanUrl = 'https://' + cleanUrl;
+        lowerUrl = cleanUrl.toLowerCase();
+      }
       
       // 1. Check if it's a subreddit
       if (lowerUrl.startsWith('r/') || lowerUrl.includes('reddit.com/r/')) {
@@ -412,19 +422,18 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         // Invalid URL, continue to Telegram check
       }
 
-      // 3. Otherwise, treat as Telegram channel
-      try {
-        // We need to access addTelegramChannel from TelegramContext
-        // But RssContext doesn't have it directly. 
-        // However, the user wants this logic in the "add" flow.
-        // I will return a special type and let the caller handle it if needed,
-        // but better to implement it here if possible or in the Modal.
-        // Actually, RssContext is where addFeedOrSubreddit lives.
-        // I'll assume the caller of addFeedOrSubreddit in AddFeedModal will handle the 'telegram' return.
+      // 3. Otherwise, check for Telegram indicators or treat as fallback
+      if (lowerUrl.startsWith('@')) {
         return 'telegram';
-      } catch (tgErr: any) {
-        throw new Error(tgErr.message || "Impossibile aggiungere il canale Telegram. Verifica il nome.");
       }
+
+      // If it has no dots and no special markers, it's likely a telegram username without @
+      if (!lowerUrl.includes('.')) {
+        return 'telegram';
+      }
+
+      // Final fallback
+      return 'article';
     } catch (err: any) {
       const errMsg = err.message || "Errore durante l'aggiunta. Riprova.";
       setError(errMsg);

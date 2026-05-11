@@ -138,7 +138,8 @@ export async function fetchWithProxy(url: string, isRss: boolean = true, sinceDa
   }
 
   const headers: Record<string, string> = {
-    ...(isRss ? { 'Accept': 'application/rss+xml, application/xml, text/xml, */*' } : {})
+    'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
+    ...(isRss ? { 'Accept': 'application/rss+xml, application/xml, text/xml, */*' } : { 'Accept': 'application/json, text/plain, */*' })
   };
 
   if (sinceDate) {
@@ -230,8 +231,21 @@ export async function fetchWithProxy(url: string, isRss: boolean = true, sinceDa
         
         if (text && text.trim().length > 0) {
           const trimmed = text.trim();
+          const lowerTrimmed = trimmed.toLowerCase();
+
           if (isRss) {
-            if (trimmed.includes('<rss') || trimmed.includes('<feed') || trimmed.includes('<?xml') || trimmed.includes('<rdf:RDF') || trimmed.startsWith('{')) {
+            // More robust RSS detection
+            const hasRssTag = lowerTrimmed.includes('<rss') || lowerTrimmed.includes('<feed') || lowerTrimmed.includes('<rdf:rdf');
+            const hasXmlDeclaration = lowerTrimmed.startsWith('<?xml');
+            const isJson = trimmed.startsWith('{');
+
+            if (hasRssTag || hasXmlDeclaration || isJson) {
+              // Check if it's accidentally HTML
+              if (!isJson && (lowerTrimmed.includes('<html') || lowerTrimmed.includes('<!doctype html'))) {
+                lastError = new Error(`Proxy ${proxy.name} returned HTML instead of RSS XML`);
+                continue;
+              }
+              
               return {
                 data: text,
                 etag: getHeader(response.headers, 'etag'),
@@ -244,7 +258,7 @@ export async function fetchWithProxy(url: string, isRss: boolean = true, sinceDa
           } else {
             // For non-RSS (likely JSON/API), ensure it doesn't look like HTML unless it's a known HTML source like Telegram or explicitly requested
             const isTelegram = url.includes('t.me/');
-            if (!isHtml && !isTelegram && trimmed.startsWith('<') && (trimmed.toLowerCase().includes('<html') || trimmed.toLowerCase().includes('<body') || trimmed.toLowerCase().includes('<!doctype'))) {
+            if (!isHtml && !isTelegram && trimmed.startsWith('<') && (lowerTrimmed.includes('<html') || lowerTrimmed.includes('<body') || lowerTrimmed.includes('<!doctype'))) {
               lastError = new Error(`Proxy ${proxy.name} returned HTML instead of expected JSON/API response`);
               continue;
             }

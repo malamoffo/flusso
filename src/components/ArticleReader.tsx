@@ -269,12 +269,19 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
         if (node.tagName === 'IMG') {
           const possibleSrcs = ['data-src', 'data-lazy-src', 'data-original', 'srcset', 'data-srcset'];
           let finalSrc = node.getAttribute('src');
-          if (!finalSrc || finalSrc.includes('data:image/gif') || finalSrc.includes('data:image/svg') || finalSrc === '') {
+          // Improved check for placeholder images (GIFs, SVGs, or any data URL pixel)
+          const isPlaceholder = !finalSrc || 
+                               finalSrc.includes('data:image/gif') || 
+                               finalSrc.includes('data:image/svg') || 
+                               finalSrc.startsWith('data:image/') ||
+                               finalSrc === '';
+                               
+          if (isPlaceholder) {
              for (const attr of possibleSrcs) {
                 if (node.hasAttribute(attr)) {
                    const val = node.getAttribute(attr);
                    const parsed = val ? val.split(' ')[0] : '';
-                   if (parsed && !parsed.includes('data:image/')) {
+                   if (parsed && !parsed.startsWith('data:image/')) {
                       finalSrc = parsed;
                       break;
                    }
@@ -311,14 +318,15 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
           
           // Improved deduplication check
           const isDuplicateOfCover = (() => {
-            if (!article.imageUrl) return false;
+            const coverUrl = readerImageUrl || article.imageUrl; // Use current reader image if available
+            if (!coverUrl) return false;
             
             // Direct comparison
-            if (src === article.imageUrl) return true;
+            if (src === coverUrl) return true;
             
             // Comparison ignoring protocol
-            const normalize = (url: string) => url.replace(/^https?:\/\//i, '').replace(/\/+$/, '');
-            if (normalize(src) === normalize(article.imageUrl)) return true;
+            const normalize = (url: string) => url.replace(/^https?:\/\//i, '').replace(/\/+$/, '').split('?')[0];
+            if (normalize(src) === normalize(coverUrl)) return true;
             
             // Comparison based on filename/path (ignoring query params)
             const getPath = (url: string) => {
@@ -330,32 +338,34 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
               }
             };
             const pathA = getPath(src);
-            const pathB = getPath(article.imageUrl);
-            if (pathA === pathB && pathA.length > 5 && (pathA.includes('.') || pathA.includes('/'))) return true;
+            const pathB = getPath(coverUrl);
+            if (pathA === pathB && pathA.length > 8 && (pathA.includes('.') || pathA.includes('/'))) return true;
 
             return false;
           })();
 
+          // If it has a caption (is inside a figure or has a figcaption sibling), we should PROBABLY keep it
+          // even if it matches deduplication, because it's part of the narrative content.
+          const hasCaption = node.closest('figure') !== null || 
+                            node.nextElementSibling?.tagName === 'FIGCAPTION' ||
+                            node.parentElement?.querySelector('figcaption') !== null;
+
           if (
-            isDuplicateOfCover ||
+            (isDuplicateOfCover && !hasCaption) ||
             lowerSrc.includes('1x1') ||
             lowerSrc.includes('pixel') ||
             lowerSrc.includes('tracker') ||
+            lowerSrc.includes('/1/1/') || // common 1x1 pattern
             lowerSrc.includes('feedburner') ||
-            lowerSrc.includes('stats') ||
-            lowerSrc.includes('gravatar') ||
-            lowerSrc.includes('avatar') ||
-            lowerSrc.includes('favicon') ||
-            lowerSrc.includes('icon') ||
-            lowerSrc.includes('logo') ||
-            lowerSrc.includes('wp-includes/images/smilies') ||
-            lowerSrc.includes('share') ||
-            lowerSrc.includes('button') ||
-            lowerSrc.includes('badge') ||
-            (width > 0 && width <= 50) ||
-            (height > 0 && height <= 50)
+            (width > 0 && width <= 20) || // Increased from 10 to catch more pixels
+            (height > 0 && height <= 20)
           ) {
-            node.parentNode?.removeChild(node);
+            // Only remove if it's NOT a logo we might want to keep (optional, keep strict for now)
+            // But if it's small and has no alt text, it's definitely a tracker
+            const hasAlt = !!node.getAttribute('alt');
+            if (!hasAlt || (width > 0 && width <= 5)) {
+              node.parentNode?.removeChild(node);
+            }
           }
         }
       });
@@ -431,7 +441,7 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
         animate={{ y: 0 }}
         exit={{ y: '100%', opacity: 0 }}
         transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-        className="fixed bottom-0 left-0 right-0 z-50 h-[92vh] overflow-hidden flex flex-col transition-colors break-words font-sans rounded-t-[2.5rem] border-t border-white/10 shadow-[0_-10px_40px_rgba(0,0,0,0.5)] isolate transform-gpu bg-black"
+        className="fixed bottom-0 left-0 right-0 z-50 h-[92vh] overflow-hidden flex flex-col transition-colors break-words font-sans rounded-t-[2.5rem] border-t border-white/10 shadow-[0_-10px_40px_rgba(0,0,0,0.5)] isolate transform-gpu bg-black scrollbar-hide"
         drag="y"
         dragControls={controls}
         dragListener={false}
@@ -483,7 +493,7 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
         </div>
 
         {/* Article Content with Glass Container */}
-        <div className="relative z-10 flex-1 px-2 sm:px-4 max-w-5xl mx-auto w-full pb-20 overflow-y-auto overscroll-contain transform-gpu will-change-scroll">
+        <div className="relative z-10 flex-1 px-2 sm:px-4 max-w-5xl mx-auto w-full pb-20 overflow-y-auto overscroll-contain transform-gpu will-change-scroll scrollbar-hide">
         <div className="bg-[#121e36] border border-blue-500/10 rounded-[2.5rem] overflow-hidden shadow-2xl mb-24">
           {readerImageUrl && (
             <div className="relative group overflow-hidden bg-black/40">
@@ -611,7 +621,7 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
                   prose-img:rounded-xl prose-img:h-auto prose-img:mx-auto prose-img:max-w-full prose-img:my-8 prose-img:shadow-xl
                   prose-video:w-full prose-video:rounded-xl prose-video:my-8
                   [&_iframe]:w-full [&_iframe]:aspect-video [&_iframe]:rounded-2xl [&_iframe]:border-0 [&_iframe]:my-10 [&_iframe]:shadow-2xl
-                  prose-a:text-indigo-400 prose-a:decoration-indigo-400/30 prose-a:underline-offset-4 hover:prose-a:decoration-indigo-400 transition-all
+                  prose-a:text-blue-500 prose-a:decoration-blue-500/30 prose-a:underline-offset-4 hover:prose-a:decoration-blue-500 transition-all
                   prose-headings:font-sans prose-headings:font-black prose-headings:tracking-tight prose-headings:text-white prose-headings:mt-12 prose-headings:mb-6
                   prose-p:mb-8 prose-li:mb-2
                   prose-pre:max-w-full prose-pre:overflow-x-auto prose-pre:rounded-2xl prose-pre:bg-white/5 prose-pre:border prose-pre:border-white/10

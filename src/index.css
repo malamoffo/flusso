@@ -85,6 +85,25 @@
     line-height: 1.8 !important;
   }
 
+  /* Standard blue links for all content areas */
+  .prose a, 
+  .reddit-post-body a, 
+  .reddit-comment-body a, 
+  .telegram-message-body a {
+    color: #3b82f6 !important; /* blue-500 */
+    text-decoration: underline;
+    text-underline-offset: 4px;
+    transition: all 0.2s ease;
+  }
+
+  .prose a:hover, 
+  .reddit-post-body a:hover, 
+  .reddit-comment-body a:hover, 
+  .telegram-message-body a:hover {
+    color: #60a5fa !important; /* blue-400 */
+    text-decoration-color: currentColor;
+  }
+
   .prose blockquote {
     font-style: italic;
     border-left-width: 4px;
@@ -93,6 +112,12 @@
     padding: 1.5rem 2rem !important;
     border-radius: 0 1rem 1rem 0;
     margin: 2.5rem 0 !important;
+  }
+
+  /* Fix for select dropdown visibility */
+  select option {
+    background-color: #000000 !important;
+    color: #ffffff !important;
   }
 }
 

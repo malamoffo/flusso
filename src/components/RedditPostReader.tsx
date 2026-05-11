@@ -205,7 +205,7 @@ export const RedditPostReader = ({ post, onClose, onNext, onPrev, hasNext, hasPr
         animate={{ y: 0 }}
         exit={{ y: '100%', opacity: 0 }}
         transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-        className="fixed bottom-0 left-0 right-0 z-50 h-[92vh] overflow-hidden flex flex-col transition-colors break-words font-sans bg-black rounded-t-[2.5rem] border-t border-white/10 shadow-[0_-10px_40px_rgba(0,0,0,0.5)] transform-gpu isolate"
+        className="fixed bottom-0 left-0 right-0 z-50 h-[92vh] overflow-hidden flex flex-col transition-colors break-words font-sans bg-black rounded-t-[2.5rem] border-t border-white/10 shadow-[0_-10px_40px_rgba(0,0,0,0.5)] transform-gpu isolate scrollbar-hide"
         drag="y"
         dragControls={controls}
         dragListener={false}
@@ -246,7 +246,7 @@ export const RedditPostReader = ({ post, onClose, onNext, onPrev, hasNext, hasPr
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto overscroll-contain p-4 max-w-3xl mx-auto w-full pb-20 transform-gpu will-change-scroll">
+        <div className="flex-1 overflow-y-auto overscroll-contain p-4 max-w-3xl mx-auto w-full pb-20 transform-gpu will-change-scroll scrollbar-hide">
         <div className="mb-8 bg-[#1e162a] p-6 rounded-[2.5rem] border border-purple-500/10 shadow-xl">
           <div className="flex items-center gap-2 mb-2">
             <span className="text-sm font-bold text-purple-400 drop-shadow-[0_0_5px_rgba(168,85,247,0.4)]">r/{post.subredditName}</span>

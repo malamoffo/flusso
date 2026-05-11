@@ -138,7 +138,7 @@ export const TelegramThreadView = memo(({ channel, messages, onClose, onRefresh,
         animate={{ y: 0 }}
         exit={{ y: '100%', opacity: 0 }}
         transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-        className="fixed bottom-0 left-0 right-0 z-50 h-[92vh] overflow-hidden flex flex-col transition-colors break-words font-sans bg-black rounded-t-[2.5rem] border-t border-white/10 shadow-[0_-10px_40px_rgba(0,0,0,0.5)] transform-gpu isolate"
+        className="fixed bottom-0 left-0 right-0 z-50 h-[92vh] overflow-hidden flex flex-col transition-colors break-words font-sans bg-black rounded-t-[2.5rem] border-t border-white/10 shadow-[0_-10px_40px_rgba(0,0,0,0.5)] transform-gpu isolate scrollbar-hide"
         drag="y"
         dragControls={controls}
         dragListener={false}
@@ -159,11 +159,12 @@ export const TelegramThreadView = memo(({ channel, messages, onClose, onRefresh,
         
         <style dangerouslySetInnerHTML={{ __html: `
         .telegram-message-text a {
-          color: #4ade80;
-          text-decoration: none;
+          color: #3b82f6;
+          text-decoration: underline;
+          text-underline-offset: 4px;
         }
         .telegram-message-text a:hover {
-          text-decoration: underline;
+          color: #60a5fa;
         }
       `}} />
         <header className="sticky top-0 z-[70] px-4 py-4 flex items-center bg-black min-h-[4rem]">
@@ -192,7 +193,7 @@ export const TelegramThreadView = memo(({ channel, messages, onClose, onRefresh,
         <div 
           ref={scrollRef}
           onScroll={handleScroll}
-          className="flex-1 overflow-y-auto overscroll-contain px-4 pb-20 max-w-3xl mx-auto w-full transform-gpu will-change-scroll"
+          className="flex-1 overflow-y-auto overscroll-contain px-4 pb-20 max-w-3xl mx-auto w-full transform-gpu will-change-scroll scrollbar-hide"
         >
         {isFetchingMore && (
           <div className="flex justify-center py-4">

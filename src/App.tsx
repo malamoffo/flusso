@@ -817,7 +817,7 @@ export default function App() {
                       <select
                         value={sourceFilter}
                         onChange={(e) => setSourceFilter(e.target.value)}
-                        className="appearance-none text-xs bg-white/10 text-gray-700 dark:text-gray-300 rounded-full pl-3 pr-8 py-1.5 border-none focus:ring-0 outline-none whitespace-nowrap"
+                        className="appearance-none text-xs bg-white/10 text-white dark:text-gray-300 rounded-full pl-3 pr-8 py-1.5 border-none focus:ring-0 outline-none whitespace-nowrap"
                       >
                         <option value="all">All Sources</option>
                         {sortedFeeds.filter(f => {
@@ -835,7 +835,7 @@ export default function App() {
                       <select
                         value={timeFilter}
                         onChange={(e) => setTimeFilter(e.target.value)}
-                        className="appearance-none text-xs bg-white/10 text-gray-700 dark:text-gray-300 rounded-full pl-3 pr-8 py-1.5 border-none focus:ring-0 outline-none whitespace-nowrap"
+                        className="appearance-none text-xs bg-white/10 text-white dark:text-gray-300 rounded-full pl-3 pr-8 py-1.5 border-none focus:ring-0 outline-none whitespace-nowrap"
                       >
                         <option value="all">Any Time</option>
                         <option value="today">Past 24 Hours</option>
@@ -877,7 +877,7 @@ export default function App() {
           ref={inboxScrollRef}
           onScroll={(e) => handleScroll(e, 'inbox')}
           className={cn(
-            "absolute inset-0 overflow-y-auto pb-24 pt-4 scroll-smooth transition-opacity duration-300 transform-gpu will-change-scroll",
+            "absolute inset-0 overflow-y-auto pb-24 pt-4 scroll-smooth transition-opacity duration-300 transform-gpu will-change-scroll scrollbar-hide",
             filter === 'inbox' ? "z-10 opacity-100 pointer-events-auto" : "z-0 opacity-0 pointer-events-none"
           )}
         >
@@ -903,7 +903,7 @@ export default function App() {
           ref={savedScrollRef}
           onScroll={(e) => handleScroll(e, 'saved')}
           className={cn(
-            "absolute inset-0 overflow-y-auto pb-24 pt-4 scroll-smooth transition-opacity duration-300 transform-gpu will-change-scroll",
+            "absolute inset-0 overflow-y-auto pb-24 pt-4 scroll-smooth transition-opacity duration-300 transform-gpu will-change-scroll scrollbar-hide",
             filter === 'saved' ? "z-10 opacity-100 pointer-events-auto" : "z-0 opacity-0 pointer-events-none"
           )}
         >
