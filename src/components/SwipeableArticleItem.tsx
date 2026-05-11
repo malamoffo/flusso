@@ -404,7 +404,6 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
                   </div>
                 )}
                 <div className="flex items-center gap-1.5 min-w-0">
-                  <FileText className="w-3 h-3 text-gray-400 flex-shrink-0" />
                   <ScrollingFeedName feedName={feedName} readableFeedThemeColor={readableFeedThemeColor} />
                 </div>
               </div>

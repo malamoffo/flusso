@@ -224,6 +224,11 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
       // Clean up superfluous text/empty tags
       let content = contentToSanitize;
 
+      // Transform <media:thumbnail url="..."> to <img src="...">
+      // This is often found in RSS feed contents but not rendered by browsers directly
+      content = content.replace(/<media:thumbnail[^>]+url=["']([^"']+)["'][^>]*\/?>/gi, '<img src="$1" />');
+      content = content.replace(/<media:content[^>]+url=["']([^"']+)["'][^>]*\/?>/gi, '<img src="$1" />');
+
       // --- DEEP CLEANING: Remove labels and boilerplate ---
       // 1. Remove leading/trailing boilerplate patterns (Source:, Written by:, etc.)
       const boilerplatePatterns = [
