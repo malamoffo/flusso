@@ -31,7 +31,7 @@ export const rssService = {
       let completed = 0;
       
       const queue = [...feedsToRefresh];
-      const FEED_TIMEOUT = 22500;
+      const FEED_TIMEOUT = 60000;
       const CONCURRENCY = Math.min(6, queue.length);
       
       let mergeChain = Promise.resolve();

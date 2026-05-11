@@ -57,9 +57,9 @@ export async function fetchWithProxy(url: string, isRss: boolean = true, sinceDa
           lastModified: getHeader(response.headers, 'last-modified')
         };
       }
-      throw new Error(`Native fetch failed with status ${response.status}`);
+      throw new Error(`Native fetch to ${url} failed with status ${response.status}`);
     } catch (e: any) {
-        console.error('[Proxy] Direct native fetch failed:', e);
+        console.error(`[Proxy] Direct native fetch failed for ${url}:`, e);
         throw e; // Fail on native, don't fall back to web proxies
     }
   }
@@ -72,7 +72,7 @@ export async function fetchWithProxy(url: string, isRss: boolean = true, sinceDa
     if (signal?.aborted) throw new Error('Aborted');
 
     const directController = new AbortController();
-    const directTimeoutId = setTimeout(() => directController.abort(), 4000);
+    const directTimeoutId = setTimeout(() => directController.abort(), 10000);
     
     // Link external signal to our internal controller
     if (signal) {
@@ -148,15 +148,15 @@ export async function fetchWithProxy(url: string, isRss: boolean = true, sinceDa
   const proxies: { name: string, url: string, type: 'text' | 'json' | 'rss2json', timeout?: number }[] = [];
   
   const baseProxies: { name: string, url: string, type: 'text' | 'json' | 'rss2json', timeout?: number }[] = [
-    { name: 'AllOrigins Raw', url: `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`, type: 'text', timeout: 5000 },
-    { name: 'AllOrigins JSON', url: `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`, type: 'json', timeout: 5000 },
-    { name: 'CorsProxy.io', url: `https://corsproxy.io/?${encodeURIComponent(url)}`, type: 'text', timeout: 6000 },
-    { name: 'CodeTabs', url: `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`, type: 'text', timeout: 6000 },
-    { name: 'YACDN', url: `https://yacdn.org/proxy/${url}`, type: 'text', timeout: 6000 },
-    { name: 'CorsProxy.org', url: `https://corsproxy.org/?url=${encodeURIComponent(url)}`, type: 'text', timeout: 5000 },
-    { name: 'Cloudflare Worker', url: `https://cors-anywhere.azm.workers.dev/${url}`, type: 'text', timeout: 5000 },
-    { name: 'ThingProxy', url: `https://thingproxy.freeboard.io/fetch/${url}`, type: 'text', timeout: 5000 },
-    { name: 'CORS-Anywhere Demo', url: `https://cors-anywhere.herokuapp.com/${url}`, type: 'text', timeout: 8000 },
+    { name: 'AllOrigins Raw', url: `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`, type: 'text', timeout: 15000 },
+    { name: 'AllOrigins JSON', url: `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`, type: 'json', timeout: 15000 },
+    { name: 'CorsProxy.io', url: `https://corsproxy.io/?${encodeURIComponent(url)}`, type: 'text', timeout: 12000 },
+    { name: 'CodeTabs', url: `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`, type: 'text', timeout: 12000 },
+    { name: 'YACDN', url: `https://yacdn.org/proxy/${url}`, type: 'text', timeout: 12000 },
+    { name: 'CorsProxy.org', url: `https://corsproxy.org/?url=${encodeURIComponent(url)}`, type: 'text', timeout: 12000 },
+    { name: 'Cloudflare Worker', url: `https://cors-anywhere.azm.workers.dev/${url}`, type: 'text', timeout: 12000 },
+    { name: 'ThingProxy', url: `https://thingproxy.freeboard.io/fetch/${url}`, type: 'text', timeout: 15000 },
+    { name: 'CORS-Anywhere Demo', url: `https://cors-anywhere.herokuapp.com/${url}`, type: 'text', timeout: 15000 },
   ];
 
   // Remove shuffling of proxies to prevent IP-based rate limiting on services
@@ -169,13 +169,13 @@ export async function fetchWithProxy(url: string, isRss: boolean = true, sinceDa
   }
 
   let lastError: any;
-  const defaultTimeout = 4000;
+  const defaultTimeout = 12000;
 
   for (let i = 0; i < proxies.length; i++) {
     if (signal?.aborted) throw new Error('Aborted');
     
     const proxy = proxies[i];
-    const timeout = proxy.timeout ? Math.min(proxy.timeout, 5000) : defaultTimeout;
+    const timeout = proxy.timeout ? Math.min(proxy.timeout, 15000) : defaultTimeout;
     
     let id: any;
     try {

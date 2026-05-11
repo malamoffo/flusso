@@ -238,7 +238,7 @@ export const rssStorage = {
       
       // If we are in preview mode, we do NOT return mock articles anymore.
       // throw e; // Rethrow to let the UI know it failed.
-      console.error(`[Storage] Fetch failed for ${feedUrl}, throwing error.`);                
+      console.error(`[Storage] Fetch failed for ${feedUrl}, throwing error:`, e);
       throw e;
     }
   },

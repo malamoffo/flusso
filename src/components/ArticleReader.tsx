@@ -138,6 +138,11 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
         }
 
         if (html) {
+          // Transform <media:thumbnail url="..."> and <media:content url="..."> to <img src="...">
+          // These are non-standard tags that Readability might strip
+          html = html.replace(/<media:thumbnail[^>]+url=["']([^"']+)["'][^>]*\/?>/gi, '<img src="$1" />');
+          html = html.replace(/<media:content[^>]+url=["']([^"']+)["'][^>]*\/?>/gi, '<img src="$1" />');
+
           const doc = new DOMParser().parseFromString(html, 'text/html');
           
           // Add base tag to help resolve relative URLs during parsing
@@ -146,7 +151,44 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
           doc.head.appendChild(base);
 
           const reader = new Readability(doc);
-          const articleData = reader.parse();
+          let articleData = reader.parse();
+
+          // Check for "read more" link and fetch full content if detected
+          if (articleData && articleData.content) {
+            const findFullArticleLink = (doc: Document): string | null => {
+              const links = Array.from(doc.querySelectorAll('a'));
+              const patterns = [/leggi tutto/i, /read more/i, /continua a leggere/i, /full article/i];
+              for (let i = links.length - 1; i >= Math.max(0, links.length - 5); i--) {
+                const link = links[i];
+                if (patterns.some(p => p.test(link.textContent || ''))) {
+                  return link.getAttribute('href');
+                }
+              }
+              return null;
+            };
+
+            const fullArticleUrl = findFullArticleLink(doc);
+            if (fullArticleUrl) {
+              try {
+                const resolvedUrl = new URL(fullArticleUrl, article.link).toString();
+                const fullResData = isNativeHttp ? (await CapacitorHttp.get({ 
+                  url: resolvedUrl,
+                  headers: {
+                    'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
+                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                  }
+                })).data : (await fetchWithProxy(resolvedUrl, false, undefined, undefined, undefined, undefined, true)).data;
+                const fullDoc = new DOMParser().parseFromString(fullResData, 'text/html');
+                const fullReader = new Readability(fullDoc);
+                const fullArticleData = fullReader.parse();
+                if (fullArticleData && fullArticleData.content) {
+                  articleData = fullArticleData;
+                }
+              } catch (e) {
+                console.warn(`[READER] Failed to fetch full article link: ${fullArticleUrl}`, e);
+              }
+            }
+          }
 
           if (articleData && articleData.content && articleData.content.length > 200) {
             const contentToSave = {
