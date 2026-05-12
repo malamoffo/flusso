@@ -73,29 +73,7 @@ export const RedditProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   }, []);
 
   const prefetchRedditComments = useCallback(async (permalink: string) => {
-    if (commentCache.current.has(permalink) || prefetchQueue.current.has(permalink)) {
-      return;
-    }
-
-    prefetchQueue.current.add(permalink);
-    try {
-      // Increased delay to 1.5s to be less aggressive and reduce proxy/API load
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      const comments = await storage.fetchRedditComments(permalink);
-      if (comments && comments.length > 0) {
-        commentCache.current.set(permalink, comments);
-        
-        // Keep cache size manageable
-        if (commentCache.current.size > 50) {
-          const firstKey = commentCache.current.keys().next().value;
-          if (firstKey) commentCache.current.delete(firstKey);
-        }
-      }
-    } catch (e) {
-      console.warn(`[Prefetch] Failed to prefetch comments for ${permalink}`);
-    } finally {
-      prefetchQueue.current.delete(permalink);
-    }
+    // Prefetch disabled
   }, []);
 
   const getCachedComments = useCallback((permalink: string) => {

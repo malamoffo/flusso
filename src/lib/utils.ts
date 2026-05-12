@@ -104,3 +104,15 @@ export function resolveUrl(url: string, baseUrl: string): string {
     return url; // Return original if resolution fails
   }
 }
+
+/**
+ * Safely extracts the hostname from a URL string.
+ */
+export function getHostname(url: string | null | undefined): string {
+  if (!url) return '';
+  try {
+    return new URL(url).hostname;
+  } catch (e) {
+    return '';
+  }
+}

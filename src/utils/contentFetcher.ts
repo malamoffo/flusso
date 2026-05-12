@@ -19,10 +19,7 @@ class ContentFetcherQueue {
   }
 
   enqueue(articleId: string, url: string) {
-    if (!this.queue.some(item => item.id === articleId)) {
-      this.queue.push({ id: articleId, url });
-      this.processQueue();
-    }
+    // Prefetch disabled
   }
 
   private async processQueue() {

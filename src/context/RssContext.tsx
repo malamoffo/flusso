@@ -702,9 +702,7 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
 
   const prefetch = useCallback(async (article: Article) => {
-    if (article.type === 'article' && !article.content) {
-      contentFetcher.enqueue(article.id, article.link);
-    }
+    // Prefetch disabled
   }, []);
 
   const loadAllUnreadArticles = useCallback(async () => {

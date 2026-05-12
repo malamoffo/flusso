@@ -138,12 +138,6 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
     rootMargin: '-120px 0px 0px 0px',
   });
 
-  const { ref: prefetchRef, inView: prefetchInView } = useInView({
-    threshold: 0,
-    rootMargin: '200px 0px',
-    triggerOnce: true,
-  });
-
   const { ref: visibleRef, inView: isVisibleForTimer } = useInView({
     threshold: 0.5,
   });
@@ -153,17 +147,6 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
       onVisibilityChange(article.id, isVisibleForTimer);
     }
   }, [isVisibleForTimer, article.id, onVisibilityChange]);
-
-  const prevTop = useRef(0);
-  useEffect(() => {
-    if (prefetchInView && entry) {
-      const isScrollingDown = entry.boundingClientRect.top < prevTop.current;
-      if (isScrollingDown) {
-        contentFetcher.enqueue(article.id, article.link);
-      }
-      prevTop.current = entry.boundingClientRect.top;
-    }
-  }, [prefetchInView, entry, article.id, article.link]);
 
   useEffect(() => {
     if (filter === 'inbox' && !inView && entry && entry.boundingClientRect.top < 120 && !article.isRead) {
@@ -296,7 +279,6 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
       }}
       ref={(node) => {
         ref(node);
-        prefetchRef(node);
         visibleRef(node);
       }} 
       className={cn(
