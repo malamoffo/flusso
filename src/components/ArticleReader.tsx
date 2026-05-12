@@ -556,8 +556,8 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
           )}
 
           <div className="p-3 sm:p-6 lg:p-8">
-            <header className="mb-12 text-center max-w-5xl mx-auto">
-              <div className="flex flex-col items-center gap-6 mb-4">
+            <header className="mb-6 text-center max-w-5xl mx-auto">
+              <div className="flex flex-col items-center gap-3 mb-2">
                 <div className="flex items-center justify-center gap-4 flex-wrap">
                   <div className="flex items-center gap-2.5 px-3 py-1 rounded-full bg-white/5 border border-white/10">
                     {article.link && (
@@ -599,7 +599,7 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
                 </div>
               </div>
 
-              <div className="flex items-center justify-center gap-8 mt-8 text-gray-500">
+              <div className="flex items-center justify-center gap-8 mt-4 text-gray-500">
                 <motion.button
                   whileTap={{ scale: 0.9 }}
                   whileHover={{ scale: 1.1, color: '#fff' }}
@@ -650,7 +650,7 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
               </div>
             </header>
 
-            <div className="h-px bg-gradient-to-r from-transparent via-white/10 to-transparent w-full mb-12" />
+            <div className="h-px bg-gradient-to-r from-transparent via-white/10 to-transparent w-full mb-6" />
 
             {isLoading ? (
               <div className="space-y-6 animate-pulse mt-8 max-w-4xl mx-auto">
