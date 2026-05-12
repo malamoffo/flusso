@@ -272,6 +272,10 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
 
   const isReadForDisplay = article.isRead;
 
+  const sanitizedTitle = React.useMemo(() => ({ 
+    __html: DOMPurify.sanitize(article.title, { FORBID_ATTR: ['id', 'name'] }) 
+  }), [article.title]);
+
   return (
     <motion.div 
       initial={{ opacity: 0, y: 30, scale: 0.95 }}
@@ -424,7 +428,7 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
                   getTitleSize(),
                   !isReadForDisplay && "group-hover:text-[var(--theme-color)]"
                 )}
-                dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(article.title, { FORBID_ATTR: ['id', 'name'] }) }}
+                dangerouslySetInnerHTML={sanitizedTitle}
               />
               
               {article.contentSnippet && (

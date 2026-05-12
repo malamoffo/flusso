@@ -430,20 +430,13 @@ export default function App() {
   const savedTimerRef = useRef<NodeJS.Timeout | null>(null);
   const redditTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Handle marking as read when scrolling to bottom
+  // Handle marking as read initially when filter changes or new items load
   useEffect(() => {
     const inboxContainer = inboxScrollRef.current;
-    if (!inboxContainer) return;
+    if (!inboxContainer || filter !== 'inbox') return;
     
+    // Check initially in case the list is already at the bottom or empty
     const checkAtBottom = () => {
-      if (filter !== 'inbox') {
-        if (inboxTimerRef.current) {
-          clearTimeout(inboxTimerRef.current);
-          inboxTimerRef.current = null;
-        }
-        return;
-      }
-
       const isAtBottom = inboxContainer.scrollHeight - inboxContainer.scrollTop <= inboxContainer.clientHeight + 50;
       const allVisible = !hasMoreArticles;
 
@@ -458,20 +451,12 @@ export default function App() {
             inboxTimerRef.current = null;
           }, 5000);
         }
-      } else {
-        if (inboxTimerRef.current) {
-          clearTimeout(inboxTimerRef.current);
-          inboxTimerRef.current = null;
-        }
       }
     };
     
-    inboxContainer.addEventListener('scroll', checkAtBottom);
-    // Also check immediately in case the list is already at the bottom
     checkAtBottom();
     
     return () => {
-      inboxContainer.removeEventListener('scroll', checkAtBottom);
       if (inboxTimerRef.current) clearTimeout(inboxTimerRef.current);
     };
   }, [filter, hasMoreArticles, markArticlesAsRead]);
@@ -502,17 +487,9 @@ export default function App() {
 
   useEffect(() => {
     const savedContainer = savedScrollRef.current;
-    if (!savedContainer) return;
+    if (!savedContainer || filter !== 'saved') return;
     
     const checkAtBottom = () => {
-      if (filter !== 'saved') {
-        if (savedTimerRef.current) {
-          clearTimeout(savedTimerRef.current);
-          savedTimerRef.current = null;
-        }
-        return;
-      }
-
       const isAtBottom = savedContainer.scrollHeight - savedContainer.scrollTop <= savedContainer.clientHeight + 5;
       const allVisible = !hasMoreArticles;
 
@@ -527,20 +504,12 @@ export default function App() {
             savedTimerRef.current = null;
           }, 5000);
         }
-      } else {
-        if (savedTimerRef.current) {
-          clearTimeout(savedTimerRef.current);
-          savedTimerRef.current = null;
-        }
       }
     };
     
-    savedContainer.addEventListener('scroll', checkAtBottom);
-    // Also check immediately in case the list is already at the bottom
     checkAtBottom();
     
     return () => {
-      savedContainer.removeEventListener('scroll', checkAtBottom);
       if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
     };
   }, [filter, hasMoreArticles, markArticlesAsRead]);
@@ -882,7 +851,7 @@ export default function App() {
           )}
         >
             <FeedList
-              articles={inboxArticles.slice(0, visibleCount)}
+              articles={filter === 'inbox' ? visibleArticles : []}
               feedsMap={feedsMap}
               settings={settings}
               handleArticleClick={handleArticleClick}
@@ -908,15 +877,8 @@ export default function App() {
           )}
         >
           <div className="flex-1 max-w-3xl mx-auto px-2 py-2 space-y-1">
-            <AnimatePresence initial={false}>
-              {Array.from(new Map(savedArticles.map(a => [a.id, a])).values())
-                .map(a => ({ ...a, itemType: 'article' as const }))
-                .sort((a, b) => {
-                  const timeA = (a as any).pubDate;
-                  const timeB = (b as any).pubDate;
-                  return timeB - timeA;
-                })
-                .slice(0, visibleCount)
+            <AnimatePresence initial={false} mode="popLayout">
+              {(filter === 'saved' ? visibleArticles : [])
                 .map(item => (
                   <SwipeableArticleItem
                     key={item.id}

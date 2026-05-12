@@ -132,6 +132,10 @@ export const SwipeableRedditPost = React.memo(function SwipeableRedditPost({
     }
   }, [post.imageUrl]);
 
+  const sanitizedTitle = React.useMemo(() => ({ 
+    __html: DOMPurify.sanitize(post.title, { FORBID_ATTR: ['id', 'name'] }) 
+  }), [post.title]);
+
   return (
     <motion.div 
       initial={{ opacity: 0, y: 30, scale: 0.95 }}
@@ -245,7 +249,7 @@ export const SwipeableRedditPost = React.memo(function SwipeableRedditPost({
                 "font-semibold leading-tight mb-1 text-gray-100",
                 settings.fontSize === 'large' ? 'text-lg' : 'text-base'
               )}
-              dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(post.title, { FORBID_ATTR: ['id', 'name'] }) }}
+              dangerouslySetInnerHTML={sanitizedTitle}
             />
             <div className="flex items-center gap-3 mt-2 text-xs text-gray-500 font-medium">
               <span className="flex items-center gap-1"><span className="text-purple-400 shadow-[0_0_5px_rgba(168,85,247,0.3)]">↑</span> {post.score}</span>
