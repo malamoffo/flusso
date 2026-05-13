@@ -466,30 +466,6 @@ export default function App() {
   }, [filter, hasMoreArticles, markArticlesAsRead]);
 
   useEffect(() => {
-    const handleBackButton = async () => {
-      if (selectedTelegramChannel) {
-        setSelectedTelegramChannel(null);
-        return true;
-      }
-      return false;
-    };
-
-    const setupListener = async () => {
-      const isAppAvailable = Capacitor.isNativePlatform() && Capacitor.getPlatform() !== 'web' && Capacitor.isPluginAvailable('App');
-      if (!isAppAvailable) return null;
-      const listener = await CapacitorApp.addListener('backButton', handleBackButton);
-      return listener;
-    };
-    
-    let listener: any;
-    setupListener().then(l => listener = l);
-    
-    return () => {
-      if (listener) listener.remove();
-    };
-  }, [selectedTelegramChannel]);
-
-  useEffect(() => {
     const savedContainer = savedScrollRef.current;
     if (!savedContainer || filter !== 'saved') return;
     

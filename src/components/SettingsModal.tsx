@@ -15,7 +15,7 @@ import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
 import { Share } from '@capacitor/share';
 import { format } from 'date-fns';
 
-import { APP_VERSION, APP_BUILD, updateSW } from '../main';
+import { APP_VERSION, APP_BUILD } from '../main';
 
 import { BrowserLogsModal } from './BrowserLogsModal';
 
