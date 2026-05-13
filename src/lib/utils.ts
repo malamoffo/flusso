@@ -107,12 +107,24 @@ export function resolveUrl(url: string, baseUrl: string): string {
 
 /**
  * Safely extracts the hostname from a URL string.
+ * Handles missing protocols by prepending https://
  */
 export function getHostname(url: string | null | undefined): string {
   if (!url) return '';
+  let trimmed = url.trim();
+  if (!trimmed) return '';
+  
+  // If it doesn't have a protocol, add one for parsing
+  if (!trimmed.includes('://') && !trimmed.startsWith('//')) {
+    trimmed = 'https://' + trimmed;
+  }
+  
   try {
-    return new URL(url).hostname;
+    const parsed = new URL(trimmed);
+    return parsed.hostname;
   } catch (e) {
-    return '';
+    // Fallback for simple domain-like strings that might fail URL parsing
+    const match = trimmed.match(/^(?:https?:\/\/)?(?:www\.)?([^\/\s?#]+)/i);
+    return match ? match[1] : '';
   }
 }

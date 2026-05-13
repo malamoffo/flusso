@@ -5,7 +5,7 @@ import { useSettings } from '../context/SettingsContext';
 import { useReddit } from '../context/RedditContext';
 import { useTelegram } from '../context/TelegramContext';
 import { motion, AnimatePresence } from 'framer-motion';
-import { cn } from '../lib/utils';
+import { cn, getHostname } from '../lib/utils';
 import { SwipeAction, Theme, FontSize, Article } from '../types';
 import { AddFeedModal } from './AddFeedModal';
 import packageJson from '../../package.json';
@@ -167,7 +167,7 @@ export const SettingsModal = React.memo(function SettingsModal({
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className="fixed bottom-0 left-0 right-0 rounded-t-[28px] z-50 px-6 pb-8 pt-0 max-h-[90vh] overflow-y-auto shadow-2xl transition-colors border-t border-white/10 dark:border-white/5 bg-black"
+            className="fixed bottom-0 left-0 right-0 rounded-t-[28px] z-50 px-6 pb-8 pt-0 max-h-[90vh] overflow-y-auto scrollbar-hide shadow-2xl transition-colors border-t border-white/10 dark:border-white/5 bg-black"
           >
             <div className="sticky top-0 pt-4 pb-4 z-20 border-b border-white/10 dark:border-white/5 mb-6 -mx-6 px-6 transition-colors bg-black">
               
@@ -465,7 +465,7 @@ export const SettingsModal = React.memo(function SettingsModal({
                       >
                         <div className="p-2 space-y-1 bg-black">
                           {articleFeeds.map(feed => {
-                            const domain = feed.link ? new URL(feed.link).hostname : '';
+                            const domain = getHostname(feed.link);
                             return (
                               <div 
                                 key={feed.id} 
@@ -571,7 +571,7 @@ export const SettingsModal = React.memo(function SettingsModal({
                                 ))}
                                 {redditFeeds
                                   .map(feed => {
-                                  const domain = feed.link ? new URL(feed.link).hostname : '';
+                                  const domain = getHostname(feed.link);
                                   return (
                                     <div 
                                       key={feed.id} 

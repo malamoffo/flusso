@@ -23,7 +23,7 @@ import { RadioView } from './components/RadioView';
 import { motion, AnimatePresence, useMotionValue, useTransform, animate } from 'framer-motion';
 import { Loader2, Search, X, Check, Rss, Settings, Star, CheckCircle2, RefreshCw, Layers, FileText, Inbox, MessageSquare, ChevronDown, Flame, Radio } from 'lucide-react';
 import { useInView } from 'react-intersection-observer';
-import { cn } from './lib/utils';
+import { cn, getHostname } from './lib/utils';
 import { Article, Feed } from './types';
 import { App as CapacitorApp } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
@@ -164,10 +164,13 @@ export default function App() {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [sourceFilter, setSourceFilter] = useState<string>('all');
   const [timeFilter, setTimeFilter] = useState<string>('all');
+  const [subredditFilter, setSubredditFilter] = useState<string>('all');
+  const [telegramChannelFilter, setTelegramChannelFilter] = useState<string>('all');
 
   const filteredRedditPosts = useMemo(() => {
     const query = deferredSearchQuery.toLowerCase();
     const filtered = redditPosts.filter(post => {
+      if (subredditFilter !== 'all' && post.subredditId !== subredditFilter) return false;
       if (query) {
         const matchesQuery = post.title.toLowerCase().includes(query) || 
                             (post.subredditName?.toLowerCase().includes(query) ?? false) ||
@@ -191,6 +194,7 @@ export default function App() {
     return [...telegramChannels]
       .sort((a, b) => (b.lastMessageDate || 0) - (a.lastMessageDate || 0))
       .filter(channel => {
+        if (telegramChannelFilter !== 'all' && channel.id !== telegramChannelFilter) return false;
         if (query) {
           const matchesQuery = channel.name.toLowerCase().includes(query) || 
                               (channel.username?.toLowerCase().includes(query) ?? false);
@@ -198,7 +202,7 @@ export default function App() {
         }
         return true;
       });
-  }, [telegramChannels, deferredSearchQuery]);
+  }, [telegramChannels, deferredSearchQuery, telegramChannelFilter]);
   
   useEffect(() => {
     resetPagination();
@@ -643,7 +647,7 @@ export default function App() {
         </motion.div>
       )}
 
-      <div className={cn("relative z-10 sticky top-0 transition-all duration-300", headerScrolled ? "bg-white/5 dark:bg-black/20 backdrop-blur-xl border-b border-white/10 dark:border-white/5 shadow-lg py-3" : "bg-transparent border-b border-transparent py-3")}>
+      <div className={cn("relative z-10 sticky top-0 transition-all duration-300", headerScrolled ? "bg-white/5 dark:bg-black/20 backdrop-blur-xl border-b border-white/10 dark:border-white/5 shadow-lg py-2" : "bg-transparent border-b border-transparent py-2")}>
         <header className="px-4 flex items-center justify-between">
            <motion.button 
             whileTap={{ scale: 0.95 }}
@@ -693,7 +697,7 @@ export default function App() {
         </header>
 
         {filter === 'reddit' && (
-          <div className="px-4 pb-2 pt-2 flex items-center gap-2 overflow-x-auto scrollbar-hide">
+          <div className="px-4 pb-1 pt-1 flex items-center gap-2 overflow-x-auto scrollbar-hide">
             <button
               onClick={() => handleRedditSortChange('new')}
               className={cn(
@@ -716,7 +720,7 @@ export default function App() {
         )}
 
         {filter === 'telegram' && (
-          <div className="px-4 pb-2 pt-2 flex items-center gap-2 overflow-x-auto scrollbar-hide">
+          <div className="px-4 pb-1 pt-1 flex items-center gap-2 overflow-x-auto scrollbar-hide">
             <button
               onClick={() => setTelegramFilter(telegramFilter === 'unread' ? 'all' : 'unread')}
               className={cn(
@@ -734,7 +738,7 @@ export default function App() {
         )}
 
         {filter === 'inbox' && (
-          <div className="px-4 pb-2 pt-2 flex items-center gap-2 overflow-x-auto scrollbar-hide">
+          <div className="px-4 pb-1 pt-1 flex items-center gap-2 overflow-x-auto scrollbar-hide">
             <button
               onClick={() => handleTypeFilterChange('unread')}
               className={cn(
@@ -790,30 +794,45 @@ export default function App() {
                       >
                         <option value="all">All Sources</option>
                         {sortedFeeds.filter(f => {
-                            try {
-                                const url = new URL(f.feedUrl);
-                                return url.hostname !== 'reddit.com' && !url.hostname.endsWith('.reddit.com');
-                            } catch { return !f.feedUrl.includes('reddit.com') }
+                            const hostname = getHostname(f.feedUrl);
+                            return hostname !== 'reddit.com' && !hostname.endsWith('.reddit.com');
                         }).map(f => (
                           <option key={f.id} value={f.id}>{f.title}</option>
                         ))}
                       </select>
                       <ChevronDown className="w-3.5 h-3.5 absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none z-10" />
                     </div>
-                    <div className="relative">
-                      <select
-                        value={timeFilter}
-                        onChange={(e) => setTimeFilter(e.target.value)}
-                        className="appearance-none text-xs bg-white/10 text-white dark:text-gray-300 rounded-full pl-3 pr-8 py-1.5 border-none focus:ring-0 outline-none whitespace-nowrap"
-                      >
-                        <option value="all">Any Time</option>
-                        <option value="today">Past 24 Hours</option>
-                        <option value="week">Past Week</option>
-                        <option value="month">Past Month</option>
-                      </select>
-                      <ChevronDown className="w-3.5 h-3.5 absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none z-10" />
-                    </div>
                   </>
+                )}
+                {filter === 'reddit' && (
+                  <div className="relative">
+                    <select
+                      value={subredditFilter}
+                      onChange={(e) => setSubredditFilter(e.target.value)}
+                      className="appearance-none text-xs bg-white/10 text-white dark:text-gray-300 rounded-full pl-3 pr-8 py-1.5 border-none focus:ring-0 outline-none whitespace-nowrap"
+                    >
+                      <option value="all">All Subreddits</option>
+                      {sortedSubreddits.map(s => (
+                        <option key={s.id} value={s.id}>{s.name}</option>
+                      ))}
+                    </select>
+                    <ChevronDown className="w-3.5 h-3.5 absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none z-10" />
+                  </div>
+                )}
+                {filter === 'telegram' && (
+                  <div className="relative">
+                    <select
+                      value={telegramChannelFilter}
+                      onChange={(e) => setTelegramChannelFilter(e.target.value)}
+                      className="appearance-none text-xs bg-white/10 text-white dark:text-gray-300 rounded-full pl-3 pr-8 py-1.5 border-none focus:ring-0 outline-none whitespace-nowrap"
+                    >
+                      <option value="all">All Channels</option>
+                      {telegramChannels.map(c => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                    </select>
+                    <ChevronDown className="w-3.5 h-3.5 absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none z-10" />
+                  </div>
                 )}
                 {filter === 'radio' && (
                   <div className="flex items-center gap-2">
@@ -846,7 +865,7 @@ export default function App() {
           ref={inboxScrollRef}
           onScroll={(e) => handleScroll(e, 'inbox')}
           className={cn(
-            "absolute inset-0 overflow-y-auto pb-24 pt-4 scroll-smooth transition-opacity duration-300 transform-gpu will-change-scroll scrollbar-hide",
+            "absolute inset-0 overflow-y-auto pb-24 pt-0 scroll-smooth transition-opacity duration-300 transform-gpu will-change-scroll scrollbar-hide",
             filter === 'inbox' ? "z-10 opacity-100 pointer-events-auto" : "z-0 opacity-0 pointer-events-none"
           )}
         >
@@ -872,7 +891,7 @@ export default function App() {
           ref={savedScrollRef}
           onScroll={(e) => handleScroll(e, 'saved')}
           className={cn(
-            "absolute inset-0 overflow-y-auto pb-24 pt-4 scroll-smooth transition-opacity duration-300 transform-gpu will-change-scroll scrollbar-hide",
+            "absolute inset-0 overflow-y-auto pb-24 pt-0 scroll-smooth transition-opacity duration-300 transform-gpu will-change-scroll scrollbar-hide",
             filter === 'saved' ? "z-10 opacity-100 pointer-events-auto" : "z-0 opacity-0 pointer-events-none"
           )}
         >

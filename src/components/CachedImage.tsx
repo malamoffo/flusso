@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { cn } from '../lib/utils';
+import { cn, getHostname } from '../lib/utils';
 import { imagePersistence } from '../utils/imagePersistence';
 import { Capacitor } from '@capacitor/core';
 import { FileText } from 'lucide-react';
@@ -110,12 +110,10 @@ export function CachedImage({ src, className, fallback, alt, ...props }: CachedI
     const isNative = Capacitor.isNativePlatform();
     
     if (!isNative) {
-      try {
-        const url = new URL(src);
-        if ((url.protocol === 'http:' || url.protocol === 'https:') && !url.hostname.includes('corsproxy.io')) {
+        const hostname = getHostname(src);
+        if (hostname && !hostname.includes('corsproxy.io')) {
           corsProxyUrl = `https://corsproxy.io/?${encodeURIComponent(src)}`;
         }
-      } catch {}
     }
 
     if (currentSrc !== src && currentSrc !== corsProxyUrl) {

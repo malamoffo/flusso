@@ -35,7 +35,7 @@ export const TelegramListView = memo(({ isActive, channels, onChannelClick, filt
   return (
     <motion.main
       className={cn(
-        "absolute inset-0 overflow-y-auto transition-opacity duration-300 transform-gpu will-change-scroll pb-32 pt-4 bg-transparent scrollbar-hide",
+        "absolute inset-0 overflow-y-auto transition-opacity duration-300 transform-gpu will-change-scroll pb-32 pt-0 bg-transparent scrollbar-hide",
         isActive ? "z-10 opacity-100 pointer-events-auto" : "z-0 opacity-0 pointer-events-none"
       )}
       initial={false}

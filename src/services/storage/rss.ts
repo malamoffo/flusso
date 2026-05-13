@@ -41,11 +41,16 @@ export const rssStorage = {
 
   async getUnreadCount(): Promise<number> {
     try {
+      const validFeeds = await db.feeds.toArray();
+      const validFeedIds = new Set(validFeeds.map(f => f.id));
+
       // Due to IndexedDB corruption on the isRead index for some users, 
       // we must bypass the index and filter directly to ensure accuracy.
+      // Also filter out orphaned articles or those missing basic data to avoid "ghost" counts.
       const collection = db.articles.filter(a => {
           const val = a.isRead;
-          return val === 0 || (val as any) === false || (val as any) === '0' || !val;
+          const isUnread = val === 0 || (val as any) === false || (val as any) === '0' || !val;
+          return isUnread && validFeedIds.has(a.feedId) && (!!a.title || !!a.link);
       });
       return await collection.count();
     } catch (e) {
