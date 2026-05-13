@@ -69,14 +69,10 @@ export function CachedImage({ src, className, fallback, alt, ...props }: CachedI
     const initImage = async () => {
       if (typeof window !== 'undefined' && checkIsNative()) {
         try {
-          const cachedUri = await imagePersistence.getCachedUrl(src);
-          if (cachedUri && isMounted) {
+          const cachedUri = await imagePersistence.getLocalUrl(src);
+          if (isMounted) {
             setCurrentSrc(cachedUri);
             setIsLoaded(imagePersistence.loadedUrls.has(cachedUri));
-          } else if (isMounted) {
-            // Not cached locally yet. Already using remote URL.
-            // Trigger background download for next time
-            imagePersistence.getLocalUrl(src).catch(() => {});
           }
         } catch (e) {
           // Keep using remote src

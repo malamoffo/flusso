@@ -12,6 +12,7 @@ export const imagePersistence = {
   resolvedLocalUrls: new Map<string, string>(),
   memoryCache: new Map<string, string>(),
   loadedUrls: new Set<string>(),
+  downloadingImages: new Map<string, Promise<string>>(),
   isInitialized: false,
 
   async init() {
@@ -127,47 +128,64 @@ export const imagePersistence = {
 
     // Download and cache
     if (isPluginAvailable('CapacitorHttp')) {
-      try {
-        const downloadResult = await CapacitorHttp.get({
-          url,
-          responseType: 'arraybuffer'
-        });
+      // Create a key in a map to track in-progress downloads
+      if (!this.downloadingImages) this.downloadingImages = new Map<string, Promise<string>>();
+      if (this.downloadingImages.has(url)) return this.downloadingImages.get(url)!;
 
-        if (downloadResult.status === 200) {
-          // Convert arraybuffer to base64
-          const base64Data = await this.arrayBufferToBase64(downloadResult.data);
-          
-          // Ensure directory exists
-          try {
-            await Filesystem.mkdir({
-              path: CACHE_DIR,
-              directory: Directory.Data,
-              recursive: true
+      const downloadPromise = (async () => {
+        try {
+          const downloadResult = await CapacitorHttp.get({
+            url,
+            responseType: 'arraybuffer'
+          });
+
+          if (downloadResult.status === 200) {
+            // Convert arraybuffer to base64
+            // On native, CapacitorHttp returns a base64 string for arraybuffer/blob responseType.
+            // On web, it might return a Blob or ArrayBuffer.
+            let base64Data = '';
+            if (typeof downloadResult.data === 'string') {
+              base64Data = downloadResult.data;
+            } else {
+              base64Data = await this.arrayBufferToBase64(downloadResult.data);
+            }
+            
+            // Ensure directory exists
+            try {
+              await Filesystem.mkdir({
+                path: CACHE_DIR,
+                directory: Directory.Data,
+                recursive: true
+              });
+            } catch (dirErr) {
+              // Directory might already exist
+            }
+
+            await Filesystem.writeFile({
+              path,
+              data: base64Data,
+              directory: Directory.Data
             });
-          } catch (dirErr) {
-            // Directory might already exist
+
+            const uriResult = await Filesystem.getUri({
+              path,
+              directory: Directory.Data
+            });
+            const localUrl = Capacitor.convertFileSrc(uriResult.uri);
+            this.resolvedLocalUrls.set(url, localUrl);
+            this.saveMap();
+            return localUrl;
           }
-
-          await Filesystem.writeFile({
-            path,
-            data: base64Data,
-            directory: Directory.Data
-          });
-
-          const uriResult = await Filesystem.getUri({
-            path,
-            directory: Directory.Data
-          });
-          const localUrl = Capacitor.convertFileSrc(uriResult.uri);
-          this.resolvedLocalUrls.set(url, localUrl);
-          this.saveMap();
-          return localUrl;
+        } catch (downloadErr: any) {
+          if (downloadErr?.code !== 'UNIMPLEMENTED') {
+            console.error('[IMAGE_CACHE] Failed to download/cache image:', url, downloadErr);
+          }
         }
-      } catch (downloadErr: any) {
-        if (downloadErr?.code !== 'UNIMPLEMENTED') {
-          console.error('[IMAGE_CACHE] Failed to download/cache image:', url, downloadErr);
-        }
-      }
+        return url;
+      })();
+      
+      this.downloadingImages.set(url, downloadPromise);
+      return downloadPromise;
     }
 
     return url;

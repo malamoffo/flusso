@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Moon, Sun, Monitor, Image as ImageIcon, LayoutList, Maximize, Type, Plus, Trash2, Edit2, AlertCircle, Save, ArrowLeft, ChevronDown, ChevronUp, GitPullRequest, Info, ExternalLink, RefreshCw, ShieldCheck, Download, CheckCircle2, FileText, Upload, MessageSquare, Settings, Search, Palette, ChevronRight, FlaskConical, Calendar, Terminal } from 'lucide-react';
+import { X, Moon, Sun, Monitor, Image as ImageIcon, LayoutList, Maximize, Type, Plus, Trash2, Edit2, AlertCircle, Save, ArrowLeft, ChevronDown, ChevronUp, GitPullRequest, Info, ExternalLink, RefreshCw, ShieldCheck, Download, CheckCircle2, FileText, Upload, MessageSquare, Settings, Search, Palette, ChevronRight, FlaskConical, Calendar, Terminal, Database } from 'lucide-react';
 import { useRss } from '../context/RssContext';
 import { useSettings } from '../context/SettingsContext';
 import { useReddit } from '../context/RedditContext';
@@ -31,9 +31,9 @@ export const SettingsModal = React.memo(function SettingsModal({
   onSelectArticle: (article: Article) => void;
 }) {
   const { feeds, removeFeed, updateFeed, progress, updateInfo, checkUpdates, exportFeeds, importOpml, errorLogs, clearErrorLogs } = useRss();
-  const { telegramChannels, removeTelegramChannel } = useTelegram();
+  const { telegramChannels, removeTelegramChannel, addTelegramChannel } = useTelegram();
   const { settings, updateSettings } = useSettings();
-  const { subreddits, removeSubreddit } = useReddit();
+  const { subreddits, removeSubreddit, addSubreddit } = useReddit();
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isBrowserLogsOpen, setIsBrowserLogsOpen] = useState(false);
   const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
@@ -43,9 +43,10 @@ export const SettingsModal = React.memo(function SettingsModal({
   const [editUrl, setEditUrl] = useState('');
   const [selectedFeedId, setSelectedFeedId] = useState<string | null>(null);
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
-  const [showImportOptions, setShowImportOptions] = useState(false);
-  const [showExportOptions, setShowExportOptions] = useState(false);
+  const [importFlowState, setImportFlowState] = useState<'none' | 'menu' | 'mode_opml' | 'mode_json'>('none');
+  const [exportFlowState, setExportFlowState] = useState<'none'>('none');
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const jsonInputRef = React.useRef<HTMLInputElement>(null);
   const [importMode, setImportMode] = useState<'replace' | 'append'>('append');
   
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
@@ -66,8 +67,8 @@ export const SettingsModal = React.memo(function SettingsModal({
       setEditingFeedId(null);
       setIsConfirmingDelete(false);
       setExpandedSections(new Set());
-      setShowImportOptions(false);
-      setShowExportOptions(false);
+      setImportFlowState('none');
+      setExportFlowState('none');
     }
   }, [isOpen, initialTab]);
 
@@ -122,6 +123,55 @@ export const SettingsModal = React.memo(function SettingsModal({
     }
   };
 
+  const downloadJson = async (json: string, filename: string) => {
+    const isWeb = Capacitor.getPlatform() === 'web';
+    const isFilesystemAvailable = Capacitor.isNativePlatform() && !isWeb && Capacitor.isPluginAvailable('Filesystem');
+    const isShareAvailable = Capacitor.isNativePlatform() && !isWeb && Capacitor.isPluginAvailable('Share');
+
+    if (isFilesystemAvailable && isShareAvailable) {
+      try {
+        const result = await Filesystem.writeFile({
+          path: filename,
+          data: json,
+          directory: Directory.Cache,
+          encoding: Encoding.UTF8,
+        });
+
+        await Share.share({
+          title: 'Export Backup',
+          text: 'Esporta il backup di Flusso',
+          url: result.uri,
+          dialogTitle: 'Esporta Backup',
+        });
+      } catch (err) {
+        console.error('Failed to export JSON on native:', err);
+      }
+    } else {
+      const blob = new Blob([json], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+  };
+
+  const exportEverything = async () => {
+    const opml = await exportFeeds();
+    const backupData = {
+      version: 1,
+      type: 'flusso_backup',
+      opml,
+      subreddits: subreddits.map(s => s.name),
+      telegramChannels: telegramChannels.map(c => c.username),
+    };
+    const json = JSON.stringify(backupData, null, 2);
+    downloadJson(json, 'flusso-backup.json');
+  };
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -131,7 +181,55 @@ export const SettingsModal = React.memo(function SettingsModal({
       console.error('Import failed:', err);
     } finally {
       if (fileInputRef.current) fileInputRef.current.value = '';
-      setShowImportOptions(false);
+      setImportFlowState('none');
+    }
+  };
+
+  const handleJsonUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const data = JSON.parse(text);
+      if (data.type !== 'flusso_backup') {
+        throw new Error('Invalid backup file');
+      }
+
+      if (data.opml) {
+        const opmlFile = new File([data.opml], 'feeds.opml', { type: 'text/xml' });
+        await importOpml(opmlFile, importMode === 'append');
+      }
+
+      if (importMode === 'replace') {
+        for (const sub of subreddits) {
+          await removeSubreddit(sub.id);
+        }
+        for (const channel of telegramChannels) {
+          removeTelegramChannel(channel.id);
+        }
+      }
+
+      if (data.subreddits) {
+        for (const subName of data.subreddits) {
+          if (!subreddits.find(s => s.name === subName) || importMode === 'replace') {
+            await addSubreddit(`https://reddit.com/r/${subName}/.rss`);
+          }
+        }
+      }
+
+      if (data.telegramChannels) {
+        for (const username of data.telegramChannels) {
+          if (!telegramChannels.find(c => c.username === username) || importMode === 'replace') {
+            await addTelegramChannel(username);
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Import backup failed:', err);
+      alert('Impossibile importare il backup. Formato non valido o file corrotto.');
+    } finally {
+      if (jsonInputRef.current) jsonInputRef.current.value = '';
+      setImportFlowState('none');
     }
   };
 
@@ -713,22 +811,62 @@ export const SettingsModal = React.memo(function SettingsModal({
                     ref={fileInputRef}
                     onChange={handleFileUpload}
                   />
+                  <input
+                    type="file"
+                    accept=".json"
+                    className="hidden"
+                    ref={jsonInputRef}
+                    onChange={handleJsonUpload}
+                  />
                   
-                  {!showImportOptions ? (
+                  {importFlowState === 'none' ? (
                     <button
-                      onClick={() => {
-                        if (feeds.length > 0) {
-                          setShowImportOptions(true);
-                        } else {
-                          setImportMode('append');
-                          fileInputRef.current?.click();
-                        }
-                      }}
+                      onClick={() => setImportFlowState('menu')}
                       className="w-full flex items-center justify-center gap-2 p-4 rounded-2xl bg-indigo-900/20 text-indigo-100 hover:bg-indigo-900/30 border border-indigo-500/20 transition-colors font-medium"
                     >
                       <Upload className="w-5 h-5" />
-                      Import OPML
+                      Import Subscriptions
                     </button>
+                  ) : importFlowState === 'menu' ? (
+                    <div className="p-4 rounded-2xl bg-indigo-900/10 border border-indigo-500/20 space-y-3 animate-in fade-in slide-in-from-bottom-2">
+                      <p className="text-sm text-center text-indigo-200 font-medium">Choose import format:</p>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          onClick={() => {
+                            if (feeds.length > 0) {
+                              setImportFlowState('mode_opml');
+                            } else {
+                              setImportMode('append');
+                              fileInputRef.current?.click();
+                            }
+                          }}
+                          className="flex flex-col items-center justify-center p-3 rounded-xl bg-indigo-900/20 text-indigo-400 border border-indigo-500/20 hover:bg-indigo-900/30 transition-colors text-center"
+                        >
+                          <FileText className="w-4 h-4 mb-1" />
+                          <span className="text-[10px] font-bold uppercase tracking-wider">OPML<br/>(Only RSS)</span>
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (feeds.length > 0 || subreddits.length > 0 || telegramChannels.length > 0) {
+                              setImportFlowState('mode_json');
+                            } else {
+                              setImportMode('append');
+                              jsonInputRef.current?.click();
+                            }
+                          }}
+                          className="flex flex-col items-center justify-center p-3 rounded-xl bg-indigo-900/20 text-indigo-400 border border-indigo-500/20 hover:bg-indigo-900/30 transition-colors text-center"
+                        >
+                          <Database className="w-4 h-4 mb-1" />
+                          <span className="text-[10px] font-bold uppercase tracking-wider">JSON<br/>(Everything)</span>
+                        </button>
+                      </div>
+                      <button 
+                        onClick={() => setImportFlowState('none')}
+                        className="w-full py-2 text-xs text-gray-500 hover:text-gray-400 transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </div>
                   ) : (
                     <div className="p-4 rounded-2xl bg-indigo-900/10 border border-indigo-500/20 space-y-3 animate-in fade-in slide-in-from-bottom-2">
                       <p className="text-sm text-center text-indigo-200 font-medium">You have existing subscriptions.</p>
@@ -736,7 +874,8 @@ export const SettingsModal = React.memo(function SettingsModal({
                         <button
                           onClick={() => {
                             setImportMode('replace');
-                            fileInputRef.current?.click();
+                            if (importFlowState === 'mode_opml') fileInputRef.current?.click();
+                            else jsonInputRef.current?.click();
                           }}
                           className="flex flex-col items-center justify-center p-3 rounded-xl bg-red-900/20 text-red-400 border border-red-500/20 hover:bg-red-900/30 transition-colors"
                         >
@@ -746,7 +885,8 @@ export const SettingsModal = React.memo(function SettingsModal({
                         <button
                           onClick={() => {
                             setImportMode('append');
-                            fileInputRef.current?.click();
+                            if (importFlowState === 'mode_opml') fileInputRef.current?.click();
+                            else jsonInputRef.current?.click();
                           }}
                           className="flex flex-col items-center justify-center p-3 rounded-xl bg-indigo-900/20 text-indigo-400 border border-indigo-500/20 hover:bg-indigo-900/30 transition-colors"
                         >
@@ -755,40 +895,50 @@ export const SettingsModal = React.memo(function SettingsModal({
                         </button>
                       </div>
                       <button 
-                        onClick={() => setShowImportOptions(false)}
+                        onClick={() => setImportFlowState('menu')}
                         className="w-full py-2 text-xs text-gray-500 hover:text-gray-400 transition-colors"
                       >
-                        Cancel
+                        Back
                       </button>
                     </div>
                   )}
 
-                  {!showExportOptions ? (
+                  {exportFlowState === 'none' ? (
                     <button
-                      onClick={() => setShowExportOptions(true)}
+                      onClick={() => setExportFlowState('menu')}
                       className="w-full flex items-center justify-center gap-2 p-4 rounded-2xl bg-indigo-900/20 text-indigo-100 hover:bg-indigo-900/30 border border-indigo-500/20 transition-colors font-medium"
                     >
                       <Download className="w-5 h-5" />
-                      Export Subscriptions (OPML)
+                      Export Subscriptions
                     </button>
                   ) : (
                     <div className="p-4 rounded-2xl bg-indigo-900/10 border border-indigo-500/20 space-y-3 animate-in fade-in slide-in-from-bottom-2">
-                      <p className="text-sm text-center text-indigo-200 font-medium">Ready to export?</p>
-                      <div className="grid grid-cols-1 gap-2">
+                      <p className="text-sm text-center text-indigo-200 font-medium">Choose export format:</p>
+                      <div className="grid grid-cols-2 gap-2">
                         <button
                           onClick={async () => {
                             const opml = await exportFeeds();
                             downloadOpml(opml, 'flusso-subscriptions.opml');
-                            setShowExportOptions(false);
+                            setExportFlowState('none');
                           }}
-                          className="flex items-center justify-center gap-2 p-3 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
+                          className="flex flex-col items-center justify-center p-3 rounded-xl bg-indigo-600/50 text-white hover:bg-indigo-600/70 transition-colors text-center"
                         >
-                          <Download className="w-4 h-4" />
-                          <span className="text-xs font-bold uppercase tracking-wider">Export Everything</span>
+                          <FileText className="w-4 h-4 mb-1" />
+                          <span className="text-[10px] font-bold uppercase tracking-wider">OPML<br/>(Only RSS)</span>
+                        </button>
+                        <button
+                          onClick={() => {
+                            exportEverything();
+                            setExportFlowState('none');
+                          }}
+                          className="flex flex-col items-center justify-center p-3 rounded-xl bg-indigo-600/50 text-white hover:bg-indigo-600/70 transition-colors text-center"
+                        >
+                          <Database className="w-4 h-4 mb-1" />
+                          <span className="text-[10px] font-bold uppercase tracking-wider">JSON<br/>(Everything)</span>
                         </button>
                       </div>
                       <button 
-                        onClick={() => setShowExportOptions(false)}
+                        onClick={() => setExportFlowState('none')}
                         className="w-full py-2 text-xs text-gray-500 hover:text-gray-400 transition-colors"
                       >
                         Cancel

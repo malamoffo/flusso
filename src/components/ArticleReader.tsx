@@ -438,22 +438,25 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
         }
       });
 
-      // Now resolve images to local URLs if on native
-      if (Capacitor.isNativePlatform()) {
-        const imgs = doc.querySelectorAll('img');
-        const promises = Array.from(imgs).map(async (img) => {
-          const src = img.getAttribute('src');
-          if (src && src.startsWith('http')) {
-            try {
-              const localUrl = await imagePersistence.getLocalUrl(src);
-              if (localUrl) img.setAttribute('src', localUrl);
-            } catch (e) {
-              // Ignore errors
+      // Handle images optimally:
+      // Don't await background downloads because that blocks article rendering
+      // and can fail causing blank images. Let the WebView load remote URLs directly,
+      // while we cache them in the background for future offline use.
+      const imgs = doc.querySelectorAll('img');
+      Array.from(imgs).forEach((img) => {
+        img.setAttribute('referrerPolicy', 'no-referrer');
+        const src = img.getAttribute('src');
+        if (src && src.startsWith('http')) {
+          if (Capacitor.isNativePlatform()) {
+            if (imagePersistence.resolvedLocalUrls.has(src)) {
+              img.setAttribute('src', imagePersistence.resolvedLocalUrls.get(src)!);
+            } else {
+              // Trigger background cache download but don't block rendering
+              imagePersistence.getLocalUrl(src).catch(() => {});
             }
           }
-        });
-        await Promise.all(promises);
-      }
+        }
+      });
       
       setSanitizedContent(doc.body.innerHTML);
     };
