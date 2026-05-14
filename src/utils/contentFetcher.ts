@@ -103,10 +103,7 @@ class ContentFetcherQueue {
           }
         }
       } catch (e: any) {
-        if (e?.code === 'UNIMPLEMENTED') {
-          console.warn('[Fetcher] CapacitorHttp UNIMPLEMENTED, falling back to proxy');
-        }
-        // Fallback to proxy
+        // Fallback to proxy natively
         const res = await fetchWithProxy(safeUrl, false, undefined, undefined, undefined, undefined, true);
         html = res.data;
       }

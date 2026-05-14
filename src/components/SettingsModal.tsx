@@ -30,7 +30,10 @@ export const SettingsModal = React.memo(function SettingsModal({
   initialTab?: 'main' | 'general' | 'subscriptions' | 'retention' | 'about';
   onSelectArticle: (article: Article) => void;
 }) {
-  const { feeds, removeFeed, updateFeed, progress, updateInfo, checkUpdates, exportFeeds, importOpml, errorLogs, clearErrorLogs } = useRss();
+  const { 
+    feeds, removeFeed, updateFeed, progress, updateInfo, checkUpdates, exportFeeds, importOpml, 
+    errorLogs, clearErrorLogs, downloadAndInstallUpdate 
+  } = useRss();
   const { telegramChannels, removeTelegramChannel, addTelegramChannel } = useTelegram();
   const { settings, updateSettings } = useSettings();
   const { subreddits, removeSubreddit, addSubreddit } = useReddit();
@@ -303,13 +306,13 @@ export const SettingsModal = React.memo(function SettingsModal({
               <div className="mb-6 p-4 rounded-2xl bg-indigo-900/20 border border-indigo-800">
                 <div className="flex justify-between items-center text-sm font-medium text-indigo-300 mb-2 gap-2">
                   <span className="truncate">{progress.status || 'Processing...'}</span>
-                  <span className="flex-shrink-0">{Math.round((progress.current / progress.total) * 100)}%</span>
+                  <span className="flex-shrink-0">{progress.total > 0 ? Math.round((progress.current / progress.total) * 100) : 0}%</span>
                 </div>
                 <div className="w-full h-2 bg-indigo-900/40 rounded-full overflow-hidden">
                   <motion.div 
                     className="h-full bg-indigo-400"
                     initial={{ width: 0 }}
-                    animate={{ width: `${(progress.current / progress.total) * 100}%` }}
+                    animate={{ width: `${progress.total > 0 ? (progress.current / progress.total) * 100 : 0}%` }}
                   />
                 </div>
               </div>
@@ -978,15 +981,16 @@ export const SettingsModal = React.memo(function SettingsModal({
                       )}
 
                       <div className="grid grid-cols-1 gap-3">
-                        <a 
-                          href={updateInfo.latestRelease?.url} 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="flex items-center justify-center gap-2 p-3 bg-white text-indigo-600 rounded-xl font-bold text-sm hover:bg-indigo-50 transition-colors"
+                        <button 
+                          onClick={(e) => {
+                            e.preventDefault();
+                            downloadAndInstallUpdate();
+                          }}
+                          className="flex items-center justify-center gap-2 p-3 bg-white text-indigo-600 rounded-xl font-bold text-sm hover:bg-indigo-50 transition-colors w-full"
                         >
                           <Download className="w-4 h-4" />
-                          Download Update
-                        </a>
+                          Download & Install Update
+                        </button>
                       </div>
                     </div>
                   ) : (

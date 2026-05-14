@@ -1,5 +1,10 @@
 {
   "appId": "com.flusso.app",
   "appName": "Flusso",
-  "webDir": "dist"
+  "webDir": "dist",
+  "plugins": {
+    "CapacitorHttp": {
+      "enabled": true
+    }
+  }
 }

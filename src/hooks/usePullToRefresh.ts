@@ -18,8 +18,11 @@ export const usePullToRefresh = ({
 }: UsePullToRefreshProps) => {
   const PULL_THRESHOLD = 80;
   const pullProgress = useMotionValue(0);
-  const pullProgressTransform = useTransform(pullProgress, v => v - 40);
-  const pullOpacity = useTransform(pullProgress, v => v / PULL_THRESHOLD);
+  const pullProgressTransform = useTransform(pullProgress, v => (typeof v === 'number' && !isNaN(v)) ? v - 40 : -40);
+  const pullOpacity = useTransform(pullProgress, v => {
+    if (typeof v !== 'number' || isNaN(v)) return 0;
+    return Math.max(0, Math.min(1, v / PULL_THRESHOLD));
+  });
   const [isPulling, setIsPulling] = useState(false);
   
   const touchStartY = useRef(0);

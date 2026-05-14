@@ -41,8 +41,8 @@ export async function fetchWithProxy(url: string, isRss: boolean = true, sinceDa
       const response = await CapacitorHttp.get({
         url,
         headers,
-        connectTimeout: 15000,
-        readTimeout: 15000
+        connectTimeout: 30000,
+        readTimeout: 30000
       });
 
       if (response.status === 304) return { 
@@ -57,10 +57,12 @@ export async function fetchWithProxy(url: string, isRss: boolean = true, sinceDa
           lastModified: getHeader(response.headers, 'last-modified')
         };
       }
-      throw new Error(`Native fetch to ${url} failed with status ${response.status}`);
+      console.warn(`[Proxy] Native fetch to ${url} failed with status ${response.status}. Falling back to proxies.`);
     } catch (e: any) {
-        console.error(`[Proxy] Direct native fetch failed for ${url}:`, e);
-        throw e; // Fail on native, don't fall back to web proxies
+        if (e?.code !== 'UNIMPLEMENTED') {
+          console.warn(`[Proxy] Direct native fetch failed for ${url} (Error: ${e.message}). Falling back to proxies.`);
+        }
+        // Fall back to web proxies even on native if direct fetch fails
     }
   }
 

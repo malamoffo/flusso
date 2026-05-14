@@ -126,9 +126,6 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
               }
             }
           } catch (e: any) {
-            if (e?.code === 'UNIMPLEMENTED') {
-               console.warn('[Reader] CapacitorHttp UNIMPLEMENTED, falling back to proxy');
-            }
             const res = await fetchWithProxy(safeUrl, false, undefined, undefined, undefined, undefined, true);
             html = res.data;
           }
@@ -245,9 +242,37 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
 
   const [sanitizedContent, setSanitizedContent] = useState<string>('');
 
+  const contentRef = useRef<HTMLDivElement>(null);
+
   const handleContentClick = (e: React.MouseEvent<HTMLDivElement>) => {
     // Basic handler if needed
   };
+
+  useEffect(() => {
+    if (!contentRef.current || !Capacitor.isNativePlatform()) return;
+    
+    const imgs = contentRef.current.querySelectorAll('img');
+    imgs.forEach(async (img) => {
+      let src = img.getAttribute('src');
+      // Fix potential double slashes like https://domain.com//wp-content/...
+      if (src && src.startsWith('http') && !src.includes('_capacitor_file_')) {
+        try {
+          const urlObj = new URL(src);
+          urlObj.pathname = urlObj.pathname.replace(/\/\/+/g, '/');
+          src = urlObj.toString();
+        } catch (e) {
+           // Invalid URL, let it be
+        }
+        
+        try {
+          const localUrl = await imagePersistence.getLocalUrl(src);
+          if (localUrl) img.setAttribute('src', localUrl);
+        } catch (e) {
+          // ignore
+        }
+      }
+    });
+  }, [sanitizedContent]);
 
   useEffect(() => {
     const processContent = async () => {
@@ -439,21 +464,24 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
       });
 
       // Handle images optimally:
-      // Don't await background downloads because that blocks article rendering
-      // and can fail causing blank images. Let the WebView load remote URLs directly,
-      // while we cache them in the background for future offline use.
+      // Don't await background downloads because that blocks article rendering.
+      // We will handle downloading and updating src in a separate useEffect.
       const imgs = doc.querySelectorAll('img');
       Array.from(imgs).forEach((img) => {
         img.setAttribute('referrerPolicy', 'no-referrer');
-        const src = img.getAttribute('src');
-        if (src && src.startsWith('http')) {
-          if (Capacitor.isNativePlatform()) {
-            if (imagePersistence.resolvedLocalUrls.has(src)) {
-              img.setAttribute('src', imagePersistence.resolvedLocalUrls.get(src)!);
-            } else {
-              // Trigger background cache download but don't block rendering
-              imagePersistence.getLocalUrl(src).catch(() => {});
-            }
+        let src = img.getAttribute('src');
+        if (src && src.startsWith('http') && !src.includes('_capacitor_file_')) {
+          try {
+            const urlObj = new URL(src);
+            urlObj.pathname = urlObj.pathname.replace(/\/\/+/g, '/');
+            src = urlObj.toString();
+            img.setAttribute('src', src);
+          } catch (e) {
+            // ignore
+          }
+
+          if (Capacitor.isNativePlatform() && imagePersistence.resolvedLocalUrls.has(src)) {
+            img.setAttribute('src', imagePersistence.resolvedLocalUrls.get(src)!);
           }
         }
       });
@@ -666,6 +694,7 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
               </div>
             ) : sanitizedContent ? (
               <div 
+                ref={contentRef}
                 onClick={handleContentClick}
                 className={`prose ${getProseSize()} prose-invert max-w-4xl mx-auto overflow-hidden leading-[1.75] text-gray-200 font-serif
                   prose-img:rounded-xl prose-img:h-auto prose-img:mx-auto prose-img:max-w-full prose-img:my-8 prose-img:shadow-xl
