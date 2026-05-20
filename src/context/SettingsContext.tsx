@@ -1,52 +1,53 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
+import { create } from 'zustand';
 import { Settings } from '../types';
 import { storage, defaultSettings } from '../services/storage';
+import React, { ReactNode } from 'react';
 
-interface SettingsContextType {
+interface SettingsStore {
   settings: Settings;
-  updateSettings: (updates: Partial<Settings>) => Promise<void>;
   isLoading: boolean;
+  initSettings: () => Promise<void>;
+  updateSettings: (updates: Partial<Settings>) => Promise<void>;
 }
 
-const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
+export const useSettingsStore = create<SettingsStore>((set, get) => ({
+  settings: defaultSettings,
+  isLoading: true,
+  initSettings: async () => {
+    try {
+      const storedSettings = await storage.getSettings();
+      set({ settings: storedSettings, isLoading: false });
+    } catch (e) {
+      console.error('Failed to load settings:', e);
+      set({ isLoading: false });
+    }
+  },
+  updateSettings: async (updates) => {
+    const current = get().settings;
+    const newSettings = { ...current, ...updates };
+    set({ settings: newSettings });
+    try {
+      await storage.saveSettings(newSettings);
+    } catch (err) {
+      console.error('Failed to save settings:', err);
+    }
+  }
+}));
 
-export const SettingsProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [settings, setSettings] = useState<Settings>(defaultSettings);
-  const [isLoading, setIsLoading] = useState(true);
+// Initialize settings immediately when the store is loaded
+useSettingsStore.getState().initSettings();
 
-  useEffect(() => {
-    const loadSettings = async () => {
-      try {
-        const storedSettings = await storage.getSettings();
-        setSettings(storedSettings);
-      } catch (error) {
-        console.error('Failed to load settings:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    loadSettings();
-  }, []);
-
-  const updateSettings = useCallback(async (updates: Partial<Settings>) => {
-    setSettings(prev => {
-      const newSettings = { ...prev, ...updates };
-      storage.saveSettings(newSettings).catch(err => console.error('Failed to save settings:', err));
-      return newSettings;
-    });
-  }, []);
-
-  return (
-    <SettingsContext.Provider value={{ settings, updateSettings, isLoading }}>
-      {children}
-    </SettingsContext.Provider>
-  );
+// Export a custom hook that behaves exactly like the previous context hook
+// to facilitate 100% backward compatibility.
+export const useSettings = () => {
+  const settings = useSettingsStore((state) => state.settings);
+  const updateSettings = useSettingsStore((state) => state.updateSettings);
+  const isLoading = useSettingsStore((state) => state.isLoading);
+  
+  return { settings, updateSettings, isLoading };
 };
 
-export const useSettings = () => {
-  const context = useContext(SettingsContext);
-  if (context === undefined) {
-    throw new Error('useSettings must be used within a SettingsProvider');
-  }
-  return context;
+// Export a passthrough provider to preserve React tree structures without introducing breaking changes or regressions.
+export const SettingsProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+  return <>{children}</>;
 };

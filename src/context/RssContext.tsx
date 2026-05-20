@@ -27,6 +27,8 @@ interface RssContextType {
   progress: ProgressInfo | null;
   error: string | null;
   setError: (error: string | null) => void;
+  failedFeeds: { feedUrl: string; error: string }[];
+  clearFailedFeeds: () => void;
   errorLogs: string[];
   clearErrorLogs: () => void;
   searchQuery: string;
@@ -74,6 +76,7 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [progress, setProgress] = useState<ProgressInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [failedFeeds, setFailedFeeds] = useState<{ feedUrl: string; error: string }[]>([]);
   const [errorLogs, setErrorLogs] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [hasMoreArticles, setHasMoreArticles] = useState<boolean>(true);
@@ -128,6 +131,10 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const clearErrorLogs = useCallback(() => {
     setErrorLogs([]);
+  }, []);
+
+  const clearFailedFeeds = useCallback(() => {
+    setFailedFeeds([]);
   }, []);
   const [updateInfo, setUpdateInfo] = useState<any | null>(null);
   const lastRefresh = useRef(Date.now());
@@ -322,7 +329,7 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         throw new Error('Worker not initialized');
       }
 
-      const { finalArticles, finalFeeds } = await rssService.refreshFeeds(
+      const { finalArticles, finalFeeds, failedFeeds } = await rssService.refreshFeeds(
         fToRefresh,
         worker.current,
         articlesRef.current,
@@ -331,6 +338,12 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setArticles,
         setIsLoading
       );
+      
+      if (failedFeeds.length > 0) {
+        setFailedFeeds(failedFeeds);
+      } else {
+        setFailedFeeds([]);
+      }
 
       // Save final state to storage, merging with existing DB state to preserve flags
       const existingArticlesMap = new Map((await db.articles.toArray()).map(a => [a.link, a])); // Match by link, not generated ID if ID changes
@@ -390,7 +403,7 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     let mounted = true;
     loadData().then(data => {
       if (mounted && data) {
-        // Automatic refresh removed to improve initial load performance
+        refreshFeeds();
       }
     });
     return () => { mounted = false; };
@@ -408,9 +421,19 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         BackgroundPlugin.setupBackgroundSync({
           feeds: syncFeeds,
           intervalMinutes: settings.refreshInterval
-        }).catch(console.error);
+        }).catch(err => {
+          const msg = err?.message || String(err);
+          if (err?.code !== 'UNIMPLEMENTED' && !msg.toLowerCase().includes('not implemented')) {
+            console.error('[BackgroundSync] Error:', err);
+          }
+        });
       } else {
-        BackgroundPlugin.stopBackgroundSync().catch(console.error);
+        BackgroundPlugin.stopBackgroundSync().catch(err => {
+          const msg = err?.message || String(err);
+          if (err?.code !== 'UNIMPLEMENTED' && !msg.toLowerCase().includes('not implemented')) {
+            console.error('[BackgroundSync] Stop Error:', err);
+          }
+        });
       }
     }
   }, [feeds, settings.refreshInterval, settings.autoCheckUpdates]);
@@ -807,7 +830,7 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   }, []);
 
   const value = useMemo(() => ({
-    feeds, articles, isLoading, progress, error, setError, errorLogs, clearErrorLogs,
+    feeds, articles, isLoading, progress, error, setError, failedFeeds, clearFailedFeeds, errorLogs, clearErrorLogs,
     addFeedOrSubreddit, importOpml, toggleRead, markAsRead, markArticlesAsRead,
     toggleFavorite, removeFromSaved, markAllAsRead, refreshFeeds, removeFeed,
     removeArticle, addArticle,
@@ -816,7 +839,7 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     downloadAndInstallUpdate,
     globalSearch, prefetch, markFilteredArticlesAsRead, loadAllUnreadArticles
   }), [
-    feeds, articles, isLoading, progress, error, setError, errorLogs, clearErrorLogs,
+    feeds, articles, isLoading, progress, error, setError, failedFeeds, clearFailedFeeds, errorLogs, clearErrorLogs,
     addFeedOrSubreddit, importOpml, toggleRead, markAsRead, markArticlesAsRead,
     toggleFavorite, removeFromSaved, markAllAsRead, refreshFeeds, removeFeed,
     removeArticle, addArticle,

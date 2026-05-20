@@ -10,13 +10,14 @@ export const rssService = {
     onUpdateFeeds: (updater: (prev: Feed[]) => Feed[]) => void,
     onUpdateArticles: (updater: (prev: Article[]) => Article[]) => void,
     onSetIsLoading: (isLoading: boolean) => void
-  ): Promise<{ finalArticles: Article[], finalFeeds: Feed[] }> {
+  ): Promise<{ finalArticles: Article[], finalFeeds: Feed[], failedFeeds: { feedUrl: string; error: string }[] }> {
     onSetIsLoading(true);
     let latestFeeds = [...feedsToRefresh];
     let totalBytesDownloaded = 0;
     
     // We'll collect new articles returned by the merge step
     let allFinalArticles: Article[] = [];
+    const failedFeeds: { feedUrl: string; error: string }[] = [];
     
     // Copy the memory links to track what's new synchronously
     const knownLinks = new Set(currentArticlesMemory.map(a => a.link));
@@ -24,7 +25,7 @@ export const rssService = {
     try {
       if (feedsToRefresh.length === 0) {
         onSetIsLoading(false);
-        return { finalArticles: [], finalFeeds: latestFeeds };
+        return { finalArticles: [], finalFeeds: latestFeeds, failedFeeds };
       }
       
       onProgress({ current: 0, total: feedsToRefresh.length, bytesDownloaded: 0 });
@@ -123,6 +124,8 @@ export const rssService = {
               clearTimeout(timeoutId);
             }
           } catch (e: any) {
+            failedFeeds.push({ feedUrl: feed.feedUrl, error: e.message || 'Unknown error' });
+            
             const updateFeedFn = (prev: Feed[]) => {
               const next = [...prev];
               const idx = next.findIndex(f => f.id === feed.id);
@@ -142,7 +145,7 @@ export const rssService = {
       
       await Promise.all(workers);
       await mergeChain;
-      return { finalArticles: allFinalArticles, finalFeeds: latestFeeds };
+      return { finalArticles: allFinalArticles, finalFeeds: latestFeeds, failedFeeds };
     } finally {
       onSetIsLoading(false);
       onProgress({ current: feedsToRefresh.length, total: feedsToRefresh.length, status: "Finalizing..." });

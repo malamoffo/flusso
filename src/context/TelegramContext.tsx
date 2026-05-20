@@ -30,10 +30,18 @@ export const TelegramProvider: React.FC<{ children: ReactNode }> = ({ children }
   const worker = useRef<Worker | undefined>(undefined);
   const telegramMessageOffsets = useRef<Record<string, number>>({});
   const PAGE_SIZE = 25;
+  const channelsRefreshAbortController = useRef<AbortController | null>(null);
+  const addChannelAbortController = useRef<AbortController | null>(null);
+  const loadMoreAbortController = useRef<Record<string, AbortController | null>>({});
 
   useEffect(() => {
     worker.current = new DataWorker();
-    return () => worker.current?.terminate();
+    return () => {
+      worker.current?.terminate();
+      if (channelsRefreshAbortController.current) channelsRefreshAbortController.current.abort();
+      if (addChannelAbortController.current) addChannelAbortController.current.abort();
+      Object.values(loadMoreAbortController.current).forEach(c => c?.abort());
+    };
   }, []);
 
   useEffect(() => {
@@ -54,6 +62,12 @@ export const TelegramProvider: React.FC<{ children: ReactNode }> = ({ children }
   }, [loadData]);
 
   const addTelegramChannel = useCallback(async (username: string) => {
+    if (addChannelAbortController.current) {
+      addChannelAbortController.current.abort();
+    }
+    const controller = new AbortController();
+    addChannelAbortController.current = controller;
+
     try {
       // ... existing cleaning logic ...
       let cleanUsername = username.trim();
@@ -68,8 +82,8 @@ export const TelegramProvider: React.FC<{ children: ReactNode }> = ({ children }
       
       const channelId = crypto.randomUUID();
       const [messages, info] = await Promise.all([
-        fetchTelegramMessages(cleanUsername, undefined, undefined, channelId),
-        fetchTelegramChannelInfo(cleanUsername)
+        fetchTelegramMessages(cleanUsername, undefined, undefined, channelId, controller.signal),
+        fetchTelegramChannelInfo(cleanUsername, controller.signal)
       ]);
       
       if (!messages || messages.length === 0) {
@@ -91,9 +105,14 @@ export const TelegramProvider: React.FC<{ children: ReactNode }> = ({ children }
       setTelegramMessages(prev => ({ ...prev, [channel.id]: messages }));
       storage.saveTelegramMessages(channel.id, messages);
     } catch (e: any) {
+      if (e.name === 'AbortError') return;
       console.error('Error adding Telegram channel:', e);
       const errMsg = e.message || "Canale Telegram non trovato o non accessibile. Assicurati che il canale sia pubblico.";
       throw new Error(errMsg);
+    } finally {
+      if (addChannelAbortController.current === controller) {
+        addChannelAbortController.current = null;
+      }
     }
   }, [telegramChannels]);
 
@@ -125,97 +144,120 @@ export const TelegramProvider: React.FC<{ children: ReactNode }> = ({ children }
   }, []);
 
   const refreshTelegramChannels = useCallback(async (channelsToRefresh?: TelegramChannel[]) => {
-    const channels = channelsToRefresh || telegramChannelsRef.current;
-    
-    const queue = [...channels];
-    let queueIndex = 0;
-    const CONCURRENCY = Math.min(3, queue.length);
-    
-    let mergeChain = Promise.resolve();
-    
-    const workers = Array(CONCURRENCY).fill(null).map(async () => {
-      while (true) {
-        const channel = queue[queueIndex++];
-        if (!channel) break;
-        
-        try {
-          const currentMessages = telegramMessagesRef.current[channel.id] || [];
-          const sinceDate = currentMessages.length > 0 ? currentMessages[currentMessages.length - 1].date : undefined;
+    if (channelsRefreshAbortController.current) {
+      channelsRefreshAbortController.current.abort();
+    }
+    const controller = new AbortController();
+    channelsRefreshAbortController.current = controller;
 
-          const [messages, info] = await Promise.all([
-            fetchTelegramMessages(channel.username, sinceDate, undefined, channel.id),
-            fetchTelegramChannelInfo(channel.username)
-          ]);
+    try {
+      const channels = channelsToRefresh || telegramChannelsRef.current;
+      
+      const queue = [...channels];
+      let queueIndex = 0;
+      const CONCURRENCY = Math.min(3, queue.length);
+      
+      let mergeChain = Promise.resolve();
+      
+      const workers = Array(CONCURRENCY).fill(null).map(async () => {
+        while (true) {
+          if (controller.signal.aborted) break;
+          const channel = queue[queueIndex++];
+          if (!channel) break;
           
-          if (messages.length > 0) {
-            await (mergeChain = mergeChain.then(async () => {
-              const { merged } = await new Promise<{ merged: TelegramMessage[] }>((resolve, reject) => {
-                const requestId = crypto.randomUUID();
-                const timeout = setTimeout(() => {
-                  worker.current!.removeEventListener('message', handler);
-                  reject(new Error('Worker timeout'));
-                }, 10000);
+          try {
+            const currentMessages = telegramMessagesRef.current[channel.id] || [];
+            const sinceDate = currentMessages.length > 0 ? currentMessages[currentMessages.length - 1].date : undefined;
 
-                const handler = (e: MessageEvent) => {
-                  if (e.data.type === 'mergedTelegramMessages' && e.data.requestId === requestId) {
-                    clearTimeout(timeout);
+            const [messages, info] = await Promise.all([
+              fetchTelegramMessages(channel.username, sinceDate, undefined, channel.id, controller.signal),
+              fetchTelegramChannelInfo(channel.username, controller.signal)
+            ]);
+            
+            if (controller.signal.aborted) break;
+            
+            if (messages.length > 0) {
+              await (mergeChain = mergeChain.then(async () => {
+                const { merged } = await new Promise<{ merged: TelegramMessage[] }>((resolve, reject) => {
+                  const requestId = crypto.randomUUID();
+                  const timeout = setTimeout(() => {
                     worker.current!.removeEventListener('message', handler);
-                    resolve(e.data);
-                  }
-                };
-                worker.current!.addEventListener('message', handler);
-                worker.current!.postMessage({ 
-                  type: 'mergeTelegramMessages', 
-                  prev: telegramMessagesRef.current[channel.id] || [], 
-                  incoming: messages,
-                  requestId
+                    reject(new Error('Worker timeout'));
+                  }, 10000);
+
+                  const handler = (e: MessageEvent) => {
+                    if (e.data.type === 'mergedTelegramMessages' && e.data.requestId === requestId) {
+                      clearTimeout(timeout);
+                      worker.current!.removeEventListener('message', handler);
+                      resolve(e.data);
+                    }
+                  };
+                  worker.current!.addEventListener('message', handler);
+                  worker.current!.postMessage({ 
+                    type: 'mergeTelegramMessages', 
+                    prev: telegramMessagesRef.current[channel.id] || [], 
+                    incoming: messages,
+                    requestId
+                  });
+                }).catch(err => {
+                  console.error('Telegram merge failed:', err);
+                  return { merged: telegramMessagesRef.current[channel.id] || [] };
                 });
-              }).catch(err => {
-                console.error('Telegram merge failed:', err);
-                return { merged: telegramMessagesRef.current[channel.id] || [] };
-              });
-              
-              const cleaned = cleanupTelegramMessages(channel, merged);
-              
-              const lastDate = merged.length > 0 ? Math.max(...merged.map(m => m.date)) : channel.lastMessageDate;
-              const newUnreadCount = merged.filter(m => m.date > channel.lastOpened).length;
+                
+                if (controller.signal.aborted) return;
 
-              const updates: Partial<any> = { 
-                lastMessageDate: lastDate, 
-                unreadCount: newUnreadCount 
-              };
-              
-              if (info && info.imageUrl && info.imageUrl !== channel.imageUrl) {
-                updates.imageUrl = info.imageUrl;
-              }
+                const cleaned = cleanupTelegramMessages(channel, merged);
+                
+                const lastDate = merged.length > 0 ? Math.max(...merged.map(m => m.date)) : channel.lastMessageDate;
+                const newUnreadCount = merged.filter(m => m.date > channel.lastOpened).length;
 
-              setTelegramChannels(prev => prev.map(c => 
-                c.id === channel.id ? { ...c, ...updates } : c
-              ));
+                const updates: Partial<any> = { 
+                  lastMessageDate: lastDate, 
+                  unreadCount: newUnreadCount 
+                };
+                
+                if (info && info.imageUrl && info.imageUrl !== channel.imageUrl) {
+                  updates.imageUrl = info.imageUrl;
+                }
 
-              setTelegramMessages(prev => {
-                const next = { ...prev, [channel.id]: cleaned };
-                telegramMessagesRef.current = next;
-                return next;
-              });
-              
-              // Save ALL merged messages to storage first to ensure we have a history,
-              // then the cleanup logic in loadData will handle long-term retention.
-              // This ensures that even if 'cleaned' is small, the database has the messages.
-              await storage.saveTelegramMessages(channel.id, merged);
-              
-              // Also update the channel's last message date and unread count in DB
-              await storage.updateTelegramChannel(channel.id, updates);
-            }));
+                setTelegramChannels(prev => prev.map(c => 
+                  c.id === channel.id ? { ...c, ...updates } : c
+                ));
+
+                setTelegramMessages(prev => {
+                  const next = { ...prev, [channel.id]: cleaned };
+                  telegramMessagesRef.current = next;
+                  return next;
+                });
+                
+                // Save ALL merged messages to storage first to ensure we have a history,
+                // then the cleanup logic in loadData will handle long-term retention.
+                // This ensures that even if 'cleaned' is small, the database has the messages.
+                await storage.saveTelegramMessages(channel.id, merged);
+                
+                // Also update the channel's last message date and unread count in DB
+                await storage.updateTelegramChannel(channel.id, updates);
+              }));
+            }
+          } catch (e: any) {
+            if (e.name !== 'AbortError') {
+              console.error(`Failed to refresh channel ${channel.username}`, e);
+            }
           }
-        } catch (e) {
-          console.error(`Failed to refresh channel ${channel.username}`, e);
         }
-      }
-    });
+      });
 
-    await Promise.all(workers);
-    await mergeChain;
+      await Promise.all(workers);
+      await mergeChain;
+    } catch (e: any) {
+      if (e.name !== 'AbortError') {
+        console.error('Error refreshing Telegram channels:', e);
+      }
+    } finally {
+      if (channelsRefreshAbortController.current === controller) {
+        channelsRefreshAbortController.current = null;
+      }
+    }
   }, [cleanupTelegramMessages]);
 
   const loadTelegramMessages = useCallback(async (channelId: string) => {
@@ -270,10 +312,17 @@ export const TelegramProvider: React.FC<{ children: ReactNode }> = ({ children }
     const idParts = oldestMessageInState.id.split('/');
     currentBeforeId = idParts.length > 1 ? idParts[1] : oldestMessageInState.id;
 
+    if (loadMoreAbortController.current[channelId]) {
+      loadMoreAbortController.current[channelId]!.abort();
+    }
+    const controller = new AbortController();
+    loadMoreAbortController.current[channelId] = controller;
+
     try {
       while (!reachedBoundary && attempts < MAX_ATTEMPTS) {
+        if (controller.signal.aborted) break;
         attempts++;
-        const olderMessages = await fetchTelegramMessages(channel.username, undefined, currentBeforeId, channel.id);
+        const olderMessages = await fetchTelegramMessages(channel.username, undefined, currentBeforeId, channel.id, controller.signal);
         
         if (olderMessages.length === 0) break;
         
@@ -290,6 +339,8 @@ export const TelegramProvider: React.FC<{ children: ReactNode }> = ({ children }
           reachedBoundary = true;
         }
       }
+
+      if (controller.signal.aborted) return;
 
       const deduplicated = Array.from(new Map(allNewMessages.map(m => [m.id, m])).values());
       

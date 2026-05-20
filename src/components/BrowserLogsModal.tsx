@@ -18,7 +18,11 @@ export function BrowserLogsModal({ isOpen, onClose }: { isOpen: boolean; onClose
       setLogs([...consoleInterceptor.getLogs()]);
       
       const unsubscribe = consoleInterceptor.subscribe((newLog) => {
-        setLogs(prev => [...prev, newLog].slice(-1000));
+        if (newLog.message === 'Logs cleared') {
+            setLogs([]);
+        } else {
+            setLogs(prev => [...prev, newLog].slice(-1000));
+        }
       });
       
       return () => {

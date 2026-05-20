@@ -29,18 +29,30 @@ class ConsoleInterceptor {
         }
 
         // Intercept
+        const message = args.map(arg => {
+          if (typeof arg === 'object') {
+            try {
+              return JSON.stringify(arg, null, 2);
+            } catch (e) {
+              return String(arg);
+            }
+          }
+          return String(arg);
+        }).join(' ');
+
+        const lowerMsg = message.toLowerCase();
+        // Skip Capacitor integration messages that are unimplemented on Web to keep logs clean
+        if (
+          lowerMsg.includes('unimplemented') ||
+          lowerMsg.includes('not implemented on') ||
+          (lowerMsg.includes('plugin') && lowerMsg.includes('not available on this platform'))
+        ) {
+          return;
+        }
+
         const entry: LogEntry = {
           type,
-          message: args.map(arg => {
-            if (typeof arg === 'object') {
-              try {
-                return JSON.stringify(arg, null, 2);
-              } catch (e) {
-                return String(arg);
-              }
-            }
-            return String(arg);
-          }).join(' '),
+          message,
           timestamp: Date.now(),
           args
         };

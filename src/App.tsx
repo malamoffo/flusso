@@ -19,6 +19,7 @@ import { TelegramThreadView } from './components/TelegramThreadView';
 import { TelegramChannel, TelegramMessage } from './types';
 import { ImageViewer } from './components/ImageViewer';
 import { ErrorNotification } from './components/ErrorNotification';
+import { ErrorModal } from './components/ErrorModal';
 import { RadioView } from './components/RadioView';
 import { motion, AnimatePresence, useMotionValue, useTransform, animate } from 'framer-motion';
 import { Loader2, Search, X, Check, Rss, Settings, Star, CheckCircle2, RefreshCw, Layers, FileText, Inbox, MessageSquare, ChevronDown, Flame, Radio } from 'lucide-react';
@@ -56,11 +57,12 @@ export default function App() {
   const redditScrollRef = useRef<HTMLDivElement>(null);
   const inboxBottomRef = useRef<HTMLDivElement>(null);
   const savedBottomRef = useRef<HTMLDivElement>(null);
+  const touchStartX = useRef(0);
   const touchStartY = useRef(0);
   const isAtTop = useRef(true);
 
   const {
-    articles, feeds, isLoading, error, setError,
+    articles, feeds, isLoading, error, setError, failedFeeds, clearFailedFeeds, 
     refreshFeeds, toggleRead, markAsRead, markArticlesAsRead,
     markAllAsRead, markFilteredArticlesAsRead, searchQuery, setSearchQuery, unreadCount, savedCount,
     toggleFavorite, removeFromSaved, removeArticle, addArticle, loadAllUnreadArticles
@@ -229,9 +231,9 @@ export default function App() {
     pullProgressTransform,
     pullOpacity,
     isPulling,
-    handleTouchStart,
-    handleTouchMove,
-    handleTouchEnd
+    handleTouchStart: hookHandleTouchStart,
+    handleTouchMove: hookHandleTouchMove,
+    handleTouchEnd: hookHandleTouchEnd
   } = usePullToRefresh({
     onRefresh: refreshFeeds,
     isLoading,
@@ -263,6 +265,8 @@ export default function App() {
 
     // Reset temporary visibility when changing tabs
     setTemporarilyVisibleUnreadIds(new Set());
+    setSearchQuery('');
+    setIsSearchOpen(false);
   }, [filter]);
 
   const handleFilterChange = (newFilter: 'inbox' | 'saved' | 'reddit' | 'telegram') => {
@@ -595,6 +599,88 @@ export default function App() {
   };
   const [blob1, blob2, blob3, blob4] = getBlobColors();
 
+  const handleAppTouchStart = (e: React.TouchEvent) => {
+    const target = e.target as HTMLElement;
+    
+    // Check if the touch target or any parent is a card, interactive, or modal element
+    let current: HTMLElement | null = target;
+    let isInsideItemOrCard = false;
+    
+    while (current && current !== e.currentTarget) {
+      const tagName = current.tagName;
+      const classList = current.classList;
+      
+      if (
+        ['BUTTON', 'INPUT', 'TEXTAREA', 'SELECT', 'A'].includes(tagName) || 
+        current.getAttribute('role') === 'button'
+      ) {
+        isInsideItemOrCard = true;
+        break;
+      }
+      
+      if (
+        classList.contains('swipeable-item') ||
+        classList.contains('reddit-card') ||
+        classList.contains('telegram-message') ||
+        classList.contains('station-card') ||
+        classList.contains('active-reader') ||
+        classList.contains('settings-modal') ||
+        classList.contains('custom-modal') ||
+        tagName === 'LI' ||
+        current.id === 'article-reader-content' ||
+        // Check general relative item wrappers
+        (classList.contains('relative') && classList.contains('w-full') && current.querySelector('.rounded-3xl') !== null)
+      ) {
+        isInsideItemOrCard = true;
+        break;
+      }
+      
+      current = current.parentElement;
+    }
+
+    if (isInsideItemOrCard) {
+      touchStartX.current = 0;
+      touchStartY.current = 0;
+    } else {
+      touchStartX.current = e.touches[0].clientX;
+      touchStartY.current = e.touches[0].clientY;
+    }
+    hookHandleTouchStart(e);
+  };
+
+  const handleAppTouchMove = (e: React.TouchEvent) => {
+    hookHandleTouchMove(e);
+  };
+
+  const handleAppTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartX.current === 0) {
+      hookHandleTouchEnd();
+      return;
+    }
+
+    const deltaX = e.changedTouches[0].clientX - touchStartX.current;
+    const deltaY = e.changedTouches[0].clientY - touchStartY.current;
+
+    // Detect horizontal swipe for navigation
+    // Threshold: > 80px horizontal, < 60px vertical to avoid accidental scroll triggers
+    if (Math.abs(deltaX) > 80 && Math.abs(deltaY) < 60) {
+      const SECTIONS: ('saved' | 'inbox' | 'reddit' | 'telegram')[] = ['saved', 'inbox', 'reddit', 'telegram'];
+      const currentIndex = SECTIONS.indexOf(filter as any);
+
+      if (currentIndex !== -1) {
+        if (deltaX > 80 && currentIndex > 0) {
+          // Swipe Right -> Move to previous section
+          handleFilterChange(SECTIONS[currentIndex - 1]);
+        } else if (deltaX < -80 && currentIndex < SECTIONS.length - 1) {
+          // Swipe Left -> Move to next section
+          handleFilterChange(SECTIONS[currentIndex + 1]);
+        }
+      }
+    }
+
+    hookHandleTouchEnd();
+  };
+
   return (
     <div 
       className="h-[100dvh] overflow-hidden flex flex-col transition-colors duration-500 font-sans relative bg-[#0A0A10]"
@@ -602,9 +688,9 @@ export default function App() {
         '--theme-color': settings.themeColor,
         '--theme-color-rgb': themeColorRgb
       } as React.CSSProperties}
-      onTouchStart={handleTouchStart}
-      onTouchMove={handleTouchMove}
-      onTouchEnd={handleTouchEnd}
+      onTouchStart={handleAppTouchStart}
+      onTouchMove={handleAppTouchMove}
+      onTouchEnd={handleAppTouchEnd}
     >
       <div className="fixed inset-0 z-[0] pointer-events-none overflow-hidden">
         <div className={cn("absolute -top-[10%] -left-[10%] w-[70vw] h-[70vh] rounded-full blur-[80px] opacity-100 transition-colors duration-700 transform-gpu", blob1)} />
@@ -834,6 +920,7 @@ export default function App() {
 
         <ProgressBanner filter={filter} />
         <ErrorNotification error={error} onClear={() => setError(null)} />
+        {failedFeeds.length > 0 && <ErrorModal failedFeeds={failedFeeds} onClose={clearFailedFeeds} />}
       </div>
 
       <div className="flex-1 relative overflow-hidden">

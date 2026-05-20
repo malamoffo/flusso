@@ -45,6 +45,8 @@ export const RedditProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const worker = useRef<Worker | undefined>(undefined);
   const commentCache = useRef<Map<string, any[]>>(new Map());
   const prefetchQueue = useRef<Set<string>>(new Set());
+  const refreshAbortHelper = useRef<AbortController | null>(null);
+  const loadMoreAbortHelper = useRef<AbortController | null>(null);
 
   useEffect(() => {
     setRedditUnreadCount(redditPosts.filter(p => !p.isRead).length);
@@ -52,7 +54,11 @@ export const RedditProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
   useEffect(() => {
     worker.current = new DataWorker();
-    return () => worker.current?.terminate();
+    return () => {
+      worker.current?.terminate();
+      if (refreshAbortHelper.current) refreshAbortHelper.current.abort();
+      if (loadMoreAbortHelper.current) loadMoreAbortHelper.current.abort();
+    };
   }, []);
 
   useEffect(() => {
@@ -81,6 +87,12 @@ export const RedditProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   }, []);
 
   const refreshReddit = useCallback(async (subsToRefresh?: Subreddit[], currentPosts?: RedditPost[], sort?: 'new' | 'hot' | 'top') => {
+    if (refreshAbortHelper.current) {
+      refreshAbortHelper.current.abort();
+    }
+    const controller = new AbortController();
+    refreshAbortHelper.current = controller;
+
     const targetSubs = subsToRefresh || subredditsRef.current;
     const targetSort = sort || redditSort;
     
@@ -90,6 +102,9 @@ export const RedditProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     }
 
     if (targetSubs.length === 0) {
+      if (refreshAbortHelper.current === controller) {
+        refreshAbortHelper.current = null;
+      }
       return;
     }
 
@@ -97,26 +112,33 @@ export const RedditProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     try {
      const fetchPromises = targetSubs.map(async (sub) => {
         try {
-          const result = await storage.fetchRedditPosts(sub.name, targetSort);
+          const result = await storage.fetchRedditPosts(sub.name, targetSort, undefined, controller.signal);
           if (result.after) {
             paginationCursors.current[sub.name] = result.after;
           }
           return result.posts;
-        } catch (e) {
-          console.error(`Failed to refresh r/${sub.name}`, e);
+        } catch (e: any) {
+          if (e.name !== 'AbortError') {
+            console.error(`Failed to refresh r/${sub.name}`, e);
+          }
           return [];
         }
       });
       
       const results = await Promise.all(fetchPromises);
+      if (controller.signal.aborted) return;
       const posts: RedditPost[] = results.flat();
 
       if (worker.current) {
         const handler = (e: MessageEvent) => {
           if (e.data.type === 'mergedRedditPosts') {
+            if (controller.signal.aborted) {
+              worker.current!.removeEventListener('message', handler);
+              return;
+            }
+
             const merged: RedditPost[] = e.data.merged;
             
-            // ... (rest of the logic)
             const retentionMs = 1 * 24 * 60 * 60 * 1000;
             const now = Date.now();
             
@@ -140,7 +162,14 @@ export const RedditProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         worker.current.addEventListener('message', handler);
         worker.current.postMessage({ type: 'mergeRedditPosts', prev: redditPostsRef.current, incoming: posts, sort: targetSort });
       }
+    } catch (e: any) {
+      if (e.name !== 'AbortError') {
+        console.error('Error refreshing Reddit:', e);
+      }
     } finally {
+      if (refreshAbortHelper.current === controller) {
+        refreshAbortHelper.current = null;
+      }
       setIsLoading(false);
     }
   }, [settings.redditRetentionDays, redditSort]);
@@ -164,6 +193,12 @@ export const RedditProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     const targetSubs = subredditsRef.current;
     if (targetSubs.length === 0) return;
 
+    if (loadMoreAbortHelper.current) {
+      loadMoreAbortHelper.current.abort();
+    }
+    const controller = new AbortController();
+    loadMoreAbortHelper.current = controller;
+
     setIsLoading(true);
     try {
       const oldestPost = redditPostsRef.current[redditPostsRef.current.length - 1];
@@ -175,12 +210,13 @@ export const RedditProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       const MAX_ATTEMPTS = 3; // Limit to avoid infinite loops if it's very quiet
 
       while (!reachedBoundary && attempts < MAX_ATTEMPTS) {
+        if (controller.signal.aborted) break;
         attempts++;
         const fetchPromises = targetSubs.map(async (sub) => {
            const cursor = paginationCursors.current[sub.name];
            if (cursor === 'end') return []; // No more posts for this sub
 
-           const result = await storage.fetchRedditPosts(sub.name, redditSort, cursor);
+           const result = await storage.fetchRedditPosts(sub.name, redditSort, cursor, controller.signal);
            
            if (!result.after) {
              paginationCursors.current[sub.name] = 'end';
@@ -191,6 +227,7 @@ export const RedditProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         });
         
         const results = await Promise.all(fetchPromises);
+        if (controller.signal.aborted) break;
         const batch = results.flat();
         
         if (batch.length === 0) break;
@@ -209,6 +246,8 @@ export const RedditProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         }
       }
       
+      if (controller.signal.aborted) return;
+
       if (allNewPosts.length > 0) {
         setRedditPosts(prev => {
             const combined = [...prev, ...allNewPosts];
@@ -219,8 +258,15 @@ export const RedditProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         });
         redditOffset.current += allNewPosts.length;
       }
+    } catch (e: any) {
+      if (e.name !== 'AbortError') {
+        console.error('Error loading more Reddit:', e);
+      }
     } finally {
-        setIsLoading(false);
+      if (loadMoreAbortHelper.current === controller) {
+        loadMoreAbortHelper.current = null;
+      }
+      setIsLoading(false);
     }
   }, [redditSort]);
 

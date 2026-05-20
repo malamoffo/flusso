@@ -201,7 +201,7 @@ export const redditStorage = {
     }
   },
 
-  async fetchRedditPosts(subredditName: string, sort: 'new' | 'hot' | 'top' = 'new', after?: string): Promise<{posts: RedditPost[], after?: string}> {
+  async fetchRedditPosts(subredditName: string, sort: 'new' | 'hot' | 'top' = 'new', after?: string, signal?: AbortSignal): Promise<{posts: RedditPost[], after?: string}> {
     try {
       // Don't strictly require subreddit object to perform fetch
       const subreddits = await this.getSubreddits();
@@ -217,11 +217,11 @@ export const redditStorage = {
       // Use etag from subreddit if available
       let result;
       try {
-        result = await this.fetchJsonWithProxy(url, undefined, subreddit?.etag, subreddit?.lastModified);
+        result = await this.fetchJsonWithProxy(url, signal, subreddit?.etag, subreddit?.lastModified);
       } catch (e) {
         console.warn(`Initial fetch failed for r/${subredditName}, retrying without caching headers...`, e);
         // Retry without etag/lastModified in case it was a 304/cache issue on proxy
-        result = await this.fetchJsonWithProxy(url);
+        result = await this.fetchJsonWithProxy(url, signal);
       }
       
       if (!result || result.data === null) return { posts: [] }; // 304 Not Modified

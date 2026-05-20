@@ -2,13 +2,13 @@ import { CapacitorHttp, Capacitor } from '@capacitor/core';
 import { TelegramMessage } from '../types';
 import { fetchWithProxy } from '../utils/proxy';
 
-export const fetchTelegramChannelInfo = async (channelUsername: string): Promise<{ name: string; imageUrl?: string }> => {
+export const fetchTelegramChannelInfo = async (channelUsername: string, signal?: AbortSignal): Promise<{ name: string; imageUrl?: string }> => {
   try {
     let htmlData: string;
     
     // Always use proxy for Telegram to avoid CORS and regional blocks
     // and to ensure consistency across platforms
-    const res = await fetchWithProxy(`https://t.me/s/${channelUsername}`, false);
+    const res = await fetchWithProxy(`https://t.me/s/${channelUsername}`, false, undefined, signal);
     htmlData = res.data;
 
     if (!htmlData) {
@@ -45,7 +45,7 @@ export const fetchTelegramChannelInfo = async (channelUsername: string): Promise
   }
 };
 
-export const fetchTelegramMessages = async (channelUsername: string, sinceDate?: number, before?: string, channelId?: string): Promise<TelegramMessage[]> => {
+export const fetchTelegramMessages = async (channelUsername: string, sinceDate?: number, before?: string, channelId?: string, signal?: AbortSignal): Promise<TelegramMessage[]> => {
   try {
     let htmlData: string;
     let url = `https://t.me/s/${channelUsername}`;
@@ -55,7 +55,7 @@ export const fetchTelegramMessages = async (channelUsername: string, sinceDate?:
     
     // Always use proxy for Telegram to avoid CORS and regional blocks
     // and to ensure consistency across platforms
-    const res = await fetchWithProxy(url, false);
+    const res = await fetchWithProxy(url, false, undefined, signal);
     htmlData = res.data;
 
     if (!htmlData || htmlData.includes('tgme_page_error') || htmlData.includes('Channel not found')) {

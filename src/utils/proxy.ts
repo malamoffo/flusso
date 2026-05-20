@@ -57,12 +57,12 @@ export async function fetchWithProxy(url: string, isRss: boolean = true, sinceDa
           lastModified: getHeader(response.headers, 'last-modified')
         };
       }
-      console.warn(`[Proxy] Native fetch to ${url} failed with status ${response.status}. Falling back to proxies.`);
+      throw new Error(`Native fetch failed with status ${response.status}`);
     } catch (e: any) {
         if (e?.code !== 'UNIMPLEMENTED') {
-          console.warn(`[Proxy] Direct native fetch failed for ${url} (Error: ${e.message}). Falling back to proxies.`);
+          console.warn(`[Proxy] Direct native fetch failed for ${url} (Error: ${e.message}).`);
         }
-        // Fall back to web proxies even on native if direct fetch fails
+        throw e; // Rethrow to stop fallback to web proxies
     }
   }
 
