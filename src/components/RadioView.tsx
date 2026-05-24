@@ -136,28 +136,51 @@ export const RadioView = memo(({ isActive, searchQuery }: RadioViewProps) => {
 
   const fetchStations = async (query: string = '') => {
     setIsLoading(true);
-    try {
-      const response = await fetch('https://de1.api.radio-browser.info/json/stations/search', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          countrycode: 'IT',
-          limit: 100,
-          name: query,
-          hidebroken: true,
-          order: 'clickcount',
-          reverse: true,
-        }),
-      });
-      const data = await response.json();
-      setStations(Array.isArray(data) ? data : []);
-    } catch (error) {
-      console.error('Failed to fetch stations:', error);
-    } finally {
-      setIsLoading(false);
+    const mirrors = [
+      'https://de1.api.radio-browser.info',
+      'https://at1.api.radio-browser.info',
+      'https://nl1.api.radio-browser.info',
+      'https://fr1.api.radio-browser.info',
+    ];
+
+    let lastError: any = null;
+    let success = false;
+
+    for (const mirror of mirrors) {
+      try {
+        const response = await fetch(`${mirror}/json/stations/search`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            countrycode: 'IT',
+            limit: 100,
+            name: query,
+            hidebroken: true,
+            order: 'clickcount',
+            reverse: true,
+          }),
+        });
+        
+        if (!response.ok) {
+          throw new Error(`HTTP status ${response.status}`);
+        }
+        
+        const data = await response.json();
+        setStations(Array.isArray(data) ? data : []);
+        success = true;
+        break; // Stop attempting other mirrors on success
+      } catch (error: any) {
+        console.warn(`Failed to fetch stations from ${mirror} (Error: ${error?.message || error}). Trying next mirror...`);
+        lastError = error;
+      }
     }
+
+    if (!success) {
+      console.error('Failed to fetch stations:', lastError);
+    }
+    setIsLoading(false);
   };
 
   useEffect(() => {

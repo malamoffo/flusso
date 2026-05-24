@@ -18,7 +18,7 @@ interface RedditPostReaderProps {
   sourceFilter?: string;
 }
 
-const CommentNode: React.FC<{ comment: RedditComment }> = ({ comment }) => {
+const CommentNode: React.FC<{ comment: RedditComment; depth?: number; parentAuthor?: string }> = ({ comment, depth = 0, parentAuthor }) => {
   const [isCollapsed, setIsCollapsed] = useState(false);
 
   return (
@@ -27,7 +27,14 @@ const CommentNode: React.FC<{ comment: RedditComment }> = ({ comment }) => {
         className="flex items-center gap-2 mb-2 cursor-pointer hover:bg-neutral-800 p-1 rounded transition-colors"
         onClick={() => setIsCollapsed(!isCollapsed)}
       >
-        <span className="font-medium text-purple-400 text-xs">u/{comment.author}</span>
+        <span className="font-medium text-purple-400 text-xs">
+          u/{comment.author}
+          {depth >= 3 && parentAuthor && (
+            <span className="text-gray-500 font-normal text-[10px]">
+              {' '}→ <span className="text-purple-300">u/{parentAuthor}</span>
+            </span>
+          )}
+        </span>
         <span className="text-gray-500 text-[10px]">• {format(comment.createdUtc, 'HH:mm dd/MM/yy')}</span>
         <span className="text-gray-500 text-[10px]">• ↑ {comment.score}</span>
         <span className="text-gray-600 text-[10px] ml-auto">{isCollapsed ? '[+]' : '[-]'}</span>
@@ -35,7 +42,7 @@ const CommentNode: React.FC<{ comment: RedditComment }> = ({ comment }) => {
       {!isCollapsed && (
         <>
           <div 
-            className="text-gray-300 reddit-comment-body pl-2"
+            className="text-gray-300 reddit-comment-body pl-2 break-words text-sm leading-relaxed"
             dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(comment.bodyHtml, { FORBID_ATTR: ['id', 'name'] }) }}
           />
           {comment.mediaUrls && comment.mediaUrls.length > 0 && (
@@ -52,9 +59,9 @@ const CommentNode: React.FC<{ comment: RedditComment }> = ({ comment }) => {
             </div>
           )}
           {comment.replies && comment.replies.length > 0 && (
-            <div className="mt-4 pl-5 border-l-2 border-purple-500/20 space-y-4">
+            <div className={`mt-4 ${depth < 3 ? 'pl-4 border-l-2 border-purple-500/20' : 'pl-2 border-l border-dashed border-purple-500/10'} space-y-4`}>
               {comment.replies.map(reply => (
-                <CommentNode key={reply.id} comment={reply} />
+                <CommentNode key={reply.id} comment={reply} depth={depth + 1} parentAuthor={comment.author} />
               ))}
             </div>
           )}

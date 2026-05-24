@@ -658,26 +658,6 @@ export default function App() {
       return;
     }
 
-    const deltaX = e.changedTouches[0].clientX - touchStartX.current;
-    const deltaY = e.changedTouches[0].clientY - touchStartY.current;
-
-    // Detect horizontal swipe for navigation
-    // Threshold: > 80px horizontal, < 60px vertical to avoid accidental scroll triggers
-    if (Math.abs(deltaX) > 80 && Math.abs(deltaY) < 60) {
-      const SECTIONS: ('saved' | 'inbox' | 'reddit' | 'telegram')[] = ['saved', 'inbox', 'reddit', 'telegram'];
-      const currentIndex = SECTIONS.indexOf(filter as any);
-
-      if (currentIndex !== -1) {
-        if (deltaX > 80 && currentIndex > 0) {
-          // Swipe Right -> Move to previous section
-          handleFilterChange(SECTIONS[currentIndex - 1]);
-        } else if (deltaX < -80 && currentIndex < SECTIONS.length - 1) {
-          // Swipe Left -> Move to next section
-          handleFilterChange(SECTIONS[currentIndex + 1]);
-        }
-      }
-    }
-
     hookHandleTouchEnd();
   };
 
@@ -919,8 +899,6 @@ export default function App() {
         )}
 
         <ProgressBanner filter={filter} />
-        <ErrorNotification error={error} onClear={() => setError(null)} />
-        {failedFeeds.length > 0 && <ErrorModal failedFeeds={failedFeeds} onClose={clearFailedFeeds} />}
       </div>
 
       <div className="flex-1 relative overflow-hidden">
@@ -1326,6 +1304,7 @@ export default function App() {
         })()}
       </AnimatePresence>
       
+      <ErrorNotification error={error} onClear={() => setError(null)} />
 
     </div>
   );
