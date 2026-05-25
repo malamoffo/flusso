@@ -456,7 +456,11 @@ export default function App() {
         const hasUnread = inboxArticlesRef.current.some(a => !a.isRead);
         if (hasUnread && !inboxTimerRef.current) {
           inboxTimerRef.current = setTimeout(() => {
-            const toMark = inboxArticlesRef.current.filter(a => !a.isRead && visibleInboxArticleIdsRef.current.has(a.id)).map(a => a.id);
+            // ⚡ Bolt: Consolidated O(N) chained array operations (.filter().map()) into a single .reduce() pass to avoid intermediate array allocation
+            const toMark = inboxArticlesRef.current.reduce<string[]>((acc, a) => {
+              if (!a.isRead && visibleInboxArticleIdsRef.current.has(a.id)) acc.push(a.id);
+              return acc;
+            }, []);            
             if (toMark.length > 0) {
               markArticlesAsReadWithPersistence(toMark);
             }
@@ -485,7 +489,11 @@ export default function App() {
         const hasUnread = savedArticlesRef.current.some(a => !a.isRead);
         if (hasUnread && !savedTimerRef.current) {
           savedTimerRef.current = setTimeout(() => {
-            const toMark = savedArticlesRef.current.filter(a => !a.isRead).map(a => a.id);
+            // ⚡ Bolt: Consolidated O(N) chained array operations (.filter().map()) into a single .reduce() pass
+            const toMark = savedArticlesRef.current.reduce<string[]>((acc, a) => {
+              if (!a.isRead) acc.push(a.id);
+              return acc;
+            }, []);            
             if (toMark.length > 0) {
               markArticlesAsRead(toMark);
             }
@@ -516,7 +524,11 @@ export default function App() {
               const hasUnread = redditPostsRef.current.some((p: any) => !p.isRead);
               if (hasUnread && !redditTimerRef.current) {
                   redditTimerRef.current = setTimeout(() => {
-                      const toMark = redditPostsRef.current.filter((p: any) => !p.isRead && visibleRedditPostIdsRef.current.has(p.id)).map((p: any) => p.id);
+                      // ⚡ Bolt: Consolidated O(N) chained array operations (.filter().map()) into a single .reduce() pass
+                      const toMark = redditPostsRef.current.reduce<string[]>((acc, p: any) => {
+                          if (!p.isRead && visibleRedditPostIdsRef.current.has(p.id)) acc.push(p.id);
+                          return acc;
+                      }, []);                      
                       if (toMark.length > 0) {
                           markRedditPostsAsRead(toMark);
                       }
@@ -541,7 +553,11 @@ export default function App() {
         const hasUnread = articlesRef.current.some(a => !a.isRead && (filterType !== 'inbox' || visibleInboxArticleIdsRef.current.has(a.id)));
         if (hasUnread && !timerRef.current) {
           timerRef.current = setTimeout(() => {
-            const toMark = articlesRef.current.filter(a => !a.isRead && (filterType !== 'inbox' || visibleInboxArticleIdsRef.current.has(a.id))).map(a => a.id);
+            // ⚡ Bolt: Consolidated O(N) chained array operations (.filter().map()) into a single .reduce() pass
+            const toMark = articlesRef.current.reduce<string[]>((acc, a) => {
+              if (!a.isRead && (filterType !== 'inbox' || visibleInboxArticleIdsRef.current.has(a.id))) acc.push(a.id);
+              return acc;
+            }, []);            
             if (toMark.length > 0) {
               markArticlesAsReadWithPersistence(toMark);
             }
@@ -1181,13 +1197,21 @@ export default function App() {
                         timeThreshold: threshold || undefined
                       });
                     } else if (filter === 'saved') {
-                      const toMark = savedArticles.filter(a => !a.isRead).map(a => a.id);
+                      // ⚡ Bolt: Consolidated O(N) chained array operations (.filter().map()) into a single .reduce() pass
+                      const toMark = savedArticles.reduce<string[]>((acc, a) => {
+                        if (!a.isRead) acc.push(a.id);
+                        return acc;
+                      }, []);                      
                       if (toMark.length > 0) {
                         await markArticlesAsRead(toMark);
                       }
                     } else if (filter === 'reddit') {
                       // Mark all reddit posts as read
-                      const toMark = redditPosts.filter(p => !p.isRead).map(p => p.id);
+                      // ⚡ Bolt: Consolidated O(N) chained array operations (.filter().map()) into a single .reduce() pass
+                      const toMark = redditPosts.reduce<string[]>((acc, p) => {
+                        if (!p.isRead) acc.push(p.id);
+                        return acc;
+                      }, []);                      
                       if (toMark.length > 0) {
                         await markRedditPostsAsRead(toMark);
                       }
