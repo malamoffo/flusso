@@ -61,7 +61,6 @@ export const TelegramListView = memo(({ isActive, channels, onChannelClick, filt
               key={channel.id}
               initial={{ opacity: 0, y: 30, scale: 0.95 }}
               whileInView={{ opacity: 1, y: 0, scale: 1 }}
-              whileTap={{ scale: 0.98 }}
               viewport={{ once: true, margin: "50px" }}
               exit={{ 
                 opacity: 0, 

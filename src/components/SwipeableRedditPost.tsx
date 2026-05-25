@@ -186,7 +186,6 @@ export const SwipeableRedditPost = React.memo(function SwipeableRedditPost({
 
         <motion.article
           animate={controls}
-          whileTap={{ scale: 0.98 }}
           style={{ x }}
           drag={!disableGestures && (isSavedSection || (settings.swipeLeftAction !== 'none' || settings.swipeRightAction !== 'none')) ? "x" : false}
           dragConstraints={{ left: 0, right: 0 }}

@@ -325,7 +325,6 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
 
         <motion.article
           animate={controls}
-          whileTap={{ scale: 0.98 }}
           style={{ 
             x
           }}
