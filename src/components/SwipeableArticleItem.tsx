@@ -261,9 +261,8 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
 
   return (
     <motion.div 
-      initial={{ opacity: 0, y: 30, scale: 0.95 }}
-      whileInView={{ opacity: 1, y: 0, scale: 1 }}
-      viewport={{ once: true, margin: "50px" }}
+      initial={{ opacity: 0, y: 15 }}
+      animate={{ opacity: 1, y: 0 }}
       exit={{ 
         opacity: 0, 
         height: 0,
@@ -275,14 +274,15 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
         } 
       }}
       transition={{ 
-        type: "spring", stiffness: 250, damping: 25 
+        duration: 0.25,
+        ease: "easeOut"
       }}
       ref={(node) => {
         ref(node);
         visibleRef(node);
       }} 
       className={cn(
-        "relative w-full",
+        "relative w-full card-optimize transform-gpu",
         isInboxOrSaved && "px-1.25 py-0.5"
       )}
       style={{
@@ -362,12 +362,12 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
           )}
           <div className="relative z-10 flex flex-col gap-2">
             {hasImage ? (
-              <div className="relative overflow-hidden flex-shrink-0 w-full rounded-2xl bg-gray-800/50">
+              <div className="relative overflow-hidden flex-shrink-0 w-full rounded-2xl bg-gray-800/50 aspect-[16/10] max-h-[300px] md:max-h-[360px] transform-gpu">
               <CachedImage 
                 key={`${article.id}-${article.imageUrl}`}
                 src={getSafeUrl(article.imageUrl || '')}
                 alt="" 
-                className="w-full h-auto max-h-[70vh] object-cover bg-gray-800 transition-opacity"
+                className="w-full h-full object-cover bg-gray-800 transition-opacity"
                 referrerPolicy="no-referrer"
               />
             </div>

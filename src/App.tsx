@@ -205,7 +205,11 @@ export default function App() {
         return true;
       });
   }, [telegramChannels, deferredSearchQuery, telegramChannelFilter]);
-  
+
+  const telegramUnreadCount = useMemo(() => {
+    return telegramChannels.reduce((sum, c) => sum + (c.unreadCount || 0), 0);
+  }, [telegramChannels]);
+    
   useEffect(() => {
     resetPagination();
   }, [filter, deferredSearchQuery, inboxUnreadOnly, savedUnreadOnly, sourceFilter, timeFilter]);
@@ -1076,9 +1080,9 @@ export default function App() {
             <path d="M21.5 2L2 11.5l6.5 2.5 2 6.5L14 17l5.5 4.5L21.5 2z"></path>
             <path d="M21.5 2L8.5 14"></path>
           </svg>
-          {telegramChannels.reduce((sum, c) => sum + (c.unreadCount || 0), 0) > 0 && (
+          {telegramUnreadCount > 0 && (
             <span className="absolute -top-1 -right-1 bg-green-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full border-2 border-black">
-              {telegramChannels.reduce((sum, c) => sum + (c.unreadCount || 0), 0) > 99 ? '99+' : telegramChannels.reduce((sum, c) => sum + (c.unreadCount || 0), 0)}
+              {telegramUnreadCount > 99 ? '99+' : telegramUnreadCount}
             </span>
           )}
         </motion.button>

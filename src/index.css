@@ -144,3 +144,9 @@
   display: inline-block;
   animation: marquee 15s linear infinite;
 }
+
+/* Off-screen canvas layout & paint optimization */
+.card-optimize {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 180px;
+}

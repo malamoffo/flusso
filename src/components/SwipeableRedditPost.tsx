@@ -138,23 +138,23 @@ export const SwipeableRedditPost = React.memo(function SwipeableRedditPost({
 
   return (
     <motion.div 
-      initial={{ opacity: 0, y: 30, scale: 0.95 }}
-      whileInView={{ opacity: 1, y: 0, scale: 1 }}
-      viewport={{ once: true, margin: "50px" }}
+      initial={{ opacity: 0, y: 15 }}
+      animate={{ opacity: 1, y: 0 }}
       exit={{ 
         opacity: 0, 
         height: 0,
         transition: { duration: shouldReduceMotion ? 0 : 0.2, ease: "easeInOut" } 
       }}
       transition={{ 
-        type: "spring", stiffness: 250, damping: 25 
+        duration: 0.25,
+        ease: "easeOut"
       }}
       ref={(node) => {
         ref(node);
         visibleRef(node);
       }}
       className={cn(
-        "relative w-full",
+        "relative w-full card-optimize transform-gpu",
         (filter === 'saved' || filter === 'reddit') && "px-1.25 py-0.5"
       )}
     >
@@ -216,15 +216,17 @@ export const SwipeableRedditPost = React.memo(function SwipeableRedditPost({
         <div className="relative z-10 flex flex-col gap-2">
           {/* Image at the top */}
           {decodedImageUrl && (
-            <CachedImage 
-              src={getSafeUrl(decodedImageUrl)}
-              alt="" 
-              className={cn(
-                "rounded-lg flex-shrink-0 bg-gray-800/50 transition-opacity w-full h-auto max-h-[70vh] object-cover mb-1"
-              )}
-              referrerPolicy="no-referrer"
-              onClick={(e) => { e.stopPropagation(); onImageClick(decodedImageUrl); }}
-            />
+            <div className="relative overflow-hidden flex-shrink-0 w-full rounded-lg bg-gray-800/50 aspect-[16/10] max-h-[300px] md:max-h-[360px] mb-1 transform-gpu">
+              <CachedImage 
+                src={getSafeUrl(decodedImageUrl)}
+                alt="" 
+                className={cn(
+                  "transition-opacity w-full h-full object-cover"
+                )}
+                referrerPolicy="no-referrer"
+                onClick={(e) => { e.stopPropagation(); onImageClick(decodedImageUrl); }}
+              />
+            </div>
           )}
 
           {/* Source and Time (below image, above title) */}

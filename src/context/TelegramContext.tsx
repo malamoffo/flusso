@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef, useMemo } from 'react';
 import { TelegramChannel, TelegramMessage } from '../types';
 import { storage } from '../services/storage';
 import DataWorker from '../workers/dataProcessor.worker.ts?worker';
@@ -16,6 +16,7 @@ interface TelegramContextType {
   markAllTelegramAsRead: () => Promise<void>;
   markTelegramChannelAsRead: (channelId: string) => Promise<void>;
   enforceRetention: () => Promise<void>;
+  telegramUnreadCount: number;
 }
 
 const TelegramContext = createContext<TelegramContextType | undefined>(undefined);
@@ -24,6 +25,14 @@ export const TelegramProvider: React.FC<{ children: ReactNode }> = ({ children }
   const [telegramChannels, setTelegramChannels] = useState<TelegramChannel[]>([]);
   const [telegramMessages, setTelegramMessages] = useState<Record<string, TelegramMessage[]>>({});
   const { settings } = useSettings();
+  
+  const telegramUnreadCount = useMemo(() => {
+    let sum = 0;
+    for (let i = 0; i < telegramChannels.length; i++) {
+      sum += (telegramChannels[i].unreadCount || 0);
+    }
+    return sum;
+  }, [telegramChannels]);
   
   const telegramChannelsRef = useRef<TelegramChannel[]>([]);
   const telegramMessagesRef = useRef<Record<string, TelegramMessage[]>>({});
@@ -428,7 +437,8 @@ export const TelegramProvider: React.FC<{ children: ReactNode }> = ({ children }
       telegramChannels, telegramMessages,
       addTelegramChannel, removeTelegramChannel, refreshTelegramChannels,
       loadTelegramMessages, loadMoreTelegramMessages,
-      markAllTelegramAsRead, markTelegramChannelAsRead, enforceRetention
+      markAllTelegramAsRead, markTelegramChannelAsRead, enforceRetention,
+      telegramUnreadCount
     }}>
       {children}
     </TelegramContext.Provider>

@@ -150,7 +150,11 @@ export const RedditProvider: React.FC<{ children: ReactNode }> = ({ children }) 
             });
 
             if (filtered.length < 5 && merged.length > 0) {
-              const sorted = [...merged].sort((a, b) => b.createdUtc - a.createdUtc);
+              const sorted = [...merged].sort((a, b) => {
+                if (targetSort === 'new') return b.createdUtc - a.createdUtc;
+                if (targetSort === 'hot' || targetSort === 'top') return (b.score || 0) - (a.score || 0);
+                return b.createdUtc - a.createdUtc;
+              });
               filtered = sorted.slice(0, 5);
             }
 
@@ -182,7 +186,11 @@ export const RedditProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       setRedditPosts(prev => {
         const combined = [...prev, ...moreLocalPosts];
         const unique = Array.from(new Map(combined.map(item => [item.id, item])).values());
-        unique.sort((a, b) => b.createdUtc - a.createdUtc);
+        unique.sort((a, b) => {
+          if (redditSort === 'new') return b.createdUtc - a.createdUtc;
+          if (redditSort === 'hot' || redditSort === 'top') return (b.score || 0) - (a.score || 0);
+          return b.createdUtc - a.createdUtc;
+        });
         return unique;
       });
       redditOffset.current += moreLocalPosts.length;
@@ -252,7 +260,11 @@ export const RedditProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         setRedditPosts(prev => {
             const combined = [...prev, ...allNewPosts];
             const unique = Array.from(new Map(combined.map(item => [item.id, item])).values());
-            unique.sort((a, b) => b.createdUtc - a.createdUtc);                
+            unique.sort((a, b) => {
+              if (redditSort === 'new') return b.createdUtc - a.createdUtc;
+              if (redditSort === 'hot' || redditSort === 'top') return (b.score || 0) - (a.score || 0);
+              return b.createdUtc - a.createdUtc;
+            });                
             storage.saveRedditPosts(allNewPosts); 
             return unique;
         });
