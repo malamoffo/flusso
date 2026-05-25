@@ -62,18 +62,24 @@
   "overrides": {
     "tar": "^7.5.13",
     "minimatch": "^10.2.4",
-    "glob": "^13.0.6"
+    "glob": "^13.0.6",
+    "@xmldom/xmldom": "^0.8.10",
+    "uuid": "^10.0.0"
   },
   "pnpm": {
     "overrides": {
       "tar": "^7.5.13",
       "minimatch": "^10.2.4",
-      "glob": "^13.0.6"
+      "glob": "^13.0.6",
+      "@xmldom/xmldom": "^0.8.10",
+      "uuid": "^10.0.0"
     }
   },
   "resolutions": {
     "tar": "^7.5.13",
     "minimatch": "^10.2.4",
-    "glob": "^13.0.6"
+    "glob": "^13.0.6",
+    "@xmldom/xmldom": "^0.8.10",
+    "uuid": "^10.0.0"
   }
 }

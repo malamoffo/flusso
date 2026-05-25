@@ -107,7 +107,7 @@ export function CachedImage({ src, className, fallback, alt, ...props }: CachedI
     
     if (!isNative) {
         const hostname = getHostname(src);
-        if (hostname && !hostname.includes('corsproxy.io')) {
+        if (hostname && hostname !== 'corsproxy.io' && !hostname.endsWith('.corsproxy.io')) {
           corsProxyUrl = `https://corsproxy.io/?${encodeURIComponent(src)}`;
         }
     }
