@@ -6,8 +6,26 @@ permissions:
 on:
   push:
     branches: [ main ]
+    paths:
+      - 'src/**'
+      - 'public/**'
+      - 'android/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig.json'
+      - 'vite.config.ts'
+      - '.github/workflows/android.yml'
   pull_request:
     branches: [ main ]
+    paths:
+      - 'src/**'
+      - 'public/**'
+      - 'android/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig.json'
+      - 'vite.config.ts'
+      - '.github/workflows/android.yml'
   workflow_dispatch:
 
 jobs:
@@ -28,7 +46,7 @@ jobs:
           cache-dependency-path: package-lock.json
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
       - name: Run Linting
         run: npm run lint
