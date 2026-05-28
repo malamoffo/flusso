@@ -21,10 +21,19 @@ export default defineConfig(({mode}) => {
     build: {
       rollupOptions: {
         output: {
-          manualChunks: {
-            'react-vendor': ['react', 'react-dom'],
-            'ui-vendor': ['framer-motion', 'lucide-react'],
-            'utils-vendor': ['@mozilla/readability', 'dompurify', 'date-fns', 'dexie'],
+          manualChunks: (id: string) => {
+            if (id.includes('node_modules/react') || id.includes('node_modules/react-dom')) {
+              return 'react-vendor';
+            }
+            if (id.includes('node_modules/framer-motion') || id.includes('node_modules/lucide-react')) {
+              return 'ui-vendor';
+            }
+            if (id.includes('node_modules/@mozilla/readability') || 
+              id.includes('node_modules/dompurify') || 
+              id.includes('node_modules/date-fns') || 
+              id.includes('node_modules/dexie')) {
+              return 'utils-vendor';
+            }
           },
         },
       },
