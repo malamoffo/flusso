@@ -39,11 +39,16 @@ function getFirstSrcsetUrl(srcset: string | null | undefined): string | null {
   return spaceIndex !== -1 ? firstPart.substring(0, spaceIndex) : firstPart;
 }
 
+// Reuse a single DOMParser instance to prevent allocation overhead
+const SHARED_PARSER = new DOMParser();
+
 // Helper to extract all images from HTML content
 export function extractAllImages(content: string, baseUrl?: string): string[] {
   if (!content) return [];
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(content, 'text/html');
+  // Early return: bypass expensive HTML parsing if there are obviously no image tags
+  if (!content.toLowerCase().includes('<img')) return [];
+  
+  const doc = SHARED_PARSER.parseFromString(content, 'text/html');
   const imgTags = doc.getElementsByTagName('img');
   const images: string[] = [];
   
@@ -59,8 +64,11 @@ export function extractAllImages(content: string, baseUrl?: string): string[] {
 // Helper to extract the best image from HTML content, avoiding tracking pixels and icons
 export function extractBestImage(content: string, baseUrl?: string): string | null {
   if (!content) return null;
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(content, 'text/html');
+  // Early return: bypass expensive HTML parsing if there are no image tags or og:image tags
+  const lowerContent = content.toLowerCase();
+  if (!lowerContent.includes('<img') && !lowerContent.includes('og:image')) return null;
+  
+  const doc = SHARED_PARSER.parseFromString(content, 'text/html');
   
   const resolveUrlHelper = (url: string | null): string | null => {
     if (!url) return null;
@@ -248,13 +256,12 @@ export function parseRssXml(xmlString: string, feedUrl: string, sinceDate?: numb
     }
   }
 
-  const parser = new DOMParser();
-  let xmlDoc = parser.parseFromString(xmlString, 'text/xml');
+  let xmlDoc = SHARED_PARSER.parseFromString(xmlString, 'text/xml');
   
   // Check for parsing errors
   let parserError = xmlDoc.getElementsByTagName('parsererror')[0];
   if (parserError) {
-    xmlDoc = parser.parseFromString(xmlString, 'text/html');
+    xmlDoc = SHARED_PARSER.parseFromString(xmlString, 'text/html');
   }
   
   // Check again for parsing errors

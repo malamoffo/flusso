@@ -182,14 +182,10 @@ export default function App() {
       return true;
     });
 
-    return [...filtered].sort((a, b) => {
-      if (redditSort === 'new') return b.createdUtc - a.createdUtc;
-      // Hot and Top are both score based in this simple implementation, 
-      // but Reddit API handles trending/hot specifically.
-      if (redditSort === 'hot' || redditSort === 'top') return b.score - a.score;
-      return b.createdUtc - a.createdUtc;
-    });
-  }, [redditPosts, deferredSearchQuery, redditSort]);
+    // ⚡ Bolt: RedditPosts are already sorted by the RedditContext.
+    // We avoid redundant O(N log N) sorting here.
+    return filtered;
+  }, [redditPosts, deferredSearchQuery, redditSort, subredditFilter]);
 
   const sortedTelegramChannels = useMemo(() => {
     const query = deferredSearchQuery.toLowerCase();
