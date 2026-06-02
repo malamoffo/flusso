@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo, memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Play, Square, Heart, Search, Loader2, Globe, Clock, Calendar, X, Radio } from 'lucide-react';
+import { Play, Square, Heart, Search, Loader2, Globe, X, Radio, ThumbsUp, Copy, Check, Info } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { RadioStation } from '../types';
 import { MediaSession } from '@capgo/capacitor-media-session';
@@ -8,7 +8,6 @@ import { App as CapacitorApp } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
 import { Logger } from '../lib/logger';
 import { isPluginAvailable, isNative } from '../utils/platform';
-import { getRadioSchedule } from '../utils/radioSchedule';
 
 interface RadioViewProps {
   isActive: boolean;
@@ -37,11 +36,16 @@ export const RadioView = memo(({ isActive, searchQuery }: RadioViewProps) => {
   const playStationRef = useRef<((station: RadioStation) => Promise<any>) | null>(null);
   
   const [selectedStationDetail, setSelectedStationDetail] = useState<RadioStation | null>(null);
+  const [copiedUrl, setCopiedUrl] = useState(false);
 
-  const scheduleData = useMemo(() => {
-    if (!selectedStationDetail) return null;
-    return getRadioSchedule(selectedStationDetail);
-  }, [selectedStationDetail]);
+  const copyToClipboard = (url: string) => {
+    navigator.clipboard.writeText(url).then(() => {
+      setCopiedUrl(true);
+      setTimeout(() => setCopiedUrl(false), 2000);
+    }).catch(err => {
+      Logger.error('Failed to copy stream URL', err);
+    });
+  };
 
   // Keep refs updated to prevent stale closures in event and media session handlers
   useEffect(() => {
@@ -527,7 +531,7 @@ export const RadioView = memo(({ isActive, searchQuery }: RadioViewProps) => {
       </motion.main>
 
       <AnimatePresence>
-        {selectedStationDetail && scheduleData && (
+        {selectedStationDetail && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -647,35 +651,25 @@ export const RadioView = memo(({ isActive, searchQuery }: RadioViewProps) => {
                 )}
               </div>
 
-              {/* NOW BROADCASTING SECTION */}
-              <div className="bg-white/[0.03] border border-white/5 rounded-2xl p-4 flex gap-4 items-center justify-between">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Radio className="w-4 h-4 text-red-500 animate-pulse" />
-                    <span className="text-[10px] font-bold text-red-500 uppercase tracking-wider">In onda ora</span>
+              {/* ACTIVE AUDIO VISUALIZER */}
+              {currentStation?.stationuuid === selectedStationDetail.stationuuid && isPlaying && (
+                <div className="bg-red-500/5 border border-red-500/10 rounded-2xl p-4 flex gap-4 items-center justify-between">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <Radio className="w-4 h-4 text-red-500 animate-pulse" />
+                      <span className="text-sm font-bold text-red-500">In riproduzione</span>
+                    </div>
+                    <p className="text-xs text-gray-400 mt-1">
+                      Streaming audio live attivo a bassa latenza.
+                    </p>
                   </div>
-                  <p className="text-base font-bold text-white leading-tight truncate">
-                    {scheduleData.currentProgram.title}
-                  </p>
-                  <p className="text-xs text-gray-400 font-semibold mt-1 flex items-center gap-1">
-                    <Clock className="w-3.5 h-3.5 text-gray-400" />
-                    {scheduleData.currentProgram.time}
-                  </p>
-                  <p className="text-xs text-gray-300 mt-2 line-clamp-2 leading-relaxed">
-                    {scheduleData.currentProgram.description}
-                  </p>
-                  <p className="text-[11px] text-gray-400 mt-2.5">
-                    Conduttore: <span className="text-white font-medium">{scheduleData.currentProgram.host}</span>
-                  </p>
-                </div>
 
-                {currentStation?.stationuuid === selectedStationDetail.stationuuid && isPlaying && (
-                  <div className="flex items-end gap-1 h-10 w-12 justify-end pr-1 flex-shrink-0">
+                  <div className="flex items-end gap-1 h-8 w-12 justify-end pr-1 flex-shrink-0">
                     {[1, 2, 3, 4].map((bar) => (
                       <motion.div
                         key={bar}
                         animate={{
-                          height: [6, 26, 11, 38, 14, 6][bar % 6]
+                          height: [6, 22, 9, 32, 12, 6][bar % 6]
                         }}
                         transition={{
                           duration: 0.5 + bar * 0.11,
@@ -686,55 +680,62 @@ export const RadioView = memo(({ isActive, searchQuery }: RadioViewProps) => {
                       />
                     ))}
                   </div>
-                )}
-              </div>
+                </div>
+              )}
 
-              {/* PALINSESTO / SCHEDULE SECTION */}
+              {/* DETTAGLI CANALE */}
               <div className="flex flex-col gap-3">
                 <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400 flex items-center gap-2">
-                  <Calendar className="w-4 h-4 text-blue-400" />
-                  Palinsesto Odierno
+                  <Info className="w-4 h-4 text-red-400" />
+                  Dettagli Canale
                 </h3>
-                <div className="space-y-2 max-h-56 overflow-y-auto pr-1 scrollbar-hide divide-y divide-white/5">
-                  {scheduleData.schedule.map((item) => {
-                    const isCurrentItem = item.id === scheduleData.currentProgram.id;
-                    return (
-                      <div
-                        key={item.id}
-                        className={cn(
-                          "pt-3 first:pt-0 pb-3 last:pb-0 flex flex-col gap-1 transition-all",
-                          isCurrentItem && "bg-red-500/5 px-2 rounded-xl border border-red-500/10 font-medium"
-                        )}
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <p className={cn(
-                            "text-xs font-mono tracking-tight font-medium",
-                            isCurrentItem ? "text-red-400" : "text-gray-400"
-                          )}>
-                            {item.time}
-                          </p>
-                          {isCurrentItem && (
-                            <span className="text-[8px] font-bold uppercase tracking-wider text-red-500 bg-red-500/10 px-2 py-0.5 rounded-full flex items-center gap-1 border border-red-500/10">
-                              <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
-                              Ora in onda
-                            </span>
-                          )}
-                        </div>
-                        <h4 className={cn(
-                          "text-sm font-semibold",
-                          isCurrentItem ? "text-white" : "text-gray-200"
-                        )}>
-                          {item.title}
-                        </h4>
-                        <p className="text-xs text-gray-400 leading-normal">
-                          {item.description}
-                        </p>
-                        <p className="text-[10px] text-gray-500">
-                          Conduttore: <span className="text-gray-300">{item.host}</span>
-                        </p>
-                      </div>
-                    );
-                  })}
+                
+                <div className="grid grid-cols-2 gap-3 bg-white/[0.02] border border-white/5 rounded-2xl p-4 text-xs">
+                  <div className="flex flex-col gap-1">
+                    <span className="text-gray-500 font-medium">Nazione</span>
+                    <span className="text-gray-200 font-semibold">{selectedStationDetail.country || 'Nazionale'}</span>
+                  </div>
+                  {selectedStationDetail.state && (
+                    <div className="flex flex-col gap-1">
+                      <span className="text-gray-500 font-medium">Stato / Regione</span>
+                      <span className="text-gray-200 font-semibold">{selectedStationDetail.state}</span>
+                    </div>
+                  )}
+                  <div className="flex flex-col gap-1">
+                    <span className="text-gray-500 font-medium">Lingua</span>
+                    <span className="text-gray-200 font-semibold capitalize">{selectedStationDetail.language || 'Italiano'}</span>
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <span className="text-gray-500 font-semibold flex items-center gap-1">
+                      <ThumbsUp className="w-3.5 h-3.5 text-gray-400" /> Popolarità
+                    </span>
+                    <span className="text-gray-200 font-semibold">
+                      {selectedStationDetail.votes ? `${selectedStationDetail.votes.toLocaleString()} voti` : 'N/A'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* SORGENTE STREAMING LINK */}
+              <div className="flex flex-col gap-3">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400">
+                  Sorgente Streaming Link
+                </h3>
+                <div className="flex gap-2 items-center bg-white/[0.02] hover:bg-[#1f1f2e] border border-white/5 rounded-2xl px-4 py-3 text-xs transition-colors group/url">
+                  <span className="font-mono text-gray-400 truncate flex-1 select-all text-[11px]">
+                    {selectedStationDetail.url_resolved || selectedStationDetail.url}
+                  </span>
+                  <button
+                    onClick={() => copyToClipboard(selectedStationDetail.url_resolved || selectedStationDetail.url)}
+                    className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition-colors flex-shrink-0 flex items-center gap-1"
+                    title="Copia link sorgente"
+                  >
+                    {copiedUrl ? (
+                      <Check className="w-4 h-4 text-green-500" />
+                    ) : (
+                      <Copy className="w-4 h-4" />
+                    )}
+                  </button>
                 </div>
               </div>
 
