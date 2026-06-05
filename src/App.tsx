@@ -424,6 +424,32 @@ export default function App() {
     return activeArticles.findIndex(a => a.id === selectedArticle.id);
   }, [selectedArticle, activeArticles]);
 
+  const currentSelectedArticle = useMemo(() => {
+    if (!selectedArticle) return null;
+    return articles.find(a => a.id === selectedArticle.id) || selectedArticle;
+  }, [articles, selectedArticle]);
+
+  const hasNextArticle = useMemo(() => {
+    return activeIndex !== -1 && activeIndex < activeArticles.length - 1;
+  }, [activeIndex, activeArticles.length]);
+
+  const hasPrevArticle = useMemo(() => {
+    return activeIndex > 0;
+  }, [activeIndex]);
+
+  const activeRedditIndex = useMemo(() => {
+    if (!selectedRedditPost) return -1;
+    return redditPosts.findIndex(p => p.id === selectedRedditPost.id);
+  }, [redditPosts, selectedRedditPost]);
+
+  const hasNextReddit = useMemo(() => {
+    return activeRedditIndex !== -1 && activeRedditIndex < redditPosts.length - 1;
+  }, [activeRedditIndex, redditPosts.length]);
+
+  const hasPrevReddit = useMemo(() => {
+    return activeRedditIndex > 0;
+  }, [activeRedditIndex]);
+
 
   const inboxArticlesRef = useRef(inboxArticles);
   useEffect(() => { inboxArticlesRef.current = inboxArticles; }, [inboxArticles]);
@@ -1248,35 +1274,29 @@ export default function App() {
       />
 
       <AnimatePresence mode="wait">
-        {selectedRedditPost && (() => {
-          const activeRedditIndex = redditPosts.findIndex(p => p.id === selectedRedditPost.id);
-          const hasNextReddit = activeRedditIndex !== -1 && activeRedditIndex < redditPosts.length - 1;
-          const hasPrevReddit = activeRedditIndex > 0;
-
-          return (
-            <RedditPostReader
-              key="reddit-modal"
-              post={selectedRedditPost}
-              onClose={() => {
-                setSelectedRedditPost(null);
-                enforceRedditRetention();
-              }}
-              onNext={hasNextReddit ? () => {
-                const next = redditPosts[activeRedditIndex + 1];
-                setSelectedRedditPost(next);
-                if (!next.isRead) markRedditAsRead(next.id);
-              } : undefined}
-              onPrev={hasPrevReddit ? () => {
-                const prev = redditPosts[activeRedditIndex - 1];
-                setSelectedRedditPost(prev);
-                if (!prev.isRead) markRedditAsRead(prev.id);
-              } : undefined}
-              hasNext={hasNextReddit}
-              hasPrev={hasPrevReddit}
-              sourceFilter={filter}
-            />
-          );
-        })()}
+        {selectedRedditPost && (
+          <RedditPostReader
+            key="reddit-modal"
+            post={selectedRedditPost}
+            onClose={() => {
+              setSelectedRedditPost(null);
+              enforceRedditRetention();
+            }}
+            onNext={hasNextReddit ? () => {
+              const next = redditPosts[activeRedditIndex + 1];
+              setSelectedRedditPost(next);
+              if (!next.isRead) markRedditAsRead(next.id);
+            } : undefined}
+            onPrev={hasPrevReddit ? () => {
+              const prev = redditPosts[activeRedditIndex - 1];
+              setSelectedRedditPost(prev);
+              if (!prev.isRead) markRedditAsRead(prev.id);
+            } : undefined}
+            hasNext={hasNextReddit}
+            hasPrev={hasPrevReddit}
+            sourceFilter={filter}
+          />
+        )}
         {selectedTelegramChannel && (
           <TelegramThreadView
             key="telegram-modal"
@@ -1296,36 +1316,31 @@ export default function App() {
       </AnimatePresence>
 
        <AnimatePresence mode="wait">
-        {selectedArticle && (() => {
-          const hasNext = activeIndex !== -1 && activeIndex < activeArticles.length - 1;
-          const hasPrev = activeIndex > 0;
-          
-          return (
-            <ArticleReader
-              key="article-modal"
-              article={selectedArticle}
-              onClose={() => setSelectedArticle(null)}
-              onSelectArticle={(a) => setSelectedArticle(a)}
-              onNext={() => {
-                if (hasNext) {
-                  const next = activeArticles[activeIndex + 1];
-                  setSelectedArticle(next);
-                  if (!next.isRead) markAsReadWithPersistence(next.id);
-                }
-              }}
-              onPrev={() => {
-                if (hasPrev) {
-                  const prev = activeArticles[activeIndex - 1];
-                  setSelectedArticle(prev);
-                  if (!prev.isRead) markAsReadWithPersistence(prev.id);
-                }
-              }}
-              hasNext={hasNext}
-              hasPrev={hasPrev}
-              sourceFilter={filter}
-            />
-          );
-        })()}
+        {currentSelectedArticle && (
+          <ArticleReader
+            key="article-modal"
+            article={currentSelectedArticle}
+            onClose={() => setSelectedArticle(null)}
+            onSelectArticle={(a) => setSelectedArticle(a)}
+            onNext={() => {
+              if (hasNextArticle) {
+                const next = activeArticles[activeIndex + 1];
+                setSelectedArticle(next);
+                if (!next.isRead) markAsReadWithPersistence(next.id);
+              }
+            }}
+            onPrev={() => {
+              if (hasPrevArticle) {
+                const prev = activeArticles[activeIndex - 1];
+                setSelectedArticle(prev);
+                if (!prev.isRead) markAsReadWithPersistence(prev.id);
+              }
+            }}
+            hasNext={hasNextArticle}
+            hasPrev={hasPrevArticle}
+            sourceFilter={filter}
+          />
+        )}
       </AnimatePresence>
       
       <ErrorNotification error={error} onClear={() => setError(null)} />

@@ -33,10 +33,12 @@ interface SwipeableArticleItemProps {
 
 const ScrollingFeedName = React.memo(function ScrollingFeedName({ 
   feedName, 
-  readableFeedThemeColor 
+  readableFeedThemeColor,
+  inView = true
 }: { 
   feedName: string; 
   readableFeedThemeColor: string | null;
+  inView?: boolean;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const textRef = useRef<HTMLSpanElement>(null);
@@ -71,8 +73,8 @@ const ScrollingFeedName = React.memo(function ScrollingFeedName({
     <div className="flex-1 overflow-hidden whitespace-nowrap min-w-0 relative" ref={containerRef}>
       <motion.div
         className="inline-block"
-        animate={shouldScroll ? { x: ["0%", "-50%"] } : { x: 0 }}
-        transition={shouldScroll ? {
+        animate={(shouldScroll && inView) ? { x: ["0%", "-50%"] } : { x: 0 }}
+        transition={(shouldScroll && inView) ? {
           repeat: Infinity,
           duration: Math.max(5, (textWidth * 2) / 25), // Proportional duration for consistent speed
           repeatType: "loop",
@@ -283,7 +285,8 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
       }} 
       className={cn(
         "relative w-full card-optimize transform-gpu",
-        isInboxOrSaved && "px-1.25 py-0.5"
+        isInboxOrSaved && "px-1.25 py-0.5",
+        !isReadForDisplay ? "z-[35]" : "z-[10]"
       )}
       style={{
         ...style
@@ -294,7 +297,7 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
         isInboxOrSaved ? "shadow-md" : ""
       )}>
         <motion.div 
-          className="absolute inset-0 z-0 backdrop-blur-xl border border-white/[0.15] rounded-3xl"
+          className="absolute inset-0 z-0 border border-white/[0.15] rounded-3xl"
           style={{ backgroundColor: backgroundTransform, opacity: backgroundOpacity }}
         />
 
@@ -346,7 +349,8 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
           onClick={handleArticleClick}
           exit={{ x: exitX, opacity: 0, transition: { duration: 0.2, ease: "easeOut" } }}
           className={cn(
-            "relative z-20 w-full p-4 flex flex-col gap-3 cursor-pointer select-none rounded-[inherit] transition-colors border border-blue-500/10 bg-[#121e36] transform-gpu",
+            "relative w-full p-4 flex flex-col gap-3 cursor-pointer select-none rounded-[inherit] transition-colors border border-blue-500/10 bg-[#121e36] transform-gpu",
+            !isReadForDisplay ? "z-[35]" : "z-20",
             filter === 'saved' && "shadow-[0_0_15px_rgba(234,179,8,0.15)]",
             filter === 'inbox' && "shadow-[0_0_15px_rgba(59,130,246,0.15)]"
           )}
@@ -389,7 +393,7 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
                   </div>
                 )}
                 <div className="flex items-center gap-1.5 min-w-0">
-                  <ScrollingFeedName feedName={feedName} readableFeedThemeColor={readableFeedThemeColor} />
+                  <ScrollingFeedName feedName={feedName} readableFeedThemeColor={readableFeedThemeColor} inView={inView} />
                 </div>
               </div>
               <div className="flex items-center gap-1.5 flex-shrink-0 ml-2">

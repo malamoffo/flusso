@@ -26,9 +26,14 @@ const TelegramMessageItem = memo(({ message, isNewInitial }: { message: Telegram
   }, [inView, isNew]);
 
   return (
-    <div ref={ref} className={cn(
-      "mb-4 p-5 rounded-[2rem] relative transition-all shadow-lg select-none bg-[#162a1e] border border-green-500/10"
-    )}>
+    <div 
+      ref={ref} 
+      data-message-id={message.id}
+      className={cn(
+        "mb-4 p-5 rounded-[2rem] relative transition-all shadow-lg select-none bg-[#162a1e] border border-green-500/10",
+        isNewInitial && "z-10"
+      )}
+    >
       <AnimatePresence>
         {isNew && (
           <motion.span 
@@ -65,12 +70,38 @@ export const TelegramThreadView = memo(({ channel, messages, onClose, onRefresh,
   const isLoading = messages === undefined;
   const isEmpty = Array.isArray(messages) && messages.length === 0;
 
+  const [prevChannelId, setPrevChannelId] = useState(channel.id);
+  if (channel.id !== prevChannelId) {
+    setPrevChannelId(channel.id);
+    isInitialMount.current = true;
+  }
+
   const scrollToBottom = (behavior: ScrollBehavior = 'auto') => {
     if (scrollRef.current) {
       scrollRef.current.scrollTo({
         top: scrollRef.current.scrollHeight,
         behavior
       });
+    }
+  };
+
+  const scrollToOldestUnreadOrBottom = () => {
+    if (scrollRef.current && messages && messages.length > 0) {
+      const oldestUnread = messages.find(m => m.date > (channel.lastOpened || 0));
+      if (oldestUnread) {
+        const el = scrollRef.current.querySelector(`[data-message-id="${oldestUnread.id}"]`);
+        if (el) {
+          const containerRect = scrollRef.current.getBoundingClientRect();
+          const elRect = el.getBoundingClientRect();
+          const relativeTop = elRect.top - containerRect.top + scrollRef.current.scrollTop;
+          scrollRef.current.scrollTo({
+            top: Math.max(0, relativeTop - 16),
+            behavior: 'auto'
+          });
+          return;
+        }
+      }
+      scrollToBottom('auto');
     }
   };
 
@@ -91,13 +122,13 @@ export const TelegramThreadView = memo(({ channel, messages, onClose, onRefresh,
     }
   };
 
-  // Scroll to bottom on initial load and when new messages arrive
+  // Scroll to oldest unread message or bottom on initial load, and only scroll to bottom for subsequent arrivals if currently near bottom
   useEffect(() => {
     if (messages && messages.length > 0) {
       if (isInitialMount.current) {
         // Use a small timeout to ensure DOM is fully rendered and images have started loading
         const timer = setTimeout(() => {
-          scrollToBottom('auto');
+          scrollToOldestUnreadOrBottom();
           isInitialMount.current = false;
         }, 100);
         return () => clearTimeout(timer);
@@ -122,9 +153,9 @@ export const TelegramThreadView = memo(({ channel, messages, onClose, onRefresh,
   }, []);
 
   return (
-    <motion.div key={`reader-wrapper-${channel.id}`} className="contents">
+    <motion.div key="telegram-reader-wrapper" className="contents">
       <motion.div 
-        key={`backdrop-${channel.id}`}
+        key="telegram-reader-backdrop"
         initial={{ opacity: 0 }} 
         animate={{ opacity: 1 }} 
         exit={{ opacity: 0 }}
@@ -133,7 +164,7 @@ export const TelegramThreadView = memo(({ channel, messages, onClose, onRefresh,
         onClick={onClose}
       />
       <motion.article 
-        key={`modal-${channel.id}`}
+        key="telegram-reader-modal"
         initial={{ y: '100%' }}
         animate={{ y: 0 }}
         exit={{ y: '100%', opacity: 0 }}

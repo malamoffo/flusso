@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { ArrowLeft, FileText, AlignLeft, X, Share2, Star, EyeOff, ChevronUp, ChevronDown, Calendar, User, ExternalLink, RefreshCw, Bookmark, List, FastForward } from 'lucide-react';
 import { Article, FullArticleContent } from '../types';
 import { motion, AnimatePresence, useDragControls } from 'framer-motion';
@@ -31,19 +31,34 @@ interface ArticleReaderProps {
 
 export const ArticleReader = React.memo(function ArticleReader({ article, onClose, onNext, onPrev, hasNext, hasPrev, sourceFilter = 'inbox' }: ArticleReaderProps) {
   const controls = useDragControls();
+  
+  // Render-time state synchronization when article changes to avoid stale/flickering render
+  const [prevArticleId, setPrevArticleId] = useState(article.id);
   const [fullContent, setFullContent] = useState<FullArticleContent | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [articleThemeColor, setArticleThemeColor] = useState<string | null>(null);
   const [readerImageUrl, setReaderImageUrl] = useState<string | null>(article.imageUrl || null);
   const [isFavorite, setIsFavorite] = useState(article.isFavorite);
+
+  if (article.id !== prevArticleId) {
+    setPrevArticleId(article.id);
+    setIsLoading(true);
+    setFullContent(null);
+    setReaderImageUrl(article.imageUrl || null);
+    setIsFavorite(article.isFavorite);
+  }
+
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTop = 0;
+    }
+  }, [article.id]);
+
   const { feeds, toggleFavorite, toggleRead, updateArticle } = useRss();
   const { settings } = useSettings();
   const feed = feeds.find(f => f.id === article.feedId);
-
-  useEffect(() => {
-    setIsFavorite(article.isFavorite);
-    setReaderImageUrl(article.imageUrl || null);
-  }, [article.id, article.isFavorite, article.imageUrl]);
 
   const readTime = fullContent?.textContent ? Math.max(1, Math.ceil(fullContent.textContent.split(/\s+/).length / 200)) : 1;
   const formattedDate = new Date(article.pubDate).toLocaleString('it-IT', {
@@ -75,7 +90,6 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
     const fetchFullContent = async () => {
       try {
         setIsLoading(true);
-        setFullContent(null); // Reset content when article changes
         
         // Check cache first
         const cached = await contentFetcher.getCachedContent(article.id);
@@ -240,13 +254,228 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
     fetchFullContent();
   }, [article.link, article.id]);
 
-  const [sanitizedContent, setSanitizedContent] = useState<string>('');
-
   const contentRef = useRef<HTMLDivElement>(null);
 
   const handleContentClick = (e: React.MouseEvent<HTMLDivElement>) => {
     // Basic handler if needed
   };
+
+  const sanitizedContent = useMemo(() => {
+    if (isLoading) {
+      return '';
+    }
+
+    let contentToSanitize = fullContent?.content;
+    
+    // If fullContent doesn't have content, try fallback to article.content
+    if ((contentToSanitize === undefined || contentToSanitize === null || contentToSanitize === '') && article.content) {
+      contentToSanitize = he.decode(article.content);
+    }
+    
+    if (!contentToSanitize) {
+      return '';
+    }
+    
+    // Clean up superfluous text/empty tags
+    let content = contentToSanitize;
+
+    // Transform <media:thumbnail url="..."> to <img src="...">
+    // This is often found in RSS feed contents but not rendered by browsers directly
+    content = content.replace(/<media:thumbnail[^>]+url=["']([^"']+)["'][^>]*\/?>/gi, '<img src="$1" />');
+    content = content.replace(/<media:content[^>]+url=["']([^"']+)["'][^>]*\/?>/gi, '<img src="$1" />');
+
+    // --- DEEP CLEANING: Remove labels and boilerplate ---
+    // 1. Remove leading/trailing boilerplate patterns (Source:, Written by:, etc.)
+    const boilerplatePatterns = [
+      /^(<p[^>]*>)?\s*(Source|Written by|Autor|By|Di|Fonte|Traduzione di|Articolo originale|Traduzione|Pubblicato il|Ore fa|Minuti fa|Aggiornato il|Last updated|Reading time|Tempo di lettura|Credits|Foto di|Photocredit|Immagine di|Copertina di|Illustrazione di|Sintesi|In breve|TL;DR|Autore|Data pubblicazione)\s*[:\-\u2013\u2014].*?<\/p>/i,
+      /<p[^>]*>\s*(Leggi anche|Continua a leggere|Condividi|Tags|Etichette|Potrebbe interessarti|Sostienici|Sito ufficiale|Seguici su|Iscriviti alla newsletter|Abbonati|Sostieni il giornalismo|Se ti è piaciuto l'articolo|Fai una donazione|Seguici sui social|Commenta l'articolo)\s*[:\-\u2013\u2014].*?<\/p>\s*$/i,
+      /^(<p[^>]*>)?\s*(Photo|Immagine|Credit|Copyright)\s*[:\-\u2013\u2014].*?<\/p>/i,
+      /<p[^>]*>\s*(L'articolo|Questo post).*?apparsa su.*?<\/p>/i,
+      /^(<p[^>]*>)?\s*(In breve|Sintesi|TL;DR)\s*[:\-\u2013\u2014].*?<\/p>/i,
+      /<p[^>]*>\s*(Fonte foto|Credit foto|Ufficio stampa|Redazione|Link correlati|Argomenti|Temi).*?<\/p>/gi
+    ];
+
+    boilerplatePatterns.forEach(pattern => {
+      content = content.replace(pattern, '');
+    });
+
+    // 2. Remove redundant title at the start if it exactly matches
+    if (article.title) {
+      const strippedTitle = article.title.replace(/[^\w\s]/g, '').toLowerCase().trim();
+      const firstParaMatch = content.match(/<p[^>]*>(.*?)<\/p>/i);
+      if (firstParaMatch) {
+        const firstParaText = firstParaMatch[1].replace(/<\/?[^>]+(>|$)/g, "").replace(/[^\w\s]/g, '').toLowerCase().trim();
+        // If the first paragraph is essentially the title, or a very short "Source: Title" string, remove it
+        if (firstParaText === strippedTitle || (firstParaText.length < strippedTitle.length + 10 && firstParaText.includes(strippedTitle))) {
+          content = content.replace(/<p[^>]*>.*?<\/p>/i, '');
+        }
+      }
+    }
+
+    content = content.replace(/<p[^>]*>(\s|&nbsp;|<br\s*\/?>)*<\/p>/gi, '');
+    content = content.replace(/<div[^>]*>(\s|&nbsp;|<br\s*\/?>)*<\/div>/gi, '');
+    content = content.replace(/<span[^>]*>(\s|&nbsp;|<br\s*\/?>)*<\/span>/gi, '');
+
+    const purifier = DOMPurify();
+
+    purifier.addHook('afterSanitizeAttributes', (node) => {
+      if (node.tagName === 'A') {
+        node.setAttribute('rel', 'nofollow noopener noreferrer');
+      }
+      if (node.tagName === 'IFRAME') {
+        node.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-popups allow-forms');
+      }
+
+      if (node.tagName === 'IMG') {
+        const possibleSrcs = ['data-src', 'data-lazy-src', 'data-original', 'srcset', 'data-srcset'];
+        let finalSrc = node.getAttribute('src');
+        // Improved check for placeholder images (GIFs, SVGs, or any data URL pixel)
+        const isPlaceholder = !finalSrc || 
+                             finalSrc.includes('data:image/gif') || 
+                             finalSrc.includes('data:image/svg') || 
+                             finalSrc.startsWith('data:image/') ||
+                             finalSrc === '';
+                             
+        if (isPlaceholder) {
+           for (const attr of possibleSrcs) {
+              if (node.hasAttribute(attr)) {
+                 const val = node.getAttribute(attr);
+                 const parsed = val ? val.split(' ')[0] : '';
+                 if (parsed && !parsed.startsWith('data:image/')) {
+                    finalSrc = parsed;
+                    break;
+                 }
+              }
+           }
+        }
+        if (finalSrc) {
+          node.setAttribute('src', finalSrc);
+        }
+        node.removeAttribute('srcset');
+        node.removeAttribute('sizes');
+      }
+
+      if (node.hasAttribute('src')) {
+        let src = node.getAttribute('src') || '';
+        if (src) {
+          src = resolveUrl(src, article.link);
+          node.setAttribute('src', getSafeUrl(src, ''));
+        }
+      }
+      if (node.hasAttribute('href')) {
+        let href = node.getAttribute('href') || '';
+        if (href && !href.startsWith('#')) {
+          href = resolveUrl(href, article.link);
+          node.setAttribute('href', getSafeUrl(href, ''));
+        }
+      }
+
+      if (node.tagName === 'IMG') {
+        const src = node.getAttribute('src') || '';
+        const lowerSrc = src.toLowerCase();
+        const width = parseInt(node.getAttribute('width') || '0', 10);
+        const height = parseInt(node.getAttribute('height') || '0', 10);
+        
+        // Improved deduplication check
+        const isDuplicateOfCover = (() => {
+          const coverUrl = readerImageUrl || article.imageUrl; // Use current reader image if available
+          if (!coverUrl) return false;
+          
+          // Direct comparison
+          if (src === coverUrl) return true;
+          
+          // Comparison ignoring protocol
+          const normalize = (url: string) => url.replace(/^https?:\/\//i, '').replace(/\/+$/, '').split('?')[0];
+          if (normalize(src) === normalize(coverUrl)) return true;
+          
+          // Comparison based on filename/path (ignoring query params)
+          const getPath = (url: string) => {
+            try {
+              const u = new URL(url.startsWith('//') ? `https:${url}` : url.startsWith('/') ? `https://base.com${url}` : url);
+              return u.pathname;
+            } catch (e) {
+              return url;
+            }
+          };
+          const pathA = getPath(src);
+          const pathB = getPath(coverUrl);
+          if (pathA === pathB && pathA.length > 8 && (pathA.includes('.') || pathA.includes('/'))) return true;
+
+          return false;
+        })();
+
+        // If it has a caption (is inside a figure or has a figcaption sibling), we should PROBABLY keep it
+        // even if it matches deduplication, because it's part of the narrative content.
+        const hasCaption = node.closest('figure') !== null || 
+                          node.nextElementSibling?.tagName === 'FIGCAPTION' ||
+                          node.parentElement?.querySelector('figcaption') !== null;
+
+        if (
+          (isDuplicateOfCover && !hasCaption) ||
+          lowerSrc.includes('1x1') ||
+          lowerSrc.includes('pixel') ||
+          lowerSrc.includes('tracker') ||
+          lowerSrc.includes('/1/1/') || // common 1x1 pattern
+          lowerSrc.includes('feedburner') ||
+          (width > 0 && width <= 20) || // Increased from 10 to catch more pixels
+          (height > 0 && height <= 20)
+        ) {
+          // Only remove if it's NOT a logo we might want to keep (optional, keep strict for now)
+          // But if it's small and has no alt text, it's definitely a tracker
+          const hasAlt = !!node.getAttribute('alt');
+          if (!hasAlt || (width > 0 && width <= 5)) {
+            node.parentNode?.removeChild(node);
+          }
+        }
+      }
+    });
+
+    const sanitized = purifier.sanitize(content, {
+      ADD_ATTR: ['style', 'allow', 'allowfullscreen', 'frameborder', 'scrolling', 'controls', 'src', 'alt', 'width', 'height', 'srcset', 'sizes', 'sandbox', 'poster', 'preload', 'class', 'data-time'],
+      ADD_TAGS: ['video', 'audio', 'source', 'iframe', 'img', 'figure', 'figcaption'],
+      FORBID_ATTR: ['id', 'name'],
+    });
+
+    const doc = new DOMParser().parseFromString(sanitized, 'text/html');
+    const videos = doc.querySelectorAll('video, iframe');
+    
+    // Ensure videos are responsive
+    videos.forEach(v => {
+      v.setAttribute('width', '100%');
+      if (v.tagName === 'VIDEO') {
+        v.setAttribute('height', 'auto');
+      } else if (v.tagName === 'IFRAME') {
+        // For iframes, we often need a fixed aspect ratio or it collapses
+        // The CSS aspect-video class handles this, but we ensure width is 100%
+        v.removeAttribute('height');
+      }
+    });
+
+    // Handle images optimally:
+    // Don't await background downloads because that blocks article rendering.
+    // We will handle downloading and updating src in a separate useEffect.
+    const imgs = doc.querySelectorAll('img');
+    Array.from(imgs).forEach((img) => {
+      img.setAttribute('referrerPolicy', 'no-referrer');
+      let src = img.getAttribute('src');
+      if (src && src.startsWith('http') && !src.includes('_capacitor_file_')) {
+        try {
+          const urlObj = new URL(src);
+          urlObj.pathname = urlObj.pathname.replace(/\/\/+/g, '/');
+          src = urlObj.toString();
+          img.setAttribute('src', src);
+        } catch (e) {
+          // ignore
+        }
+
+        if (Capacitor.isNativePlatform() && imagePersistence.resolvedLocalUrls.has(src)) {
+          img.setAttribute('src', imagePersistence.resolvedLocalUrls.get(src)!);
+        }
+      }
+    });
+    
+    return doc.body.innerHTML;
+  }, [fullContent, article.content, article.imageUrl, readerImageUrl]);
 
   useEffect(() => {
     if (!contentRef.current || !Capacitor.isNativePlatform()) return;
@@ -275,224 +504,6 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
   }, [sanitizedContent]);
 
   useEffect(() => {
-    const processContent = async () => {
-      let contentToSanitize = fullContent?.content;
-      
-      // If fullContent doesn't have content, try fallback to article.content
-      if ((contentToSanitize === undefined || contentToSanitize === null || contentToSanitize === '') && article.content) {
-        contentToSanitize = he.decode(article.content);
-      }
-      
-      if (!contentToSanitize) {
-        setSanitizedContent('');
-        return;
-      }
-      
-      // Clean up superfluous text/empty tags
-      let content = contentToSanitize;
-
-      // Transform <media:thumbnail url="..."> to <img src="...">
-      // This is often found in RSS feed contents but not rendered by browsers directly
-      content = content.replace(/<media:thumbnail[^>]+url=["']([^"']+)["'][^>]*\/?>/gi, '<img src="$1" />');
-      content = content.replace(/<media:content[^>]+url=["']([^"']+)["'][^>]*\/?>/gi, '<img src="$1" />');
-
-      // --- DEEP CLEANING: Remove labels and boilerplate ---
-      // 1. Remove leading/trailing boilerplate patterns (Source:, Written by:, etc.)
-      const boilerplatePatterns = [
-        /^(<p[^>]*>)?\s*(Source|Written by|Autor|By|Di|Fonte|Traduzione di|Articolo originale|Traduzione|Pubblicato il|Ore fa|Minuti fa|Aggiornato il|Last updated|Reading time|Tempo di lettura|Credits|Foto di|Photocredit|Immagine di|Copertina di|Illustrazione di|Sintesi|In breve|TL;DR|Autore|Data pubblicazione)\s*[:\-\u2013\u2014].*?<\/p>/i,
-        /<p[^>]*>\s*(Leggi anche|Continua a leggere|Condividi|Tags|Etichette|Potrebbe interessarti|Sostienici|Sito ufficiale|Seguici su|Iscriviti alla newsletter|Abbonati|Sostieni il giornalismo|Se ti è piaciuto l'articolo|Fai una donazione|Seguici sui social|Commenta l'articolo)\s*[:\-\u2013\u2014].*?<\/p>\s*$/i,
-        /^(<p[^>]*>)?\s*(Photo|Immagine|Credit|Copyright)\s*[:\-\u2013\u2014].*?<\/p>/i,
-        /<p[^>]*>\s*(L'articolo|Questo post).*?apparsa su.*?<\/p>/i,
-        /^(<p[^>]*>)?\s*(In breve|Sintesi|TL;DR)\s*[:\-\u2013\u2014].*?<\/p>/i,
-        /<p[^>]*>\s*(Fonte foto|Credit foto|Ufficio stampa|Redazione|Link correlati|Argomenti|Temi).*?<\/p>/gi
-      ];
-
-      boilerplatePatterns.forEach(pattern => {
-        content = content.replace(pattern, '');
-      });
-
-      // 2. Remove redundant title at the start if it exactly matches
-      if (article.title) {
-        const strippedTitle = article.title.replace(/[^\w\s]/g, '').toLowerCase().trim();
-        const firstParaMatch = content.match(/<p[^>]*>(.*?)<\/p>/i);
-        if (firstParaMatch) {
-          const firstParaText = firstParaMatch[1].replace(/<\/?[^>]+(>|$)/g, "").replace(/[^\w\s]/g, '').toLowerCase().trim();
-          // If the first paragraph is essentially the title, or a very short "Source: Title" string, remove it
-          if (firstParaText === strippedTitle || (firstParaText.length < strippedTitle.length + 10 && firstParaText.includes(strippedTitle))) {
-            content = content.replace(/<p[^>]*>.*?<\/p>/i, '');
-          }
-        }
-      }
-
-      content = content.replace(/<p[^>]*>(\s|&nbsp;|<br\s*\/?>)*<\/p>/gi, '');
-      content = content.replace(/<div[^>]*>(\s|&nbsp;|<br\s*\/?>)*<\/div>/gi, '');
-      content = content.replace(/<span[^>]*>(\s|&nbsp;|<br\s*\/?>)*<\/span>/gi, '');
-
-      const purifier = DOMPurify();
-
-      purifier.addHook('afterSanitizeAttributes', (node) => {
-        if (node.tagName === 'A') {
-          node.setAttribute('rel', 'nofollow noopener noreferrer');
-        }
-        if (node.tagName === 'IFRAME') {
-          node.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-popups allow-forms');
-        }
-
-        if (node.tagName === 'IMG') {
-          const possibleSrcs = ['data-src', 'data-lazy-src', 'data-original', 'srcset', 'data-srcset'];
-          let finalSrc = node.getAttribute('src');
-          // Improved check for placeholder images (GIFs, SVGs, or any data URL pixel)
-          const isPlaceholder = !finalSrc || 
-                               finalSrc.includes('data:image/gif') || 
-                               finalSrc.includes('data:image/svg') || 
-                               finalSrc.startsWith('data:image/') ||
-                               finalSrc === '';
-                               
-          if (isPlaceholder) {
-             for (const attr of possibleSrcs) {
-                if (node.hasAttribute(attr)) {
-                   const val = node.getAttribute(attr);
-                   const parsed = val ? val.split(' ')[0] : '';
-                   if (parsed && !parsed.startsWith('data:image/')) {
-                      finalSrc = parsed;
-                      break;
-                   }
-                }
-             }
-          }
-          if (finalSrc) {
-            node.setAttribute('src', finalSrc);
-          }
-          node.removeAttribute('srcset');
-          node.removeAttribute('sizes');
-        }
-
-        if (node.hasAttribute('src')) {
-          let src = node.getAttribute('src') || '';
-          if (src) {
-            src = resolveUrl(src, article.link);
-            node.setAttribute('src', getSafeUrl(src, ''));
-          }
-        }
-        if (node.hasAttribute('href')) {
-          let href = node.getAttribute('href') || '';
-          if (href && !href.startsWith('#')) {
-            href = resolveUrl(href, article.link);
-            node.setAttribute('href', getSafeUrl(href, ''));
-          }
-        }
-
-        if (node.tagName === 'IMG') {
-          const src = node.getAttribute('src') || '';
-          const lowerSrc = src.toLowerCase();
-          const width = parseInt(node.getAttribute('width') || '0', 10);
-          const height = parseInt(node.getAttribute('height') || '0', 10);
-          
-          // Improved deduplication check
-          const isDuplicateOfCover = (() => {
-            const coverUrl = readerImageUrl || article.imageUrl; // Use current reader image if available
-            if (!coverUrl) return false;
-            
-            // Direct comparison
-            if (src === coverUrl) return true;
-            
-            // Comparison ignoring protocol
-            const normalize = (url: string) => url.replace(/^https?:\/\//i, '').replace(/\/+$/, '').split('?')[0];
-            if (normalize(src) === normalize(coverUrl)) return true;
-            
-            // Comparison based on filename/path (ignoring query params)
-            const getPath = (url: string) => {
-              try {
-                const u = new URL(url.startsWith('//') ? `https:${url}` : url.startsWith('/') ? `https://base.com${url}` : url);
-                return u.pathname;
-              } catch (e) {
-                return url;
-              }
-            };
-            const pathA = getPath(src);
-            const pathB = getPath(coverUrl);
-            if (pathA === pathB && pathA.length > 8 && (pathA.includes('.') || pathA.includes('/'))) return true;
-
-            return false;
-          })();
-
-          // If it has a caption (is inside a figure or has a figcaption sibling), we should PROBABLY keep it
-          // even if it matches deduplication, because it's part of the narrative content.
-          const hasCaption = node.closest('figure') !== null || 
-                            node.nextElementSibling?.tagName === 'FIGCAPTION' ||
-                            node.parentElement?.querySelector('figcaption') !== null;
-
-          if (
-            (isDuplicateOfCover && !hasCaption) ||
-            lowerSrc.includes('1x1') ||
-            lowerSrc.includes('pixel') ||
-            lowerSrc.includes('tracker') ||
-            lowerSrc.includes('/1/1/') || // common 1x1 pattern
-            lowerSrc.includes('feedburner') ||
-            (width > 0 && width <= 20) || // Increased from 10 to catch more pixels
-            (height > 0 && height <= 20)
-          ) {
-            // Only remove if it's NOT a logo we might want to keep (optional, keep strict for now)
-            // But if it's small and has no alt text, it's definitely a tracker
-            const hasAlt = !!node.getAttribute('alt');
-            if (!hasAlt || (width > 0 && width <= 5)) {
-              node.parentNode?.removeChild(node);
-            }
-          }
-        }
-      });
-
-      const sanitized = purifier.sanitize(content, {
-        ADD_ATTR: ['style', 'allow', 'allowfullscreen', 'frameborder', 'scrolling', 'controls', 'src', 'alt', 'width', 'height', 'srcset', 'sizes', 'sandbox', 'poster', 'preload', 'class', 'data-time'],
-        ADD_TAGS: ['video', 'audio', 'source', 'iframe', 'img', 'figure', 'figcaption'],
-        FORBID_ATTR: ['id', 'name'],
-      });
-
-      const doc = new DOMParser().parseFromString(sanitized, 'text/html');
-      const videos = doc.querySelectorAll('video, iframe');
-      
-      // Ensure videos are responsive
-      videos.forEach(v => {
-        v.setAttribute('width', '100%');
-        if (v.tagName === 'VIDEO') {
-          v.setAttribute('height', 'auto');
-        } else if (v.tagName === 'IFRAME') {
-          // For iframes, we often need a fixed aspect ratio or it collapses
-          // The CSS aspect-video class handles this, but we ensure width is 100%
-          v.removeAttribute('height');
-        }
-      });
-
-      // Handle images optimally:
-      // Don't await background downloads because that blocks article rendering.
-      // We will handle downloading and updating src in a separate useEffect.
-      const imgs = doc.querySelectorAll('img');
-      Array.from(imgs).forEach((img) => {
-        img.setAttribute('referrerPolicy', 'no-referrer');
-        let src = img.getAttribute('src');
-        if (src && src.startsWith('http') && !src.includes('_capacitor_file_')) {
-          try {
-            const urlObj = new URL(src);
-            urlObj.pathname = urlObj.pathname.replace(/\/\/+/g, '/');
-            src = urlObj.toString();
-            img.setAttribute('src', src);
-          } catch (e) {
-            // ignore
-          }
-
-          if (Capacitor.isNativePlatform() && imagePersistence.resolvedLocalUrls.has(src)) {
-            img.setAttribute('src', imagePersistence.resolvedLocalUrls.get(src)!);
-          }
-        }
-      });
-      
-      setSanitizedContent(doc.body.innerHTML);
-    };
-
-    processContent();
-  }, [fullContent?.content, article.content, article.imageUrl]);
-
-  useEffect(() => {
     const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
     document.body.style.overflow = 'hidden';
     document.body.style.paddingRight = `${scrollbarWidth}px`;
@@ -505,7 +516,7 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
   return (
     <>
       <motion.div 
-        key={`backdrop-${article.id}`}
+        key="article-reader-backdrop"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
@@ -514,7 +525,7 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
         onClick={onClose}
       />
       <motion.article 
-        key={`modal-${article.id}`}
+        key="article-reader-modal"
         initial={{ y: '100%' }}
         animate={{ y: 0 }}
         exit={{ y: '100%', opacity: 0 }}
@@ -571,7 +582,10 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
         </div>
 
         {/* Article Content with Glass Container */}
-        <div className="relative z-10 flex-1 px-2 sm:px-4 max-w-5xl mx-auto w-full pb-20 overflow-y-auto overscroll-contain transform-gpu will-change-scroll scrollbar-hide">
+        <div 
+          ref={scrollContainerRef}
+          className="relative z-10 flex-1 px-2 sm:px-4 max-w-5xl mx-auto w-full pb-20 overflow-y-auto overscroll-contain transform-gpu will-change-scroll scrollbar-hide"
+        >
         <div className="bg-[#121e36] border border-blue-500/10 rounded-[2.5rem] overflow-hidden shadow-2xl mb-24">
           {readerImageUrl && (
             <div className="relative group overflow-hidden bg-black/40">
@@ -683,7 +697,44 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
 
             <div className="h-px bg-gradient-to-r from-transparent via-white/10 to-transparent w-full mb-6" />
 
-            {isLoading ? (
+            {sanitizedContent ? (
+              <div className="relative">
+                {/* Visual smooth progress indicator for background content loading */}
+                {isLoading && (
+                  <div className="absolute -top-4 left-0 right-0 h-[3px] bg-white/5 overflow-hidden rounded-full mb-4">
+                    <motion.div 
+                      className="h-full bg-indigo-500 rounded-full"
+                      animate={{
+                        x: ['-100%', '100%'],
+                        width: ['20%', '60%', '20%']
+                      }}
+                      transition={{
+                        duration: 1.5,
+                        repeat: Infinity,
+                        ease: 'easeInOut'
+                      }}
+                    />
+                  </div>
+                )}
+                
+                <div 
+                  ref={contentRef}
+                  onClick={handleContentClick}
+                  className={`prose ${getProseSize()} prose-invert max-w-4xl mx-auto overflow-hidden leading-[1.75] text-gray-200 font-serif
+                    prose-img:rounded-xl prose-img:h-auto prose-img:mx-auto prose-img:max-w-full prose-img:my-8 prose-img:shadow-xl
+                    prose-video:w-full prose-video:rounded-xl prose-video:my-8
+                    [&_iframe]:w-full [&_iframe]:aspect-video [&_iframe]:rounded-2xl [&_iframe]:border-0 [&_iframe]:my-10 [&_iframe]:shadow-2xl
+                    prose-a:text-indigo-400 prose-a:decoration-indigo-400/30 prose-a:underline-offset-4 hover:prose-a:decoration-indigo-400 transition-all
+                    prose-headings:font-sans prose-headings:font-black prose-headings:tracking-tight prose-headings:text-white prose-headings:mt-12 prose-headings:mb-6
+                    prose-p:mb-8 prose-li:mb-2
+                    prose-pre:max-w-full prose-pre:overflow-x-auto prose-pre:rounded-2xl prose-pre:bg-white/5 prose-pre:border prose-pre:border-white/10
+                    [&>blockquote]:relative [&>blockquote]:border-l-4 [&>blockquote]:border-indigo-500 [&>blockquote]:bg-white/[0.03] [&>blockquote]:py-8 [&>blockquote]:px-8 [&>blockquote]:rounded-r-2xl [&>blockquote]:my-12
+                    [&>blockquote]:text-xl sm:text-2xl [&>blockquote]:font-medium [&>blockquote]:italic [&>blockquote]:text-gray-100
+                    [&>blockquote_p:before]:content-none [&>blockquote_p:after]:content-none`}
+                  dangerouslySetInnerHTML={{ __html: sanitizedContent }}
+                />
+              </div>
+            ) : isLoading ? (
               <div className="space-y-6 animate-pulse mt-8 max-w-4xl mx-auto">
                 <div className="h-4 bg-white/10 rounded w-3/4"></div>
                 <div className="h-4 bg-white/10 rounded w-full"></div>
@@ -692,36 +743,19 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
                 <div className="h-4 bg-white/10 rounded w-2/3"></div>
                 <div className="h-64 bg-white/10 rounded-2xl w-full mt-10"></div>
               </div>
-            ) : sanitizedContent ? (
-              <div 
-                ref={contentRef}
-                onClick={handleContentClick}
-                className={`prose ${getProseSize()} prose-invert max-w-4xl mx-auto overflow-hidden leading-[1.75] text-gray-200 font-serif
-                  prose-img:rounded-xl prose-img:h-auto prose-img:mx-auto prose-img:max-w-full prose-img:my-8 prose-img:shadow-xl
-                  prose-video:w-full prose-video:rounded-xl prose-video:my-8
-                  [&_iframe]:w-full [&_iframe]:aspect-video [&_iframe]:rounded-2xl [&_iframe]:border-0 [&_iframe]:my-10 [&_iframe]:shadow-2xl
-                  prose-a:text-blue-500 prose-a:decoration-blue-500/30 prose-a:underline-offset-4 hover:prose-a:decoration-blue-500 transition-all
-                  prose-headings:font-sans prose-headings:font-black prose-headings:tracking-tight prose-headings:text-white prose-headings:mt-12 prose-headings:mb-6
-                  prose-p:mb-8 prose-li:mb-2
-                  prose-pre:max-w-full prose-pre:overflow-x-auto prose-pre:rounded-2xl prose-pre:bg-white/5 prose-pre:border prose-pre:border-white/10
-                  [&>blockquote]:relative [&>blockquote]:border-l-4 [&>blockquote]:border-indigo-500 [&>blockquote]:bg-white/[0.03] [&>blockquote]:py-8 [&>blockquote]:px-8 [&>blockquote]:rounded-r-2xl [&>blockquote]:my-12
-                  [&>blockquote]:text-xl sm:text-2xl [&>blockquote]:font-medium [&>blockquote]:italic [&>blockquote]:text-gray-100
-                  [&>blockquote_p:before]:content-none [&>blockquote_p:after]:content-none`}
-                dangerouslySetInnerHTML={{ __html: sanitizedContent }}
-              />
             ) : (
               <div className={`prose ${getProseSize()} prose-invert max-w-full overflow-hidden text-center py-8`}>
                 <FileText className="w-12 h-12 text-gray-600 mx-auto mb-4" />
                 <p className="text-gray-400">
-                  We couldn't load the full content of this article.
+                  Non è stato possibile caricare il contenuto completo dell'articolo.
                 </p>
                 <a 
                   href={getSafeUrl(article.link)}
                   target="_blank" 
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 mt-4 px-4 py-2 bg-indigo-900/30 text-indigo-400 rounded-lg hover:bg-indigo-900/50 transition-colors no-underline"
+                  className="inline-flex items-center gap-2 mt-4 px-4 py-2 bg-indigo-900/30 text-indigo-400 rounded-lg hover:bg-indigo-900/50 transition-colors no-underline text-xs font-semibold"
                 >
-                  Read original article
+                  Leggi l'articolo originale
                 </a>
               </div>
             )}

@@ -155,7 +155,8 @@ export const SwipeableRedditPost = React.memo(function SwipeableRedditPost({
       }}
       className={cn(
         "relative w-full card-optimize transform-gpu",
-        (filter === 'saved' || filter === 'reddit') && "px-1.25 py-0.5"
+        (filter === 'saved' || filter === 'reddit') && "px-1.25 py-0.5",
+        !post.isRead ? "z-[35]" : "z-[10]"
       )}
     >
       <div className={cn(
@@ -163,7 +164,7 @@ export const SwipeableRedditPost = React.memo(function SwipeableRedditPost({
         (filter === 'saved' || filter === 'reddit') ? "shadow-md" : ""
       )}>
         <motion.div 
-          className="absolute inset-0 z-0 backdrop-blur-xl border border-white/[0.15] rounded-3xl"
+          className="absolute inset-0 z-0 border border-white/[0.15] rounded-3xl"
           style={{ backgroundColor: backgroundTransform, opacity: backgroundOpacity }}
         />
 
@@ -196,10 +197,9 @@ export const SwipeableRedditPost = React.memo(function SwipeableRedditPost({
           dragPropagation={false}
           dragTransition={{ bounceStiffness: 200, bounceDamping: 30 }}
           onDragEnd={handleDragEnd}
-          onClick={handlePostClick}
-          exit={{ x: exitX, opacity: 0, transition: { duration: 0.15, ease: "easeOut" } }}
           className={cn(
-            "relative z-20 w-full p-4 flex flex-col gap-3 cursor-pointer select-none rounded-[inherit] transition-colors border border-purple-500/10 bg-[#1e162a] transform-gpu",
+            "relative w-full p-4 flex flex-col gap-3 cursor-pointer select-none rounded-[inherit] transition-colors border border-purple-500/10 bg-[#1e162a] transform-gpu",
+            !post.isRead ? "z-[35]" : "z-20",
             filter === 'saved' && "shadow-[0_0_15px_rgba(234,179,8,0.15)]",
             filter === 'reddit' && "shadow-[0_0_15px_rgba(168,85,247,0.15)]"
           )}

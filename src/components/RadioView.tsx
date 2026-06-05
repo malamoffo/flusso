@@ -388,8 +388,34 @@ export const RadioView = memo(({ isActive, searchQuery }: RadioViewProps) => {
   const displayStations = useMemo(() => {
     if (!stations) return [];
     
-    // Remove duplicates
-    const uniqueStations = Array.from(new Map(stations.map(s => [s.stationuuid, s])).values());
+    // Group and deduplicate by name (case-insensitive and trimmed), preferring logo (favicon)
+    const nameMap = new Map<string, RadioStation>();
+    
+    for (const s of stations) {
+      const normName = s.name.trim().toLowerCase();
+      const existing = nameMap.get(normName);
+      
+      if (!existing) {
+        nameMap.set(normName, s);
+      } else {
+        const currentHasLogo = !!(s.favicon && s.favicon.trim());
+        const existingHasLogo = !!(existing.favicon && existing.favicon.trim());
+        
+        if (currentHasLogo && !existingHasLogo) {
+          // Current has logo, existing doesn't -> overwrite
+          nameMap.set(normName, s);
+        } else if (currentHasLogo === existingHasLogo) {
+          // Both have or neither has a logo -> prefer the one with more votes
+          const currentScore = s.votes || 0;
+          const existingScore = existing.votes || 0;
+          if (currentScore > existingScore) {
+            nameMap.set(normName, s);
+          }
+        }
+      }
+    }
+    
+    const uniqueStations = Array.from(nameMap.values());
     
     // Sort all stations alphabetically first
     const sortedAll = [...uniqueStations].sort((a, b) => a.name.localeCompare(b.name));

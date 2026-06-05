@@ -78,6 +78,14 @@ export const RedditPostReader = ({ post, onClose, onNext, onPrev, hasNext, hasPr
   const [error, setError] = useState<string | null>(null);
   const { getCachedComments } = useReddit();
 
+  const scrollContainerRef = React.useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTop = 0;
+    }
+  }, [post.id]);
+
   useEffect(() => {
     const loadComments = async () => {
       setIsLoading(true);
@@ -200,14 +208,14 @@ export const RedditPostReader = ({ post, onClose, onNext, onPrev, hasNext, hasPr
   return (
     <>
       <motion.div 
-        key={`backdrop-${post.id}`}
+        key="reddit-reader-backdrop"
         initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
         transition={{ type: 'spring', stiffness: 300, damping: 30 }}
         className="fixed inset-0 bg-black z-[40]"
         onClick={onClose}
       />
       <motion.article 
-        key={`modal-${post.id}`}
+        key="reddit-reader-modal"
         initial={{ y: '100%' }}
         animate={{ y: 0 }}
         exit={{ y: '100%', opacity: 0 }}
@@ -253,7 +261,10 @@ export const RedditPostReader = ({ post, onClose, onNext, onPrev, hasNext, hasPr
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto overscroll-contain p-4 max-w-3xl mx-auto w-full pb-20 transform-gpu will-change-scroll scrollbar-hide">
+        <div 
+          ref={scrollContainerRef}
+          className="flex-1 overflow-y-auto overscroll-contain p-4 max-w-3xl mx-auto w-full pb-20 transform-gpu will-change-scroll scrollbar-hide"
+        >
         <div className="mb-8 bg-[#1e162a] p-6 rounded-[2.5rem] border border-purple-500/10 shadow-xl">
           <div className="flex items-center gap-2 mb-2">
             <span className="text-sm font-bold text-purple-400 drop-shadow-[0_0_5px_rgba(168,85,247,0.4)]">r/{post.subredditName}</span>
