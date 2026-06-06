@@ -82,14 +82,38 @@ public class BackgroundSyncWorker extends Worker {
     }
 
     private long fetchLatestArticleDate(String urlString) {
+        HttpURLConnection conn = null;
+        InputStream in = null;
         try {
-            URL url = new URL(urlString);
-            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-            conn.setConnectTimeout(10000);
-            conn.setReadTimeout(10000);
-            conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
+            String currentUrl = urlString;
+            int redirectCount = 0;
             
-            InputStream in = conn.getInputStream();
+            // Explicitly handle HTTP -> HTTPS redirects which HttpURLConnection does not do automatically
+            while (redirectCount < 5) {
+                URL url = new URL(currentUrl);
+                conn = (HttpURLConnection) url.openConnection();
+                conn.setConnectTimeout(15000);
+                conn.setReadTimeout(15000);
+                conn.setInstanceFollowRedirects(true);
+                conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+                conn.setRequestProperty("Accept", "application/rss+xml, application/xml, text/xml, */*");
+
+                int status = conn.getResponseCode();
+                if (status == HttpURLConnection.HTTP_MOVED_TEMP || 
+                    status == HttpURLConnection.HTTP_MOVED_PERM || 
+                    status == 307 || status == 308) {
+                    String newUrl = conn.getHeaderField("Location");
+                    if (newUrl != null && !newUrl.isEmpty()) {
+                        currentUrl = newUrl;
+                        redirectCount++;
+                        conn.disconnect();
+                        continue;
+                    }
+                }
+                break;
+            }
+
+            in = conn.getInputStream();
             XmlPullParserFactory factory = XmlPullParserFactory.newInstance();
             factory.setNamespaceAware(false);
             XmlPullParser parser = factory.newPullParser();
@@ -111,8 +135,11 @@ public class BackgroundSyncWorker extends Worker {
                         if (date > latestDate) {
                             latestDate = date;
                         }
-                        // We only need the first item's date as feeds are usually sorted
-                        break;
+                        // Only break if we successfully parsed a non-zero date.
+                        // Failing to parse a specific item should let us check potential sibling items.
+                        if (latestDate > 0) {
+                            break;
+                        }
                     }
                 } else if (eventType == XmlPullParser.END_TAG) {
                     if (name.equalsIgnoreCase("item") || name.equalsIgnoreCase("entry")) {
@@ -127,35 +154,71 @@ public class BackgroundSyncWorker extends Worker {
             return latestDate;
         } catch (Exception e) {
             Log.e(TAG, "Error fetching feed: " + urlString, e);
+            try {
+                if (in != null) in.close();
+            } catch (Exception ignored) {}
+            try {
+                if (conn != null) conn.disconnect();
+            } catch (Exception ignored) {}
             return 0;
         }
     }
 
     private long parseDate(String dateStr) {
-        try {
-            // Try standard RSS format
-            // 'Z' handles RFC 822 timezones like +0000 or -0500.
-            SimpleDateFormat sdf = new SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss Z", Locale.US);
-            Date date = sdf.parse(dateStr);
-            if (date != null) return date.getTime();
-        } catch (Exception e) {
+        if (dateStr == null) return 0;
+        dateStr = dateStr.trim();
+
+        // Standard RSS & Atom patterns
+        String[] patterns = {
+            "EEE, d MMM yyyy HH:mm:ss z",   // e.g. "Fri, 5 Jun 2026 19:57:38 GMT" (handles unpadded day d)
+            "EEE, d MMM yyyy HH:mm:ss Z",   // e.g. "Fri, 5 Jun 2026 19:57:38 +0000"
+            "EEE, d MMM yyyy HH:mm:ss",     // e.g. "Fri, 5 Jun 2026 19:57:38" (No timezone)
+            "d MMM yyyy HH:mm:ss z",        // e.g. "5 Jun 2026 19:57:38 GMT"
+            "d MMM yyyy HH:mm:ss Z",        // e.g. "5 Jun 2026 19:57:38 +0000"
+            "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'",   // Atom with milliseconds UTC
+            "yyyy-MM-dd'T'HH:mm:ss.SSSZ",     // Atom with milliseconds and offset
+            "yyyy-MM-dd'T'HH:mm:ss'Z'",       // Atom standard UTC
+            "yyyy-MM-dd'T'HH:mm:ssZ",         // Atom standard offset
+            "yyyy-MM-dd'T'HH:mm:ss",          // Atom standard no timezone
+            "yyyy-MM-dd HH:mm:ss",            // Simple date time
+            "yyyy-MM-dd"                      // Date only
+        };
+
+        // Try US English localization first (Standard for RSS/Atom specs)
+        for (String pattern : patterns) {
             try {
-                // Try Atom format (ISO 8601)
-                SimpleDateFormat sdf2 = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US);
-                Date date = sdf2.parse(dateStr);
+                SimpleDateFormat sdf = new SimpleDateFormat(pattern, Locale.US);
+                Date date = sdf.parse(dateStr);
                 if (date != null) return date.getTime();
-            } catch (Exception e2) {
-                try {
-                    // Try Atom format with timezone
-                    SimpleDateFormat sdf3 = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssZ", Locale.US);
-                    Date date = sdf3.parse(dateStr.replaceAll("([+-]\\d\\d):(\\d\\d)$", "$1$2"));
-                    if (date != null) return date.getTime();
-                } catch (Exception e3) {
-                    Log.d(TAG, "DEBUG: Failed to parse date string: " + dateStr);
-                    Log.e(TAG, "Failed to parse date: " + dateStr);
+            } catch (Exception ignored) {}
+        }
+
+        // Try local system timezone as secondary fallback (helps with localized feeds)
+        for (String pattern : patterns) {
+            try {
+                SimpleDateFormat sdf = new SimpleDateFormat(pattern, Locale.getDefault());
+                Date date = sdf.parse(dateStr);
+                if (date != null) return date.getTime();
+            } catch (Exception ignored) {}
+        }
+
+        // Handle specific case of timezone offset with colons "yyyy-MM-dd'T'HH:mm:ss+HH:MM"
+        // by removing the last colon from the offset if applicable.
+        if (dateStr.length() > 6 && (dateStr.charAt(dateStr.length() - 3) == ':')) {
+            char possibleSign = dateStr.charAt(dateStr.length() - 6);
+            if (possibleSign == '+' || possibleSign == '-') {
+                String cleanStr = dateStr.substring(0, dateStr.length() - 3) + dateStr.substring(dateStr.length() - 2);
+                for (String pattern : patterns) {
+                    try {
+                        SimpleDateFormat sdf = new SimpleDateFormat(pattern, Locale.US);
+                        Date date = sdf.parse(cleanStr);
+                        if (date != null) return date.getTime();
+                    } catch (Exception ignored) {}
                 }
             }
         }
+
+        Log.e(TAG, "Failed to parse date string: " + dateStr);
         return 0;
     }
 
