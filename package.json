@@ -31,7 +31,7 @@
     "dompurify": "^3.4.7",
     "framer-motion": "^12.39.0",
     "he": "^1.2.0",
-    "lucide-react": "^0.468.0",
+    "lucide-react": "^1.17.0",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
     "react-intersection-observer": "^10.0.3",
