@@ -5,14 +5,14 @@ export const defaultSettings: Settings = {
   swipeLeftAction: 'toggleFavorite',
   swipeRightAction: 'none',
   fontSize: 'large',
-  refreshInterval: 60,
+  refreshInterval: 0,
   themeColor: '#4f46e5',
-  autoCheckUpdates: true,
+  autoCheckUpdates: false,
   theme: 'dark',
   pureBlack: true,
   redditRetentionDays: 1,
   telegramRetentionDays: 1,
-  articleRetentionDays: 30,
+  articleRetentionDays: 3,
 };
 
 export const settingsStorage = {

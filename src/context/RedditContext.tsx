@@ -185,7 +185,15 @@ export const RedditProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     if (moreLocalPosts.length > 0) {
       setRedditPosts(prev => {
         const combined = [...prev, ...moreLocalPosts];
-        const unique = Array.from(new Map(combined.map(item => [item.id, item])).values());
+        
+        // ⚡ Bolt: Replaced Array.from(new Map(...)) with a faster Set + filter deduplication
+        const seen = new Set();
+        const unique = combined.filter(item => {
+          if (seen.has(item.id)) return false;
+          seen.add(item.id);
+          return true;
+        });
+
         unique.sort((a, b) => {
           if (redditSort === 'new') return b.createdUtc - a.createdUtc;
           if (redditSort === 'hot' || redditSort === 'top') return (b.score || 0) - (a.score || 0);
@@ -259,7 +267,15 @@ export const RedditProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       if (allNewPosts.length > 0) {
         setRedditPosts(prev => {
             const combined = [...prev, ...allNewPosts];
-            const unique = Array.from(new Map(combined.map(item => [item.id, item])).values());
+            
+            // ⚡ Bolt: Replaced Array.from(new Map(...)) with a faster Set + filter deduplication
+            const seen = new Set();
+            const unique = combined.filter(item => {
+              if (seen.has(item.id)) return false;
+              seen.add(item.id);
+              return true;
+            });
+
             unique.sort((a, b) => {
               if (redditSort === 'new') return b.createdUtc - a.createdUtc;
               if (redditSort === 'hot' || redditSort === 'top') return (b.score || 0) - (a.score || 0);

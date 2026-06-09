@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useMemo } from 'react';
-import { ArrowLeft, FileText, AlignLeft, X, Share2, Star, EyeOff, ChevronUp, ChevronDown, Calendar, User, ExternalLink, RefreshCw, Bookmark, List, FastForward } from 'lucide-react';
+import { ArrowLeft, FileText, AlignLeft, X, Share2, Star, EyeOff, ChevronUp, ChevronDown, Calendar, User, ExternalLink, RefreshCw, Bookmark, List, FastForward, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Article, FullArticleContent } from '../types';
 import { motion, AnimatePresence, useDragControls } from 'framer-motion';
 import { useRss } from '../context/RssContext';
@@ -39,6 +39,7 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
   const [articleThemeColor, setArticleThemeColor] = useState<string | null>(null);
   const [readerImageUrl, setReaderImageUrl] = useState<string | null>(article.imageUrl || null);
   const [isFavorite, setIsFavorite] = useState(article.isFavorite);
+  const [carouselIndex, setCarouselIndex] = useState(0);
 
   if (article.id !== prevArticleId) {
     setPrevArticleId(article.id);
@@ -46,6 +47,7 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
     setFullContent(null);
     setReaderImageUrl(article.imageUrl || null);
     setIsFavorite(article.isFavorite);
+    setCarouselIndex(0);
   }
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -201,17 +203,43 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
             }
           }
 
-          if (articleData && articleData.content && articleData.content.length > 200) {
-            const contentToSave = {
-              title: articleData.title || '',
-              content: articleData.content || '',
-              textContent: articleData.textContent || '',
-              length: articleData.length || 0,
-              excerpt: articleData.excerpt || '',
-              byline: articleData.byline || '',
-              dir: articleData.dir || '',
-              siteName: articleData.siteName || '',
-              lang: articleData.lang || '',
+          let finalScrapedContent = '';
+          if (articleData && articleData.content && articleData.content.length > 150) {
+            finalScrapedContent = articleData.content;
+          } else {
+            const contentSelectors = [
+              'article', '[itemprop="articleBody"]', 'main', '.article-content', '.post-content', '.entry-content', 
+              '.article-body', '.post-body', '#article-body', '.story-content', '.main-content', '.entry', '.post'
+            ];
+            for (const selector of contentSelectors) {
+              const el = doc.querySelector(selector);
+              if (el && el.textContent && el.textContent.trim().length > 150) {
+                finalScrapedContent = el.innerHTML;
+                break;
+              }
+            }
+            if (!finalScrapedContent && articleData && articleData.content) {
+              finalScrapedContent = articleData.content;
+            }
+            if (!finalScrapedContent && doc.body) {
+              const cleanBodyText = doc.body.textContent || '';
+              if (cleanBodyText.trim().length > 150) {
+                finalScrapedContent = doc.body.innerHTML;
+              }
+            }
+          }
+
+          if (finalScrapedContent && finalScrapedContent.length > 150) {
+            const contentToSave: FullArticleContent = {
+              title: articleData?.title || article.title || '',
+              content: finalScrapedContent,
+              textContent: articleData?.textContent || '',
+              length: finalScrapedContent.length,
+              excerpt: articleData?.excerpt || '',
+              byline: articleData?.byline || '',
+              dir: articleData?.dir || 'ltr',
+              siteName: articleData?.siteName || '',
+              lang: articleData?.lang || '',
             };
             setFullContent(contentToSave);
             // Cache it for future use
@@ -477,6 +505,39 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
     return doc.body.innerHTML;
   }, [fullContent, article.content, article.imageUrl, readerImageUrl]);
 
+  const extractedImages = useMemo(() => {
+    const urls: string[] = [];
+    
+    if (readerImageUrl) {
+      urls.push(readerImageUrl);
+    }
+    
+    if (sanitizedContent) {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(sanitizedContent, 'text/html');
+      const imgs = doc.querySelectorAll('img');
+      
+      imgs.forEach(img => {
+        const src = img.getAttribute('src');
+        if (src && !urls.includes(src)) {
+          const s = src.toLowerCase();
+          const p = src.split('.').pop()?.split('?')[0]?.toLowerCase() || '';
+          if (
+            !s.includes('favicon') && 
+            !s.includes('avatar') && 
+            !s.includes('icon') && 
+            !s.includes('logo') && 
+            (s.startsWith('http') || s.includes('_capacitor_file_'))
+          ) {
+            urls.push(src);
+          }
+        }
+      });
+    }
+    
+    return urls;
+  }, [sanitizedContent, readerImageUrl]);
+
   useEffect(() => {
     if (!contentRef.current || !Capacitor.isNativePlatform()) return;
     
@@ -514,14 +575,17 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
   }, []);
 
   return (
-    <>
+    <motion.div 
+      className="fixed inset-0 z-50 pointer-events-none transform-gpu"
+      style={{ willChange: 'transform' }}
+    >
       <motion.div 
         key="article-reader-backdrop"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-        className="fixed inset-0 bg-black z-[40]"
+        className="fixed inset-0 bg-black pointer-events-auto"
         onClick={onClose}
       />
       <motion.article 
@@ -530,7 +594,7 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
         animate={{ y: 0 }}
         exit={{ y: '100%', opacity: 0 }}
         transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-        className="fixed bottom-0 left-0 right-0 z-50 h-[92vh] overflow-hidden flex flex-col transition-colors break-words font-sans rounded-t-[2.5rem] border-t border-white/10 shadow-[0_-10px_40px_rgba(0,0,0,0.5)] isolate transform-gpu bg-black scrollbar-hide"
+        className="fixed bottom-0 left-0 right-0 z-10 h-[92vh] overflow-hidden flex flex-col transition-colors break-words font-sans rounded-t-[2.5rem] border-t border-white/10 shadow-[0_-10px_40px_rgba(0,0,0,0.5)] isolate transform-gpu bg-black scrollbar-hide pointer-events-auto"
         drag="y"
         dragControls={controls}
         dragListener={false}
@@ -587,16 +651,72 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
           className="relative z-10 flex-1 px-2 sm:px-4 max-w-5xl mx-auto w-full pb-20 overflow-y-auto overscroll-contain transform-gpu will-change-scroll scrollbar-hide"
         >
         <div className="bg-[#121e36] border border-blue-500/10 rounded-[2.5rem] overflow-hidden shadow-2xl mb-24">
-          {readerImageUrl && (
-            <div className="relative group overflow-hidden bg-black/40">
-              <CachedImage 
-                key={`${article.id}-${readerImageUrl}`}
-                src={getSafeUrl(readerImageUrl || '')}
-                alt="" 
-                className="w-full h-auto object-contain max-h-[85vh] transition-transform duration-700 group-hover:scale-105"
-                referrerPolicy="no-referrer"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+          {extractedImages.length > 0 && (
+            <div className="relative group overflow-hidden bg-black/40 w-full min-h-[300px] flex flex-col items-center justify-center">
+              {extractedImages.length > 1 ? (
+                <div className="relative w-full overflow-hidden select-none">
+                  {/* Slides */}
+                  <div className="relative w-full flex items-center justify-center min-h-[300px] max-h-[85vh]">
+                    <CachedImage 
+                      key={`${article.id}-carousel-${carouselIndex}`}
+                      src={getSafeUrl(extractedImages[carouselIndex] || '')}
+                      alt="" 
+                      className="w-full h-auto object-contain max-h-[85vh] transition-all duration-300 pointer-events-auto"
+                      referrerPolicy="no-referrer"
+                    />
+                  </div>
+
+                  {/* Navigation arrows */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setCarouselIndex(prev => (prev === 0 ? extractedImages.length - 1 : prev - 1));
+                    }}
+                    className="absolute left-4 top-1/2 -translate-y-1/2 w-10.5 h-10.5 flex items-center justify-center rounded-full bg-black/75 border border-white/10 hover:bg-black text-white hover:scale-110 active:scale-95 transition-all z-30 pointer-events-auto shadow-[0_4px_12px_rgba(0,0,0,0.5)]"
+                    aria-label="Previous image"
+                  >
+                    <ChevronLeft className="w-5.5 h-5.5" />
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setCarouselIndex(prev => (prev === extractedImages.length - 1 ? 0 : prev + 1));
+                    }}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 w-10.5 h-10.5 flex items-center justify-center rounded-full bg-black/75 border border-white/10 hover:bg-black text-white hover:scale-110 active:scale-95 transition-all z-30 pointer-events-auto shadow-[0_4px_12px_rgba(0,0,0,0.5)]"
+                    aria-label="Next image"
+                  >
+                    <ChevronRight className="w-5.5 h-5.5" />
+                  </button>
+
+                  {/* Indicators/Dots */}
+                  <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-2 z-30 pointer-events-none">
+                    {extractedImages.map((_, i) => (
+                      <button
+                        key={i}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setCarouselIndex(i);
+                        }}
+                        className={`w-2.5 h-2.5 rounded-full transition-all duration-300 pointer-events-auto ${
+                          carouselIndex === i ? 'bg-indigo-500 w-6 shadow-[0_0_10px_rgb(99,102,241)]' : 'bg-white/40 hover:bg-white/70'
+                        }`}
+                        aria-label={`Go to slide ${i + 1}`}
+                      />
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="relative w-full">
+                  <CachedImage 
+                    key={`${article.id}-${extractedImages[0]}`}
+                    src={getSafeUrl(extractedImages[0] || '')}
+                    alt="" 
+                    className="w-full h-auto object-contain max-h-[85vh] transition-transform duration-700 group-hover:scale-105"
+                    referrerPolicy="no-referrer"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                </div>
+              )}
             </div>
           )}
 
@@ -721,7 +841,7 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
                   ref={contentRef}
                   onClick={handleContentClick}
                   className={`prose ${getProseSize()} prose-invert max-w-4xl mx-auto overflow-hidden leading-[1.75] text-gray-200 font-serif
-                    prose-img:rounded-xl prose-img:h-auto prose-img:mx-auto prose-img:max-w-full prose-img:my-8 prose-img:shadow-xl
+                    prose-img:rounded-xl prose-img:max-h-[90vh] prose-img:object-contain prose-img:h-auto prose-img:mx-auto prose-img:max-w-full prose-img:my-10 prose-img:shadow-xl
                     prose-video:w-full prose-video:rounded-xl prose-video:my-8
                     [&_iframe]:w-full [&_iframe]:aspect-video [&_iframe]:rounded-2xl [&_iframe]:border-0 [&_iframe]:my-10 [&_iframe]:shadow-2xl
                     prose-a:text-indigo-400 prose-a:decoration-indigo-400/30 prose-a:underline-offset-4 hover:prose-a:decoration-indigo-400 transition-all
@@ -763,6 +883,6 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
         </div>
       </div>
     </motion.article>
-    </>
+    </motion.div>
   );
 });

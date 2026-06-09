@@ -25,8 +25,8 @@ export const imagePersistence = {
       
       // Cleanup old images on init
       const settings = await db.settings.get('user_settings');
-      // Use articleRetentionDays as the base for image retention
-      const retentionDays = settings?.articleRetentionDays || 30;
+      // Use 3 days for image retention to match article retention
+      const retentionDays = 3;
       
       if (checkIsNative() && isPluginAvailable('Filesystem')) {
         await this.cleanupOldImages(retentionDays);

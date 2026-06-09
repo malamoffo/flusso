@@ -197,6 +197,7 @@ export const SwipeableRedditPost = React.memo(function SwipeableRedditPost({
           dragPropagation={false}
           dragTransition={{ bounceStiffness: 200, bounceDamping: 30 }}
           onDragEnd={handleDragEnd}
+          onClick={handlePostClick}
           className={cn(
             "relative w-full p-4 flex flex-col gap-3 cursor-pointer select-none rounded-[inherit] transition-colors border border-purple-500/10 bg-[#1e162a] transform-gpu",
             !post.isRead ? "z-[35]" : "z-20",
@@ -206,10 +207,10 @@ export const SwipeableRedditPost = React.memo(function SwipeableRedditPost({
         >
           {!post.isRead && (
             <>
-              <span className="absolute -top-2 right-4 z-40 px-2 py-0.5 bg-purple-600 text-[9px] font-black text-white rounded-full shadow-[0_0_10px_rgba(168,85,247,0.6)] border border-purple-400 uppercase tracking-widest">
+              <span className="absolute -top-2 right-4 z-40 px-2 py-0.5 bg-purple-600 text-[9px] font-black text-white rounded-full shadow-[0_0_12px_rgba(168,85,247,0.8)] border border-purple-400 uppercase tracking-widest animate-pulse">
                 NEW
               </span>
-              <div className="absolute inset-0 z-20 pointer-events-none rounded-[inherit] border-2 border-purple-500/80 shadow-[0_0_20px_rgba(168,85,247,0.5)]" />
+              <div className="absolute inset-0 z-20 pointer-events-none rounded-[inherit] border border-purple-400/80 shadow-[0_0_22px_rgba(168,85,247,0.65),inset_0_0_14px_rgba(168,85,247,0.35)] animate-pulse" style={{ animationDuration: '3s' }} />
             </>
           )}
         <div className="relative z-10 flex flex-col gap-2">

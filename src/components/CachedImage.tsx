@@ -14,8 +14,15 @@ type CachedImageProps = React.ImgHTMLAttributes<HTMLImageElement> & {
 };
 
 export function CachedImage({ src, className, fallback, alt, ...props }: CachedImageProps) {
+  const isGif = React.useMemo(() => {
+    if (!src) return false;
+    const s = src.toLowerCase();
+    return s.endsWith('.gif') || s.includes('.gif?') || s.includes('/gif') || s.includes('image=gif');
+  }, [src]);
+
   const [currentSrc, setCurrentSrc] = useState<string | null>(() => {
     if (!src) return null;
+    if (isGif) return src;
     if (imagePersistence.memoryCache.has(src)) return imagePersistence.memoryCache.get(src)!;
     if (imagePersistence.resolvedLocalUrls.has(src)) return imagePersistence.resolvedLocalUrls.get(src)!;
     // On native, use remote src as initial value to avoid blank space while checking cache
@@ -24,6 +31,7 @@ export function CachedImage({ src, className, fallback, alt, ...props }: CachedI
   
   const [isLoaded, setIsLoaded] = useState(() => {
     if (!src) return false;
+    if (isGif) return false;
     if (imagePersistence.resolvedLocalUrls.has(src)) {
       return imagePersistence.loadedUrls.has(imagePersistence.resolvedLocalUrls.get(src)!);
     }
@@ -42,7 +50,11 @@ export function CachedImage({ src, className, fallback, alt, ...props }: CachedI
       return;
     }
 
-    if (imagePersistence.memoryCache.has(src)) {
+    if (isGif) {
+      setCurrentSrc(src);
+      setIsLoaded(false);
+      setError(false);
+    } else if (imagePersistence.memoryCache.has(src)) {
       const cached = imagePersistence.memoryCache.get(src)!;
       setCurrentSrc(cached);
       setIsLoaded(imagePersistence.loadedUrls.has(cached));
@@ -58,12 +70,13 @@ export function CachedImage({ src, className, fallback, alt, ...props }: CachedI
       setIsLoaded(imagePersistence.loadedUrls.has(src));
       setError(false);
     }
-  }, [src]);
+  }, [src, isGif]);
 
   useEffect(() => {
     let isMounted = true;
     
     if (!src) return;
+    if (isGif) return;
     if (imagePersistence.resolvedLocalUrls.has(src)) return;
 
     const initImage = async () => {
@@ -82,7 +95,7 @@ export function CachedImage({ src, className, fallback, alt, ...props }: CachedI
 
     initImage();
     return () => { isMounted = false; };
-  }, [src]);
+  }, [src, isGif]);
 
   // Check if image is already complete on mount or src change
   useEffect(() => {

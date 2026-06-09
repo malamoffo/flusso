@@ -292,7 +292,15 @@ export const TelegramProvider: React.FC<{ children: ReactNode }> = ({ children }
       setTelegramMessages(prev => {
         const existing = prev[channelId] || [];
         const all = [...moreLocalMessages, ...existing];
-        const deduplicated = Array.from(new Map(all.map(m => [m.id, m])).values());
+        
+        // ⚡ Bolt: Replaced Array.from(new Map(...)) with a faster Set + filter deduplication
+        const seen = new Set();
+        const deduplicated = all.filter(m => {
+          if (seen.has(m.id)) return false;
+          seen.add(m.id);
+          return true;
+        });
+
         const sorted = deduplicated.sort((a, b) => a.date - b.date);
         
         const next = { ...prev, [channelId]: sorted };
@@ -351,7 +359,13 @@ export const TelegramProvider: React.FC<{ children: ReactNode }> = ({ children }
 
       if (controller.signal.aborted) return;
 
-      const deduplicated = Array.from(new Map(allNewMessages.map(m => [m.id, m])).values());
+      // ⚡ Bolt: Replaced Array.from(new Map(...)) with a faster Set + filter deduplication
+      const seen = new Set();
+      const deduplicated = allNewMessages.filter(m => {
+        if (seen.has(m.id)) return false;
+        seen.add(m.id);
+        return true;
+      });
       
       if (deduplicated.length > 0) {
         setTelegramMessages(prev => {

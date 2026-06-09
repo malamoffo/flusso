@@ -259,12 +259,15 @@ export const SettingsModal = React.memo(function SettingsModal({
   return (
     <AnimatePresence>
       {isOpen && (
-        <>
+        <motion.div 
+          className="fixed inset-0 z-50 pointer-events-none transform-gpu"
+          style={{ willChange: 'transform' }}
+        >
           <motion.div 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black z-40"
+            className="fixed inset-0 bg-black pointer-events-auto"
             onClick={onClose}
           />
           <motion.div 
@@ -272,7 +275,7 @@ export const SettingsModal = React.memo(function SettingsModal({
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className="fixed bottom-0 left-0 right-0 rounded-t-[28px] z-50 px-6 pb-8 pt-0 max-h-[90vh] overflow-y-auto scrollbar-hide shadow-2xl transition-colors border-t border-white/10 dark:border-white/5 bg-black"
+            className="fixed bottom-0 left-0 right-0 rounded-t-[28px] z-10 px-6 pb-8 pt-0 max-h-[90vh] overflow-y-auto scrollbar-hide shadow-2xl transition-colors border-t border-white/10 dark:border-white/5 bg-black pointer-events-auto"
           >
             <div className="sticky top-0 pt-4 pb-4 z-20 border-b border-white/10 dark:border-white/5 mb-6 -mx-6 px-6 transition-colors bg-black">
               
@@ -419,17 +422,6 @@ export const SettingsModal = React.memo(function SettingsModal({
                 </button>
 
                 <button
-                  onClick={() => setActiveTab('retention')}
-                  className="w-full flex items-center justify-between p-5 rounded-2xl bg-gray-800 text-white hover:bg-gray-700 transition-colors font-semibold text-lg"
-                >
-                  <div className="flex items-center gap-4">
-                    <RefreshCw className="w-6 h-6 text-indigo-400" />
-                    <span>Retention Settings</span>
-                  </div>
-                  <span className="text-gray-500">→</span>
-                </button>
-
-                <button
                   onClick={() => setActiveTab('about')}
                   className="w-full flex items-center justify-between p-5 rounded-2xl bg-gray-800 text-white hover:bg-gray-700 transition-colors font-semibold text-lg"
                 >
@@ -475,53 +467,7 @@ export const SettingsModal = React.memo(function SettingsModal({
                   </div>
                 </section>
 
-                {/* Background Refresh Settings */}
-                <section>
-                  <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Background Refresh</h3>
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <label className="text-sm font-medium text-gray-300">
-                        Auto Check Updates
-                      </label>
-                      <button
-                        onClick={() => updateSettings({ autoCheckUpdates: !settings.autoCheckUpdates })}
-                        className={cn(
-                          "relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none",
-                          settings.autoCheckUpdates ? "bg-indigo-600" : "bg-gray-700"
-                        )}
-                      >
-                        <span
-                          className={cn(
-                            "inline-block h-4 w-4 transform rounded-full bg-white transition-transform",
-                            settings.autoCheckUpdates ? "translate-x-6" : "translate-x-1"
-                          )}
-                        />
-                      </button>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-1">
-                        Refresh Interval
-                      </label>
-                      <select
-                        value={settings.refreshInterval}
-                        onChange={(e) => updateSettings({ refreshInterval: parseInt(e.target.value) })}
-                        disabled={!settings.autoCheckUpdates}
-                        className="block w-full pl-3 pr-10 py-2 text-base border-gray-700 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-lg bg-gray-800 text-white disabled:opacity-50"
-                      >
-                        <option value={15}>Every 15 minutes</option>
-                        <option value={30}>Every 30 minutes</option>
-                        <option value={60}>Every hour</option>
-                        <option value={180}>Every 3 hours</option>
-                        <option value={360}>Every 6 hours</option>
-                        <option value={720}>Every 12 hours</option>
-                        <option value={1440}>Every 24 hours</option>
-                      </select>
-                      <p className="mt-1 text-[10px] text-gray-500">
-                        * Minimum 15 minutes required by Android system.
-                      </p>
-                    </div>
-                  </div>
-                </section>
+
               </div>
             ) : activeTab === 'retention' ? (
               <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-300">
@@ -1100,7 +1046,7 @@ export const SettingsModal = React.memo(function SettingsModal({
             isOpen={isBrowserLogsOpen}
             onClose={() => setIsBrowserLogsOpen(false)}
           />
-        </>
+        </motion.div>
       )}
     </AnimatePresence>
   );

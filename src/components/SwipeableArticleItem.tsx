@@ -357,10 +357,10 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
         >
           {!isReadForDisplay && filter !== 'saved' && (
             <>
-              <span className="absolute -top-2 right-4 z-40 px-2 py-0.5 bg-blue-600 text-[9px] font-black text-white rounded-full shadow-[0_0_10px_rgba(59,130,246,0.6)] border border-blue-400 uppercase tracking-widest">
+              <span className="absolute -top-2 right-4 z-40 px-2 py-0.5 bg-blue-600 text-[9px] font-black text-white rounded-full shadow-[0_0_12px_rgba(59,130,246,0.8)] border border-blue-400 uppercase tracking-widest animate-pulse">
                 NEW
               </span>
-              <div className="absolute inset-0 z-20 pointer-events-none rounded-[inherit] border-2 border-blue-500/80 shadow-[0_0_20px_rgba(59,130,246,0.5)]" />
+              <div className="absolute inset-0 z-20 pointer-events-none rounded-[inherit] border border-blue-400/80 shadow-[0_0_22px_rgba(59,130,246,0.65),inset_0_0_14px_rgba(59,130,246,0.35)] animate-pulse" style={{ animationDuration: '3s' }} />
             </>
           )}
           <div className="relative z-10 flex flex-col gap-2">
@@ -418,7 +418,7 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
               
               {article.contentSnippet && (
                 <p className={cn(
-                  "text-gray-400 line-clamp-2 leading-snug mb-1",
+                  "text-gray-400 leading-snug mb-1",
                   getSnippetSize()
                 )}>
                   {he.decode(article.contentSnippet)}

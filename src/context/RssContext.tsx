@@ -263,11 +263,11 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       
       const loadedFeeds = await storage.getFeeds();
       
-      // Cleanup old articles based on retention settings, throttled to once per day
+      // Cleanup old articles, locked to 3 days, throttled to once per day
       const lastCleanupTime = parseInt((await storage.get('lastCleanupTime')) || '0', 10);
       const ONE_DAY = 24 * 60 * 60 * 1000;
       if (Date.now() - lastCleanupTime > ONE_DAY) {
-        await storage.cleanUpOldArticles(settings.articleRetentionDays);
+        await storage.cleanUpOldArticles(3);
         await storage.set('lastCleanupTime', Date.now().toString());
       }
 
@@ -298,7 +298,7 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     } finally {
       setIsLoading(false);
     }
-  }, [settings.articleRetentionDays]);
+  }, []);
 
   const loadMoreArticles = useCallback(async () => {
     if (!hasMoreArticles || isLoading) return;
@@ -411,65 +411,31 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   useEffect(() => {
     if (Capacitor.isNativePlatform()) {
-      if (feeds.length > 0 && settings.autoCheckUpdates && settings.refreshInterval > 0) {
-        const syncFeeds = feeds.map(f => ({
-          id: f.id,
-          url: f.feedUrl,
-          title: f.title,
-          lastFetched: f.lastFetched || 0
-        }));
-        BackgroundPlugin.setupBackgroundSync({
-          feeds: syncFeeds,
-          intervalMinutes: settings.refreshInterval
-        }).catch(err => {
-          const msg = err?.message || String(err);
-          if (err?.code !== 'UNIMPLEMENTED' && !msg.toLowerCase().includes('not implemented')) {
-            console.error('[BackgroundSync] Error:', err);
-          }
-        });
-      } else {
-        BackgroundPlugin.stopBackgroundSync().catch(err => {
-          const msg = err?.message || String(err);
-          if (err?.code !== 'UNIMPLEMENTED' && !msg.toLowerCase().includes('not implemented')) {
-            console.error('[BackgroundSync] Stop Error:', err);
-          }
-        });
-      }
+      // Ensure background sync is stopped as requested by the user
+      BackgroundPlugin.stopBackgroundSync().catch(err => {
+        const msg = err?.message || String(err);
+        if (err?.code !== 'UNIMPLEMENTED' && !msg.toLowerCase().includes('not implemented')) {
+          console.error('[BackgroundSync] Stop Error:', err);
+        }
+      });
     }
-  }, [feeds, settings.refreshInterval, settings.autoCheckUpdates]);
+  }, []);
 
-  // Web-based auto refresh
+  // Web-based auto refresh disabled as requested
   useEffect(() => {
-    if (!settings.autoCheckUpdates || settings.refreshInterval <= 0 || Capacitor.isNativePlatform()) return;
-    
-    const interval = setInterval(() => {
-      refreshFeeds();
-    }, settings.refreshInterval * 60 * 1000);
-    
-    return () => clearInterval(interval);
-  }, [settings.autoCheckUpdates, settings.refreshInterval, refreshFeeds]);
+    // Disabled background checks and functionality
+  }, []);
 
-  // Listen for app-resume to trigger refresh if needed
+  // Listen for app-resume to trigger checks if needed (but no periodic or background checks)
   useEffect(() => {
     const handleResume = () => {
-      const now = Date.now();
-      const elapsedMinutes = (now - lastRefresh.current) / (1000 * 60);
-      
-      // Force refresh if more than half of the interval has passed on resume
-      // or if we just want to be reactive.
-      if (settings.autoCheckUpdates && settings.refreshInterval > 0) {
-        if (elapsedMinutes >= settings.refreshInterval) {
-          refreshFeeds();
-        }
-      }
-      
       // Also check for app updates every time we resume
       checkUpdates();
     };
 
     window.addEventListener('app-resume', handleResume);
     return () => window.removeEventListener('app-resume', handleResume);
-  }, [settings.autoCheckUpdates, settings.refreshInterval, refreshFeeds, checkUpdates]);
+  }, [checkUpdates]);
 
   const addFeedOrSubreddit = useCallback(async (url: string): Promise<'article' | 'reddit' | 'subreddit' | 'telegram' | void> => {
     try {

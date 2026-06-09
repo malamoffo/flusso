@@ -76,19 +76,22 @@ export function BrowserLogsModal({ isOpen, onClose }: { isOpen: boolean; onClose
   return (
     <AnimatePresence>
       {isOpen && (
-        <>
+        <motion.div 
+          className="fixed inset-0 z-[100] pointer-events-none transform-gpu"
+          style={{ willChange: 'transform' }}
+        >
           <motion.div 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/60 z-[100] backdrop-blur-md"
+            className="fixed inset-0 bg-black/60 pointer-events-auto backdrop-blur-md"
             onClick={onClose}
           />
           <motion.div 
             initial={{ scale: 0.9, opacity: 0, y: 20 }}
             animate={{ scale: 1, opacity: 1, y: 0 }}
             exit={{ scale: 0.9, opacity: 0, y: 20 }}
-            className="fixed inset-4 md:inset-20 bg-gray-950 border border-gray-800 rounded-[32px] z-[101] flex flex-col overflow-hidden shadow-2xl"
+            className="fixed inset-4 md:inset-20 bg-gray-950 border border-gray-800 rounded-[32px] z-10 flex flex-col overflow-hidden shadow-2xl pointer-events-auto"
           >
             {/* Header */}
             <div className="p-6 border-b border-gray-800 flex items-center justify-between bg-gray-950/80 backdrop-blur-xl shrink-0">
@@ -206,7 +209,7 @@ export function BrowserLogsModal({ isOpen, onClose }: { isOpen: boolean; onClose
               Showing {filteredLogs.length} of {logs.length} entries
             </div>
           </motion.div>
-        </>
+        </motion.div>
       )}
     </AnimatePresence>
   );
