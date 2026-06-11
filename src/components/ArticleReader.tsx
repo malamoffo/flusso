@@ -90,15 +90,32 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
 
   useEffect(() => {
     const fetchFullContent = async () => {
+      let cached: FullArticleContent | null = null;
+      let hasSetContent = false;
       try {
         setIsLoading(true);
         
         // Check cache first
-        const cached = await contentFetcher.getCachedContent(article.id);
+        cached = await contentFetcher.getCachedContent(article.id);
         if (cached) {
-          setFullContent(cached);
-          setIsLoading(false);
-          return;
+          const textLength = cached.textContent ? cached.textContent.trim().length : (() => {
+            try {
+              const doc = new DOMParser().parseFromString(cached.content || '', 'text/html');
+              return (doc.body?.textContent || '').trim().length;
+            } catch (e) {
+              return 0;
+            }
+          })();
+          
+          // Verify if this is already a full scraped article (has textContent and is of decent length)
+          const looksLikeFullArticle = cached.textContent && textLength > 1500;
+          
+          if (looksLikeFullArticle) {
+            setFullContent(cached);
+            hasSetContent = true;
+            setIsLoading(false);
+            return;
+          }
         }
 
         const isNativePlatform = typeof window !== 'undefined' && (window as any).Capacitor?.isNativePlatform();
@@ -242,6 +259,7 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
               lang: articleData?.lang || '',
             };
             setFullContent(contentToSave);
+            hasSetContent = true;
             // Cache it for future use
             contentFetcher.setCachedContent(article.id, contentToSave);
             
@@ -257,14 +275,54 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
             }
           } else {
             console.warn('[READER] Readability parsed content is too short or empty, falling back to feed content');
-            // If readability fails to get substantial content, we still set a minimal object 
-            // to stop the loading state, but it will fallback to article.content in processContent
+            if (cached) {
+              setFullContent(cached);
+            } else {
+              setFullContent({
+                title: article.title,
+                content: article.content || '',
+                textContent: article.contentSnippet || '',
+                length: article.content?.length || 0,
+                excerpt: article.contentSnippet || '',
+                byline: '',
+                dir: 'ltr',
+                siteName: '',
+                lang: ''
+              });
+            }
+            hasSetContent = true;
+          }
+        } else {
+          // If html retrieve resulted in empty content, fall back to cached content
+          if (cached) {
+            setFullContent(cached);
+          } else {
             setFullContent({
               title: article.title,
-              content: '',
-              textContent: '',
-              length: 0,
-              excerpt: '',
+              content: article.content || '',
+              textContent: article.contentSnippet || '',
+              length: article.content?.length || 0,
+              excerpt: article.contentSnippet || '',
+              byline: '',
+              dir: 'ltr',
+              siteName: '',
+              lang: ''
+            });
+          }
+          hasSetContent = true;
+        }
+      } catch (error) {
+        console.error('[READER] Error fetching full content:', error);
+        if (!hasSetContent) {
+          if (cached) {
+            setFullContent(cached);
+          } else {
+            setFullContent({
+              title: article.title,
+              content: article.content || '',
+              textContent: article.contentSnippet || '',
+              length: article.content?.length || 0,
+              excerpt: article.contentSnippet || '',
               byline: '',
               dir: 'ltr',
               siteName: '',
@@ -272,8 +330,6 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
             });
           }
         }
-      } catch (error) {
-        console.error('[READER] Error fetching full content:', error);
       } finally {
         setIsLoading(false);
       }
