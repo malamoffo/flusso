@@ -74,7 +74,7 @@ export async function fetchWithProxy(url: string, isRss: boolean = true, sinceDa
     if (signal?.aborted) throw new Error('Aborted');
 
     const directController = new AbortController();
-    const directTimeoutId = setTimeout(() => directController.abort(), 10000);
+    const directTimeoutId = setTimeout(() => directController.abort(), 30000);
     
     // Link external signal to our internal controller
     if (signal) {
