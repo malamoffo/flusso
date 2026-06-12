@@ -98,6 +98,14 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
         // Check cache first
         cached = await contentFetcher.getCachedContent(article.id);
         if (cached) {
+          // If already scraped via proxy/readability, use it directly
+          if (cached.isScraped) {
+            setFullContent(cached);
+            hasSetContent = true;
+            setIsLoading(false);
+            return;
+          }
+
           const textLength = cached.textContent ? cached.textContent.trim().length : (() => {
             try {
               const doc = new DOMParser().parseFromString(cached.content || '', 'text/html');
@@ -257,6 +265,7 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
               dir: articleData?.dir || 'ltr',
               siteName: articleData?.siteName || '',
               lang: articleData?.lang || '',
+              isScraped: true,
             };
             setFullContent(contentToSave);
             hasSetContent = true;
@@ -275,29 +284,10 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
             }
           } else {
             console.warn('[READER] Readability parsed content is too short or empty, falling back to feed content');
-            if (cached) {
-              setFullContent(cached);
-            } else {
-              setFullContent({
-                title: article.title,
-                content: article.content || '',
-                textContent: article.contentSnippet || '',
-                length: article.content?.length || 0,
-                excerpt: article.contentSnippet || '',
-                byline: '',
-                dir: 'ltr',
-                siteName: '',
-                lang: ''
-              });
-            }
-            hasSetContent = true;
-          }
-        } else {
-          // If html retrieve resulted in empty content, fall back to cached content
-          if (cached) {
-            setFullContent(cached);
-          } else {
-            setFullContent({
+            const fallbackContentObj: FullArticleContent = cached ? {
+              ...cached,
+              isScraped: true
+            } : {
               title: article.title,
               content: article.content || '',
               textContent: article.contentSnippet || '',
@@ -306,29 +296,54 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
               byline: '',
               dir: 'ltr',
               siteName: '',
-              lang: ''
-            });
+              lang: '',
+              isScraped: true
+            };
+            setFullContent(fallbackContentObj);
+            contentFetcher.setCachedContent(article.id, fallbackContentObj);
+            hasSetContent = true;
           }
+        } else {
+          // If html retrieve resulted in empty content, fall back to cached content
+          const fallbackContentObj: FullArticleContent = cached ? {
+            ...cached,
+            isScraped: true
+          } : {
+            title: article.title,
+            content: article.content || '',
+            textContent: article.contentSnippet || '',
+            length: article.content?.length || 0,
+            excerpt: article.contentSnippet || '',
+            byline: '',
+            dir: 'ltr',
+            siteName: '',
+            lang: '',
+            isScraped: true
+          };
+          setFullContent(fallbackContentObj);
+          contentFetcher.setCachedContent(article.id, fallbackContentObj);
           hasSetContent = true;
         }
       } catch (error) {
         console.error('[READER] Error fetching full content:', error);
         if (!hasSetContent) {
-          if (cached) {
-            setFullContent(cached);
-          } else {
-            setFullContent({
-              title: article.title,
-              content: article.content || '',
-              textContent: article.contentSnippet || '',
-              length: article.content?.length || 0,
-              excerpt: article.contentSnippet || '',
-              byline: '',
-              dir: 'ltr',
-              siteName: '',
-              lang: ''
-            });
-          }
+          const fallbackContentObj: FullArticleContent = cached ? {
+            ...cached,
+            isScraped: true
+          } : {
+            title: article.title,
+            content: article.content || '',
+            textContent: article.contentSnippet || '',
+            length: article.content?.length || 0,
+            excerpt: article.contentSnippet || '',
+            byline: '',
+            dir: 'ltr',
+            siteName: '',
+            lang: '',
+            isScraped: true
+          };
+          setFullContent(fallbackContentObj);
+          contentFetcher.setCachedContent(article.id, fallbackContentObj);
         }
       } finally {
         setIsLoading(false);

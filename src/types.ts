@@ -67,6 +67,7 @@ export interface FullArticleContent {
   dir: string;
   siteName: string;
   lang: string;
+  isScraped?: boolean;
 }
 
 export interface Subreddit {
