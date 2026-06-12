@@ -9,12 +9,25 @@ class ContentFetcherQueue {
   private queue: { id: string, url: string }[] = [];
   private activeCount = 0;
   private maxConcurrent = 2; // Reduced concurrency to avoid rate limits
+  private memoryCache = new Map<string, FullArticleContent>();
 
   async getCachedContent(articleId: string): Promise<FullArticleContent | null> {
-    return await db.articleContents.get(articleId) || null;
+    if (this.memoryCache.has(articleId)) {
+      return this.memoryCache.get(articleId)!;
+    }
+    const fromDb = await db.articleContents.get(articleId) || null;
+    if (fromDb) {
+      this.memoryCache.set(articleId, fromDb);
+    }
+    return fromDb;
+  }
+
+  getCachedContentSync(articleId: string): FullArticleContent | null {
+    return this.memoryCache.get(articleId) || null;
   }
 
   async setCachedContent(articleId: string, content: FullArticleContent): Promise<void> {
+    this.memoryCache.set(articleId, content);
     await db.articleContents.put({ id: articleId, ...content });
   }
 

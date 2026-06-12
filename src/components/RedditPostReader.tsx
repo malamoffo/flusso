@@ -213,7 +213,7 @@ export const RedditPostReader = ({ post, onClose, onNext, onPrev, hasNext, hasPr
       <motion.div 
         key="reddit-reader-backdrop"
         initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-        transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+        transition={{ duration: 0.45, ease: 'easeOut' }}
         className="fixed inset-0 bg-black pointer-events-auto"
         onClick={onClose}
       />
@@ -222,7 +222,7 @@ export const RedditPostReader = ({ post, onClose, onNext, onPrev, hasNext, hasPr
         initial={{ y: '100%' }}
         animate={{ y: 0 }}
         exit={{ y: '100%', opacity: 0 }}
-        transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+        transition={{ type: 'tween', ease: [0.16, 1, 0.3, 1], duration: 0.65 }}
         className="fixed bottom-0 left-0 right-0 z-10 h-[92vh] overflow-hidden flex flex-col transition-colors break-words font-sans bg-black rounded-t-[2.5rem] border-t border-white/10 shadow-[0_-10px_40px_rgba(0,0,0,0.5)] transform-gpu isolate scrollbar-hide pointer-events-auto"
         drag="y"
         dragControls={controls}
@@ -268,7 +268,12 @@ export const RedditPostReader = ({ post, onClose, onNext, onPrev, hasNext, hasPr
           ref={scrollContainerRef}
           className="flex-1 overflow-y-auto overscroll-contain p-4 max-w-3xl mx-auto w-full pb-20 transform-gpu will-change-scroll scrollbar-hide"
         >
-        <div className="mb-8 bg-[#1e162a] p-6 rounded-[2.5rem] border border-purple-500/10 shadow-xl">
+        <motion.div 
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.45, ease: [0.215, 0.61, 0.355, 1] }}
+          className="mb-8 bg-[#1e162a] p-6 rounded-[2.5rem] border border-purple-500/10 shadow-xl"
+        >
           <div className="flex items-center gap-2 mb-2">
             <span className="text-sm font-bold text-purple-400 drop-shadow-[0_0_5px_rgba(168,85,247,0.4)]">r/{post.subredditName}</span>
             <span className="text-xs text-gray-500">• u/{post.author}</span>
@@ -294,7 +299,7 @@ export const RedditPostReader = ({ post, onClose, onNext, onPrev, hasNext, hasPr
             <span className="flex items-center gap-1"><span className="text-purple-400 drop-shadow-[0_0_3px_rgba(168,85,247,0.6)]">↑</span> {post.score}</span>
             <span className="flex items-center gap-1"><MessageSquare className="w-4 h-4 text-purple-400" /> {post.numComments} Comments</span>
           </div>
-        </div>
+        </motion.div>
 
         <div className="space-y-4">
           {isLoading ? (

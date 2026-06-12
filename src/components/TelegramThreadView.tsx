@@ -26,9 +26,12 @@ const TelegramMessageItem = memo(({ message, isNewInitial }: { message: Telegram
   }, [inView, isNew]);
 
   return (
-    <div 
+    <motion.div 
       ref={ref} 
       data-message-id={message.id}
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.45, ease: [0.215, 0.61, 0.355, 1] }}
       className={cn(
         "mb-4 p-5 rounded-[2rem] relative transition-all shadow-lg select-none bg-[#162a1e] border border-green-500/10",
         isNewInitial && "z-10"
@@ -66,7 +69,7 @@ const TelegramMessageItem = memo(({ message, isNewInitial }: { message: Telegram
         />
       )}
       <p className="text-xs text-gray-500 mt-2">{format(message.date, 'HH:mm dd/MM/yy')}</p>
-    </div>
+    </motion.div>
   );
 });
 
@@ -167,7 +170,7 @@ export const TelegramThreadView = memo(({ channel, messages, onClose, onRefresh,
         initial={{ opacity: 0 }} 
         animate={{ opacity: 1 }} 
         exit={{ opacity: 0 }}
-        transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+        transition={{ duration: 0.45, ease: 'easeOut' }}
         className="fixed inset-0 bg-black z-[40]"
         onClick={onClose}
       />
@@ -176,7 +179,7 @@ export const TelegramThreadView = memo(({ channel, messages, onClose, onRefresh,
         initial={{ y: '100%' }}
         animate={{ y: 0 }}
         exit={{ y: '100%', opacity: 0 }}
-        transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+        transition={{ type: 'tween', ease: [0.16, 1, 0.3, 1], duration: 0.65 }}
         className="fixed bottom-0 left-0 right-0 z-50 h-[92vh] overflow-hidden flex flex-col transition-colors break-words font-sans bg-black rounded-t-[2.5rem] border-t border-white/10 shadow-[0_-10px_40px_rgba(0,0,0,0.5)] transform-gpu isolate scrollbar-hide"
         drag="y"
         dragControls={controls}

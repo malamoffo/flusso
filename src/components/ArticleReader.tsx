@@ -33,18 +33,20 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
   const controls = useDragControls();
   
   // Render-time state synchronization when article changes to avoid stale/flickering render
+  const initialContent = useMemo(() => contentFetcher.getCachedContentSync(article.id), [article.id]);
   const [prevArticleId, setPrevArticleId] = useState(article.id);
-  const [fullContent, setFullContent] = useState<FullArticleContent | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [fullContent, setFullContent] = useState<FullArticleContent | null>(initialContent);
+  const [isLoading, setIsLoading] = useState(!initialContent);
   const [articleThemeColor, setArticleThemeColor] = useState<string | null>(null);
   const [readerImageUrl, setReaderImageUrl] = useState<string | null>(article.imageUrl || null);
   const [isFavorite, setIsFavorite] = useState(article.isFavorite);
   const [carouselIndex, setCarouselIndex] = useState(0);
 
   if (article.id !== prevArticleId) {
+    const freshInitial = contentFetcher.getCachedContentSync(article.id);
     setPrevArticleId(article.id);
-    setIsLoading(true);
-    setFullContent(null);
+    setIsLoading(!freshInitial);
+    setFullContent(freshInitial);
     setReaderImageUrl(article.imageUrl || null);
     setIsFavorite(article.isFavorite);
     setCarouselIndex(0);
@@ -93,6 +95,13 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
       let cached: FullArticleContent | null = null;
       let hasSetContent = false;
       try {
+        const syncCached = contentFetcher.getCachedContentSync(article.id);
+        if (syncCached && syncCached.isScraped) {
+          setFullContent(syncCached);
+          setIsLoading(false);
+          return;
+        }
+
         setIsLoading(true);
         
         // Check cache first
@@ -655,7 +664,7 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+        transition={{ duration: 0.45, ease: 'easeOut' }}
         className="fixed inset-0 bg-black pointer-events-auto"
         onClick={onClose}
       />
@@ -664,7 +673,7 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
         initial={{ y: '100%' }}
         animate={{ y: 0 }}
         exit={{ y: '100%', opacity: 0 }}
-        transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+        transition={{ type: 'tween', ease: [0.16, 1, 0.3, 1], duration: 0.65 }}
         className="fixed bottom-0 left-0 right-0 z-10 h-[92vh] overflow-hidden flex flex-col transition-colors break-words font-sans rounded-t-[2.5rem] border-t border-white/10 shadow-[0_-10px_40px_rgba(0,0,0,0.5)] isolate transform-gpu bg-black scrollbar-hide pointer-events-auto"
         drag="y"
         dragControls={controls}
@@ -889,7 +898,12 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
             <div className="h-px bg-gradient-to-r from-transparent via-white/10 to-transparent w-full mb-6" />
 
             {sanitizedContent ? (
-              <div className="relative">
+              <motion.div 
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.45, ease: [0.215, 0.61, 0.355, 1] }}
+                className="relative"
+              >
                 {/* Visual smooth progress indicator for background content loading */}
                 {isLoading && (
                   <div className="absolute -top-4 left-0 right-0 h-[3px] bg-white/5 overflow-hidden rounded-full mb-4">
@@ -924,16 +938,21 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
                     [&>blockquote_p:before]:content-none [&>blockquote_p:after]:content-none`}
                   dangerouslySetInnerHTML={{ __html: sanitizedContent }}
                 />
-              </div>
+              </motion.div>
             ) : isLoading ? (
-              <div className="space-y-6 animate-pulse mt-8 max-w-4xl mx-auto">
-                <div className="h-4 bg-white/10 rounded w-3/4"></div>
-                <div className="h-4 bg-white/10 rounded w-full"></div>
-                <div className="h-4 bg-white/10 rounded w-5/6"></div>
-                <div className="h-4 bg-white/10 rounded w-full"></div>
-                <div className="h-4 bg-white/10 rounded w-2/3"></div>
-                <div className="h-64 bg-white/10 rounded-2xl w-full mt-10"></div>
-              </div>
+              <motion.div 
+                initial={{ opacity: 0.35 }}
+                animate={{ opacity: [0.35, 0.6, 0.35] }}
+                transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
+                className="space-y-6 mt-8 max-w-4xl mx-auto"
+              >
+                <div className="h-4 bg-white/5 rounded w-3/4"></div>
+                <div className="h-4 bg-white/5 rounded w-full"></div>
+                <div className="h-4 bg-white/5 rounded w-5/6"></div>
+                <div className="h-4 bg-white/5 rounded w-full"></div>
+                <div className="h-4 bg-white/5 rounded w-2/3"></div>
+                <div className="h-48 bg-white/5 rounded-2xl w-full mt-10"></div>
+              </motion.div>
             ) : (
               <div className={`prose ${getProseSize()} prose-invert max-w-full overflow-hidden text-center py-8`}>
                 <FileText className="w-12 h-12 text-gray-600 mx-auto mb-4" />
