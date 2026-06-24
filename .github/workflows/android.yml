@@ -74,7 +74,6 @@ jobs:
       - name: Build Android Debug APK
         run: |
           cd android
-          gradle wrapper
           chmod +x gradlew
           ./gradlew assembleDebug --build-cache
 
