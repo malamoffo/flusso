@@ -71,6 +71,7 @@ jobs:
       - name: Build Android APK
         run: |
           cd android
+          gradle wrapper --gradle-version 9.5.1
           chmod +x gradlew
           ./gradlew clean
           if [ -f "app/release.keystore" ]; then
