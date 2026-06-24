@@ -51,6 +51,7 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v6
         with:
+          gradle-version: '9.5'
           cache-read-only: false
           build-scan-publish: false
 
@@ -71,13 +72,11 @@ jobs:
       - name: Build Android APK
         run: |
           cd android
-          gradle wrapper --gradle-version 9.5.1
-          chmod +x gradlew
-          ./gradlew clean
+          gradle clean
           if [ -f "app/release.keystore" ]; then
-            ./gradlew assembleRelease --build-cache
+            gradle assembleRelease --build-cache
           else
-            ./gradlew assembleDebug --build-cache
+            gradle assembleDebug --build-cache
           fi
         env:
           ANDROID_KEYSTORE_FILE: release.keystore
