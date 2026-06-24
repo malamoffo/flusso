@@ -22,6 +22,7 @@ import { ErrorNotification } from './components/ErrorNotification';
 import { ErrorModal } from './components/ErrorModal';
 import { RadioView } from './components/RadioView';
 import { motion, AnimatePresence, useMotionValue, useTransform, animate } from 'framer-motion';
+import { InAppWebView } from './components/InAppWebView';
 import { Loader2, Search, X, Check, Rss, Settings, Star, CheckCircle2, RefreshCw, Layers, FileText, Inbox, MessageSquare, ChevronDown, Flame, Radio } from 'lucide-react';
 import { useInView } from 'react-intersection-observer';
 import { cn, getHostname } from './lib/utils';
@@ -96,6 +97,27 @@ export default function App() {
   );
 
   const [selectedArticle, setSelectedArticle] = useState<Article | null>(null);
+  const [webViewUrl, setWebViewUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    const handleDocumentClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      const anchor = target.closest('a');
+      if (anchor) {
+        const href = anchor.getAttribute('href');
+        if (href && (href.startsWith('http://') || href.startsWith('https://') || href.startsWith('//'))) {
+          e.preventDefault();
+          e.stopPropagation();
+          setWebViewUrl(href);
+        }
+      }
+    };
+
+    document.addEventListener('click', handleDocumentClick, true);
+    return () => {
+      document.removeEventListener('click', handleDocumentClick, true);
+    };
+  }, []);
   const [selectedRedditPost, setSelectedRedditPost] = useState<any | null>(null);
   const [selectedTelegramChannel, setSelectedTelegramChannel] = useState<TelegramChannel | null>(null);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
@@ -1344,6 +1366,15 @@ export default function App() {
       </AnimatePresence>
       
       <ErrorNotification error={error} onClear={() => setError(null)} />
+
+      <AnimatePresence mode="wait">
+        {webViewUrl && (
+          <InAppWebView
+            url={webViewUrl}
+            onClose={() => setWebViewUrl(null)}
+          />
+        )}
+      </AnimatePresence>
 
     </div>
   );

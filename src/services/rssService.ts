@@ -75,25 +75,6 @@ export const rssService = {
                 
                 if (hasNew) {
                   await (mergeChain = mergeChain.then(async () => {
-                    // Update state with just the new ones for smooth UI updates
-                    onUpdateArticles(prev => {
-                       const merged = [...prev];
-                       const uniqueLinks = new Set(merged.map(x => x.link));
-                       let stateChanged = false;
-                       for (const a of genuinelyNewArticles) {
-                         if (!uniqueLinks.has(a.link)) {
-                           merged.unshift(a);
-                           uniqueLinks.add(a.link);
-                           stateChanged = true;
-                         }
-                       }
-                       // keep UI tidy
-                       if (stateChanged) {
-                         merged.sort((a,b) => b.pubDate - a.pubDate);
-                       }
-                       return stateChanged ? merged : prev;
-                    });
-                    
                     // Push to the final collection that will be saved to db
                     allFinalArticles.push(...genuinelyNewArticles);
                   }));
@@ -145,6 +126,26 @@ export const rssService = {
       
       await Promise.all(workers);
       await mergeChain;
+      
+      if (allFinalArticles.length > 0) {
+        onUpdateArticles(prev => {
+          const merged = [...prev];
+          const uniqueLinks = new Set(merged.map(x => x.link));
+          let stateChanged = false;
+          for (const a of allFinalArticles) {
+            if (!uniqueLinks.has(a.link)) {
+              merged.push(a);
+              uniqueLinks.add(a.link);
+              stateChanged = true;
+            }
+          }
+          if (stateChanged) {
+            merged.sort((a, b) => b.pubDate - a.pubDate);
+          }
+          return stateChanged ? merged : prev;
+        });
+      }
+      
       return { finalArticles: allFinalArticles, finalFeeds: latestFeeds, failedFeeds };
     } finally {
       onSetIsLoading(false);

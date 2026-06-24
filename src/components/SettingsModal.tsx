@@ -6,7 +6,7 @@ import { useReddit } from '../context/RedditContext';
 import { useTelegram } from '../context/TelegramContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn, getHostname } from '../lib/utils';
-import { SwipeAction, Theme, FontSize, Article } from '../types';
+import { SwipeAction, Theme, FontSize, Article, Feed } from '../types';
 import { AddFeedModal } from './AddFeedModal';
 import packageJson from '../../package.json';
 import { CachedImage } from './CachedImage';
@@ -14,6 +14,7 @@ import { Capacitor } from '@capacitor/core';
 import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
 import { Share } from '@capacitor/share';
 import { format } from 'date-fns';
+import { db } from '../services/db';
 
 import { APP_VERSION, APP_BUILD } from '../main';
 
@@ -62,6 +63,66 @@ export const SettingsModal = React.memo(function SettingsModal({
   const jsonInputRef = React.useRef<HTMLInputElement>(null);
   const [importMode, setImportMode] = useState<'replace' | 'append'>('append');
   
+  const [feedDetails, setFeedDetails] = useState<Record<string, { latestPubDate: number | null; articleCount: number }>>({});
+
+  React.useEffect(() => {
+    if (!isOpen) return;
+
+    let isMounted = true;
+    const fetchFeedStats = async () => {
+      try {
+        const stats: Record<string, { latestPubDate: number | null; articleCount: number }> = {};
+        for (const feed of feeds) {
+          const arts = await db.articles.where('feedId').equals(feed.id).toArray();
+          const count = arts.length;
+          
+          const dbLatest = count > 0 ? Math.max(...arts.map(a => a.pubDate)) : null;
+          const latestPubDate = dbLatest || feed.lastArticleDate || null;
+          
+          stats[feed.id] = {
+            latestPubDate,
+            articleCount: count,
+          };
+        }
+        if (isMounted) {
+          setFeedDetails(stats);
+        }
+      } catch (err) {
+        console.error('Failed to load feed stats:', err);
+      }
+    };
+
+    fetchFeedStats();
+    return () => {
+      isMounted = false;
+    };
+  }, [isOpen, feeds]);
+
+  const getFeedStatus = React.useCallback((feed: Feed) => {
+    const details = feedDetails[feed.id];
+    const isUnreachable = feed.lastRefreshStatus === 'error' || !!feed.error;
+    
+    const articleCount = details ? details.articleCount : (feed.lastArticleDate ? 1 : 0);
+    const latestPubDate = details?.latestPubDate || feed.lastArticleDate || null;
+    
+    const hasNoArticles = articleCount === 0 && !latestPubDate;
+
+    if (isUnreachable || hasNoArticles) {
+      return { color: 'bg-red-500', latestPubDate };
+    }
+
+    if (latestPubDate) {
+      const oneWeekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+      if (latestPubDate >= oneWeekAgo) {
+        return { color: 'bg-green-500', latestPubDate };
+      } else {
+        return { color: 'bg-yellow-500', latestPubDate };
+      }
+    }
+
+    return { color: 'bg-red-500', latestPubDate };
+  }, [feedDetails]);
+
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
 
   const toggleSection = (section: string) => {
@@ -328,11 +389,14 @@ export const SettingsModal = React.memo(function SettingsModal({
             {selectedFeed ? (
               <div className="space-y-4">
                 <div className="text-center mb-6">
-                  <h3 className="text-xl font-bold text-white mb-1">{selectedFeed.title}</h3>
-                  {selectedFeed.lastArticleDate && (
+                  <div className="flex items-center justify-center gap-2 mb-1.5">
+                    <span className={`w-2.5 h-2.5 rounded-full ${getFeedStatus(selectedFeed).color} flex-shrink-0 animate-pulse`} />
+                    <h3 className="text-xl font-bold text-white">{selectedFeed.title}</h3>
+                  </div>
+                  {getFeedStatus(selectedFeed).latestPubDate && (
                     <div className="flex items-center justify-center gap-1.5 text-xs text-indigo-400 bg-indigo-500/10 px-3 py-1 rounded-full inline-flex">
                       <Calendar className="w-3 h-3" />
-                      <span>Last update: {format(selectedFeed.lastArticleDate, 'dd/MM/yyyy HH:mm')}</span>
+                      <span>Last update: {format(getFeedStatus(selectedFeed).latestPubDate!, 'dd/MM/yyyy HH:mm')}</span>
                     </div>
                   )}
                 </div>
@@ -517,6 +581,7 @@ export const SettingsModal = React.memo(function SettingsModal({
                         <div className="p-2 space-y-1 bg-black">
                           {articleFeeds.map(feed => {
                             const domain = getHostname(feed.link);
+                            const feedStatus = getFeedStatus(feed);
                             return (
                               <div 
                                 key={feed.id} 
@@ -528,7 +593,7 @@ export const SettingsModal = React.memo(function SettingsModal({
                                     <CachedImage 
                                       src={`https://icons.duckduckgo.com/ip3/${domain}.ico`} 
                                       alt="" 
-                                      className="w-4 h-4 rounded-sm flex-shrink-0"
+                                      className="w-4 h-4 rounded-sm flex-shrink-0 animate-in fade-in"
                                       referrerPolicy="no-referrer"
                                       onError={(e) => {
                                         const img = e.target as HTMLImageElement;
@@ -536,12 +601,21 @@ export const SettingsModal = React.memo(function SettingsModal({
                                       }}
                                     />
                                   )}
-                                  <div className="min-w-0">
+                                  <div className="min-w-0 flex-1">
                                     <span className="text-sm font-medium text-white truncate block">{feed.title}</span>
+                                    {feedStatus.latestPubDate ? (
+                                      <span className="text-[11px] text-gray-400 block mt-0.5 font-normal">
+                                        Last update: {format(feedStatus.latestPubDate, 'dd/MM/yyyy HH:mm')}
+                                      </span>
+                                    ) : (
+                                      <span className="text-[11px] text-red-400/80 block mt-0.5 font-normal">
+                                        No articles found
+                                      </span>
+                                    )}
                                   </div>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                  <span className={`w-1.5 h-1.5 rounded-full ${feed.error ? 'bg-red-500' : 'bg-green-500'}`} />
+                                  <span className={`w-1.5 h-1.5 rounded-full ${feedStatus.color}`} />
                                 </div>
                               </div>
                             );

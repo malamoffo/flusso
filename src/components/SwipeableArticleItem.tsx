@@ -9,6 +9,7 @@ import { useInView } from 'react-intersection-observer';
 import { contentFetcher } from '../utils/contentFetcher';
 import { CachedImage } from './CachedImage';
 import { cn, getSafeUrl } from '../lib/utils';
+import { RotatingImageCarousel, extractArticleImages } from './RotatingImageCarousel';
 
 // VERY IMPORTANT: Persist swipe state outside component
 const swipeState: Record<string, number> = {};
@@ -223,7 +224,11 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
     }
   };
 
-  const hasImage = !!article.imageUrl;
+  const articleImages = React.useMemo(() => {
+    return extractArticleImages(article);
+  }, [article]);
+
+  const hasImage = articleImages.length > 0;
 
   const getTitleSize = () => {
     switch (settings.fontSize) {
@@ -365,16 +370,13 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
           )}
           <div className="relative z-10 flex flex-col gap-2">
             {hasImage ? (
-              <div className="relative overflow-hidden flex-shrink-0 w-full rounded-2xl bg-gray-800/50 aspect-[16/10] max-h-[300px] md:max-h-[360px] transform-gpu">
-              <CachedImage 
-                key={`${article.id}-${article.imageUrl}`}
-                src={getSafeUrl(article.imageUrl || '')}
-                alt="" 
-                className="w-full h-full object-cover bg-gray-800 transition-opacity"
-                referrerPolicy="no-referrer"
-              />
-            </div>
-          ) : null}
+              <div className="relative overflow-hidden flex-shrink-0 w-full rounded-2xl bg-gray-800/50 transform-gpu">
+                <RotatingImageCarousel 
+                  urls={articleImages}
+                  className="w-full"
+                />
+              </div>
+            ) : null}
 
           <div className="flex-1 min-w-0 flex flex-col gap-1.5">
             <div className="flex items-center justify-between mb-0.5 w-full">

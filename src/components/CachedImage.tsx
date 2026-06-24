@@ -158,6 +158,8 @@ export function CachedImage({ src, className, fallback, alt, ...props }: CachedI
         alt={alt}
         draggable={false}
         referrerPolicy="no-referrer"
+        loading="lazy"
+        decoding="async"
         className={cn(
           "w-full h-full object-cover transition-opacity duration-300",
           isLoaded ? "opacity-100" : "opacity-0"

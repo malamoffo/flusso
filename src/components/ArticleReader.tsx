@@ -8,6 +8,7 @@ import DOMPurify from 'dompurify';
 import he from 'he';
 import { CachedImage } from './CachedImage';
 import { cn, getSafeUrl, resolveUrl } from '../lib/utils';
+import { RotatingImageCarousel } from './RotatingImageCarousel';
 import { Capacitor, CapacitorHttp } from '@capacitor/core';
 import { isPluginAvailable, isNative } from '../utils/platform';
 import { Share } from '@capacitor/share';
@@ -545,18 +546,32 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
     });
 
     const doc = new DOMParser().parseFromString(sanitized, 'text/html');
-    const videos = doc.querySelectorAll('video, iframe');
-    
-    // Ensure videos are responsive
+    const videos = doc.querySelectorAll('video');
     videos.forEach(v => {
       v.setAttribute('width', '100%');
-      if (v.tagName === 'VIDEO') {
-        v.setAttribute('height', 'auto');
-      } else if (v.tagName === 'IFRAME') {
-        // For iframes, we often need a fixed aspect ratio or it collapses
-        // The CSS aspect-video class handles this, but we ensure width is 100%
-        v.removeAttribute('height');
-      }
+      v.setAttribute('height', 'auto');
+      v.setAttribute('controls', 'true');
+      v.setAttribute('playsinline', 'true');
+      v.setAttribute('preload', 'metadata');
+      v.style.borderRadius = '1rem';
+      v.style.marginTop = '1rem';
+      v.style.marginBottom = '1rem';
+      v.style.backgroundColor = '#000';
+    });
+
+    const audios = doc.querySelectorAll('audio');
+    audios.forEach(a => {
+      a.setAttribute('controls', 'true');
+      a.setAttribute('preload', 'metadata');
+      a.style.width = '100%';
+      a.style.marginTop = '1rem';
+      a.style.marginBottom = '1rem';
+    });
+
+    const iframes = doc.querySelectorAll('iframe');
+    iframes.forEach(v => {
+      v.setAttribute('width', '100%');
+      v.removeAttribute('height');
     });
 
     // Handle images optimally:
@@ -732,71 +747,11 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
         >
         <div className="bg-[#121e36] border border-blue-500/10 rounded-[2.5rem] overflow-hidden shadow-2xl mb-24">
           {extractedImages.length > 0 && (
-            <div className="relative group overflow-hidden bg-black/40 w-full min-h-[300px] flex flex-col items-center justify-center">
-              {extractedImages.length > 1 ? (
-                <div className="relative w-full overflow-hidden select-none">
-                  {/* Slides */}
-                  <div className="relative w-full flex items-center justify-center min-h-[300px] max-h-[85vh]">
-                    <CachedImage 
-                      key={`${article.id}-carousel-${carouselIndex}`}
-                      src={getSafeUrl(extractedImages[carouselIndex] || '')}
-                      alt="" 
-                      className="w-full h-auto object-contain max-h-[85vh] transition-all duration-300 pointer-events-auto"
-                      referrerPolicy="no-referrer"
-                    />
-                  </div>
-
-                  {/* Navigation arrows */}
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setCarouselIndex(prev => (prev === 0 ? extractedImages.length - 1 : prev - 1));
-                    }}
-                    className="absolute left-4 top-1/2 -translate-y-1/2 w-10.5 h-10.5 flex items-center justify-center rounded-full bg-black/75 border border-white/10 hover:bg-black text-white hover:scale-110 active:scale-95 transition-all z-30 pointer-events-auto shadow-[0_4px_12px_rgba(0,0,0,0.5)]"
-                    aria-label="Previous image"
-                  >
-                    <ChevronLeft className="w-5.5 h-5.5" />
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setCarouselIndex(prev => (prev === extractedImages.length - 1 ? 0 : prev + 1));
-                    }}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 w-10.5 h-10.5 flex items-center justify-center rounded-full bg-black/75 border border-white/10 hover:bg-black text-white hover:scale-110 active:scale-95 transition-all z-30 pointer-events-auto shadow-[0_4px_12px_rgba(0,0,0,0.5)]"
-                    aria-label="Next image"
-                  >
-                    <ChevronRight className="w-5.5 h-5.5" />
-                  </button>
-
-                  {/* Indicators/Dots */}
-                  <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-2 z-30 pointer-events-none">
-                    {extractedImages.map((_, i) => (
-                      <button
-                        key={i}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setCarouselIndex(i);
-                        }}
-                        className={`w-2.5 h-2.5 rounded-full transition-all duration-300 pointer-events-auto ${
-                          carouselIndex === i ? 'bg-indigo-500 w-6 shadow-[0_0_10px_rgb(99,102,241)]' : 'bg-white/40 hover:bg-white/70'
-                        }`}
-                        aria-label={`Go to slide ${i + 1}`}
-                      />
-                    ))}
-                  </div>
-                </div>
-              ) : (
-                <div className="relative w-full">
-                  <CachedImage 
-                    key={`${article.id}-${extractedImages[0]}`}
-                    src={getSafeUrl(extractedImages[0] || '')}
-                    alt="" 
-                    className="w-full h-auto object-contain max-h-[85vh] transition-transform duration-700 group-hover:scale-105"
-                    referrerPolicy="no-referrer"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                </div>
-              )}
+            <div className="relative group overflow-hidden bg-black/40 w-full aspect-[16/10] max-h-[55vh] flex flex-col items-center justify-center">
+              <RotatingImageCarousel
+                urls={extractedImages}
+                className="w-full h-full"
+              />
             </div>
           )}
 

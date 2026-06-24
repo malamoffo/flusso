@@ -149,6 +149,9 @@
 .card-optimize {
   content-visibility: auto;
   contain-intrinsic-size: auto 180px;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  will-change: transform, opacity;
 }
 
 /* Disable native tap highlights to prevent flickering/flashing on mobile tap */
