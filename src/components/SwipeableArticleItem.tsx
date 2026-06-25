@@ -9,7 +9,7 @@ import { useInView } from 'react-intersection-observer';
 import { contentFetcher } from '../utils/contentFetcher';
 import { CachedImage } from './CachedImage';
 import { cn, getSafeUrl } from '../lib/utils';
-import { RotatingImageCarousel, extractArticleImages } from './RotatingImageCarousel';
+import { extractArticleImages } from './RotatingImageCarousel';
 
 // VERY IMPORTANT: Persist swipe state outside component
 const swipeState: Record<string, number> = {};
@@ -228,7 +228,27 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
     return extractArticleImages(article);
   }, [article]);
 
-  const hasImage = articleImages.length > 0;
+  const firstImage = React.useMemo(() => {
+    for (const url of articleImages) {
+      if (url && url.trim()) {
+        const trimmed = url.trim();
+        const lower = trimmed.toLowerCase();
+        if (
+          !lower.includes('favicon') && 
+          !lower.endsWith('.ico') && 
+          !lower.includes('pixel.gif') && 
+          !lower.includes('tracker') &&
+          !lower.includes('/sprite') &&
+          !lower.includes('doubleclick')
+        ) {
+          return trimmed;
+        }
+      }
+    }
+    return null;
+  }, [articleImages]);
+
+  const hasImage = !!firstImage;
 
   const getTitleSize = () => {
     switch (settings.fontSize) {
@@ -369,11 +389,13 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
             </>
           )}
           <div className="relative z-10 flex flex-col gap-2">
-            {hasImage ? (
+            {hasImage && firstImage ? (
               <div className="relative overflow-hidden flex-shrink-0 w-full rounded-2xl bg-gray-800/50 transform-gpu">
-                <RotatingImageCarousel 
-                  urls={articleImages}
-                  className="w-full"
+                <CachedImage 
+                  src={getSafeUrl(firstImage)}
+                  alt=""
+                  className="w-full h-auto block rounded-[inherit]"
+                  referrerPolicy="no-referrer"
                 />
               </div>
             ) : null}
