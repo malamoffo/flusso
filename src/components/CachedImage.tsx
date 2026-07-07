@@ -105,6 +105,12 @@ export function CachedImage({ src, className, fallback, alt, ...props }: CachedI
     }
   }, [currentSrc, isLoaded]);
 
+  const hasExplicitHeight = React.useMemo(() => {
+    if (!className) return false;
+    // Match any "h-" class unless it is exactly "h-auto"
+    return /\bh-(?!auto\b)[^\s]+/.test(className);
+  }, [className]);
+
   const handleLoad = () => {
     if (currentSrc) {
       imagePersistence.loadedUrls.add(currentSrc);
@@ -161,7 +167,8 @@ export function CachedImage({ src, className, fallback, alt, ...props }: CachedI
         loading="lazy"
         decoding="async"
         className={cn(
-          "w-full h-full object-cover transition-opacity duration-300",
+          "w-full transition-opacity duration-300",
+          hasExplicitHeight ? "h-full object-cover" : "h-auto",
           isLoaded ? "opacity-100" : "opacity-0"
         )}
         onLoad={handleLoad}

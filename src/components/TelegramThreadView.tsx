@@ -43,14 +43,14 @@ const TelegramMessageItem = memo(({ message, isNewInitial }: { message: Telegram
             <motion.span 
               initial={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.5, transition: { duration: 0.3 } }}
-              className="absolute -top-2 right-6 z-40 px-2 py-0.5 bg-green-500 text-[9px] font-black text-black rounded-full shadow-[0_0_12px_rgba(34,197,94,0.8)] border border-green-400 uppercase tracking-widest animate-pulse"
+              className="absolute top-1 right-6 z-40 px-2 py-0.5 bg-green-500 text-[9px] font-black text-black rounded-full shadow-[0_0_12px_rgba(34,197,94,0.8)] border border-green-400 uppercase tracking-widest animate-pulse"
             >
               NEW
             </motion.span>
             <motion.div 
               initial={{ opacity: 1 }}
               exit={{ opacity: 0, transition: { duration: 0.3 } }}
-              className="absolute inset-0 z-20 pointer-events-none rounded-[inherit] border border-green-400/80 shadow-[0_0_22px_rgba(34,197,94,0.65),inset_0_0_14px_rgba(34,197,94,0.35)] animate-pulse" 
+              className="absolute inset-0 z-20 pointer-events-none rounded-[inherit] border-2 border-green-400 shadow-[0_0_28px_rgba(34,197,94,0.95),inset_0_0_18px_rgba(34,197,94,0.6)] animate-pulse" 
               style={{ animationDuration: '3s' }}
             />
           </>

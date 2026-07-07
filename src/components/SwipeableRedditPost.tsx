@@ -208,10 +208,10 @@ export const SwipeableRedditPost = React.memo(function SwipeableRedditPost({
         >
           {!post.isRead && (
             <>
-              <span className="absolute -top-2 right-4 z-40 px-2 py-0.5 bg-purple-600 text-[9px] font-black text-white rounded-full shadow-[0_0_12px_rgba(168,85,247,0.8)] border border-purple-400 uppercase tracking-widest animate-pulse">
+              <span className="absolute top-1 right-4 z-40 px-2 py-0.5 bg-purple-600 text-[9px] font-black text-white rounded-full shadow-[0_0_12px_rgba(168,85,247,0.8)] border border-purple-400 uppercase tracking-widest animate-pulse">
                 NEW
               </span>
-              <div className="absolute inset-0 z-20 pointer-events-none rounded-[inherit] border border-purple-400/80 shadow-[0_0_22px_rgba(168,85,247,0.65),inset_0_0_14px_rgba(168,85,247,0.35)] animate-pulse" style={{ animationDuration: '3s' }} />
+              <div className="absolute inset-0 z-20 pointer-events-none rounded-[inherit] border-2 border-purple-400 shadow-[0_0_28px_rgba(168,85,247,0.95),inset_0_0_18px_rgba(168,85,247,0.6)] animate-pulse" style={{ animationDuration: '3s' }} />
             </>
           )}
         <div className="relative z-10 flex flex-col gap-2">
