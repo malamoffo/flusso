@@ -11,17 +11,24 @@ interface InAppWebViewProps {
 export function InAppWebView({ url, onClose }: InAppWebViewProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [iframeKey, setIframeKey] = useState(0);
+  const [showFallbackHint, setShowFallbackHint] = useState(false);
 
   useEffect(() => {
     if (url) {
       setIsLoading(true);
+      setShowFallbackHint(false);
+      const timer = setTimeout(() => {
+        setShowFallbackHint(true);
+      }, 3500);
+      return () => clearTimeout(timer);
     }
-  }, [url]);
+  }, [url, iframeKey]);
 
   if (!url) return null;
 
   const handleRefresh = () => {
     setIsLoading(true);
+    setShowFallbackHint(false);
     setIframeKey(prev => prev + 1);
   };
 
@@ -100,10 +107,26 @@ export function InAppWebView({ url, onClose }: InAppWebViewProps) {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="absolute inset-[57px_0_0_0] z-50 bg-[#0d1527] flex flex-col items-center justify-center gap-3"
+              className="absolute inset-[57px_0_0_0] z-50 bg-[#0d1527] flex flex-col items-center justify-center p-6 text-center"
             >
-              <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
-              <p className="text-xs text-gray-400 animate-pulse">Caricamento sicuro in corso...</p>
+              <Loader2 className="w-8 h-8 text-blue-500 animate-spin mb-2" />
+              <p className="text-sm font-medium text-gray-300">Caricamento sicuro in corso...</p>
+              
+              {showFallbackHint && (
+                <motion.div
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3 }}
+                  className="mt-6 max-w-xs px-4 py-3 rounded-2xl bg-white/5 border border-white/10 text-gray-400"
+                >
+                  <p className="text-xs leading-relaxed">
+                    Se vedi una schermata vuota, il sito potrebbe non supportare la visualizzazione integrata per motivi di sicurezza (es. X-Frame-Options).
+                  </p>
+                  <p className="text-[11px] text-blue-400 font-medium mt-2 flex items-center justify-center gap-1">
+                    Tocca <ExternalLink className="w-3.5 h-3.5 inline" /> in alto a destra per aprirlo esternamente.
+                  </p>
+                </motion.div>
+              )}
             </motion.div>
           )}
         </AnimatePresence>

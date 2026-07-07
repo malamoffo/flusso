@@ -345,7 +345,9 @@ export default function App() {
 
   useEffect(() => {
     const handleBackButton = async ({ canGoBack }: any) => {
-      if (selectedTelegramChannel) {
+      if (webViewUrl) {
+        setWebViewUrl(null);
+      } else if (selectedTelegramChannel) {
         setSelectedTelegramChannel(null);
         enforceTelegramRetention();
       } else if (selectedArticle) {
@@ -353,9 +355,6 @@ export default function App() {
       } else if (selectedRedditPost) {
         setSelectedRedditPost(null);
         enforceRedditRetention();
-      } else if (selectedTelegramChannel) {
-        setSelectedTelegramChannel(null);
-        enforceTelegramRetention();
       } else if (isSettingsOpen) {
         setIsSettingsOpen(false);
         setSettingsTab(undefined);
@@ -385,7 +384,7 @@ export default function App() {
     return () => {
       if (listener) listener.remove();
     };
-  }, [selectedArticle, selectedRedditPost, selectedTelegramChannel, isSettingsOpen, isSearchOpen, filter, sourceFilter, timeFilter, setSearchQuery, enforceTelegramRetention, enforceRedditRetention]);
+  }, [webViewUrl, selectedArticle, selectedRedditPost, selectedTelegramChannel, isSettingsOpen, isSearchOpen, filter, sourceFilter, timeFilter, setSearchQuery, enforceTelegramRetention, enforceRedditRetention]);
 
   const markAsReadWithPersistence = useCallback((id: string) => {
     if (filter === 'inbox' && inboxUnreadOnly) {
@@ -1001,7 +1000,7 @@ export default function App() {
           )}
         >
           <div className="flex-1 max-w-3xl mx-auto px-2 py-2 space-y-1">
-            <AnimatePresence initial={false} mode="popLayout">
+            <AnimatePresence initial={false} mode="sync">
               {(filter === 'saved' ? visibleArticles : [])
                 .map(item => (
                   <SwipeableArticleItem

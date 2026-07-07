@@ -42,11 +42,17 @@ function getFirstSrcsetUrl(srcset: string | null | undefined): string | null {
 // Reuse a single DOMParser instance to prevent allocation overhead
 const SHARED_PARSER = new DOMParser();
 
+// Pre-compiled regular expressions for high-performance string matching
+const IMG_TAG_REGEX = /<img/i;
+const IMG_OR_OG_REGEX = /<img|og:image/i;
+const FAVICON_REGEX = /favicon|icon/i;
+const RDF_REGEX = /rdf/i;
+
 // Helper to extract all images from HTML content
 export function extractAllImages(content: string, baseUrl?: string): string[] {
   if (!content) return [];
   // Early return: bypass expensive HTML parsing if there are obviously no image tags
-  if (!content.toLowerCase().includes('<img')) return [];
+  if (!IMG_TAG_REGEX.test(content)) return [];
   
   const doc = SHARED_PARSER.parseFromString(content, 'text/html');
   const imgTags = doc.getElementsByTagName('img');
@@ -65,8 +71,7 @@ export function extractAllImages(content: string, baseUrl?: string): string[] {
 export function extractBestImage(content: string, baseUrl?: string): string | null {
   if (!content) return null;
   // Early return: bypass expensive HTML parsing if there are no image tags or og:image tags
-  const lowerContent = content.toLowerCase();
-  if (!lowerContent.includes('<img') && !lowerContent.includes('og:image')) return null;
+  if (!IMG_OR_OG_REGEX.test(content)) return null;
   
   const doc = SHARED_PARSER.parseFromString(content, 'text/html');
   
@@ -443,7 +448,7 @@ export function parseRssXml(xmlString: string, feedUrl: string, sinceDate?: numb
       channel = xmlDoc.getElementsByTagName('rdf:RDF')[0] || xmlDoc.getElementsByTagName('RDF')[0] || xmlDoc.documentElement;
       
       // If the root element is RDF then it might be the channel representation in RSS 1.0
-      if (channel.nodeName.toLowerCase().includes('rdf')) {
+      if (RDF_REGEX.test(channel.nodeName)) {
         // In RSS 1.0, channel is a child of rdf:RDF
         const nestedChannel = xmlDoc.getElementsByTagName('channel')[0];
         if (nestedChannel) channel = nestedChannel;
@@ -465,7 +470,7 @@ export function parseRssXml(xmlString: string, feedUrl: string, sinceDate?: numb
       const href = imgEl.getAttribute('href') || imgEl.getAttribute('url');
       if (href) {
         const resolved = resolveUrl(href, feedUrl);
-        if (!resolved.toLowerCase().includes('favicon') && !resolved.toLowerCase().includes('icon')) {
+        if (!FAVICON_REGEX.test(resolved)) {
           feedImage = resolved;
           break;
         }
@@ -473,7 +478,7 @@ export function parseRssXml(xmlString: string, feedUrl: string, sinceDate?: numb
       const urlChild = getElementsByLocalName(imgEl, 'url')[0];
       if (urlChild?.textContent) {
         const resolved = resolveUrl(urlChild.textContent.trim(), feedUrl);
-        if (!resolved.toLowerCase().includes('favicon') && !resolved.toLowerCase().includes('icon')) {
+        if (!FAVICON_REGEX.test(resolved)) {
           feedImage = resolved;
           break;
         }
@@ -482,7 +487,7 @@ export function parseRssXml(xmlString: string, feedUrl: string, sinceDate?: numb
 
     if (!feedImage) {
       const itunesImage = getTagText(channel, ['itunes:image', 'logo', 'icon']);
-      if (itunesImage && !itunesImage.toLowerCase().includes('favicon') && !itunesImage.toLowerCase().includes('icon')) {
+      if (itunesImage && !FAVICON_REGEX.test(itunesImage)) {
         feedImage = itunesImage;
       }
     }
@@ -568,7 +573,7 @@ export function parseRssXml(xmlString: string, feedUrl: string, sinceDate?: numb
         const href = imgEl.getAttribute('href') || imgEl.getAttribute('url');
         if (href) {
           const resolved = resolveUrl(href, feedUrl);
-          if (!resolved.toLowerCase().includes('favicon') && !resolved.toLowerCase().includes('icon')) {
+          if (!FAVICON_REGEX.test(resolved)) {
             imageUrl = resolved;
             break;
           }
@@ -576,14 +581,14 @@ export function parseRssXml(xmlString: string, feedUrl: string, sinceDate?: numb
         const urlChild = getElementsByLocalName(imgEl, 'url')[0];
         if (urlChild?.textContent) {
           const resolved = resolveUrl(urlChild.textContent.trim(), feedUrl);
-          if (!resolved.toLowerCase().includes('favicon') && !resolved.toLowerCase().includes('icon')) {
+          if (!FAVICON_REGEX.test(resolved)) {
             imageUrl = resolved;
             break;
           }
         }
         if (imgEl.textContent && imgEl.textContent.trim().startsWith('http')) {
           const resolved = resolveUrl(imgEl.textContent.trim(), feedUrl);
-          if (!resolved.toLowerCase().includes('favicon') && !resolved.toLowerCase().includes('icon')) {
+          if (!FAVICON_REGEX.test(resolved)) {
             imageUrl = resolved;
             break;
           }
@@ -598,7 +603,7 @@ export function parseRssXml(xmlString: string, feedUrl: string, sinceDate?: numb
           const url = mediaEl.getAttribute('url');
           if (url && (type?.startsWith('image/') || medium === 'image' || url.match(/\.(jpg|jpeg|png|gif|webp)/i))) {
             const resolved = resolveUrl(url, feedUrl);
-            if (!resolved.toLowerCase().includes('favicon') && !resolved.toLowerCase().includes('icon')) {
+            if (!FAVICON_REGEX.test(resolved)) {
               imageUrl = resolved;
               break;
             }
@@ -615,7 +620,7 @@ export function parseRssXml(xmlString: string, feedUrl: string, sinceDate?: numb
           if (type.startsWith('image/')) {
             if (!imageUrl) {
               const resolved = resolveUrl(url, feedUrl);
-              if (!resolved.toLowerCase().includes('favicon') && !resolved.toLowerCase().includes('icon')) {
+              if (!FAVICON_REGEX.test(resolved)) {
                 imageUrl = resolved;
               }
             }

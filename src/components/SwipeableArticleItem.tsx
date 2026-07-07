@@ -288,11 +288,12 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
 
   return (
     <motion.div 
-      initial={{ opacity: 0, y: 15 }}
-      animate={{ opacity: 1, y: 0 }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
       exit={{ 
         opacity: 0, 
         height: 0,
+        overflow: "hidden",
         x: exitX,
         transition: { 
           opacity: { duration: 0.2 },

@@ -138,11 +138,12 @@ export const SwipeableRedditPost = React.memo(function SwipeableRedditPost({
 
   return (
     <motion.div 
-      initial={{ opacity: 0, y: 15 }}
-      animate={{ opacity: 1, y: 0 }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
       exit={{ 
         opacity: 0, 
         height: 0,
+        overflow: "hidden",
         transition: { duration: shouldReduceMotion ? 0 : 0.2, ease: "easeInOut" } 
       }}
       transition={{ 

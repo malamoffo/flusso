@@ -107,20 +107,49 @@ export const SettingsModal = React.memo(function SettingsModal({
     
     const hasNoArticles = articleCount === 0 && !latestPubDate;
 
-    if (isUnreachable || hasNoArticles) {
-      return { color: 'bg-red-500', latestPubDate };
+    if (isUnreachable) {
+      const errorMsg = feed.error || "Il feed non è raggiungibile o ha generato un errore durante l'aggiornamento.";
+      return { 
+        color: 'bg-red-500', 
+        latestPubDate,
+        severity: 'error' as const,
+        motivation: errorMsg
+      };
+    }
+
+    if (hasNoArticles) {
+      return { 
+        color: 'bg-red-500', 
+        latestPubDate,
+        severity: 'error' as const,
+        motivation: "Nessun articolo trovato per questo feed."
+      };
     }
 
     if (latestPubDate) {
       const oneWeekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
       if (latestPubDate >= oneWeekAgo) {
-        return { color: 'bg-green-500', latestPubDate };
+        return { 
+          color: 'bg-green-500', 
+          latestPubDate,
+          severity: 'success' as const
+        };
       } else {
-        return { color: 'bg-yellow-500', latestPubDate };
+        return { 
+          color: 'bg-yellow-500', 
+          latestPubDate,
+          severity: 'warning' as const,
+          motivation: "Il feed non viene aggiornato da più di una settimana."
+        };
       }
     }
 
-    return { color: 'bg-red-500', latestPubDate };
+    return { 
+      color: 'bg-red-500', 
+      latestPubDate,
+      severity: 'error' as const,
+      motivation: "Nessun dato registrato per questo feed."
+    };
   }, [feedDetails]);
 
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
@@ -400,6 +429,37 @@ export const SettingsModal = React.memo(function SettingsModal({
                     </div>
                   )}
                 </div>
+
+                {(() => {
+                  const status = getFeedStatus(selectedFeed);
+                  if (!status.motivation) return null;
+                  
+                  const isError = status.severity === 'error';
+                  const isWarning = status.severity === 'warning';
+                  
+                  return (
+                    <div className={cn(
+                      "p-4 rounded-2xl border text-sm leading-relaxed flex items-start gap-3",
+                      isError 
+                        ? "bg-red-500/10 border-red-500/20 text-red-200" 
+                        : "bg-yellow-500/10 border-yellow-500/20 text-yellow-200"
+                    )}>
+                      <AlertCircle className={cn(
+                        "w-5 h-5 flex-shrink-0 mt-0.5",
+                        isError ? "text-red-400" : "text-yellow-400"
+                      )} />
+                      <div className="space-y-1">
+                        <p className="font-semibold text-xs uppercase tracking-wider">
+                          {isError ? 'Stato: Errore' : 'Stato: Attenzione'}
+                        </p>
+                        <p className="text-xs text-gray-300">
+                          {status.motivation}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })()}
+
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-1">Title</label>
                   <input 
