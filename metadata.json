@@ -1,5 +1,5 @@
 {
   "name": "Flusso",
   "description": "A mobile-first RSS reader with OPML import, full article extraction, and swipe gestures.",
-  "requestFramePermissions": ["geolocation"]
+  "requestFramePermissions": []
 }

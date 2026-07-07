@@ -199,8 +199,8 @@ export const rssStorage = {
       let response;
       try {
         response = await fetchWithProxy(feedUrl, true, sinceDate, signal, feed?.etag, feed?.lastModified);
-      } catch (e) {
-        if (signal?.aborted) throw e;
+      } catch (e: any) {
+        if (signal?.aborted || e.unreachable) throw e;
         const alternativeUrl = feedUrl.endsWith('/') ? feedUrl.slice(0, -1) : feedUrl + '/';
         response = await fetchWithProxy(alternativeUrl, true, sinceDate, signal, feed?.etag, feed?.lastModified);
       }

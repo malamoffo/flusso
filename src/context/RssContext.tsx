@@ -139,6 +139,7 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [updateInfo, setUpdateInfo] = useState<any | null>(null);
   const lastRefresh = useRef(Date.now());
   const isRefreshing = useRef(false);
+  const refreshAbortController = useRef<AbortController | null>(null);
   const worker = useRef<Worker | undefined>(undefined);
 
   useEffect(() => {
@@ -320,8 +321,16 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   }, [hasMoreArticles, isLoading]);
 
   const refreshFeeds = useCallback(async (feedsToRefresh?: Feed[]) => {
-    if (isRefreshing.current) return;
+    if (isRefreshing.current) {
+      if (refreshAbortController.current) {
+        refreshAbortController.current.abort();
+      }
+      return;
+    }
     isRefreshing.current = true;
+    const controller = new AbortController();
+    refreshAbortController.current = controller;
+    
     try {
       const fToRefresh = feedsToRefresh || await storage.getFeeds();
       
@@ -336,7 +345,8 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setProgress,
         setFeeds,
         setArticles,
-        setIsLoading
+        setIsLoading,
+        controller.signal
       );
       
       if (failedFeeds.length > 0) {
@@ -391,11 +401,12 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       lastRefresh.current = Date.now();
       await updateCounts();
     } catch (e) {
-      // Failed to refresh feeds
+      // Failed to refresh feeds or aborted
     } finally {
       setIsLoading(false);
       setProgress(null);
       isRefreshing.current = false;
+      refreshAbortController.current = null;
     }
   }, [updateCounts]);
 

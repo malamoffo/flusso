@@ -9,7 +9,8 @@ export const rssService = {
     onProgress: (progress: { current: number; total: number; status?: string; bytesDownloaded?: number }) => void,
     onUpdateFeeds: (updater: (prev: Feed[]) => Feed[]) => void,
     onUpdateArticles: (updater: (prev: Article[]) => Article[]) => void,
-    onSetIsLoading: (isLoading: boolean) => void
+    onSetIsLoading: (isLoading: boolean) => void,
+    signal?: AbortSignal
   ): Promise<{ finalArticles: Article[], finalFeeds: Feed[], failedFeeds: { feedUrl: string; error: string }[] }> {
     onSetIsLoading(true);
     let latestFeeds = [...feedsToRefresh];
@@ -22,6 +23,7 @@ export const rssService = {
     // Copy the memory links to track what's new synchronously
     const knownLinks = new Set(currentArticlesMemory.map(a => a.link));
     
+    let completed = 0;
     try {
       if (feedsToRefresh.length === 0) {
         onSetIsLoading(false);
@@ -29,7 +31,6 @@ export const rssService = {
       }
       
       onProgress({ current: 0, total: feedsToRefresh.length, bytesDownloaded: 0 });
-      let completed = 0;
       
       const queue = [...feedsToRefresh];
       const FEED_TIMEOUT = 60000;
@@ -39,16 +40,30 @@ export const rssService = {
       
       const workers = Array(CONCURRENCY).fill(null).map(async () => {
         while (true) {
+          if (signal?.aborted) break;
           const feed = queue.shift();
           if (!feed) break;
+          
+          let handleSignalAbort: (() => void) | undefined;
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), FEED_TIMEOUT);
           
           try {
             const THREE_DAYS = 3 * 24 * 60 * 60 * 1000;
             const hardSinceDate = Date.now() - THREE_DAYS;
             const sinceDate = Math.max(feed.lastArticleDate || 0, hardSinceDate);
             
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), FEED_TIMEOUT);
+            handleSignalAbort = () => {
+              controller.abort();
+            };
+            
+            if (signal) {
+              if (signal.aborted) {
+                controller.abort();
+              } else {
+                signal.addEventListener('abort', handleSignalAbort);
+              }
+            }
             
             try {
               const data = await storage.fetchFeedData(feed.feedUrl, sinceDate, controller.signal);
@@ -102,9 +117,15 @@ export const rssService = {
                 onUpdateFeeds(updateFeedFn);
               }
             } finally {
+              if (signal && handleSignalAbort) {
+                signal.removeEventListener('abort', handleSignalAbort);
+              }
               clearTimeout(timeoutId);
             }
           } catch (e: any) {
+            if (signal?.aborted || e.name === 'AbortError' || e.message === 'Aborted' || e.message?.toLowerCase().includes('abort')) {
+              break;
+            }
             failedFeeds.push({ feedUrl: feed.feedUrl, error: e.message || 'Unknown error' });
             
             const updateFeedFn = (prev: Feed[]) => {
@@ -149,7 +170,12 @@ export const rssService = {
       return { finalArticles: allFinalArticles, finalFeeds: latestFeeds, failedFeeds };
     } finally {
       onSetIsLoading(false);
-      onProgress({ current: feedsToRefresh.length, total: feedsToRefresh.length, status: "Finalizing..." });
+      onProgress({ 
+        current: completed, 
+        total: feedsToRefresh.length, 
+        status: signal?.aborted ? "Interrotto" : "Finalizing...",
+        bytesDownloaded: totalBytesDownloaded 
+      });
     }
   }
 };

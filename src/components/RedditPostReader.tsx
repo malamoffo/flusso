@@ -80,7 +80,7 @@ export const RedditPostReader = ({ post, onClose, onNext, onPrev, hasNext, hasPr
 
   const scrollContainerRef = React.useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
+  React.useLayoutEffect(() => {
     if (scrollContainerRef.current) {
       scrollContainerRef.current.scrollTop = 0;
     }
@@ -302,30 +302,64 @@ export const RedditPostReader = ({ post, onClose, onNext, onPrev, hasNext, hasPr
         </motion.div>
 
         <div className="space-y-4">
-          {isLoading ? (
-            <div className="flex justify-center py-8">
-              <div className="w-6 h-6 border-2 border-purple-500 border-t-transparent rounded-full animate-spin shadow-[0_0_10px_rgba(168,85,247,0.4)]" />
-            </div>
-          ) : error ? (
-            <div className="text-center py-8 px-4">
-              <p className="text-red-400 mb-2 font-medium">{error}</p>
-              <button 
-                onClick={() => {
-                   // Force a reload by clearing the cache entry if it failed
-                   window.location.reload(); // Simple way to retry for now
-                }}
-                className="text-xs text-purple-400 underline"
+          <AnimatePresence mode="wait">
+            {isLoading ? (
+              <motion.div 
+                key="loading"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="flex justify-center py-8"
               >
-                Retry
-              </button>
-            </div>
-          ) : comments.length > 0 ? (
-            comments.map(comment => (
-              <CommentNode key={comment.id} comment={comment} />
-            ))
-          ) : (
-            <p className="text-center text-gray-500 py-8">No comments yet.</p>
-          )}
+                <div className="w-6 h-6 border-2 border-purple-500 border-t-transparent rounded-full animate-spin shadow-[0_0_10px_rgba(168,85,247,0.4)]" />
+              </motion.div>
+            ) : error ? (
+              <motion.div 
+                key="error"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="text-center py-8 px-4"
+              >
+                <p className="text-red-400 mb-2 font-medium">{error}</p>
+                <button 
+                  onClick={() => {
+                     // Force a reload by clearing the cache entry if it failed
+                     window.location.reload(); // Simple way to retry for now
+                  }}
+                  className="text-xs text-purple-400 underline"
+                >
+                  Retry
+                </button>
+              </motion.div>
+            ) : comments.length > 0 ? (
+              <motion.div 
+                key="comments"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.3 }}
+                className="space-y-4"
+              >
+                {comments.map(comment => (
+                  <CommentNode key={comment.id} comment={comment} />
+                ))}
+              </motion.div>
+            ) : (
+              <motion.p 
+                key="no-comments"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="text-center text-gray-500 py-8"
+              >
+                No comments yet.
+              </motion.p>
+            )}
+          </AnimatePresence>
         </div>
       </div>
     </motion.article>

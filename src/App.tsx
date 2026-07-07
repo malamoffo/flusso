@@ -29,6 +29,7 @@ import { cn, getHostname } from './lib/utils';
 import { Article, Feed } from './types';
 import { App as CapacitorApp } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
+import { Browser } from '@capacitor/browser';
 
 const PAGE_SIZE = 30;
 
@@ -108,7 +109,14 @@ export default function App() {
         if (href && (href.startsWith('http://') || href.startsWith('https://') || href.startsWith('//'))) {
           e.preventDefault();
           e.stopPropagation();
-          setWebViewUrl(href);
+          if (Capacitor.isNativePlatform()) {
+            Browser.open({ url: href }).catch(err => {
+              console.error('Error opening native browser:', err);
+              setWebViewUrl(href);
+            });
+          } else {
+            setWebViewUrl(href);
+          }
         }
       }
     };
@@ -1175,13 +1183,20 @@ export default function App() {
                   refreshFeeds();
                 }}
                 className={cn(
-                  "w-10 h-10 bg-gray-800 rounded-full shadow-lg flex items-center justify-center hover:bg-gray-700 active:scale-95 transition-transform",
-                  "text-indigo-400"
+                  "w-10 h-10 bg-gray-800 rounded-full shadow-lg flex items-center justify-center hover:bg-gray-700 active:scale-95 transition-transform relative group border border-transparent",
+                  isLoading ? "text-red-400 hover:bg-red-950/40 border-red-500/30" : "text-indigo-400"
                 )}
-                title="Refresh"
-                aria-label="Refresh"
+                title={isLoading ? "Interrompi aggiornamento" : "Aggiorna feed"}
+                aria-label={isLoading ? "Interrompi aggiornamento" : "Aggiorna feed"}
               >
-                <RefreshCw className={cn("w-5 h-5", isLoading ? "animate-spin" : "")} aria-hidden="true" />
+                {isLoading ? (
+                  <>
+                    <RefreshCw className="w-5 h-5 animate-spin group-hover:hidden" aria-hidden="true" />
+                    <X className="w-5 h-5 hidden group-hover:block text-red-500" aria-hidden="true" />
+                  </>
+                ) : (
+                  <RefreshCw className="w-5 h-5" aria-hidden="true" />
+                )}
               </motion.button>
             )}
             

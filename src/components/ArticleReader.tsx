@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useMemo } from 'react';
+import React, { useEffect, useLayoutEffect, useState, useRef, useMemo } from 'react';
 import { ArrowLeft, FileText, AlignLeft, X, Share2, Star, EyeOff, ChevronUp, ChevronDown, Calendar, User, ExternalLink, RefreshCw, Bookmark, List, FastForward, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Article, FullArticleContent } from '../types';
 import { motion, AnimatePresence, useDragControls } from 'framer-motion';
@@ -55,7 +55,7 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (scrollContainerRef.current) {
       scrollContainerRef.current.scrollTop = 0;
     }
@@ -851,79 +851,91 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
             </header>
 
             <div className="h-px bg-gradient-to-r from-transparent via-white/10 to-transparent w-full mb-6" />
-
-            {sanitizedContent ? (
-              <motion.div 
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.45, ease: [0.215, 0.61, 0.355, 1] }}
-                className="relative"
-              >
-                {/* Visual smooth progress indicator for background content loading */}
-                {isLoading && (
-                  <div className="absolute -top-4 left-0 right-0 h-[3px] bg-white/5 overflow-hidden rounded-full mb-4">
-                    <motion.div 
-                      className="h-full bg-indigo-500 rounded-full"
-                      animate={{
-                        x: ['-100%', '100%'],
-                        width: ['20%', '60%', '20%']
-                      }}
-                      transition={{
-                        duration: 1.5,
-                        repeat: Infinity,
-                        ease: 'easeInOut'
-                      }}
-                    />
-                  </div>
-                )}
-                
-                <div 
-                  ref={contentRef}
-                  onClick={handleContentClick}
-                  className={`prose ${getProseSize()} prose-invert max-w-4xl mx-auto overflow-hidden leading-[1.75] text-gray-200 font-serif
-                    prose-img:rounded-xl prose-img:max-h-[90vh] prose-img:object-contain prose-img:h-auto prose-img:mx-auto prose-img:max-w-full prose-img:my-10 prose-img:shadow-xl
-                    prose-video:w-full prose-video:rounded-xl prose-video:my-8
-                    [&_iframe]:w-full [&_iframe]:aspect-video [&_iframe]:rounded-2xl [&_iframe]:border-0 [&_iframe]:my-10 [&_iframe]:shadow-2xl
-                    prose-a:text-indigo-400 prose-a:decoration-indigo-400/30 prose-a:underline-offset-4 hover:prose-a:decoration-indigo-400 transition-all
-                    prose-headings:font-sans prose-headings:font-black prose-headings:tracking-tight prose-headings:text-white prose-headings:mt-12 prose-headings:mb-6
-                    prose-p:mb-8 prose-li:mb-2
-                    prose-pre:max-w-full prose-pre:overflow-x-auto prose-pre:rounded-2xl prose-pre:bg-white/5 prose-pre:border prose-pre:border-white/10
-                    [&>blockquote]:relative [&>blockquote]:border-l-4 [&>blockquote]:border-indigo-500 [&>blockquote]:bg-white/[0.03] [&>blockquote]:py-8 [&>blockquote]:px-8 [&>blockquote]:rounded-r-2xl [&>blockquote]:my-12
-                    [&>blockquote]:text-xl sm:text-2xl [&>blockquote]:font-medium [&>blockquote]:italic [&>blockquote]:text-gray-100
-                    [&>blockquote_p:before]:content-none [&>blockquote_p:after]:content-none`}
-                  dangerouslySetInnerHTML={{ __html: sanitizedContent }}
-                />
-              </motion.div>
-            ) : isLoading ? (
-              <motion.div 
-                initial={{ opacity: 0.35 }}
-                animate={{ opacity: [0.35, 0.6, 0.35] }}
-                transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
-                className="space-y-6 mt-8 max-w-4xl mx-auto"
-              >
-                <div className="h-4 bg-white/5 rounded w-3/4"></div>
-                <div className="h-4 bg-white/5 rounded w-full"></div>
-                <div className="h-4 bg-white/5 rounded w-5/6"></div>
-                <div className="h-4 bg-white/5 rounded w-full"></div>
-                <div className="h-4 bg-white/5 rounded w-2/3"></div>
-                <div className="h-48 bg-white/5 rounded-2xl w-full mt-10"></div>
-              </motion.div>
-            ) : (
-              <div className={`prose ${getProseSize()} prose-invert max-w-full overflow-hidden text-center py-8`}>
-                <FileText className="w-12 h-12 text-gray-600 mx-auto mb-4" />
-                <p className="text-gray-400">
-                  Non è stato possibile caricare il contenuto completo dell'articolo.
-                </p>
-                <a 
-                  href={getSafeUrl(article.link)}
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 mt-4 px-4 py-2 bg-indigo-900/30 text-indigo-400 rounded-lg hover:bg-indigo-900/50 transition-colors no-underline text-xs font-semibold"
+            <AnimatePresence mode="wait">
+              {sanitizedContent ? (
+                <motion.div 
+                  key="content"
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  transition={{ duration: 0.45, ease: [0.215, 0.61, 0.355, 1] }}
+                  className="relative"
                 >
-                  Leggi l'articolo originale
-                </a>
-              </div>
-            )}
+                  {/* Visual smooth progress indicator for background content loading */}
+                  {isLoading && (
+                    <div className="absolute -top-4 left-0 right-0 h-[3px] bg-white/5 overflow-hidden rounded-full mb-4">
+                      <motion.div 
+                        className="h-full bg-indigo-500 rounded-full"
+                        animate={{
+                          x: ['-100%', '100%'],
+                          width: ['20%', '60%', '20%']
+                        }}
+                        transition={{
+                          duration: 1.5,
+                          repeat: Infinity,
+                          ease: 'easeInOut'
+                        }}
+                      />
+                    </div>
+                  )}
+                  
+                  <div 
+                    ref={contentRef}
+                    onClick={handleContentClick}
+                    className={`prose ${getProseSize()} prose-invert max-w-4xl mx-auto overflow-hidden leading-[1.75] text-gray-200 font-serif
+                      prose-img:rounded-xl prose-img:max-h-[90vh] prose-img:object-contain prose-img:h-auto prose-img:mx-auto prose-img:max-w-full prose-img:my-10 prose-img:shadow-xl
+                      prose-video:w-full prose-video:rounded-xl prose-video:my-8
+                      [&_iframe]:w-full [&_iframe]:aspect-video [&_iframe]:rounded-2xl [&_iframe]:border-0 [&_iframe]:my-10 [&_iframe]:shadow-2xl
+                      prose-a:text-indigo-400 prose-a:decoration-indigo-400/30 prose-a:underline-offset-4 hover:prose-a:decoration-indigo-400 transition-all
+                      prose-headings:font-sans prose-headings:font-black prose-headings:tracking-tight prose-headings:text-white prose-headings:mt-12 prose-headings:mb-6
+                      prose-p:mb-8 prose-li:mb-2
+                      prose-pre:max-w-full prose-pre:overflow-x-auto prose-pre:rounded-2xl prose-pre:bg-white/5 prose-pre:border prose-pre:border-white/10
+                      [&>blockquote]:relative [&>blockquote]:border-l-4 [&>blockquote]:border-indigo-500 [&>blockquote]:bg-white/[0.03] [&>blockquote]:py-8 [&>blockquote]:px-8 [&>blockquote]:rounded-r-2xl [&>blockquote]:my-12
+                      [&>blockquote]:text-xl sm:text-2xl [&>blockquote]:font-medium [&>blockquote]:italic [&>blockquote]:text-gray-100
+                      [&>blockquote_p:before]:content-none [&>blockquote_p:after]:content-none`}
+                    dangerouslySetInnerHTML={{ __html: sanitizedContent }}
+                  />
+                </motion.div>
+              ) : isLoading ? (
+                <motion.div 
+                  key="loading"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: [0.35, 0.6, 0.35] }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.3 }}
+                  className="space-y-6 mt-8 max-w-4xl mx-auto"
+                >
+                  <div className="h-4 bg-white/5 rounded w-3/4"></div>
+                  <div className="h-4 bg-white/5 rounded w-full"></div>
+                  <div className="h-4 bg-white/5 rounded w-5/6"></div>
+                  <div className="h-4 bg-white/5 rounded w-full"></div>
+                  <div className="h-4 bg-white/5 rounded w-2/3"></div>
+                  <div className="h-48 bg-white/5 rounded-2xl w-full mt-10"></div>
+                </motion.div>
+              ) : (
+                <motion.div 
+                  key="error"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.3 }}
+                  className={`prose ${getProseSize()} prose-invert max-w-full overflow-hidden text-center py-8`}
+                >
+                  <FileText className="w-12 h-12 text-gray-600 mx-auto mb-4" />
+                  <p className="text-gray-400">
+                    Non è stato possibile caricare il contenuto completo dell'articolo.
+                  </p>
+                  <a 
+                    href={getSafeUrl(article.link)}
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 mt-4 px-4 py-2 bg-indigo-900/30 text-indigo-400 rounded-lg hover:bg-indigo-900/50 transition-colors no-underline text-xs font-semibold"
+                  >
+                    Leggi l'articolo originale
+                  </a>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         </div>
       </div>

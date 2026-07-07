@@ -1,6 +1,16 @@
 import { Capacitor } from '@capacitor/core';
 import { CapacitorHttp } from '@capacitor/core';
 
+export class UnreachableError extends Error {
+  unreachable = true;
+  status: number;
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = 'UnreachableError';
+    this.status = status;
+  }
+}
+
 function getHeader(headers: Record<string, string | undefined> | Headers, name: string): string | undefined {
   if (headers instanceof Headers) {
     return headers.get(name) || undefined;
@@ -126,9 +136,14 @@ export async function fetchWithProxy(url: string, isRss: boolean = true, sinceDa
           lastModified: getHeader(directResponse.headers, 'last-modified')
         };
       }
+    } else {
+      if (directResponse.status === 404 || directResponse.status === 410 || directResponse.status === 400 || directResponse.status === 502 || directResponse.status === 503 || directResponse.status === 504) {
+        throw new UnreachableError(directResponse.status, `Direct fetch returned unreachable status ${directResponse.status}`);
+      }
     }
   } catch (e: any) {
     if (signal?.aborted) throw new Error('Aborted');
+    if (e.unreachable) throw e;
     // Direct fetch failed (likely CORS or timeout), fallback to proxies
   }
 
@@ -268,6 +283,10 @@ export async function fetchWithProxy(url: string, isRss: boolean = true, sinceDa
           lastError = new Error(`Proxy ${proxy.name} returned empty response`);
           continue;
         }
+      } else {
+        if (response.status === 404 || response.status === 410 || response.status === 400 || response.status === 502 || response.status === 503 || response.status === 504) {
+          throw new UnreachableError(response.status, `Proxy ${proxy.name} returned unreachable status ${response.status}`);
+        }
       }
       lastError = new Error(`Proxy ${proxy.name} returned status ${response.status}`);
     } catch (e: any) {
@@ -276,6 +295,8 @@ export async function fetchWithProxy(url: string, isRss: boolean = true, sinceDa
         lastError = new Error(`Proxy ${proxy.name} timed out after ${timeout}ms`);
       } else if (e.message === 'Aborted') {
         lastError = e;
+      } else if (e.unreachable) {
+        throw e;
       } else {
         lastError = e;
       }
