@@ -446,14 +446,22 @@ export const TelegramProvider: React.FC<{ children: ReactNode }> = ({ children }
     return () => window.removeEventListener('app-resume', handleResume);
   }, [refreshTelegramChannels]);
 
+  const value = useMemo(() => ({
+    telegramChannels, telegramMessages,
+    addTelegramChannel, removeTelegramChannel, refreshTelegramChannels,
+    loadTelegramMessages, loadMoreTelegramMessages,
+    markAllTelegramAsRead, markTelegramChannelAsRead, enforceRetention,
+    telegramUnreadCount
+  }), [
+    telegramChannels, telegramMessages,
+    addTelegramChannel, removeTelegramChannel, refreshTelegramChannels,
+    loadTelegramMessages, loadMoreTelegramMessages,
+    markAllTelegramAsRead, markTelegramChannelAsRead, enforceRetention,
+    telegramUnreadCount
+  ]);
+
   return (
-    <TelegramContext.Provider value={{
-      telegramChannels, telegramMessages,
-      addTelegramChannel, removeTelegramChannel, refreshTelegramChannels,
-      loadTelegramMessages, loadMoreTelegramMessages,
-      markAllTelegramAsRead, markTelegramChannelAsRead, enforceRetention,
-      telegramUnreadCount
-    }}>
+    <TelegramContext.Provider value={value}>
       {children}
     </TelegramContext.Provider>
   );

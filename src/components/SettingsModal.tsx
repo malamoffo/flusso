@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { X, Moon, Sun, Monitor, Image as ImageIcon, LayoutList, Maximize, Type, Plus, Trash2, Edit2, AlertCircle, Save, ArrowLeft, ChevronDown, ChevronUp, GitPullRequest, Info, ExternalLink, RefreshCw, ShieldCheck, Download, CheckCircle2, FileText, Upload, MessageSquare, Settings, Search, Palette, ChevronRight, FlaskConical, Calendar, Terminal, Database } from 'lucide-react';
+import { X, Moon, Sun, Monitor, Image as ImageIcon, LayoutList, Maximize, Type, Plus, Trash2, Edit2, AlertCircle, Save, ArrowLeft, ChevronDown, ChevronUp, GitPullRequest, Info, ExternalLink, RefreshCw, ShieldCheck, Download, CheckCircle2, FileText, Upload, MessageSquare, Settings, Search, Palette, ChevronRight, FlaskConical, Calendar, Terminal, Database, Code } from 'lucide-react';
 import { useRss } from '../context/RssContext';
 import { useSettings } from '../context/SettingsContext';
 import { useReddit } from '../context/RedditContext';
 import { useTelegram } from '../context/TelegramContext';
+import { fetchWithProxy } from '../utils/proxy';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn, getHostname } from '../lib/utils';
 import { SwipeAction, Theme, FontSize, Article, Feed } from '../types';
@@ -62,6 +63,65 @@ export const SettingsModal = React.memo(function SettingsModal({
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const jsonInputRef = React.useRef<HTMLInputElement>(null);
   const [importMode, setImportMode] = useState<'replace' | 'append'>('append');
+  
+  const [showXml, setShowXml] = useState(false);
+  const [xmlContent, setXmlContent] = useState<string | null>(null);
+  const [isXmlLoading, setIsXmlLoading] = useState(false);
+  const [xmlError, setXmlError] = useState<string | null>(null);
+  const [xmlSearchQuery, setXmlSearchQuery] = useState('');
+  const [copied, setCopied] = useState(false);
+
+  const handleViewXml = async () => {
+    setShowXml(true);
+    setIsXmlLoading(true);
+    setXmlError(null);
+    try {
+      const response = await fetchWithProxy(editUrl, false);
+      setXmlContent(response.data);
+    } catch (err: any) {
+      console.error('Failed to fetch raw feed XML:', err);
+      setXmlError(err?.message || 'Impossibile caricare il file XML del feed. Verifica la connessione o l\'URL del feed.');
+    } finally {
+      setIsXmlLoading(false);
+    }
+  };
+
+  const handleCopyXml = () => {
+    if (!xmlContent) return;
+    try {
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(xmlContent);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      } else {
+        const el = document.createElement('textarea');
+        el.value = xmlContent;
+        document.body.appendChild(el);
+        el.select();
+        document.execCommand('copy');
+        document.body.removeChild(el);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      }
+    } catch (err) {
+      console.error('Failed to copy text:', err);
+    }
+  };
+
+  const xmlLines = React.useMemo(() => {
+    if (!xmlContent) return [];
+    return xmlContent.split('\n');
+  }, [xmlContent]);
+
+  const matchCount = React.useMemo(() => {
+    if (!xmlSearchQuery || !xmlContent) return 0;
+    let count = 0;
+    const q = xmlSearchQuery.toLowerCase();
+    for (const line of xmlLines) {
+      if (line.toLowerCase().includes(q)) count++;
+    }
+    return count;
+  }, [xmlLines, xmlSearchQuery, xmlContent]);
   
   const [feedDetails, setFeedDetails] = useState<Record<string, { latestPubDate: number | null; articleCount: number }>>({});
 
@@ -177,6 +237,10 @@ export const SettingsModal = React.memo(function SettingsModal({
 
   React.useEffect(() => {
     setIsConfirmingDelete(false);
+    setShowXml(false);
+    setXmlContent(null);
+    setXmlError(null);
+    setXmlSearchQuery('');
   }, [selectedFeedId]);
 
   const handleThemeChange = (theme: Theme) => updateSettings({ theme });
@@ -374,7 +438,7 @@ export const SettingsModal = React.memo(function SettingsModal({
                   {(activeTab !== 'main' || selectedFeed) && (
                     <motion.button
                       whileTap={{ scale: 0.9 }}
-                      onClick={() => selectedFeed ? setSelectedFeedId(null) : setActiveTab('main')}
+                      onClick={() => showXml ? setShowXml(false) : selectedFeed ? setSelectedFeedId(null) : setActiveTab('main')}
                       className="p-2 -ml-2 rounded-full hover:bg-gray-800 transition-colors"
                       aria-label="Go back"
                     >
@@ -382,7 +446,7 @@ export const SettingsModal = React.memo(function SettingsModal({
                     </motion.button>
                   )}
                   <h2 className="text-2xl font-bold text-white">
-                    {selectedFeed ? 'Feed Details' : 
+                    {selectedFeed ? (showXml ? 'Feed XML Code' : 'Feed Details') : 
                      activeTab === 'main' ? 'Settings' :
                      activeTab === 'general' ? 'General' : 
                      activeTab === 'retention' ? 'Retention' :
@@ -390,7 +454,7 @@ export const SettingsModal = React.memo(function SettingsModal({
                   </h2>
                 </div>
                 <button
-                  onClick={() => selectedFeed ? setSelectedFeedId(null) : onClose()}
+                  onClick={() => { if (showXml) setShowXml(false); if (selectedFeed) { setSelectedFeedId(null); } else { onClose(); } }}
                   className="p-2 bg-gray-800 rounded-full hover:bg-gray-700 transition-colors"
                   aria-label="Close settings"
                 >
@@ -416,111 +480,231 @@ export const SettingsModal = React.memo(function SettingsModal({
             )}
 
             {selectedFeed ? (
-              <div className="space-y-4">
-                <div className="text-center mb-6">
-                  <div className="flex items-center justify-center gap-2 mb-1.5">
-                    <span className={`w-2.5 h-2.5 rounded-full ${getFeedStatus(selectedFeed).color} flex-shrink-0 animate-pulse`} />
-                    <h3 className="text-xl font-bold text-white">{selectedFeed.title}</h3>
-                  </div>
-                  {getFeedStatus(selectedFeed).latestPubDate && (
-                    <div className="flex items-center justify-center gap-1.5 text-xs text-indigo-400 bg-indigo-500/10 px-3 py-1 rounded-full inline-flex">
-                      <Calendar className="w-3 h-3" />
-                      <span>Last update: {format(getFeedStatus(selectedFeed).latestPubDate!, 'dd/MM/yyyy HH:mm')}</span>
+              showXml ? (
+                <div className="space-y-4">
+                  {isXmlLoading ? (
+                    <div className="flex flex-col items-center justify-center py-24 gap-4">
+                      <RefreshCw className="w-8 h-8 text-indigo-500 animate-spin" />
+                      <p className="text-sm text-gray-450 font-medium">Caricamento del file XML del feed...</p>
                     </div>
-                  )}
-                </div>
-
-                {(() => {
-                  const status = getFeedStatus(selectedFeed);
-                  if (!status.motivation) return null;
-                  
-                  const isError = status.severity === 'error';
-                  const isWarning = status.severity === 'warning';
-                  
-                  return (
-                    <div className={cn(
-                      "p-4 rounded-2xl border text-sm leading-relaxed flex items-start gap-3",
-                      isError 
-                        ? "bg-red-500/10 border-red-500/20 text-red-200" 
-                        : "bg-yellow-500/10 border-yellow-500/20 text-yellow-200"
-                    )}>
-                      <AlertCircle className={cn(
-                        "w-5 h-5 flex-shrink-0 mt-0.5",
-                        isError ? "text-red-400" : "text-yellow-400"
-                      )} />
-                      <div className="space-y-1">
-                        <p className="font-semibold text-xs uppercase tracking-wider">
-                          {isError ? 'Stato: Errore' : 'Stato: Attenzione'}
-                        </p>
-                        <p className="text-xs text-gray-300">
-                          {status.motivation}
-                        </p>
+                  ) : xmlError ? (
+                    <div className="p-6 rounded-2xl bg-red-500/5 border border-red-500/20 text-center space-y-4">
+                      <AlertCircle className="w-8 h-8 text-red-500 mx-auto" />
+                      <div>
+                        <p className="font-semibold text-red-200">Errore di caricamento</p>
+                        <p className="text-xs text-gray-450 mt-1.5 max-w-sm mx-auto leading-relaxed">{xmlError}</p>
+                      </div>
+                      <div className="flex gap-2 justify-center">
+                        <button
+                          onClick={handleViewXml}
+                          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold transition-all"
+                        >
+                          Riprova
+                        </button>
+                        <button
+                          onClick={() => setShowXml(false)}
+                          className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-xl text-xs font-semibold transition-all"
+                        >
+                          Torna indietro
+                        </button>
                       </div>
                     </div>
-                  );
-                })()}
+                  ) : (
+                    <div className="space-y-3">
+                      {/* Search and Copy Bar */}
+                      <div className="flex gap-2 items-center">
+                        <div className="relative flex-1">
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                          <input
+                            type="text"
+                            placeholder="Cerca nel codice XML..."
+                            value={xmlSearchQuery}
+                            onChange={(e) => setXmlSearchQuery(e.target.value)}
+                            className="w-full pl-9 pr-12 py-2.5 bg-gray-900 border border-gray-800 rounded-xl text-xs text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all"
+                          />
+                          {xmlSearchQuery && (
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] bg-gray-800 text-gray-400 px-1.5 py-0.5 rounded font-mono">
+                              {matchCount} {matchCount === 1 ? 'risultato' : 'risultati'}
+                            </span>
+                          )}
+                        </div>
+                        <button
+                          onClick={handleCopyXml}
+                          className="px-4 py-2.5 bg-gray-900 border border-gray-800 hover:bg-gray-800 text-indigo-400 rounded-xl transition-all flex items-center gap-1.5 text-xs font-semibold"
+                        >
+                          {copied ? (
+                            <>
+                              <CheckCircle2 className="w-4 h-4 text-green-500" />
+                              <span>Copiato!</span>
+                            </>
+                          ) : (
+                            <>
+                              <FileText className="w-4 h-4 text-indigo-500" />
+                              <span>Copia</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">Title</label>
-                  <input 
-                    value={editTitle} 
-                    onChange={(e) => setEditTitle(e.target.value)} 
-                    className="w-full p-3 rounded-lg border border-gray-700 bg-gray-800 text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all" 
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">URL</label>
-                  <input 
-                    type="url"
-                    inputMode="url"
-                    value={editUrl} 
-                    onChange={(e) => setEditUrl(e.target.value)} 
-                    className="w-full p-3 rounded-lg border border-gray-700 bg-gray-800 text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all relative z-[60]" 
-                  />
-                </div>
-                <div className="flex gap-2">
-                  <button onClick={() => saveEdit(selectedFeed.id)} className="flex-1 p-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-medium transition-colors">Save Changes</button>
-                  {selectedFeed.link && (
-                    <a 
-                      href={selectedFeed.link} 
-                      target="_blank" 
-                      rel="noopener noreferrer" 
-                      className="p-3 bg-gray-800 hover:bg-gray-700 text-white rounded-xl transition-colors flex items-center justify-center"
-                      title="Go to source"
-                    >
-                      <ExternalLink className="w-5 h-5" />
-                    </a>
+                      {/* Code Area */}
+                      <div className="relative bg-gray-950 border border-gray-900 rounded-2xl overflow-hidden flex flex-col">
+                        <div className="flex items-center justify-between px-4 py-2.5 bg-gray-900/40 border-b border-gray-900/60 text-[10px] text-gray-400 font-mono overflow-hidden">
+                          <span className="truncate mr-4 text-gray-500">{selectedFeed.feedUrl}</span>
+                          <span className="flex-shrink-0 text-gray-500">{xmlContent ? `${(xmlContent.length / 1024).toFixed(1)} KB` : '0 KB'}</span>
+                        </div>
+                        
+                        <div className="overflow-auto max-h-[380px] p-4 font-mono text-xs text-indigo-200/90 leading-relaxed scrollbar-thin whitespace-pre-wrap select-text selection:bg-indigo-500/30">
+                          {xmlLines.length > 0 ? (
+                            xmlLines.map((line, idx) => {
+                              const isHighlighted = xmlSearchQuery && line.toLowerCase().includes(xmlSearchQuery.toLowerCase());
+                              return (
+                                <div 
+                                  key={idx} 
+                                  className={cn(
+                                    "py-0.5 px-1 rounded transition-colors flex items-start gap-3",
+                                    isHighlighted ? "bg-yellow-500/25 text-yellow-105 font-semibold border-l-2 border-yellow-500" : ""
+                                  )}
+                                >
+                                  <span className="text-gray-650 select-none text-right inline-block w-8 text-[10px] shrink-0">{idx + 1}</span>
+                                  <span className="break-all">{line}</span>
+                                </div>
+                              );
+                            })
+                          ) : (
+                            <div className="text-center text-gray-500 py-12 italic text-xs">
+                              Nessun contenuto XML caricato.
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      
+                      <button
+                        onClick={() => setShowXml(false)}
+                        className="w-full p-3 bg-gray-900 hover:bg-gray-800 border border-gray-850 text-white rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-1.5"
+                      >
+                        <ArrowLeft className="w-4 h-4" /> Torna ai Dettagli
+                      </button>
+                    </div>
                   )}
                 </div>
-                <button 
-                  onClick={() => { 
-                    if (isConfirmingDelete) {
-                      removeFeed(selectedFeed.id); 
-                      setSelectedFeedId(null); 
-                    } else {
-                      setIsConfirmingDelete(true);
-                    }
-                  }} 
-                  className={cn(
-                    "w-full p-3 rounded-xl font-medium transition-all duration-200 flex items-center justify-center gap-2",
-                    isConfirmingDelete 
-                      ? "bg-red-600 text-white hover:bg-red-700 shadow-lg shadow-red-900/20" 
-                      : "bg-red-500/10 text-red-400 hover:bg-red-500/20"
+              ) : (
+                <div className="space-y-4">
+                  <div className="text-center mb-6">
+                    <div className="flex items-center justify-center gap-2 mb-1.5">
+                      <span className={`w-2.5 h-2.5 rounded-full ${getFeedStatus(selectedFeed).color} flex-shrink-0 animate-pulse`} />
+                      <h3 className="text-xl font-bold text-white">{selectedFeed.title}</h3>
+                    </div>
+                    {getFeedStatus(selectedFeed).latestPubDate && (
+                      <div className="flex items-center justify-center gap-1.5 text-xs text-indigo-400 bg-indigo-500/10 px-3 py-1 rounded-full inline-flex">
+                        <Calendar className="w-3 h-3" />
+                        <span>Last update: {format(getFeedStatus(selectedFeed).latestPubDate!, 'dd/MM/yyyy HH:mm')}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {(() => {
+                    const status = getFeedStatus(selectedFeed);
+                    if (!status.motivation) return null;
+                    
+                    const isError = status.severity === 'error';
+                    const isWarning = status.severity === 'warning';
+                    
+                    return (
+                      <div className={cn(
+                        "p-4 rounded-2xl border text-sm leading-relaxed flex items-start gap-3",
+                        isError 
+                          ? "bg-red-500/10 border-red-500/20 text-red-200" 
+                          : "bg-yellow-500/10 border-yellow-500/20 text-yellow-200"
+                      )}>
+                        <AlertCircle className={cn(
+                          "w-5 h-5 flex-shrink-0 mt-0.5",
+                          isError ? "text-red-400" : "text-yellow-400"
+                        )} />
+                        <div className="space-y-1">
+                          <p className="font-semibold text-xs uppercase tracking-wider">
+                            {isError ? 'Stato: Errore' : 'Stato: Attenzione'}
+                          </p>
+                          <p className="text-xs text-gray-350">
+                            {status.motivation}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">Title</label>
+                    <input 
+                      value={editTitle} 
+                      onChange={(e) => setEditTitle(e.target.value)} 
+                      className="w-full p-3 rounded-lg border border-gray-700 bg-gray-800 text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all" 
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">URL</label>
+                    <input 
+                      type="url"
+                      inputMode="url"
+                      value={editUrl} 
+                      onChange={(e) => setEditUrl(e.target.value)} 
+                      className="w-full p-3 rounded-lg border border-gray-700 bg-gray-800 text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all relative z-[60]" 
+                    />
+                  </div>
+
+                  {/* Visualizza XML del Feed button */}
+                  <button
+                    type="button"
+                    onClick={handleViewXml}
+                    className="w-full p-3 bg-gray-800/80 hover:bg-gray-750 text-indigo-300 hover:text-indigo-200 border border-gray-700/80 rounded-xl font-semibold transition-all flex items-center justify-center gap-2 text-sm"
+                  >
+                    <Code className="w-4 h-4" />
+                    Visualizza XML del feed
+                  </button>
+
+                  <div className="flex gap-2">
+                    <button onClick={() => saveEdit(selectedFeed.id)} className="flex-1 p-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-medium transition-colors">Save Changes</button>
+                    {selectedFeed.link && (
+                      <a 
+                        href={selectedFeed.link} 
+                        target="_blank" 
+                        rel="noopener noreferrer" 
+                        className="p-3 bg-gray-800 hover:bg-gray-700 text-white rounded-xl transition-colors flex items-center justify-center"
+                        title="Go to source"
+                      >
+                        <ExternalLink className="w-5 h-5" />
+                      </a>
+                    )}
+                  </div>
+                  <button 
+                    onClick={() => { 
+                      if (isConfirmingDelete) {
+                        removeFeed(selectedFeed.id); 
+                        setSelectedFeedId(null); 
+                      } else {
+                        setIsConfirmingDelete(true);
+                      }
+                    }} 
+                    className={cn(
+                      "w-full p-3 rounded-xl font-medium transition-all duration-200 flex items-center justify-center gap-2",
+                      isConfirmingDelete 
+                        ? "bg-red-600 text-white hover:bg-red-700 shadow-lg shadow-red-900/20" 
+                        : "bg-red-500/10 text-red-400 hover:bg-red-500/20"
+                    )}
+                  >
+                    {isConfirmingDelete ? (
+                      <>
+                        <Trash2 className="w-4 h-4" aria-hidden="true" />
+                        Confirm Removal
+                      </>
+                    ) : 'Remove Feed'}
+                  </button>
+                  {isConfirmingDelete && (
+                    <p className="text-[10px] text-center text-red-400 animate-pulse uppercase tracking-wider font-bold">
+                      Tap again to permanently delete
+                    </p>
                   )}
-                >
-                  {isConfirmingDelete ? (
-                    <>
-                      <Trash2 className="w-4 h-4" aria-hidden="true" />
-                      Confirm Removal
-                    </>
-                  ) : 'Remove Feed'}
-                </button>
-                {isConfirmingDelete && (
-                  <p className="text-[10px] text-center text-red-400 animate-pulse uppercase tracking-wider font-bold">
-                    Tap again to permanently delete
-                  </p>
-                )}
-              </div>
+                </div>
+              )
             ) : activeTab === 'main' ? (
               <div className="space-y-4">
                 <button

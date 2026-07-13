@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef, useMemo } from 'react';
 import { Subreddit, RedditPost } from '../types';
 import { storage } from '../services/storage';
 import DataWorker from '../workers/dataProcessor.worker.ts?worker';
@@ -427,14 +427,22 @@ export const RedditProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     return () => window.removeEventListener('app-resume', handleResume);
   }, [refreshReddit]);
 
+  const value = useMemo(() => ({
+    subreddits, redditPosts, redditSort, isLoading,
+    refreshReddit, loadMoreReddit, handleRedditSortChange,
+    toggleRedditRead, markRedditAsRead, toggleRedditFavorite, updateRedditPost,
+    removeSubreddit, addSubreddit, markAllRedditAsRead, markRedditPostsAsRead, prefetchRedditComments, getCachedComments, redditUnreadCount,
+    enforceRetention
+  }), [
+    subreddits, redditPosts, redditSort, isLoading,
+    refreshReddit, loadMoreReddit, handleRedditSortChange,
+    toggleRedditRead, markRedditAsRead, toggleRedditFavorite, updateRedditPost,
+    removeSubreddit, addSubreddit, markAllRedditAsRead, markRedditPostsAsRead, prefetchRedditComments, getCachedComments, redditUnreadCount,
+    enforceRetention
+  ]);
+
   return (
-    <RedditContext.Provider value={{
-      subreddits, redditPosts, redditSort, isLoading,
-      refreshReddit, loadMoreReddit, handleRedditSortChange,
-      toggleRedditRead, markRedditAsRead, toggleRedditFavorite, updateRedditPost,
-      removeSubreddit, addSubreddit, markAllRedditAsRead, markRedditPostsAsRead, prefetchRedditComments, getCachedComments, redditUnreadCount,
-      enforceRetention
-    }}>
+    <RedditContext.Provider value={value}>
       {children}
     </RedditContext.Provider>
   );
