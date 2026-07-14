@@ -422,15 +422,34 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   useEffect(() => {
     if (Capacitor.isNativePlatform()) {
-      // Ensure background sync is stopped as requested by the user
-      BackgroundPlugin.stopBackgroundSync().catch(err => {
-        const msg = err?.message || String(err);
-        if (err?.code !== 'UNIMPLEMENTED' && !msg.toLowerCase().includes('not implemented')) {
-          console.error('[BackgroundSync] Stop Error:', err);
-        }
-      });
+      if (feeds.length > 0) {
+        const formattedFeeds = feeds.map(f => ({
+          id: f.id,
+          url: f.feedUrl,
+          title: f.title,
+          lastFetched: f.lastFetched || 0
+        }));
+        BackgroundPlugin.setupBackgroundSync({
+          feeds: formattedFeeds,
+          intervalMinutes: 240 // 4 hours
+        }).then(() => {
+          console.log('[BackgroundSync] Successfully scheduled RSS background download every 4 hours.');
+        }).catch(err => {
+          const msg = err?.message || String(err);
+          if (err?.code !== 'UNIMPLEMENTED' && !msg.toLowerCase().includes('not implemented')) {
+            console.error('[BackgroundSync] Setup Error:', err);
+          }
+        });
+      } else {
+        BackgroundPlugin.stopBackgroundSync().catch(err => {
+          const msg = err?.message || String(err);
+          if (err?.code !== 'UNIMPLEMENTED' && !msg.toLowerCase().includes('not implemented')) {
+            console.error('[BackgroundSync] Stop Error:', err);
+          }
+        });
+      }
     }
-  }, []);
+  }, [feeds]);
 
   // Web-based auto refresh disabled as requested
   useEffect(() => {

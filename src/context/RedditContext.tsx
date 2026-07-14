@@ -393,7 +393,8 @@ export const RedditProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
   const enforceRetention = useCallback(async () => {
     await storage.cleanupOldRedditPosts(1);
-    const loadedRedditPosts = await storage.getRedditPosts(0, PAGE_SIZE);
+    const limit = Math.max(PAGE_SIZE, redditPostsRef.current.length, redditOffset.current);
+    const loadedRedditPosts = await storage.getRedditPosts(0, limit);
     setRedditPosts(loadedRedditPosts);
     redditOffset.current = loadedRedditPosts.length;
   }, []);

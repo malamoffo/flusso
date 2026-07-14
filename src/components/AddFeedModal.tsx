@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { X, Rss, RefreshCw } from 'lucide-react';
 import { useRss } from '../context/RssContext';
-import { useTelegram } from '../context/TelegramContext';
 import { useReddit } from '../context/RedditContext';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -9,7 +8,6 @@ export const AddFeedModal = React.memo(function AddFeedModal({ isOpen, onClose, 
   const [url, setUrl] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { addFeedOrSubreddit, error, setError, progress } = useRss();
-  const { addTelegramChannel } = useTelegram();
   const { addSubreddit } = useReddit();
 
   React.useEffect(() => {
@@ -42,17 +40,6 @@ export const AddFeedModal = React.memo(function AddFeedModal({ isOpen, onClose, 
         type = 'subreddit';
       } else {
         type = await addFeedOrSubreddit(cleanUrl);
-      }
-      
-      // If it's a telegram channel, we need to call the telegram context
-      if (type === 'telegram') {
-        try {
-          await addTelegramChannel(cleanUrl);
-        } catch (tgErr: any) {
-          setError(tgErr.message);
-          setIsSubmitting(false);
-          return;
-        }
       }
       
       setUrl('');
@@ -141,10 +128,10 @@ export const AddFeedModal = React.memo(function AddFeedModal({ isOpen, onClose, 
                   type="text"
                   value={url}
                   onChange={handleUrlChange}
-                  placeholder="https://example.com/feed.xml, r/news or channel_username"
+                  placeholder="https://example.com/feed.xml or r/news"
                   className="block w-full pl-10 pr-3 py-3 border border-gray-700 rounded-xl focus:ring-indigo-500 focus:border-indigo-500 bg-gray-800 text-white placeholder-gray-500"
                   required
-                  aria-label="Feed URL, Subreddit or Telegram Channel"
+                  aria-label="Feed URL or Subreddit"
                 />
               </div>
               <motion.button
@@ -158,7 +145,7 @@ export const AddFeedModal = React.memo(function AddFeedModal({ isOpen, onClose, 
                     <RefreshCw className="w-4 h-4 mr-2 animate-spin" aria-hidden="true" />
                     Adding...
                   </>
-                ) : '+ Add Feed / Subreddit / Channel'}
+                ) : '+ Add Feed / Subreddit'}
               </motion.button>
             </form>
           </motion.div>

@@ -68,6 +68,7 @@ jobs:
       if: matrix.language == 'java-kotlin'
       uses: gradle/actions/setup-gradle@v6
       with:
+        gradle-version: '9.5'
         cache-read-only: false
         build-scan-publish: false
 
@@ -84,7 +85,6 @@ jobs:
       run: |
         echo "Compilazione manuale del progetto Android..."
         cd android
-        gradle wrapper
         chmod +x gradlew
         ./gradlew assembleDebug
 

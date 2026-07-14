@@ -229,6 +229,21 @@ export const RadioView = memo(({ isActive, searchQuery }: RadioViewProps) => {
     if (isActive && stations.length === 0) fetchStations();
   }, [isActive]);
 
+  useEffect(() => {
+    if (selectedStationDetail) {
+      const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+      document.body.style.overflow = 'hidden';
+      document.body.style.paddingRight = `${scrollbarWidth}px`;
+    } else {
+      document.body.style.overflow = '';
+      document.body.style.paddingRight = '';
+    }
+    return () => { 
+      document.body.style.overflow = '';
+      document.body.style.paddingRight = ''; 
+    };
+  }, [selectedStationDetail]);
+
   const toggleFavorite = (station: RadioStation, e: React.MouseEvent) => {
     e.stopPropagation();
     setFavorites(prev => {
@@ -558,214 +573,229 @@ export const RadioView = memo(({ isActive, searchQuery }: RadioViewProps) => {
 
       <AnimatePresence>
         {selectedStationDetail && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md"
-            onClick={() => setSelectedStationDetail(null)}
+          <motion.div 
+            className="fixed inset-0 z-50 pointer-events-none transform-gpu"
+            style={{ willChange: 'transform' }}
           >
-            <motion.div
-              initial={{ scale: 0.95, y: 20 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.95, y: 20 }}
-              transition={{ type: "spring", damping: 25, stiffness: 350 }}
-              className="relative w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-3xl bg-[#14141d] border border-white/10 p-6 text-white shadow-2xl scrollbar-hide flex flex-col gap-5"
-              onClick={(e) => e.stopPropagation()}
+            <motion.div 
+              key="radio-reader-backdrop"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.45, ease: 'easeOut' }}
+              className="fixed inset-0 bg-black/60 backdrop-blur-md pointer-events-auto"
+              onClick={() => setSelectedStationDetail(null)}
+            />
+            <motion.article 
+              key="radio-reader-modal"
+              initial={{ y: '100%', opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: '100%', opacity: 0 }}
+              transition={{ type: 'spring', damping: 30, stiffness: 220 }}
+              className="fixed inset-0 z-10 w-full h-full overflow-hidden flex flex-col transition-colors break-words font-sans bg-zinc-950/80 backdrop-blur-3xl scrollbar-hide pointer-events-auto shadow-2xl isolate transform-gpu"
             >
-              {/* Close Button */}
-              <button
-                onClick={() => setSelectedStationDetail(null)}
-                className="absolute top-4 right-4 p-2 rounded-full bg-white/5 hover:bg-white/10 border border-white/5 text-gray-400 hover:text-white transition-colors"
-                aria-label="Chiudi"
-              >
-                <X className="w-5 h-5" />
-              </button>
+              {/* Top App Bar */}
+              <div className="sticky top-0 z-20 px-4 py-4 flex items-center justify-between bg-gradient-to-b from-transparent to-transparent pointer-events-none">
+                <motion.button
+                  whileTap={{ scale: 0.9 }}
+                  onClick={() => setSelectedStationDetail(null)}
+                  className="w-10 h-10 shrink-0 flex items-center justify-center rounded-full bg-black border border-white/20 active:bg-white/20 text-white pointer-events-auto transition-colors"
+                  aria-label="Chiudi"
+                >
+                  <X className="w-5 h-5 text-gray-200" aria-hidden="true" />
+                </motion.button>
+              </div>
 
-              {/* Station Info Header */}
-              <div className="flex gap-4 items-start pr-8 mt-2">
-                <div className="w-16 h-16 rounded-2xl bg-gray-800 flex items-center justify-center overflow-hidden flex-shrink-0 border border-white/10 shadow-inner">
-                  {selectedStationDetail.favicon ? (
-                    <img 
-                      src={selectedStationDetail.favicon} 
-                      alt="" 
-                      className="w-full h-full object-cover" 
-                      onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} 
-                    />
-                  ) : (
-                    <div className="w-full h-full bg-red-500/20 text-red-500 flex items-center justify-center font-bold text-xl">
-                      {selectedStationDetail.name.substring(0, 2)}
-                    </div>
-                  )}
-                </div>
-                
-                <div className="flex-1 min-w-0">
-                  <h2 className="text-xl font-bold text-white tracking-tight leading-snug truncate">
-                    {selectedStationDetail.name}
-                  </h2>
-                  <p className="text-xs text-gray-400 mt-1 flex items-center gap-1.5">
-                    <span className="inline-block w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />
-                    {selectedStationDetail.country || 'Italia'} • {selectedStationDetail.language || 'Italiano'}
-                  </p>
+              {/* Scrollable Content */}
+              <div className="flex-1 overflow-y-auto scrollbar-hide px-4 pb-12">
+                <div className="max-w-2xl mx-auto w-full pt-4 flex flex-col gap-6">
                   
-                  {selectedStationDetail.tags && (
-                    <div className="flex flex-wrap gap-1 mt-2">
-                      {selectedStationDetail.tags.split(',').slice(0, 3).map((tag, idx) => (
-                        <span key={idx} className="text-[10px] uppercase tracking-wider font-semibold bg-white/5 border border-white/5 text-gray-300 px-2.5 py-0.5 rounded-full">
-                          {tag.trim()}
-                        </span>
-                      ))}
+                  {/* Station Info Header */}
+                  <div className="flex gap-4 items-start pr-8 mt-2">
+                    <div className="w-16 h-16 rounded-2xl bg-gray-800 flex items-center justify-center overflow-hidden flex-shrink-0 border border-white/10 shadow-inner">
+                      {selectedStationDetail.favicon ? (
+                        <img 
+                          src={selectedStationDetail.favicon} 
+                          alt="" 
+                          className="w-full h-full object-cover" 
+                          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} 
+                        />
+                      ) : (
+                        <div className="w-full h-full bg-red-500/20 text-red-500 flex items-center justify-center font-bold text-xl">
+                          {selectedStationDetail.name.substring(0, 2)}
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Action Buttons: Play/Pause/Fav/Website */}
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={() => playStation(selectedStationDetail)}
-                  className={cn(
-                    "flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl font-semibold text-sm transition-all shadow-md active:scale-95",
-                    currentStation?.stationuuid === selectedStationDetail.stationuuid && isPlaying
-                      ? "bg-white text-gray-900 hover:bg-gray-100"
-                      : "bg-red-500 hover:bg-red-600 text-white"
-                  )}
-                >
-                  {currentStation?.stationuuid === selectedStationDetail.stationuuid && isAudioLoading ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin font-bold" />
-                      Caricamento...
-                    </>
-                  ) : currentStation?.stationuuid === selectedStationDetail.stationuuid && isPlaying ? (
-                    <>
-                      <Square className="w-4 h-4 fill-current text-gray-900" />
-                      Interrompi
-                    </>
-                  ) : (
-                    <>
-                      <Play className="w-4 h-4 fill-current ml-0.5 text-white" />
-                      Ascolta Ora
-                    </>
-                  )}
-                </button>
-
-                <button
-                  onClick={(e) => toggleFavorite(selectedStationDetail, e)}
-                  className="p-3 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 transition-colors active:scale-95 flex items-center justify-center"
-                  aria-label="Preferiti"
-                >
-                  <Heart
-                    className={cn(
-                      "w-5 h-5 transition-colors",
-                      favorites[selectedStationDetail.stationuuid]
-                        ? "fill-red-500 text-red-500"
-                        : "text-gray-400 hover:text-white"
-                    )}
-                  />
-                </button>
-
-                {selectedStationDetail.homepage && (
-                  <a
-                    href={selectedStationDetail.homepage}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-1.5 px-4 py-3 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 text-gray-300 hover:text-white font-medium text-xs transition-all active:scale-95"
-                  >
-                    <Globe className="w-4 h-4" />
-                    Sito
-                  </a>
-                )}
-              </div>
-
-              {/* ACTIVE AUDIO VISUALIZER */}
-              {currentStation?.stationuuid === selectedStationDetail.stationuuid && isPlaying && (
-                <div className="bg-red-500/5 border border-red-500/10 rounded-2xl p-4 flex gap-4 items-center justify-between">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <Radio className="w-4 h-4 text-red-500 animate-pulse" />
-                      <span className="text-sm font-bold text-red-500">In riproduzione</span>
+                    
+                    <div className="flex-1 min-w-0">
+                      <h2 className="text-xl font-bold text-white tracking-tight leading-snug truncate">
+                        {selectedStationDetail.name}
+                      </h2>
+                      <p className="text-xs text-gray-400 mt-1 flex items-center gap-1.5">
+                        <span className="inline-block w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />
+                        {selectedStationDetail.country || 'Italia'} • {selectedStationDetail.language || 'Italiano'}
+                      </p>
+                      
+                      {selectedStationDetail.tags && (
+                        <div className="flex flex-wrap gap-1 mt-2">
+                          {selectedStationDetail.tags.split(',').slice(0, 3).map((tag, idx) => (
+                            <span key={idx} className="text-[10px] uppercase tracking-wider font-semibold bg-white/5 border border-white/5 text-gray-300 px-2.5 py-0.5 rounded-full">
+                              {tag.trim()}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                    <p className="text-xs text-gray-400 mt-1">
-                      Streaming audio live attivo a bassa latenza.
-                    </p>
                   </div>
 
-                  <div className="flex items-end gap-1 h-8 w-12 justify-end pr-1 flex-shrink-0">
-                    {[1, 2, 3, 4].map((bar) => (
-                      <motion.div
-                        key={bar}
-                        animate={{
-                          height: [6, 22, 9, 32, 12, 6][bar % 6]
-                        }}
-                        transition={{
-                          duration: 0.5 + bar * 0.11,
-                          repeat: Infinity,
-                          ease: "easeInOut"
-                        }}
-                        className="w-1 bg-gradient-to-t from-red-600 to-red-400 rounded-full"
+                  {/* Action Buttons: Play/Pause/Fav/Website */}
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => playStation(selectedStationDetail)}
+                      className={cn(
+                        "flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl font-semibold text-sm transition-all shadow-md active:scale-95",
+                        currentStation?.stationuuid === selectedStationDetail.stationuuid && isPlaying
+                          ? "bg-white text-gray-900 hover:bg-gray-100"
+                          : "bg-red-500 hover:bg-red-600 text-white"
+                      )}
+                    >
+                      {currentStation?.stationuuid === selectedStationDetail.stationuuid && isAudioLoading ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin font-bold" />
+                          Caricamento...
+                        </>
+                      ) : currentStation?.stationuuid === selectedStationDetail.stationuuid && isPlaying ? (
+                        <>
+                          <Square className="w-4 h-4 fill-current text-gray-900" />
+                          Interrompi
+                        </>
+                      ) : (
+                        <>
+                          <Play className="w-4 h-4 fill-current ml-0.5 text-white" />
+                          Ascolta Ora
+                        </>
+                      )}
+                    </button>
+
+                    <button
+                      onClick={(e) => toggleFavorite(selectedStationDetail, e)}
+                      className="p-3 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 transition-colors active:scale-95 flex items-center justify-center"
+                      aria-label="Preferiti"
+                    >
+                      <Heart
+                        className={cn(
+                          "w-5 h-5 transition-colors",
+                          favorites[selectedStationDetail.stationuuid]
+                            ? "fill-red-500 text-red-500"
+                            : "text-gray-400 hover:text-white"
+                        )}
                       />
-                    ))}
-                  </div>
-                </div>
-              )}
+                    </button>
 
-              {/* DETTAGLI CANALE */}
-              <div className="flex flex-col gap-3">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400 flex items-center gap-2">
-                  <Info className="w-4 h-4 text-red-400" />
-                  Dettagli Canale
-                </h3>
-                
-                <div className="grid grid-cols-2 gap-3 bg-white/[0.02] border border-white/5 rounded-2xl p-4 text-xs">
-                  <div className="flex flex-col gap-1">
-                    <span className="text-gray-500 font-medium">Nazione</span>
-                    <span className="text-gray-200 font-semibold">{selectedStationDetail.country || 'Nazionale'}</span>
+                    {selectedStationDetail.homepage && (
+                      <a
+                        href={selectedStationDetail.homepage}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1.5 px-4 py-3 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 text-gray-300 hover:text-white font-medium text-xs transition-all active:scale-95"
+                      >
+                        <Globe className="w-4 h-4" />
+                        Sito
+                      </a>
+                    )}
                   </div>
-                  {selectedStationDetail.state && (
-                    <div className="flex flex-col gap-1">
-                      <span className="text-gray-500 font-medium">Stato / Regione</span>
-                      <span className="text-gray-200 font-semibold">{selectedStationDetail.state}</span>
+
+                  {/* ACTIVE AUDIO VISUALIZER */}
+                  {currentStation?.stationuuid === selectedStationDetail.stationuuid && isPlaying && (
+                    <div className="bg-red-500/5 border border-red-500/10 rounded-2xl p-4 flex gap-4 items-center justify-between">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <Radio className="w-4 h-4 text-red-500 animate-pulse" />
+                          <span className="text-sm font-bold text-red-500">In riproduzione</span>
+                        </div>
+                        <p className="text-xs text-gray-400 mt-1">
+                          Streaming audio live attivo a bassa latenza.
+                        </p>
+                      </div>
+
+                      <div className="flex items-end gap-1 h-8 w-12 justify-end pr-1 flex-shrink-0">
+                        {[1, 2, 3, 4].map((bar) => (
+                          <motion.div
+                            key={bar}
+                            animate={{
+                              height: [6, 22, 9, 32, 12, 6][bar % 6]
+                            }}
+                            transition={{
+                              duration: 0.5 + bar * 0.11,
+                              repeat: Infinity,
+                              ease: "easeInOut"
+                            }}
+                            className="w-1 bg-gradient-to-t from-red-600 to-red-400 rounded-full"
+                          />
+                        ))}
+                      </div>
                     </div>
                   )}
-                  <div className="flex flex-col gap-1">
-                    <span className="text-gray-500 font-medium">Lingua</span>
-                    <span className="text-gray-200 font-semibold capitalize">{selectedStationDetail.language || 'Italiano'}</span>
+
+                  {/* DETTAGLI CANALE */}
+                  <div className="flex flex-col gap-3">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400 flex items-center gap-2">
+                      <Info className="w-4 h-4 text-red-400" />
+                      Dettagli Canale
+                    </h3>
+                    
+                    <div className="grid grid-cols-2 gap-3 bg-white/[0.02] border border-white/5 rounded-2xl p-4 text-xs">
+                      <div className="flex flex-col gap-1">
+                        <span className="text-gray-500 font-medium">Nazione</span>
+                        <span className="text-gray-200 font-semibold">{selectedStationDetail.country || 'Nazionale'}</span>
+                      </div>
+                      {selectedStationDetail.state && (
+                        <div className="flex flex-col gap-1">
+                          <span className="text-gray-500 font-medium">Stato / Regione</span>
+                          <span className="text-gray-200 font-semibold">{selectedStationDetail.state}</span>
+                        </div>
+                      )}
+                      <div className="flex flex-col gap-1">
+                        <span className="text-gray-500 font-medium">Lingua</span>
+                        <span className="text-gray-200 font-semibold capitalize">{selectedStationDetail.language || 'Italiano'}</span>
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <span className="text-gray-500 font-semibold flex items-center gap-1">
+                          <ThumbsUp className="w-3.5 h-3.5 text-gray-400" /> Popolarità
+                        </span>
+                        <span className="text-gray-200 font-semibold">
+                          {selectedStationDetail.votes ? `${selectedStationDetail.votes.toLocaleString()} voti` : 'N/A'}
+                        </span>
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex flex-col gap-1">
-                    <span className="text-gray-500 font-semibold flex items-center gap-1">
-                      <ThumbsUp className="w-3.5 h-3.5 text-gray-400" /> Popolarità
-                    </span>
-                    <span className="text-gray-200 font-semibold">
-                      {selectedStationDetail.votes ? `${selectedStationDetail.votes.toLocaleString()} voti` : 'N/A'}
-                    </span>
+
+                  {/* SORGENTE STREAMING LINK */}
+                  <div className="flex flex-col gap-3">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400">
+                      Sorgente Streaming Link
+                    </h3>
+                    <div className="flex gap-2 items-center bg-white/[0.02] hover:bg-[#1f1f2e] border border-white/5 rounded-2xl px-4 py-3 text-xs transition-colors group/url">
+                      <span className="font-mono text-gray-400 truncate flex-1 select-all text-[11px]">
+                        {selectedStationDetail.url_resolved || selectedStationDetail.url}
+                      </span>
+                      <button
+                        onClick={() => copyToClipboard(selectedStationDetail.url_resolved || selectedStationDetail.url)}
+                        className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition-colors flex-shrink-0 flex items-center gap-1"
+                        title="Copia link sorgente"
+                      >
+                        {copiedUrl ? (
+                          <Check className="w-4 h-4 text-green-500" />
+                        ) : (
+                          <Copy className="w-4 h-4" />
+                        )}
+                      </button>
+                    </div>
                   </div>
+
                 </div>
               </div>
-
-              {/* SORGENTE STREAMING LINK */}
-              <div className="flex flex-col gap-3">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400">
-                  Sorgente Streaming Link
-                </h3>
-                <div className="flex gap-2 items-center bg-white/[0.02] hover:bg-[#1f1f2e] border border-white/5 rounded-2xl px-4 py-3 text-xs transition-colors group/url">
-                  <span className="font-mono text-gray-400 truncate flex-1 select-all text-[11px]">
-                    {selectedStationDetail.url_resolved || selectedStationDetail.url}
-                  </span>
-                  <button
-                    onClick={() => copyToClipboard(selectedStationDetail.url_resolved || selectedStationDetail.url)}
-                    className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition-colors flex-shrink-0 flex items-center gap-1"
-                    title="Copia link sorgente"
-                  >
-                    {copiedUrl ? (
-                      <Check className="w-4 h-4 text-green-500" />
-                    ) : (
-                      <Copy className="w-4 h-4" />
-                    )}
-                  </button>
-                </div>
-              </div>
-
-            </motion.div>
+            </motion.article>
           </motion.div>
         )}
       </AnimatePresence>

@@ -39,6 +39,27 @@ export const RedditListView = memo(({
   handleScroll
 }: RedditListViewProps) => {
   const hasUnread = React.useMemo(() => posts.some(p => !p.isRead), [posts]);
+  const observerRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    const observerTarget = observerRef.current;
+    if (!observerTarget || isLoading || !isActive) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && !isLoading) {
+          loadMoreReddit();
+        }
+      },
+      { threshold: 0.1, rootMargin: '100px' }
+    );
+
+    observer.observe(observerTarget);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [loadMoreReddit, isLoading, isActive]);
 
   return (
     <motion.main
@@ -77,14 +98,11 @@ export const RedditListView = memo(({
           </AnimatePresence>
           
           {posts.length > 0 && (
-            <div className="py-8 flex justify-center">
-              <button 
-                onClick={(e) => { e.stopPropagation(); loadMoreReddit(); }}
-                className="px-6 py-2 bg-gray-800 text-gray-300 rounded-full font-medium hover:bg-gray-700 transition-colors flex items-center gap-2"
-              >
-                <RefreshCw className={cn("w-4 h-4", isLoading ? "animate-spin" : "")} />
-                Load More
-              </button>
+            <div ref={observerRef} className="py-12 flex flex-col items-center justify-center gap-2">
+              <div className="flex items-center gap-2 text-purple-500 bg-purple-500/10 px-4 py-2 rounded-full border border-purple-500/20 shadow-[0_0_15px_rgba(168,85,247,0.15)] backdrop-blur-sm">
+                <RefreshCw className="w-4 h-4 animate-spin text-purple-500" />
+                <span className="text-xs font-semibold uppercase tracking-wider animate-pulse">Loading More Posts</span>
+              </div>
             </div>
           )}
         </div>

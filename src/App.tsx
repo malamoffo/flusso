@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo, memo, useDeferredValue, RefObject } from 'react';
 import { useRss } from './context/RssContext';
-import { useTelegram } from './context/TelegramContext';
 import { useSettings } from './context/SettingsContext';
 import { useReddit } from './context/RedditContext';
 import { useFeedFiltering } from './hooks/useFeedFiltering';
@@ -8,21 +7,20 @@ import { usePagination } from './hooks/usePagination';
 import { usePullToRefresh } from './hooks/usePullToRefresh';
 import { FeedList } from './components/App/FeedList';
 import { SwipeableArticleItem } from './components/SwipeableArticleItem';
+import { createLazyModalWithState, createLazyView, ModalFallback, ViewFallback } from './lib/lazyLoader';
 import { SwipeableRedditPost } from './components/SwipeableRedditPost';
-import { ArticleReader } from './components/ArticleReader';
-import { SettingsModal } from './components/SettingsModal';
 import { storage } from './services/storage';
 import { RedditListView } from './components/RedditListView';
-import { RedditPostReader } from './components/RedditPostReader';
-import { TelegramListView } from './components/TelegramListView';
-import { TelegramThreadView } from './components/TelegramThreadView';
-import { TelegramChannel, TelegramMessage } from './types';
-import { ImageViewer } from './components/ImageViewer';
 import { ErrorNotification } from './components/ErrorNotification';
-import { ErrorModal } from './components/ErrorModal';
-import { RadioView } from './components/RadioView';
 import { motion, AnimatePresence, useMotionValue, useTransform, animate } from 'framer-motion';
-import { InAppWebView } from './components/InAppWebView';
+
+const SettingsModal = createLazyModalWithState(() => import('./components/SettingsModal').then(m => ({ default: m.SettingsModal })), 'SettingsModal', ModalFallback);
+const RadioView = createLazyModalWithState(() => import('./components/RadioView').then(m => ({ default: m.RadioView })), 'RadioView', ViewFallback);
+const ArticleReader = createLazyView(() => import('./components/ArticleReader').then(m => ({ default: m.ArticleReader })), 'ArticleReader', ModalFallback);
+const RedditPostReader = createLazyView(() => import('./components/RedditPostReader').then(m => ({ default: m.RedditPostReader })), 'RedditPostReader', ModalFallback);
+const ImageViewer = createLazyView(() => import('./components/ImageViewer').then(m => ({ default: m.ImageViewer })), 'ImageViewer', ModalFallback);
+const ErrorModal = createLazyView(() => import('./components/ErrorModal').then(m => ({ default: m.ErrorModal })), 'ErrorModal', ModalFallback);
+const InAppWebView = createLazyView(() => import('./components/InAppWebView').then(m => ({ default: m.InAppWebView })), 'InAppWebView', ModalFallback);
 import { Loader2, Search, X, Check, Rss, Settings, Star, CheckCircle2, RefreshCw, Layers, FileText, Inbox, MessageSquare, ChevronDown, Flame, Radio } from 'lucide-react';
 import { useInView } from 'react-intersection-observer';
 import { cn, getHostname } from './lib/utils';
@@ -70,12 +68,6 @@ export default function App() {
     toggleFavorite, removeFromSaved, removeArticle, addArticle, loadAllUnreadArticles
   } = useRss();
 
-  const {
-    telegramChannels, telegramMessages, refreshTelegramChannels,
-    markAllTelegramAsRead, markTelegramChannelAsRead, loadTelegramMessages,
-    loadMoreTelegramMessages, enforceRetention: enforceTelegramRetention
-  } = useTelegram();
-
   const { settings } = useSettings();
 
   const {
@@ -99,6 +91,29 @@ export default function App() {
 
   const [selectedArticle, setSelectedArticle] = useState<Article | null>(null);
   const [webViewUrl, setWebViewUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Idle prefetch for lazy loaded components
+    if (typeof window !== 'undefined') {
+      const doPrefetch = () => {
+        try {
+          (SettingsModal as any).prefetch();
+          (RadioView as any).prefetch();
+          (ArticleReader as any).prefetch();
+          (RedditPostReader as any).prefetch();
+          (ImageViewer as any).prefetch();
+          (ErrorModal as any).prefetch();
+          (InAppWebView as any).prefetch();
+        } catch (e) {}
+      };
+      
+      if ('requestIdleCallback' in window) {
+        (window as any).requestIdleCallback(doPrefetch);
+      } else {
+        setTimeout(doPrefetch, 2000);
+      }
+    }
+  }, []);
 
   useEffect(() => {
     const handleDocumentClick = (e: MouseEvent) => {
@@ -127,7 +142,6 @@ export default function App() {
     };
   }, []);
   const [selectedRedditPost, setSelectedRedditPost] = useState<any | null>(null);
-  const [selectedTelegramChannel, setSelectedTelegramChannel] = useState<TelegramChannel | null>(null);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [headerScrolled, setHeaderScrolled] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -159,7 +173,7 @@ export default function App() {
     });
   }, []);
   
-  const [filter, setFilter] = useState<'inbox' | 'saved' | 'reddit' | 'telegram' | 'radio'>('inbox');
+  const [filter, setFilter] = useState<'inbox' | 'saved' | 'reddit' | 'radio'>('inbox');
   const scrollPositions = useRef<Record<string, number>>({});
   const activeSectionRef = useRef<React.RefObject<HTMLDivElement> | null>(null);
 
@@ -177,6 +191,17 @@ export default function App() {
     }
   }, [filter]);
 
+  useEffect(() => {
+    // Sync retroTheme class with document.body in real-time
+    document.body.classList.remove('retro-apple-ii', 'retro-c64', 'retro-e-ink', 'retro-scumm');
+    if (settings.retroTheme === 'c64') {
+      document.body.classList.add('retro-c64');
+    }
+    return () => {
+      document.body.classList.remove('retro-apple-ii', 'retro-c64', 'retro-e-ink', 'retro-scumm');
+    };
+  }, [settings.retroTheme]);
+
   const getActiveScrollRef = useCallback(() => {
     switch (filter) {
       case 'inbox': return inboxScrollRef;
@@ -192,12 +217,10 @@ export default function App() {
   
   const [inboxUnreadOnly, setInboxUnreadOnly] = useState(false);
   const [savedUnreadOnly, setSavedUnreadOnly] = useState(false);
-  const [telegramFilter, setTelegramFilter] = useState<'all' | 'unread'>('all');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [sourceFilter, setSourceFilter] = useState<string>('all');
   const [timeFilter, setTimeFilter] = useState<string>('all');
   const [subredditFilter, setSubredditFilter] = useState<string>('all');
-  const [telegramChannelFilter, setTelegramChannelFilter] = useState<string>('all');
 
   const filteredRedditPosts = useMemo(() => {
     const query = deferredSearchQuery.toLowerCase();
@@ -217,25 +240,6 @@ export default function App() {
     return filtered;
   }, [redditPosts, deferredSearchQuery, redditSort, subredditFilter]);
 
-  const sortedTelegramChannels = useMemo(() => {
-    const query = deferredSearchQuery.toLowerCase();
-    return [...telegramChannels]
-      .sort((a, b) => (b.lastMessageDate || 0) - (a.lastMessageDate || 0))
-      .filter(channel => {
-        if (telegramChannelFilter !== 'all' && channel.id !== telegramChannelFilter) return false;
-        if (query) {
-          const matchesQuery = channel.name.toLowerCase().includes(query) || 
-                              (channel.username?.toLowerCase().includes(query) ?? false);
-          if (!matchesQuery) return false;
-        }
-        return true;
-      });
-  }, [telegramChannels, deferredSearchQuery, telegramChannelFilter]);
-
-  const telegramUnreadCount = useMemo(() => {
-    return telegramChannels.reduce((sum, c) => sum + (c.unreadCount || 0), 0);
-  }, [telegramChannels]);
-    
   useEffect(() => {
     resetPagination();
   }, [filter, deferredSearchQuery, inboxUnreadOnly, savedUnreadOnly, sourceFilter, timeFilter]);
@@ -243,19 +247,8 @@ export default function App() {
   useEffect(() => {
     if (filter === 'reddit' && subreddits.length > 0) {
       refreshReddit();
-    } else if (filter === 'telegram' && telegramChannels.length > 0) {
-      refreshTelegramChannels();
     }
   }, [filter]);
-
-  useEffect(() => {
-    if (selectedTelegramChannel) {
-      const channelMessages = telegramMessages[selectedTelegramChannel.id];
-      if (!channelMessages || channelMessages.length === 0) {
-        refreshTelegramChannels([selectedTelegramChannel]);
-      }
-    }
-  }, [selectedTelegramChannel?.id, telegramMessages]);
 
   const {
     pullProgressTransform,
@@ -267,7 +260,7 @@ export default function App() {
   } = usePullToRefresh({
     onRefresh: refreshFeeds,
     isLoading,
-    isDisabled: isSettingsOpen || filter === 'reddit' || filter === 'telegram' || filter === 'saved' || filter === 'radio' || !!selectedArticle || !!selectedRedditPost || !!selectedTelegramChannel,
+    isDisabled: isSettingsOpen || filter === 'reddit' || filter === 'saved' || filter === 'radio' || !!selectedArticle || !!selectedRedditPost,
     scrollRefs: {
       inbox: inboxScrollRef as RefObject<HTMLDivElement>,
       saved: savedScrollRef as RefObject<HTMLDivElement>,
@@ -279,15 +272,12 @@ export default function App() {
   useEffect(() => {
     setSourceFilter('all');
     setTimeFilter('all');
+    setSubredditFilter('all');
 
     // Clean up readers and enforce retention when switching tabs
     if (selectedRedditPost) {
       setSelectedRedditPost(null);
       enforceRedditRetention();
-    }
-    if (selectedTelegramChannel) {
-      setSelectedTelegramChannel(null);
-      enforceTelegramRetention();
     }
     if (selectedArticle) {
       setSelectedArticle(null);
@@ -299,11 +289,29 @@ export default function App() {
     setIsSearchOpen(false);
   }, [filter]);
 
-  const handleFilterChange = (newFilter: 'inbox' | 'saved' | 'reddit' | 'telegram') => {
-    if (newFilter === filter) return;
+  const handleFilterChange = (newFilter: 'inbox' | 'saved' | 'reddit' | 'radio') => {
+    if (newFilter === filter) {
+      if (filter === 'inbox') {
+        handleTypeFilterChange('unread');
+      } else if (filter === 'saved') {
+        handleTypeFilterChange('unread');
+      } else if (filter === 'reddit') {
+        const nextSort = redditSort === 'new' ? 'hot' : 'new';
+        handleRedditSortChange(nextSort);
+        if (redditScrollRef.current) {
+          redditScrollRef.current.scrollTop = 0;
+        }
+      }
+      return;
+    }
     
     // Batch updates
     setFilter(newFilter);
+    if (newFilter === 'inbox') {
+      setInboxUnreadOnly(false);
+    } else if (newFilter === 'reddit') {
+      handleRedditSortChange('new');
+    }
   };
 
   const handleTypeFilterChange = (newType: 'unread') => {
@@ -355,9 +363,6 @@ export default function App() {
     const handleBackButton = async ({ canGoBack }: any) => {
       if (webViewUrl) {
         setWebViewUrl(null);
-      } else if (selectedTelegramChannel) {
-        setSelectedTelegramChannel(null);
-        enforceTelegramRetention();
       } else if (selectedArticle) {
         setSelectedArticle(null);
       } else if (selectedRedditPost) {
@@ -366,7 +371,6 @@ export default function App() {
       } else if (isSettingsOpen) {
         setIsSettingsOpen(false);
         setSettingsTab(undefined);
-        handleFilterChange('inbox');
         setSearchQuery('');
         setIsSearchOpen(false);
       } else if (isSearchOpen) {
@@ -392,7 +396,7 @@ export default function App() {
     return () => {
       if (listener) listener.remove();
     };
-  }, [webViewUrl, selectedArticle, selectedRedditPost, selectedTelegramChannel, isSettingsOpen, isSearchOpen, filter, sourceFilter, timeFilter, setSearchQuery, enforceTelegramRetention, enforceRedditRetention]);
+  }, [webViewUrl, selectedArticle, selectedRedditPost, isSettingsOpen, isSearchOpen, filter, sourceFilter, timeFilter, setSearchQuery, enforceRedditRetention]);
 
   const markAsReadWithPersistence = useCallback((id: string) => {
     if (filter === 'inbox' && inboxUnreadOnly) {
@@ -662,7 +666,6 @@ export default function App() {
     switch (filter) {
       case 'saved': return ['bg-yellow-500/60', 'bg-amber-500/50', 'bg-yellow-400/50', 'bg-orange-500/40'];
       case 'reddit': return ['bg-purple-500/60', 'bg-fuchsia-500/50', 'bg-violet-500/50', 'bg-purple-400/40'];
-      case 'telegram': return ['bg-green-500/60', 'bg-emerald-500/50', 'bg-teal-500/50', 'bg-green-400/40'];
       case 'radio': return ['bg-red-500/60', 'bg-orange-500/50', 'bg-rose-500/50', 'bg-red-400/40'];
       case 'inbox':
       default: return ['bg-blue-500/60', 'bg-indigo-500/50', 'bg-sky-500/50', 'bg-blue-400/40'];
@@ -749,7 +752,7 @@ export default function App() {
         <div className={cn("absolute -bottom-[10%] left-[10%] w-[60vw] h-[60vh] rounded-full blur-[80px] opacity-90 transition-colors duration-700 delay-200 transform-gpu", blob3)} />
         <div className={cn("absolute bottom-[10%] right-[20%] w-[70vw] h-[70vh] rounded-full blur-[80px] opacity-90 transition-colors duration-700 transform-gpu", blob4)} />
       </div>
-      {filter !== 'reddit' && filter !== 'telegram' && (
+      {filter !== 'reddit' && (
         <motion.div 
           className="absolute top-0 left-0 right-0 flex justify-center py-2 pointer-events-none z-30"
           style={{ y: pullProgressTransform, opacity: pullOpacity }}
@@ -768,11 +771,11 @@ export default function App() {
             className="flex items-center gap-3 active:opacity-70 transition-opacity focus-visible:ring-2 focus-visible:ring-indigo-500 rounded-lg px-1 outline-none"
             aria-label="Scroll to top"
           >
-            <div className="w-10 h-10 rounded-full flex items-center justify-center relative transition-colors" style={{ backgroundColor: filter === 'radio' ? 'rgba(239, 68, 68, 0.1)' : filter === 'reddit' ? 'rgba(147, 51, 234, 0.1)' : filter === 'telegram' ? 'rgba(34, 197, 94, 0.1)' : filter === 'saved' ? 'rgba(234, 179, 8, 0.1)' : 'rgba(37, 99, 235, 0.1)' }}>
+            <div className="w-10 h-10 rounded-full flex items-center justify-center relative transition-colors" style={{ backgroundColor: filter === 'radio' ? 'rgba(239, 68, 68, 0.1)' : filter === 'reddit' ? 'rgba(147, 51, 234, 0.1)' : filter === 'saved' ? 'rgba(234, 179, 8, 0.1)' : 'rgba(37, 99, 235, 0.1)' }}>
               {filter === 'radio' ? (
                 <Radio className="w-6 h-6 transition-colors text-red-600 dark:text-red-400" />
               ) : (
-                <Rss className={cn("w-6 h-6 transition-colors", filter === 'reddit' ? "text-purple-600 dark:text-purple-400" : filter === 'telegram' ? "text-green-600 dark:text-green-400" : filter === 'saved' ? "text-yellow-600 dark:text-yellow-400" : "text-blue-600 dark:text-blue-400")} />
+                <Rss className={cn("w-6 h-6 transition-colors", filter === 'reddit' ? "text-purple-600 dark:text-purple-400" : filter === 'saved' ? "text-yellow-600 dark:text-yellow-400" : "text-blue-600 dark:text-blue-400")} />
               )}
             </div>
             <div className="flex items-baseline gap-4">
@@ -780,95 +783,71 @@ export default function App() {
             </div>
           </motion.button>
           <div className="flex items-center gap-2">
-            <button 
-              onClick={() => {
-                if (filter === 'radio') {
-                  setFilter('inbox');
-                } else {
-                  setFilter('radio');
-                }
-              }}
-              className={cn(
-                "p-2 rounded-full transition-colors",
-                filter === 'radio' ? "text-red-600 bg-red-50 dark:bg-red-900/30" : "text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
+            <AnimatePresence mode="wait">
+              {filter === 'inbox' && (
+                <motion.div
+                  key="inbox-status"
+                  initial={{ opacity: 0, scale: 0.9, y: -2 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.9, y: 2 }}
+                  transition={{ duration: 0.15 }}
+                  className="text-[10px] font-bold uppercase tracking-widest text-blue-500 dark:text-blue-400 bg-blue-500/10 px-2.5 py-1 rounded-full border border-blue-500/15 dark:border-blue-500/25 flex items-center gap-1 shadow-sm"
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+                  {inboxUnreadOnly ? "Unread" : "All"}
+                </motion.div>
               )}
-              aria-label="Open Radio"
-            >
-              <Radio className="w-5 h-5" aria-hidden="true" />
-            </button>
-            <button 
-              onClick={() => setIsSearchOpen(true)}
-              className={cn(
-                "p-2 rounded-full transition-colors text-gray-600 dark:text-gray-300",
-                filter === 'reddit' ? "hover:bg-purple-50 dark:hover:bg-purple-900/30" : "hover:bg-blue-50 dark:hover:bg-blue-900/30"
+              {filter === 'saved' && (
+                <motion.div
+                  key="saved-status"
+                  initial={{ opacity: 0, scale: 0.9, y: -2 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.9, y: 2 }}
+                  transition={{ duration: 0.15 }}
+                  className="text-[10px] font-bold uppercase tracking-widest text-yellow-600 dark:text-yellow-400 bg-yellow-500/10 px-2.5 py-1 rounded-full border border-yellow-500/15 dark:border-yellow-500/25 flex items-center gap-1 shadow-sm"
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-yellow-500" />
+                  {savedUnreadOnly ? "Unread" : "All"}
+                </motion.div>
               )}
-              aria-label="Open search"
-            >
-              <Search className="w-5 h-5" aria-hidden="true" />
-            </button>
+              {filter === 'reddit' && (
+                <motion.div
+                  key="reddit-status"
+                  initial={{ opacity: 0, scale: 0.9, y: -2 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.9, y: 2 }}
+                  transition={{ duration: 0.15 }}
+                  className="text-[10px] font-bold uppercase tracking-widest text-purple-600 dark:text-purple-400 bg-purple-500/10 px-2.5 py-1 rounded-full border border-purple-500/15 dark:border-purple-500/25 flex items-center gap-1 shadow-sm"
+                >
+                  {redditSort === 'hot' ? (
+                    <>
+                      <Flame className="w-3 h-3 text-purple-500 animate-pulse" />
+                      Trending
+                    </>
+                  ) : (
+                    <>
+                      <span className="w-1.5 h-1.5 rounded-full bg-purple-500" />
+                      New
+                    </>
+                  )}
+                </motion.div>
+              )}
+              {filter === 'radio' && (
+                <motion.div
+                  key="radio-status"
+                  initial={{ opacity: 0, scale: 0.9, y: -2 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.9, y: 2 }}
+                  transition={{ duration: 0.15 }}
+                  className="text-[10px] font-bold uppercase tracking-widest text-red-600 dark:text-red-400 bg-red-500/10 px-2.5 py-1 rounded-full border border-red-500/15 dark:border-red-500/25 flex items-center gap-1 shadow-sm"
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-ping" style={{ animationDuration: '2s' }} />
+                  Radio
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         </header>
-
-        {filter === 'reddit' && (
-          <div className="px-4 pb-1 pt-1 flex items-center gap-2 overflow-x-auto scrollbar-hide">
-            <button
-              onClick={() => handleRedditSortChange('new')}
-              className={cn(
-                "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap",
-                redditSort === 'new' ? "bg-purple-600 text-white shadow-sm" : "bg-gray-800 text-gray-400 hover:bg-gray-700"
-              )}
-            >
-              New
-            </button>
-            <button
-              onClick={() => handleRedditSortChange('hot')}
-              className={cn(
-                "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap",
-                redditSort === 'hot' ? "bg-purple-600 text-white shadow-sm" : "bg-gray-800 text-gray-400 hover:bg-gray-700"
-              )}
-            >
-              <Flame className="w-3.5 h-3.5" /> Trending
-            </button>
-          </div>
-        )}
-
-        {filter === 'telegram' && (
-          <div className="px-4 pb-1 pt-1 flex items-center gap-2 overflow-x-auto scrollbar-hide">
-            <button
-              onClick={() => setTelegramFilter(telegramFilter === 'unread' ? 'all' : 'unread')}
-              className={cn(
-                "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap",
-                telegramFilter === 'unread' ? "bg-green-600 text-white shadow-sm" : "bg-gray-800 text-gray-400 hover:bg-gray-700"
-              )}
-            >
-              {telegramFilter === 'unread' ? (
-                <><Check className="w-3.5 h-3.5" /> Unread</>
-              ) : (
-                <><MessageSquare className="w-3.5 h-3.5" /> All</>
-              )}
-            </button>
-          </div>
-        )}
-
-        {filter === 'inbox' && (
-          <div className="px-4 pb-1 pt-1 flex items-center gap-2 overflow-x-auto scrollbar-hide">
-            <button
-              onClick={() => handleTypeFilterChange('unread')}
-              className={cn(
-                "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap",
-                inboxUnreadOnly 
-                  ? "bg-blue-600 text-white shadow-sm" 
-                  : "bg-gray-800 text-gray-400 hover:bg-gray-700"
-              )}
-            >
-              {inboxUnreadOnly ? (
-                  <><CheckCircle2 className="w-3.5 h-3.5" /> Unread</>
-              ) : (
-                  <><Layers className="w-3.5 h-3.5" /> All</>
-              )}
-            </button>
-          </div>
-        )}
 
         {isSearchOpen && (
           <div className="px-4 py-3 border-t border-white/10 dark:border-white/5 bg-white/5 dark:bg-black/20 backdrop-blur-xl flex flex-col gap-3">
@@ -878,9 +857,9 @@ export default function App() {
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder={filter === 'reddit' ? "Search Reddit posts..." : filter === 'telegram' ? "Search channels..." : filter === 'radio' ? "Search radio stations..." : "Search articles..."}
+                placeholder={filter === 'reddit' ? "Search Reddit posts..." : filter === 'radio' ? "Search radio stations..." : "Search articles..."}
                 className="flex-1 bg-transparent text-gray-900 dark:text-white focus:outline-none"
-                aria-label={filter === 'reddit' ? "Search Reddit posts" : filter === 'telegram' ? "Search channels" : filter === 'radio' ? "Search radio stations" : "Search articles"}
+                aria-label={filter === 'reddit' ? "Search Reddit posts" : filter === 'radio' ? "Search radio stations" : "Search articles"}
                 autoFocus
               />
               <button 
@@ -897,7 +876,7 @@ export default function App() {
               </button>
             </div>
             <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide">
-                {filter !== 'reddit' && filter !== 'telegram' && filter !== 'radio' && (
+                {filter !== 'reddit' && filter !== 'radio' && (
                   <>
                     <div className="relative">
                       <select
@@ -932,21 +911,7 @@ export default function App() {
                     <ChevronDown className="w-3.5 h-3.5 absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none z-10" />
                   </div>
                 )}
-                {filter === 'telegram' && (
-                  <div className="relative">
-                    <select
-                      value={telegramChannelFilter}
-                      onChange={(e) => setTelegramChannelFilter(e.target.value)}
-                      className="appearance-none text-xs bg-white/10 text-white dark:text-gray-300 rounded-full pl-3 pr-8 py-1.5 border-none focus:ring-0 outline-none whitespace-nowrap"
-                    >
-                      <option value="all">All Channels</option>
-                      {telegramChannels.map(c => (
-                        <option key={c.id} value={c.id}>{c.name}</option>
-                      ))}
-                    </select>
-                    <ChevronDown className="w-3.5 h-3.5 absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none z-10" />
-                  </div>
-                )}
+
                 {filter === 'radio' && (
                   <div className="flex items-center gap-2">
                     {['Pop', 'Rock', 'Jazz', 'Dance', 'News', 'Classical'].map((cat) => (
@@ -1065,16 +1030,6 @@ export default function App() {
           isActive={filter === 'radio'}
           searchQuery={searchQuery}
         />
-        <TelegramListView
-          isActive={filter === 'telegram'}
-          channels={sortedTelegramChannels}
-          onChannelClick={(channel) => {
-            setSelectedTelegramChannel(channel);
-            markTelegramChannelAsRead(channel.id);
-            loadTelegramMessages(channel.id);
-          }}
-          filter={telegramFilter}
-        />
       </div>
 
       {selectedImage && (
@@ -1135,27 +1090,23 @@ export default function App() {
         </motion.button>
         <motion.button
           whileTap={{ scale: 0.9 }}
-          onClick={() => handleFilterChange('telegram')}
+          onClick={() => handleFilterChange('radio')}
+          onMouseEnter={() => (RadioView as any).prefetch()}
+          onTouchStart={() => (RadioView as any).prefetch()}
           className={cn(
             "relative p-2 rounded-full border-none outline-none",
-            filter === 'telegram' ? "text-green-500" : "text-gray-500"
+            filter === 'radio' ? "text-red-500" : "text-gray-500"
           )}
-          aria-label="Telegram"
-          aria-pressed={filter === 'telegram'}
+          aria-label="Radio"
+          aria-pressed={filter === 'radio'}
         >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={cn("w-6 h-6", filter === 'telegram' && "drop-shadow-[0_0_8px_rgba(34,197,94,0.5)]")} aria-hidden="true">
-            <path d="M21.5 2L2 11.5l6.5 2.5 2 6.5L14 17l5.5 4.5L21.5 2z"></path>
-            <path d="M21.5 2L8.5 14"></path>
-          </svg>
-          {telegramUnreadCount > 0 && (
-            <span className="absolute -top-1 -right-1 bg-green-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full border-2 border-black">
-              {telegramUnreadCount > 99 ? '99+' : telegramUnreadCount}
-            </span>
-          )}
+          <Radio className={cn("w-6 h-6", filter === 'radio' && "drop-shadow-[0_0_8px_rgba(239,68,68,0.5)]")} aria-hidden="true" />
         </motion.button>
         <motion.button
           whileTap={{ scale: 0.9 }}
           onClick={() => setIsSettingsOpen(true)}
+          onMouseEnter={() => (SettingsModal as any).prefetch()}
+          onTouchStart={() => (SettingsModal as any).prefetch()}
           className={cn(
             "p-2 rounded-full transition-colors text-gray-500 hover:text-gray-300",
             isSettingsOpen && "text-[var(--theme-color)]"
@@ -1167,7 +1118,7 @@ export default function App() {
       </div>
 
       <AnimatePresence>
-        {(filter === 'inbox' || filter === 'saved' || filter === 'reddit' || filter === 'telegram') && (
+        {(filter === 'inbox' || filter === 'saved' || filter === 'reddit' || filter === 'radio') && (
           <motion.div 
             initial={{ opacity: 0, scale: 0.8, x: 20 }}
             animate={{ opacity: 1, scale: 1, x: 0 }}
@@ -1176,6 +1127,19 @@ export default function App() {
               "fixed right-6 flex flex-col gap-4 z-30 items-center transition-all duration-300 bottom-28"
             )}
           >
+            <motion.button
+              whileTap={{ scale: 0.9 }}
+              onClick={() => setIsSearchOpen(prev => !prev)}
+              className={cn(
+                "w-10 h-10 rounded-full shadow-lg flex items-center justify-center active:scale-95 transition-transform relative group border border-transparent",
+                isSearchOpen ? "bg-indigo-600 text-white" : "bg-gray-800 text-indigo-400 hover:bg-gray-700"
+              )}
+              title={isSearchOpen ? "Close search" : "Open search"}
+              aria-label={isSearchOpen ? "Close search" : "Open search"}
+            >
+              <Search className="w-5 h-5" aria-hidden="true" />
+            </motion.button>
+
             {filter === 'inbox' && (
               <motion.button
                 whileTap={{ scale: 0.9 }}
@@ -1207,7 +1171,6 @@ export default function App() {
                 className={cn(
                   "w-14 h-14 text-white rounded-full shadow-lg flex items-center justify-center active:scale-95 transition-all duration-300",
                   filter === 'reddit' ? "bg-purple-600 hover:bg-purple-700 shadow-purple-500/20" : 
-                  filter === 'telegram' ? "bg-green-600 hover:bg-green-700 shadow-green-500/20" : 
                   "bg-blue-600 hover:bg-blue-700 shadow-blue-500/20"
                 )}
                 title="Mark all as read"
@@ -1273,15 +1236,12 @@ export default function App() {
                       if (toMark.length > 0) {
                         await markRedditPostsAsRead(toMark);
                       }
-                    } else if (filter === 'telegram') {
-                      await markAllTelegramAsRead();
                     }
                     setIsMarkAllReadOpen(false);
                   }}
                   className={cn(
                     "flex-1 py-2.5 rounded-full font-medium text-white transition-colors",
                     filter === 'reddit' ? "bg-purple-600 hover:bg-purple-700" : 
-                    filter === 'telegram' ? "bg-green-600 hover:bg-green-700" : 
                     filter === 'saved' ? "bg-yellow-600 hover:bg-yellow-700" : 
                     "bg-blue-600 hover:bg-blue-700"
                   )}
@@ -1302,7 +1262,6 @@ export default function App() {
         onClose={() => {
           setIsSettingsOpen(false);
           setSettingsTab(undefined);
-          handleFilterChange('inbox');
           setSearchQuery('');
           setIsSearchOpen(false);
         }} 
@@ -1331,22 +1290,6 @@ export default function App() {
             hasNext={hasNextReddit}
             hasPrev={hasPrevReddit}
             sourceFilter={filter}
-          />
-        )}
-        {selectedTelegramChannel && (
-          <TelegramThreadView
-            key="telegram-modal"
-            channel={selectedTelegramChannel}
-            messages={telegramMessages[selectedTelegramChannel.id]}
-            onClose={() => {
-              if (selectedTelegramChannel) {
-                markTelegramChannelAsRead(selectedTelegramChannel.id);
-              }
-              setSelectedTelegramChannel(null);
-              enforceTelegramRetention();
-            }}
-            onRefresh={() => refreshTelegramChannels([selectedTelegramChannel])}
-            onLoadMore={() => loadMoreTelegramMessages(selectedTelegramChannel.id)}
           />
         )}
       </AnimatePresence>

@@ -96,34 +96,6 @@ self.onmessage = (e) => {
         }
       }
       self.postMessage({ type: 'mergedRedditPosts', merged: finalMerged, hasNew, requestId });
-    } else if (type === 'mergeTelegramMessages') {
-      const merged = Array.isArray(prev) ? [...prev] : [];
-      const incomingArr = Array.isArray(incoming) ? incoming : [];
-      const existingIds = new Set<string>();
-      
-      const initialUnique = [];
-      for (let i = 0; i < merged.length; i++) {
-        if (!existingIds.has(merged[i].id)) {
-          existingIds.add(merged[i].id);
-          initialUnique.push(merged[i]);
-        }
-      }
-      
-      const finalMerged = initialUnique;
-      let hasNew = false;
-
-      for (const newMessage of incomingArr) {
-        if (!existingIds.has(newMessage.id)) {
-          hasNew = true;
-          existingIds.add(newMessage.id);
-          finalMerged.push(newMessage);
-        }
-      }
-
-      if (hasNew) {
-        finalMerged.sort((a, b) => a.date - b.date);
-      }
-      self.postMessage({ type: 'mergedTelegramMessages', merged: finalMerged, hasNew, requestId });
     }
   } catch (error) {
     self.postMessage({ type: 'error', error: String(error), requestId: e.data.requestId });

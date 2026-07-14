@@ -13,6 +13,7 @@ export const defaultSettings: Settings = {
   redditRetentionDays: 1,
   telegramRetentionDays: 1,
   articleRetentionDays: 3,
+  retroTheme: 'none',
 };
 
 export const settingsStorage = {

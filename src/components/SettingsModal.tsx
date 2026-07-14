@@ -3,11 +3,10 @@ import { X, Moon, Sun, Monitor, Image as ImageIcon, LayoutList, Maximize, Type, 
 import { useRss } from '../context/RssContext';
 import { useSettings } from '../context/SettingsContext';
 import { useReddit } from '../context/RedditContext';
-import { useTelegram } from '../context/TelegramContext';
 import { fetchWithProxy } from '../utils/proxy';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn, getHostname } from '../lib/utils';
-import { SwipeAction, Theme, FontSize, Article, Feed } from '../types';
+import { SwipeAction, Theme, FontSize, Article, Feed, RetroTheme } from '../types';
 import { AddFeedModal } from './AddFeedModal';
 import packageJson from '../../package.json';
 import { CachedImage } from './CachedImage';
@@ -46,7 +45,6 @@ export const SettingsModal = React.memo(function SettingsModal({
     feeds, removeFeed, updateFeed, progress, updateInfo, checkUpdates, exportFeeds, importOpml, 
     errorLogs, clearErrorLogs, downloadAndInstallUpdate 
   } = useRss();
-  const { telegramChannels, removeTelegramChannel, addTelegramChannel } = useTelegram();
   const { settings, updateSettings } = useSettings();
   const { subreddits, removeSubreddit, addSubreddit } = useReddit();
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -333,7 +331,6 @@ export const SettingsModal = React.memo(function SettingsModal({
       type: 'flusso_backup',
       opml,
       subreddits: subreddits.map(s => s.name),
-      telegramChannels: telegramChannels.map(c => c.username),
     };
     const json = JSON.stringify(backupData, null, 2);
     downloadJson(json, 'flusso-backup.json');
@@ -371,23 +368,12 @@ export const SettingsModal = React.memo(function SettingsModal({
         for (const sub of subreddits) {
           await removeSubreddit(sub.id);
         }
-        for (const channel of telegramChannels) {
-          removeTelegramChannel(channel.id);
-        }
       }
 
       if (data.subreddits) {
         for (const subName of data.subreddits) {
           if (!subreddits.find(s => s.name === subName) || importMode === 'replace') {
             await addSubreddit(`https://reddit.com/r/${subName}/.rss`);
-          }
-        }
-      }
-
-      if (data.telegramChannels) {
-        for (const username of data.telegramChannels) {
-          if (!telegramChannels.find(c => c.username === username) || importMode === 'replace') {
-            await addTelegramChannel(username);
           }
         }
       }
@@ -421,7 +407,7 @@ export const SettingsModal = React.memo(function SettingsModal({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black pointer-events-auto"
+            className="fixed inset-0 bg-black/60 backdrop-blur-md pointer-events-auto"
             onClick={onClose}
           />
           <motion.div 
@@ -429,9 +415,9 @@ export const SettingsModal = React.memo(function SettingsModal({
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className="fixed bottom-0 left-0 right-0 rounded-t-[28px] z-10 px-6 pb-8 pt-0 max-h-[90vh] overflow-y-auto scrollbar-hide shadow-2xl transition-colors border-t border-white/10 dark:border-white/5 bg-black pointer-events-auto"
+            className="fixed bottom-0 left-0 right-0 rounded-t-[28px] z-10 px-6 pb-8 pt-0 max-h-[90vh] overflow-y-auto scrollbar-hide shadow-2xl transition-colors border-t border-white/10 dark:border-white/5 bg-zinc-950/95 backdrop-blur-2xl pointer-events-auto"
           >
-            <div className="sticky top-0 pt-4 pb-4 z-20 border-b border-white/10 dark:border-white/5 mb-6 -mx-6 px-6 transition-colors bg-black">
+            <div className="sticky top-0 pt-4 pb-4 z-20 border-b border-white/10 dark:border-white/5 mb-6 -mx-6 px-6 transition-colors bg-zinc-950/95 backdrop-blur-2xl">
               
               <div className="flex justify-between items-center">
                 <div className="flex items-center gap-3">
@@ -775,6 +761,32 @@ export const SettingsModal = React.memo(function SettingsModal({
                   </div>
                 </section>
 
+                {/* Retro Style Settings */}
+                <section className="pt-4 border-t border-gray-700/50">
+                  <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+                    <FlaskConical className="w-4 h-4 text-amber-500" />
+                    Stile Retro Sperimentale
+                  </h3>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-1">
+                        Modalità Grafica Retro
+                      </label>
+                      <p className="text-xs text-gray-400 mb-3 leading-relaxed">
+                        Trasforma istantaneamente l'intera interfaccia nell'aspetto vintage dei leggendari personal computer a 8-bit.
+                      </p>
+                      <select
+                        value={settings.retroTheme || 'none'}
+                        onChange={(e) => updateSettings({ retroTheme: e.target.value as RetroTheme })}
+                        className="block w-full pl-3 pr-10 py-2 text-base border-gray-700 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-lg bg-gray-800 text-white"
+                      >
+                        <option value="none">Disattivato (Moderno)</option>
+                        <option value="c64">Commodore 64 (Classic Blue & Cyan)</option>
+                      </select>
+                    </div>
+                  </div>
+                </section>
+
 
               </div>
             ) : activeTab === 'retention' ? (
@@ -991,80 +1003,6 @@ export const SettingsModal = React.memo(function SettingsModal({
                   </AnimatePresence>
                 </div>
 
-                {/* Telegram Channels Section */}
-                <div className="border border-gray-800 rounded-2xl overflow-hidden">
-                  <button 
-                    onClick={() => toggleSection('telegram')}
-                    className="w-full flex items-center justify-between p-4 bg-gray-900/50 hover:bg-gray-800 transition-colors"
-                  >
-                    <h3 className="text-sm font-semibold text-gray-300 uppercase tracking-wider flex items-center gap-2">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
-                        <path d="M21.5 2L2 11.5l6.5 2.5 2 6.5L14 17l5.5 4.5L21.5 2z"></path>
-                        <path d="M21.5 2L8.5 14"></path>
-                      </svg>
-                      Channels
-                    </h3>
-                    {expandedSections.has('telegram') ? <ChevronUp className="w-4 h-4 text-gray-500" /> : <ChevronDown className="w-4 h-4 text-gray-500" />}
-                  </button>
-                  <AnimatePresence>
-                    {expandedSections.has('telegram') && (
-                      <motion.div 
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: 'auto', opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        className="overflow-hidden"
-                      >
-                        <div className="p-2 space-y-1 bg-black">
-                          {telegramChannels.length === 0 ? (
-                            <div className="p-4 text-center text-gray-500 text-xs italic">
-                              No Telegram channels added yet.
-                            </div>
-                          ) : (
-                            <>
-                              {telegramChannels
-                                .slice()
-                                .sort((a, b) => a.name.localeCompare(b.name))
-                                .map(channel => (
-                                <div 
-                                  key={channel.id} 
-                                  className="group flex items-center justify-between p-3 rounded-xl hover:bg-gray-800 transition-all" 
-                                >
-                                  <div 
-                                    className="flex items-center gap-3 min-w-0 flex-1 cursor-pointer"
-                                    onClick={() => window.open(`https://t.me/s/${channel.username}`, '_blank')}
-                                  >
-                                    {channel.imageUrl ? (
-                                      <CachedImage 
-                                        src={channel.imageUrl} 
-                                        alt="" 
-                                        className="w-6 h-6 rounded-full flex-shrink-0 object-cover bg-gray-900 drop-shadow-[0_0_5px_rgba(34,197,94,0.4)]"
-                                        referrerPolicy="no-referrer"
-                                      />
-                                    ) : (
-                                      <div className="w-6 h-6 rounded-full flex-shrink-0 bg-green-500/20 flex items-center justify-center drop-shadow-[0_0_5px_rgba(34,197,94,0.4)]">
-                                        <span className="text-[10px] font-bold text-green-400">{channel.name[0]}</span>
-                                      </div>
-                                    )}
-                                    <div className="min-w-0">
-                                      <span className="text-sm font-medium text-white truncate block">{channel.name}</span>
-                                    </div>
-                                  </div>
-                                  <button
-                                    onClick={() => removeTelegramChannel(channel.id)}
-                                    className="p-2 text-gray-500 hover:text-red-400 transition-colors"
-                                  >
-                                    <Trash2 className="w-4 h-4" />
-                                  </button>
-                                </div>
-                              ))}
-                            </>
-                          )}
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-
                 {/* Intelligent Import OPML Button */}
                 <div className="space-y-3">
                   <button
@@ -1072,7 +1010,7 @@ export const SettingsModal = React.memo(function SettingsModal({
                     className="w-full flex items-center justify-center gap-2 p-4 rounded-2xl bg-[var(--theme-color)] text-white hover:bg-opacity-90 transition-colors font-medium shadow-lg shadow-[var(--theme-color)]/20"
                   >
                     <Plus className="w-5 h-5" />
-                    Add Feed / Subreddit / Channel
+                    Add Feed / Subreddit
                   </button>
 
                   <input
@@ -1118,7 +1056,7 @@ export const SettingsModal = React.memo(function SettingsModal({
                         </button>
                         <button
                           onClick={() => {
-                            if (feeds.length > 0 || subreddits.length > 0 || telegramChannels.length > 0) {
+                            if (feeds.length > 0 || subreddits.length > 0) {
                               setImportFlowState('mode_json');
                             } else {
                               setImportMode('append');
@@ -1357,7 +1295,6 @@ export const SettingsModal = React.memo(function SettingsModal({
             onFeedAdded={(type) => {
               if (type === 'article') setExpandedSections(prev => new Set(prev).add('articles'));
               else if (type === 'subreddit' || type === 'reddit') setExpandedSections(prev => new Set(prev).add('subreddits'));
-              else if (type === 'telegram') setExpandedSections(prev => new Set(prev).add('telegram'));
             }}
           />
           <BrowserLogsModal

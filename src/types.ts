@@ -1,6 +1,7 @@
 export type SwipeAction = 'toggleFavorite' | 'remove' | 'none';
 export type Theme = 'light' | 'dark' | 'system';
 export type FontSize = 'medium' | 'large';
+export type RetroTheme = 'none' | 'c64';
 
 export interface Settings {
   swipeLeftAction: SwipeAction;
@@ -14,6 +15,7 @@ export interface Settings {
   redditRetentionDays: number;
   telegramRetentionDays: number;
   articleRetentionDays: number;
+  retroTheme?: RetroTheme;
 }
 
 export interface Feed {
