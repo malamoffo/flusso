@@ -1,0 +1,22 @@
+{
+  "rss_parsing": {
+    "durationMs": 194.21346799999992,
+    "itemsProcessed": 100
+  },
+  "deduplication": {
+    "durationMs": 2.0041530000000876,
+    "itemsProcessed": 5000
+  },
+  "filtering": {
+    "durationMs": 1.5882579999999962,
+    "itemsProcessed": 5000
+  },
+  "sorting": {
+    "durationMs": 0.4118060000000696,
+    "itemsProcessed": 5000
+  },
+  "merge": {
+    "durationMs": 3.1336750000000393,
+    "itemsProcessed": 6000
+  }
+}

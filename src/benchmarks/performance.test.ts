@@ -176,14 +176,23 @@ describe('Deterministic Performance Benchmarks', () => {
     expect(mergeResult.merged.length).toBe(6000);
 
     // Write results to file
-    const dir = path.resolve('dist');
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
+    const distDir = path.resolve('dist');
+    if (!fs.existsSync(distDir)) {
+      fs.mkdirSync(distDir, { recursive: true });
     }
     fs.writeFileSync(
-      path.join(dir, 'benchmark-results.json'),
+      path.join(distDir, 'benchmark-results.json'),
       JSON.stringify(results, null, 2)
     );
-    console.log('Benchmark results written successfully to dist/benchmark-results.json');
+
+    const publicDir = path.resolve('public');
+    if (!fs.existsSync(publicDir)) {
+      fs.mkdirSync(publicDir, { recursive: true });
+    }
+    fs.writeFileSync(
+      path.join(publicDir, 'benchmark-results.json'),
+      JSON.stringify(results, null, 2)
+    );
+    console.log('Benchmark results written successfully to dist/benchmark-results.json and public/benchmark-results.json');
   });
 });
