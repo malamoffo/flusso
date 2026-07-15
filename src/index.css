@@ -186,12 +186,29 @@ body.retro-c64::after {
 }
 
 @keyframes c64-outline-blink {
+  0%, 100% {
+    border-color: #a0ffff !important;
+  }
+  50% {
+    border-color: transparent !important;
+  }
+}
+
+@keyframes c64-text-blink {
   0%, 100% { opacity: 1; }
   50% { opacity: 0; }
 }
 
 body.retro-c64 .animate-c64-outline-blink {
   animation: c64-outline-blink 1s step-end infinite;
+  background-color: transparent !important;
+  background: transparent !important;
+  border-width: 3px !important;
+  border-style: solid !important;
+}
+
+body.retro-c64 .animate-c64-text-blink {
+  animation: c64-text-blink 1s step-end infinite;
 }
 
 body.retro-c64 {
@@ -233,7 +250,7 @@ body.retro-c64 * {
 }
 
 /* Base element backgrounds */
-body.retro-c64 div,
+body.retro-c64 div:not(.pointer-events-none):not(.bg-transparent),
 body.retro-c64 header,
 body.retro-c64 main,
 body.retro-c64 section,
@@ -242,6 +259,14 @@ body.retro-c64 nav,
 body.retro-c64 ul,
 body.retro-c64 li {
   background-color: #4a3cb0 !important; /* Screen blue background */
+}
+
+/* Ensure helper/overlay/transparent containers remain transparent in Commodore 64 theme */
+body.retro-c64 .pointer-events-none,
+body.retro-c64 .bg-transparent,
+body.retro-c64 [class*="bg-transparent"] {
+  background-color: transparent !important;
+  background: transparent !important;
 }
 
 /* Specific main outer margins or wrapping layers can have C64 outer blue background */
