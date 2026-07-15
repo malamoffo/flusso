@@ -85,7 +85,8 @@ jobs:
       run: |
         echo "Compilazione manuale del progetto Android..."
         cd android
-        gradle assembleDebug --build-cache
+        chmod +x gradlew
+        ./gradlew assembleDebug --build-cache
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v4
