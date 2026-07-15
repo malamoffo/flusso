@@ -105,8 +105,7 @@
   /* Standard blue links for all content areas */
   .prose a, 
   .reddit-post-body a, 
-  .reddit-comment-body a, 
-  .telegram-message-body a {
+  .reddit-comment-body a {
     color: #3b82f6 !important; /* blue-500 */
     text-decoration: underline;
     text-underline-offset: 4px;
@@ -115,8 +114,7 @@
 
   .prose a:hover, 
   .reddit-post-body a:hover, 
-  .reddit-comment-body a:hover, 
-  .telegram-message-body a:hover {
+  .reddit-comment-body a:hover {
     color: #60a5fa !important; /* blue-400 */
     text-decoration-color: currentColor;
   }
@@ -185,6 +183,15 @@ body.retro-c64::after {
   0% { opacity: 0.99; }
   50% { opacity: 1; }
   100% { opacity: 0.99; }
+}
+
+@keyframes c64-outline-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+body.retro-c64 .animate-c64-outline-blink {
+  animation: c64-outline-blink 1s step-end infinite;
 }
 
 body.retro-c64 {

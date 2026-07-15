@@ -31,7 +31,7 @@ export const AddFeedModal = React.memo(function AddFeedModal({ isOpen, onClose, 
       const isWww = lowerUrl.startsWith('www.');
       const isDomain = /^[a-zA-Z0-9-]+\.[a-zA-Z]{2,}/.test(lowerUrl); // Matches something.tld
 
-      if (!isHttp && (isWww || isDomain) && !lowerUrl.startsWith('r/') && !lowerUrl.startsWith('@')) {
+      if (!isHttp && (isWww || isDomain) && !lowerUrl.startsWith('r/')) {
         cleanUrl = 'https://' + cleanUrl;
       }
 

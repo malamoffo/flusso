@@ -22,10 +22,9 @@
 *   **Search & Discover**: Filter stations by name, tag, or category with a dedicated search interface.
 *   **Visual Feedback**: Red-themed audio interface with dynamic loading states and high-quality favicons.
 
-### 🤖 Reddit & Telegram Integration
+### 🤖 Reddit Integration
 *   **Subreddit Support**: Follow your favorite subreddits directly within Flusso with dedicated purple-themed UI.
-*   **Telegram Channels**: Stay updated with public Telegram channels with a native green-themed experience.
-*   **On-Demand Content**: Load Reddit comments and full Telegram threads only when needed to save data.
+*   **On-Demand Content**: Load Reddit comments only when needed to save data.
 *   **Smart Retention**: Customizable retention policies to keep your feeds fast and relevant.
 
 ### 📖 Immersive Reading Experience

@@ -11,7 +11,6 @@ export const defaultSettings: Settings = {
   theme: 'dark',
   pureBlack: true,
   redditRetentionDays: 1,
-  telegramRetentionDays: 1,
   articleRetentionDays: 3,
   retroTheme: 'none',
 };

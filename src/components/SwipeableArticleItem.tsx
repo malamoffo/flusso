@@ -383,10 +383,10 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
         >
           {!isReadForDisplay && filter !== 'saved' && (
             <>
-              <span className="absolute top-1 right-4 z-40 px-2 py-0.5 bg-blue-600 text-[9px] font-black text-white rounded-full shadow-[0_0_12px_rgba(59,130,246,0.8)] border border-blue-400 uppercase tracking-widest animate-pulse">
+              <span className={cn("absolute top-1 right-4 z-40 px-2 py-0.5 bg-blue-600 text-[9px] font-black text-white rounded-full shadow-[0_0_12px_rgba(59,130,246,0.8)] border border-blue-400 uppercase tracking-widest", settings.retroTheme === 'c64' ? "animate-c64-outline-blink" : "animate-pulse")}>
                 NEW
               </span>
-              <div className="absolute inset-0 z-20 pointer-events-none rounded-[inherit] border-2 border-blue-400 shadow-[0_0_28px_rgba(59,130,246,0.95),inset_0_0_18px_rgba(59,130,246,0.6)] animate-pulse" style={{ animationDuration: '3s' }} />
+              <div className={cn("absolute inset-0 z-20 pointer-events-none rounded-[inherit] border-2 border-blue-400 shadow-[0_0_28px_rgba(59,130,246,0.95),inset_0_0_18px_rgba(59,130,246,0.6)]", settings.retroTheme === 'c64' ? "animate-c64-outline-blink" : "animate-pulse")} style={{ animationDuration: settings.retroTheme === 'c64' ? undefined : '3s' }} />
             </>
           )}
           <div className="relative z-10 flex flex-col gap-2">

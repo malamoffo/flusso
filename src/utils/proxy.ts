@@ -267,9 +267,8 @@ export async function fetchWithProxy(url: string, isRss: boolean = true, sinceDa
               continue;
             }
           } else {
-            // For non-RSS (likely JSON/API), ensure it doesn't look like HTML unless it's a known HTML source like Telegram or explicitly requested
-            const isTelegram = url.includes('t.me/');
-            if (!isHtml && !isTelegram && trimmed.startsWith('<') && (lowerTrimmed.includes('<html') || lowerTrimmed.includes('<body') || lowerTrimmed.includes('<!doctype'))) {
+            // For non-RSS (likely JSON/API), ensure it doesn't look like HTML unless explicitly requested
+            if (!isHtml && trimmed.startsWith('<') && (lowerTrimmed.includes('<html') || lowerTrimmed.includes('<body') || lowerTrimmed.includes('<!doctype'))) {
               lastError = new Error(`Proxy ${proxy.name} returned HTML instead of expected JSON/API response`);
               continue;
             }

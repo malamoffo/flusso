@@ -768,7 +768,7 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
                   <span className="text-gray-500 text-xs font-medium uppercase tracking-wider">{formattedDate}</span>
                 </div>
                 
-                <h1 className={`${getTitleSize()} font-black text-white leading-[1.1] tracking-tight`}>
+                <h1 className={cn(`${getTitleSize()} font-black text-white tracking-tight`, settings.retroTheme === 'c64' ? "leading-normal" : "leading-[1.1]")}>
                   <a 
                     href={getSafeUrl(article.link)}
                     target="_blank" 

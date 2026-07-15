@@ -28,6 +28,7 @@ import { Article, Feed } from './types';
 import { App as CapacitorApp } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
 import { Browser } from '@capacitor/browser';
+import { useAndroidBackNavigation } from './hooks/useAndroidBackNavigation';
 
 const PAGE_SIZE = 30;
 
@@ -88,6 +89,13 @@ export default function App() {
     [...feeds].sort((a, b) => a.title.localeCompare(b.title)),
     [feeds]
   );
+
+  const nonRedditFeeds = useMemo(() => {
+    return sortedFeeds.filter(f => {
+      const hostname = getHostname(f.feedUrl);
+      return hostname !== 'reddit.com' && !hostname.endsWith('.reddit.com');
+    });
+  }, [sortedFeeds]);
 
   const [selectedArticle, setSelectedArticle] = useState<Article | null>(null);
   const [webViewUrl, setWebViewUrl] = useState<string | null>(null);
@@ -359,44 +367,28 @@ export default function App() {
     }
   }, [isSearchOpen, searchQuery, sourceFilter, timeFilter]);
 
-  useEffect(() => {
-    const handleBackButton = async ({ canGoBack }: any) => {
-      if (webViewUrl) {
-        setWebViewUrl(null);
-      } else if (selectedArticle) {
-        setSelectedArticle(null);
-      } else if (selectedRedditPost) {
-        setSelectedRedditPost(null);
-        enforceRedditRetention();
-      } else if (isSettingsOpen) {
-        setIsSettingsOpen(false);
-        setSettingsTab(undefined);
-        setSearchQuery('');
-        setIsSearchOpen(false);
-      } else if (isSearchOpen) {
-        setIsSearchOpen(false);
-        setSearchQuery('');
-        setSourceFilter('all');
-        setTimeFilter('all');
-      } else if (filter !== 'inbox') {
-        handleFilterChange('inbox');
-      } else {
-        CapacitorApp.exitApp();
-      }
-    };
-    
-    let listener: any;
-    const isAppAvailable = Capacitor.isNativePlatform() && Capacitor.getPlatform() !== 'web' && Capacitor.isPluginAvailable('App');
-    if (typeof window !== 'undefined' && isAppAvailable) {
-      CapacitorApp.addListener('backButton', handleBackButton).then(l => {
-        listener = l;
-      });
-    }
-    
-    return () => {
-      if (listener) listener.remove();
-    };
-  }, [webViewUrl, selectedArticle, selectedRedditPost, isSettingsOpen, isSearchOpen, filter, sourceFilter, timeFilter, setSearchQuery, enforceRedditRetention]);
+  useAndroidBackNavigation({
+    selectedImage,
+    setSelectedImage,
+    webViewUrl,
+    setWebViewUrl,
+    selectedArticle,
+    setSelectedArticle,
+    selectedRedditPost,
+    setSelectedRedditPost,
+    enforceRedditRetention,
+    isSettingsOpen,
+    setIsSettingsOpen,
+    setSettingsTab,
+    isSearchOpen,
+    setIsSearchOpen,
+    searchQuery,
+    setSearchQuery,
+    setSourceFilter,
+    setTimeFilter,
+    filter,
+    handleFilterChange,
+  });
 
   const markAsReadWithPersistence = useCallback((id: string) => {
     if (filter === 'inbox' && inboxUnreadOnly) {
@@ -442,13 +434,41 @@ export default function App() {
     temporarilyVisibleUnreadIds
   });
 
-  const { visibleCount, loadMore: loadMoreArticles, hasMore: hasMoreArticles, reset: resetPagination } = usePagination(filter === 'inbox' ? inboxArticles.length : savedArticles.length);
+  /**
+   * ⚡ Bolt: Memoize the saved list deduplicated, sorted, and paginated.
+   */
+  const memoizedSavedArticles = useMemo(() => {
+    const uniqueMap = new Map<string, Article>();
+    for (let i = 0; i < savedArticles.length; i++) {
+      const art = savedArticles[i];
+      const key = art.link || art.id;
+      if (!uniqueMap.has(key)) {
+        uniqueMap.set(key, art);
+      }
+    }
+    const deduplicated = Array.from(uniqueMap.values());
+
+    deduplicated.sort((a, b) => {
+      const timeA = typeof a.pubDate === 'string' ? new Date(a.pubDate).getTime() : a.pubDate;
+      const timeB = typeof b.pubDate === 'string' ? new Date(b.pubDate).getTime() : b.pubDate;
+      const valA = isNaN(timeA) ? 0 : timeA;
+      const valB = isNaN(timeB) ? 0 : timeB;
+      if (valB !== valA) return valB - valA;
+      return b.id.localeCompare(a.id);
+    });
+
+    return deduplicated;
+  }, [savedArticles]);
+
+  const { visibleCount, loadMore: loadMoreArticles, hasMore: hasMoreArticles, reset: resetPagination } = usePagination(
+    filter === 'inbox' ? inboxArticles.length : memoizedSavedArticles.length
+  );
 
   /**
    * ⚡ Bolt: Optimize article navigation by pre-calculating the active list and current index.
    * This avoids repeated O(N) findIndex calls on every render and navigation event.
    */
-  const activeArticles = useMemo(() => (filter === 'inbox' ? inboxArticles : savedArticles), [filter, inboxArticles, savedArticles]);
+  const activeArticles = useMemo(() => (filter === 'inbox' ? inboxArticles : memoizedSavedArticles), [filter, inboxArticles, memoizedSavedArticles]);
   
   const visibleArticles = useMemo(() => activeArticles.slice(0, visibleCount), [activeArticles, visibleCount]);
 
@@ -662,7 +682,7 @@ export default function App() {
     return `${r}, ${g}, ${b}`;
   }, [settings.themeColor]);
 
-  const getBlobColors = () => {
+  const blobColors = useMemo(() => {
     switch (filter) {
       case 'saved': return ['bg-yellow-500/60', 'bg-amber-500/50', 'bg-yellow-400/50', 'bg-orange-500/40'];
       case 'reddit': return ['bg-purple-500/60', 'bg-fuchsia-500/50', 'bg-violet-500/50', 'bg-purple-400/40'];
@@ -670,8 +690,8 @@ export default function App() {
       case 'inbox':
       default: return ['bg-blue-500/60', 'bg-indigo-500/50', 'bg-sky-500/50', 'bg-blue-400/40'];
     }
-  };
-  const [blob1, blob2, blob3, blob4] = getBlobColors();
+  }, [filter]);
+  const [blob1, blob2, blob3, blob4] = blobColors;
 
   const handleAppTouchStart = (e: React.TouchEvent) => {
     const target = e.target as HTMLElement;
@@ -695,7 +715,6 @@ export default function App() {
       if (
         classList.contains('swipeable-item') ||
         classList.contains('reddit-card') ||
-        classList.contains('telegram-message') ||
         classList.contains('station-card') ||
         classList.contains('active-reader') ||
         classList.contains('settings-modal') ||
@@ -885,10 +904,7 @@ export default function App() {
                         className="appearance-none text-xs bg-white/10 text-white dark:text-gray-300 rounded-full pl-3 pr-8 py-1.5 border-none focus:ring-0 outline-none whitespace-nowrap"
                       >
                         <option value="all">All Sources</option>
-                        {sortedFeeds.filter(f => {
-                            const hostname = getHostname(f.feedUrl);
-                            return hostname !== 'reddit.com' && !hostname.endsWith('.reddit.com');
-                        }).map(f => (
+                        {nonRedditFeeds.map(f => (
                           <option key={f.id} value={f.id}>{f.title}</option>
                         ))}
                       </select>

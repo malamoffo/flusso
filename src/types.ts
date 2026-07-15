@@ -13,7 +13,6 @@ export interface Settings {
   theme: Theme;
   pureBlack: boolean;
   redditRetentionDays: number;
-  telegramRetentionDays: number;
   articleRetentionDays: number;
   retroTheme?: RetroTheme;
 }
@@ -110,26 +109,6 @@ export interface RedditComment {
   depth: number;
   replies?: RedditComment[];
   mediaUrls?: string[];
-}
-
-export interface TelegramChannel {
-  id: string;
-  name: string;
-  username: string;
-  imageUrl?: string;
-  lastMessageDate: number;
-  lastChecked: number;
-  unreadCount: number;
-  lastOpened: number;
-  error?: string;
-}
-
-export interface TelegramMessage {
-  id: string;
-  channelId: string;
-  text: string;
-  imageUrl?: string;
-  date: number;
 }
 
 export interface RadioStation {

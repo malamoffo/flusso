@@ -1,13 +1,11 @@
 import Dexie, { Table } from 'dexie';
-import { Feed, Article, Subreddit, RedditPost, TelegramChannel, TelegramMessage, FullArticleContent, RefreshLog, Settings } from '../types';
+import { Feed, Article, Subreddit, RedditPost, FullArticleContent, RefreshLog, Settings } from '../types';
 
 export class FlussoDatabase extends Dexie {
   feeds!: Table<Feed, string>;
   articles!: Table<Article, string>;
   subreddits!: Table<Subreddit, string>;
   redditPosts!: Table<RedditPost, string>;
-  telegramChannels!: Table<TelegramChannel, string>;
-  telegramMessages!: Table<TelegramMessage, string>;
   articleContents!: Table<FullArticleContent & { id: string }, string>;
   settings!: Table<Settings & { id: string }, string>;
   refreshLogs!: Table<RefreshLog, string>;
@@ -22,8 +20,6 @@ export class FlussoDatabase extends Dexie {
       articles: 'id, feedId, pubDate, isRead, isFavorite, type',
       subreddits: 'id, name',
       redditPosts: 'id, subredditId, createdUtc, isRead, isFavorite',
-      telegramChannels: 'id, username',
-      telegramMessages: 'id, channelId, date',
       articleContents: 'id',
       settings: 'id',
       refreshLogs: 'id, timestamp',

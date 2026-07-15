@@ -161,7 +161,14 @@ export const rssService = {
             }
           }
           if (stateChanged) {
-            merged.sort((a, b) => b.pubDate - a.pubDate);
+            merged.sort((a, b) => {
+              const timeA = typeof a.pubDate === 'string' ? new Date(a.pubDate).getTime() : a.pubDate;
+              const timeB = typeof b.pubDate === 'string' ? new Date(b.pubDate).getTime() : b.pubDate;
+              const valA = isNaN(timeA) ? 0 : timeA;
+              const valB = isNaN(timeB) ? 0 : timeB;
+              if (valB !== valA) return valB - valA;
+              return b.id.localeCompare(a.id);
+            });
           }
           return stateChanged ? merged : prev;
         });

@@ -13,6 +13,21 @@ import { FileOpener } from '@capacitor-community/file-opener';
 import DataWorker from '../workers/dataProcessor.worker.ts?worker';
 import { contentFetcher } from '../utils/contentFetcher';
 
+const getPubDateTime = (a: { pubDate: string | number }) => {
+  if (!a.pubDate) return 0;
+  const time = typeof a.pubDate === 'string' ? new Date(a.pubDate).getTime() : a.pubDate;
+  return isNaN(time) ? 0 : time;
+};
+
+export const compareArticlesDesc = (a: { id: string; pubDate: string | number }, b: { id: string; pubDate: string | number }) => {
+  const timeA = getPubDateTime(a);
+  const timeB = getPubDateTime(b);
+  if (timeB !== timeA) {
+    return timeB - timeA;
+  }
+  return b.id.localeCompare(a.id);
+};
+
 interface ProgressInfo {
   current: number;
   total: number;
@@ -39,7 +54,7 @@ interface RssContextType {
   loadMoreArticles: () => Promise<void>;
   updateInfo: any | null;
   downloadAndInstallUpdate: () => Promise<void>;
-  addFeedOrSubreddit: (url: string) => Promise<'article' | 'reddit' | 'subreddit' | 'telegram' | void>;
+  addFeedOrSubreddit: (url: string) => Promise<'article' | 'reddit' | 'subreddit' | void>;
   importOpml: (file: File | { text: () => Promise<string> }, append?: boolean) => Promise<void>;
   exportFeeds: (types?: ('article')[]) => Promise<string>;
   removeFeed: (id: string) => void;
@@ -467,7 +482,7 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return () => window.removeEventListener('app-resume', handleResume);
   }, [checkUpdates]);
 
-  const addFeedOrSubreddit = useCallback(async (url: string): Promise<'article' | 'reddit' | 'subreddit' | 'telegram' | void> => {
+  const addFeedOrSubreddit = useCallback(async (url: string): Promise<'article' | 'reddit' | 'subreddit' | void> => {
     try {
       setIsLoading(true);
       setError(null);
@@ -521,17 +536,7 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             return 'article';
         }
       } catch (e) {
-        // Invalid URL, continue to Telegram check
-      }
-
-      // 3. Otherwise, check for Telegram indicators or treat as fallback
-      if (lowerUrl.startsWith('@')) {
-        return 'telegram';
-      }
-
-      // If it has no dots and no special markers, it's likely a telegram username without @
-      if (!lowerUrl.includes('.')) {
-        return 'telegram';
+        // Invalid URL, continue
       }
 
       // Final fallback
@@ -771,7 +776,7 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   }, []);
 
   const addArticle = useCallback(async (article: Article) => {
-    setArticles(prev => [...prev, article].sort((a,b) => b.pubDate - a.pubDate));
+    setArticles(prev => [...prev, article].sort(compareArticlesDesc));
     await storage.saveArticles([article]);
   }, []);
 
@@ -815,7 +820,7 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setArticles(prev => {
             const existingIds = new Set(prev.map(a => a.id));
             const newArticles = unreadArticles.filter(a => !existingIds.has(a.id));
-            return [...prev, ...newArticles].sort((a,b) => b.pubDate - a.pubDate);
+            return [...prev, ...newArticles].sort(compareArticlesDesc);
         });
         setHasMoreArticles(false); // Disable pagination as we loaded everything
       } catch (err) {
