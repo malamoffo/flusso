@@ -187,10 +187,10 @@ body.retro-c64::after {
 
 @keyframes c64-outline-blink {
   0%, 100% {
-    border-color: #a0ffff !important;
+    opacity: 1;
   }
   50% {
-    border-color: transparent !important;
+    opacity: 0;
   }
 }
 
@@ -203,8 +203,8 @@ body.retro-c64 .animate-c64-outline-blink {
   animation: c64-outline-blink 1s step-end infinite;
   background-color: transparent !important;
   background: transparent !important;
-  border-width: 3px !important;
-  border-style: solid !important;
+  border: 3px solid #a0ffff !important;
+  box-shadow: none !important;
 }
 
 body.retro-c64 .animate-c64-text-blink {
