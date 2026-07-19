@@ -294,13 +294,76 @@ body.retro-c64 h2,
 body.retro-c64 h3,
 body.retro-c64 h4,
 body.retro-c64 h5,
-body.retro-c64 h6,
+body.retro-c64 h6 {
+  color: #ffffff !important;
+  text-transform: uppercase !important;
+  font-weight: normal !important;
+  line-height: 2.2 !important;
+  margin-bottom: 12px !important;
+}
+
 body.retro-c64 strong,
 body.retro-c64 b,
 body.retro-c64 .text-white {
   color: #ffffff !important;
   text-transform: uppercase !important;
   font-weight: normal !important;
+}
+
+/* Fix header links and prose links in retro-c64 to not look like blocky buttons */
+body.retro-c64 h1 a,
+body.retro-c64 h2 a,
+body.retro-c64 h3 a,
+body.retro-c64 h4 a,
+body.retro-c64 h5 a,
+body.retro-c64 h6 a,
+body.retro-c64 p a,
+body.retro-c64 .prose a {
+  border: none !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  padding: 0 !important;
+  font-size: inherit !important;
+  text-decoration: underline !important;
+  display: inline !important;
+}
+
+/* C64 Reddit Meta containers layout stack/wrap to prevent overflow */
+body.retro-c64 .reddit-post-meta-container {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: flex-start !important;
+  gap: 6px !important;
+  flex-wrap: wrap !important;
+  width: 100% !important;
+  max-width: 100% !important;
+}
+
+body.retro-c64 .reddit-post-meta-container > span {
+  display: block !important;
+  white-space: normal !important;
+  word-break: break-all !important;
+}
+
+body.retro-c64 .reddit-card-meta-container {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: flex-start !important;
+  gap: 4px !important;
+  width: 100% !important;
+}
+
+body.retro-c64 .reddit-card-meta-container > div {
+  width: 100% !important;
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 4px !important;
+}
+
+body.retro-c64 .reddit-card-meta-container span {
+  display: inline-block !important;
+  white-space: normal !important;
+  word-break: break-all !important;
 }
 
 /* Buttons, Select and Inputs */

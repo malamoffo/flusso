@@ -1,5 +1,8 @@
 {
   "name": "Flusso",
   "description": "A mobile-first RSS reader with OPML import, full article extraction, and swipe gestures.",
-  "requestFramePermissions": []
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }

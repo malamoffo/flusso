@@ -32,11 +32,15 @@ if (typeof window !== 'undefined' && 'Capacitor' in window) {
 imagePersistence.init();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.getRegistrations().then(function(registrations) {
-    for (let registration of registrations) {
-      registration.unregister();
-    }
-  });
+  navigator.serviceWorker.getRegistrations()
+    .then(function(registrations) {
+      for (let registration of registrations) {
+        registration.unregister();
+      }
+    })
+    .catch((err) => {
+      console.warn('[ServiceWorker] Failed to get or unregister registrations:', err);
+    });
 }
 
 createRoot(document.getElementById('root')!).render(

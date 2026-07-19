@@ -231,7 +231,7 @@ export const SwipeableRedditPost = React.memo(function SwipeableRedditPost({
           )}
 
           {/* Source and Time (below image, above title) */}
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between reddit-card-meta-container">
             <div className="flex items-center gap-1.5 min-w-0">
               <span className="text-[10px] font-bold uppercase tracking-wider truncate text-purple-400">
                 r/{post.subredditName}

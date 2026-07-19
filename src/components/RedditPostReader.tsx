@@ -258,10 +258,10 @@ export const RedditPostReader = ({ post, onClose, onNext, onPrev, hasNext, hasPr
           transition={{ duration: 0.45, ease: [0.215, 0.61, 0.355, 1] }}
           className="mb-8 bg-[#1e162a] p-6 rounded-[2.5rem] border border-purple-500/10 shadow-xl"
         >
-          <div className="flex items-center gap-2 mb-2">
-            <span className="text-sm font-bold text-purple-400 drop-shadow-[0_0_5px_rgba(168,85,247,0.4)]">r/{post.subredditName}</span>
-            <span className="text-xs text-gray-500">• u/{post.author}</span>
-            <span className="text-xs text-gray-500">• {format(post.createdUtc, 'HH:mm dd/MM/yy')}</span>
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mb-2 reddit-post-meta-container">
+            <span className="text-sm font-bold text-purple-400 drop-shadow-[0_0_5px_rgba(168,85,247,0.4)] truncate max-w-full">r/{post.subredditName}</span>
+            <span className="text-xs text-gray-500 truncate max-w-full">• u/{post.author}</span>
+            <span className="text-xs text-gray-500 whitespace-nowrap">• {format(post.createdUtc, 'HH:mm dd/MM/yy')}</span>
           </div>
           <h1 className="text-xl font-bold text-white mb-4" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(post.title, { FORBID_ATTR: ['id', 'name'] }) }} />
           

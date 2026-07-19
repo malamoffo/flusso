@@ -302,7 +302,9 @@ export default function App() {
       if (filter === 'inbox') {
         handleTypeFilterChange('unread');
       } else if (filter === 'saved') {
-        handleTypeFilterChange('unread');
+        if (savedScrollRef.current) {
+          savedScrollRef.current.scrollTop = 0;
+        }
       } else if (filter === 'reddit') {
         const nextSort = redditSort === 'new' ? 'hot' : 'new';
         handleRedditSortChange(nextSort);
@@ -426,7 +428,7 @@ export default function App() {
   const { inboxArticles, savedArticles } = useFeedFiltering({
     articles,
     inboxUnreadOnly,
-    savedUnreadOnly,
+    savedUnreadOnly: false, // Ensure all saved articles are always shown
     deferredSearchQuery,
     sourceFilter,
     timeFilter,
@@ -826,7 +828,7 @@ export default function App() {
                   className="text-[10px] font-bold uppercase tracking-widest text-yellow-600 dark:text-yellow-400 bg-yellow-500/10 px-2.5 py-1 rounded-full border border-yellow-500/15 dark:border-yellow-500/25 flex items-center gap-1 shadow-sm"
                 >
                   <span className="w-1.5 h-1.5 rounded-full bg-yellow-500" />
-                  {savedUnreadOnly ? "Unread" : "All"}
+                  Saved
                 </motion.div>
               )}
               {filter === 'reddit' && (

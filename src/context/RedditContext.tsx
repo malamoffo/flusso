@@ -3,6 +3,7 @@ import { Subreddit, RedditPost } from '../types';
 import { storage } from '../services/storage';
 import DataWorker from '../workers/dataProcessor.worker.ts?worker';
 import { useSettings } from './SettingsContext';
+import { generateMockDataIfNeeded } from '../utils/mockDataGenerator';
 
 interface RedditContextType {
   subreddits: Subreddit[];
@@ -68,6 +69,9 @@ export const RedditProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
   useEffect(() => {
     const loadData = async () => {
+      // Generate mock data if running in dev/web environment and DB is empty
+      await generateMockDataIfNeeded();
+      
       await storage.cleanupOldRedditPosts(1);
       const loadedSubreddits = await storage.getSubreddits();
       const loadedRedditPosts = await storage.getRedditPosts(0, PAGE_SIZE);
