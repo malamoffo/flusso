@@ -310,13 +310,24 @@ body.retro-c64 .text-white {
   font-weight: normal !important;
 }
 
-/* Fix header links and prose links in retro-c64 to not look like blocky buttons */
+/* Fix header links in retro-c64 to not look like blocky buttons and avoid overlap */
 body.retro-c64 h1 a,
 body.retro-c64 h2 a,
 body.retro-c64 h3 a,
 body.retro-c64 h4 a,
 body.retro-c64 h5 a,
-body.retro-c64 h6 a,
+body.retro-c64 h6 a {
+  border: none !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  padding: 0 !important;
+  font-size: inherit !important;
+  text-decoration: underline !important;
+  display: block !important;
+  line-height: 2.2 !important;
+}
+
+/* Fix prose/paragraph links in retro-c64 to not look like blocky buttons */
 body.retro-c64 p a,
 body.retro-c64 .prose a {
   border: none !important;
