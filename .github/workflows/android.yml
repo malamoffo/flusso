@@ -56,34 +56,7 @@ jobs:
 
       - name: Build Web App
         run: npm run build
-
-      - name: Setup Java
-        uses: actions/setup-java@v5
-        with:
-          distribution: 'temurin'
-          java-version: '21'
-
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v6
-        with:
-          gradle-version: '8.13'
-          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
-
-      - name: Sync Capacitor
-        run: npx cap sync android
-
-      - name: Build Android Debug APK
-        run: |
-          cd android
-          gradle assembleDebug --build-cache
-
-      - name: Upload Android APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: app-debug
-          path: android/app/build/outputs/apk/debug/app-debug.apk
-          retention-days: 14
-
+  
   performance-check:
     name: Performance & Bundle Analysis
     runs-on: ubuntu-latest

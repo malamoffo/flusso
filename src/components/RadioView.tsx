@@ -32,8 +32,11 @@ export const RadioView = memo(({ isActive, searchQuery }: RadioViewProps) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isAudioLoading, setIsAudioLoading] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const isPlayingRef = useRef(false);
   const currentStationRef = useRef<RadioStation | null>(null);
   const playStationRef = useRef<((station: RadioStation) => Promise<any>) | null>(null);
+  const stopStreamRef = useRef<(() => void) | null>(null);
+  const stopStationAndStreamRef = useRef<(() => void) | null>(null);
   
   const [selectedStationDetail, setSelectedStationDetail] = useState<RadioStation | null>(null);
   const [copiedUrl, setCopiedUrl] = useState(false);
@@ -47,6 +50,48 @@ export const RadioView = memo(({ isActive, searchQuery }: RadioViewProps) => {
     });
   };
 
+  const stopStream = () => {
+    Logger.log('Radio: stopStream called - interrupting audio stream and releasing connection');
+    if (audioRef.current) {
+      try {
+        audioRef.current.pause();
+        audioRef.current.removeAttribute('src');
+        audioRef.current.load();
+      } catch (e) {
+        Logger.error('Radio: stopStream error', e);
+      }
+    }
+    isPlayingRef.current = false;
+    setIsPlaying(false);
+    setIsAudioLoading(false);
+
+    if (isNative() && isPluginAvailable('MediaSession')) {
+      if (MediaSession && typeof MediaSession.setPlaybackState === 'function') {
+        MediaSession.setPlaybackState({ playbackState: 'paused' }).catch(() => {});
+      }
+    } else if ('mediaSession' in navigator) {
+      try {
+        navigator.mediaSession.playbackState = 'paused';
+      } catch (e) {}
+    }
+  };
+
+  const stopStationAndStream = () => {
+    Logger.log('Radio: stopStationAndStream called');
+    stopStream();
+    setCurrentStation(null);
+
+    if (isNative() && isPluginAvailable('MediaSession')) {
+      if (MediaSession && typeof MediaSession.setPlaybackState === 'function') {
+        MediaSession.setPlaybackState({ playbackState: 'none' }).catch(() => {});
+      }
+    } else if ('mediaSession' in navigator) {
+      try {
+        navigator.mediaSession.playbackState = 'none';
+      } catch (e) {}
+    }
+  };
+
   // Keep refs updated to prevent stale closures in event and media session handlers
   useEffect(() => {
     currentStationRef.current = currentStation;
@@ -54,6 +99,8 @@ export const RadioView = memo(({ isActive, searchQuery }: RadioViewProps) => {
 
   useEffect(() => {
     playStationRef.current = playStation;
+    stopStreamRef.current = stopStream;
+    stopStationAndStreamRef.current = stopStationAndStream;
   });
   
   useEffect(() => {
@@ -69,6 +116,7 @@ export const RadioView = memo(({ isActive, searchQuery }: RadioViewProps) => {
 
       audio.addEventListener('playing', () => {
         Logger.log('Audio: playing event');
+        isPlayingRef.current = true;
         setIsPlaying(true);
         setIsAudioLoading(false);
         if (isNative() && isPluginAvailable('MediaSession')) {
@@ -78,12 +126,27 @@ export const RadioView = memo(({ isActive, searchQuery }: RadioViewProps) => {
               Logger.error('Native: setPlaybackState error', err);
             });
           }
+        } else if ('mediaSession' in navigator) {
+          try {
+            navigator.mediaSession.playbackState = 'playing';
+          } catch (e) {}
         }
       });
 
       audio.addEventListener('pause', () => {
         Logger.log('Audio: pause event');
+        isPlayingRef.current = false;
         setIsPlaying(false);
+        setIsAudioLoading(false);
+
+        // Ensure live stream connection is completely severed when paused
+        if (audio.src && audio.src !== 'about:blank' && audio.src !== window.location.href) {
+          try {
+            audio.removeAttribute('src');
+            audio.load();
+          } catch (e) {}
+        }
+
         if (isNative() && isPluginAvailable('MediaSession')) {
           if (MediaSession && typeof MediaSession.setPlaybackState === 'function') {
             Logger.log('Native: setting playbackState to paused');
@@ -91,6 +154,10 @@ export const RadioView = memo(({ isActive, searchQuery }: RadioViewProps) => {
               Logger.error('Native: setPlaybackState error', err);
             });
           }
+        } else if ('mediaSession' in navigator) {
+          try {
+            navigator.mediaSession.playbackState = 'paused';
+          } catch (e) {}
         }
       });
 
@@ -101,12 +168,17 @@ export const RadioView = memo(({ isActive, searchQuery }: RadioViewProps) => {
           message: error?.message, 
           src: audio.src 
         });
+        isPlayingRef.current = false;
         setIsPlaying(false);
         setIsAudioLoading(false);
         if (isNative() && isPluginAvailable('MediaSession')) {
           if (MediaSession && typeof MediaSession.setPlaybackState === 'function') {
             MediaSession.setPlaybackState({ playbackState: 'none' }).catch(() => {});
           }
+        } else if ('mediaSession' in navigator) {
+          try {
+            navigator.mediaSession.playbackState = 'none';
+          } catch (e) {}
         }
       });
 
@@ -133,30 +205,22 @@ export const RadioView = memo(({ isActive, searchQuery }: RadioViewProps) => {
               Logger.log('Native: MediaSession Action: play');
               if (currentStationRef.current && playStationRef.current) {
                 playStationRef.current(currentStationRef.current).catch(err => Logger.error("Native play handler error", err));
-              } else {
-                audioRef.current?.play().catch(err => Logger.error("Native play handler error", err));
+              } else if (audioRef.current) {
+                audioRef.current.play().catch(err => Logger.error("Native play handler error", err));
               }
             }).catch(err => Logger.warn("Failed to set native play handler", err));
             
             MediaSession.setActionHandler({ action: 'pause' }, () => {
               Logger.log('Native: MediaSession Action: pause');
-              if (currentStationRef.current && playStationRef.current) {
-                playStationRef.current(currentStationRef.current).catch(err => Logger.error("Native pause handler error", err));
-              } else {
-                audioRef.current?.pause();
+              if (stopStreamRef.current) {
+                stopStreamRef.current();
               }
             }).catch(err => Logger.warn("Failed to set native pause handler", err));
             
             MediaSession.setActionHandler({ action: 'stop' }, () => {
               Logger.log('Native: MediaSession Action: stop');
-              audioRef.current?.pause();
-              if (audioRef.current) {
-                audioRef.current.removeAttribute('src');
-                audioRef.current.load();
-              }
-              setCurrentStation(null);
-              if (typeof MediaSession.setPlaybackState === 'function') {
-                MediaSession.setPlaybackState({ playbackState: 'none' }).catch(() => {});
+              if (stopStationAndStreamRef.current) {
+                stopStationAndStreamRef.current();
               }
             }).catch(err => Logger.warn("Failed to set native stop handler", err));
           } else {
@@ -260,22 +324,14 @@ export const RadioView = memo(({ isActive, searchQuery }: RadioViewProps) => {
   const playStation = async (station: RadioStation) => {
     Logger.log('Radio: playStation called', { name: station.name, url: station.url_resolved });
     
-    if (currentStation?.stationuuid === station.stationuuid) {
-      Logger.log('Radio: Same station, toggling playback');
-      if (isPlaying) {
-        Logger.log('Radio: Pausing');
-        try {
-          audioRef.current?.pause();
-          // Clear src on pause to save bandwidth and prevent stale live socket error
-          if (audioRef.current) {
-            audioRef.current.removeAttribute('src');
-            audioRef.current.load();
-          }
-        } catch (e) {
-          Logger.error('Radio: Pause error', e);
-        }
+    if (currentStationRef.current?.stationuuid === station.stationuuid) {
+      Logger.log('Radio: Same station action');
+      if (isPlayingRef.current || (audioRef.current && !audioRef.current.paused)) {
+        Logger.log('Radio: Currently playing, stopping stream');
+        stopStream();
+        return;
       } else {
-        Logger.log('Radio: Resuming live stream from fresh URL');
+        Logger.log('Radio: Currently stopped/paused, starting fresh live stream');
         setIsAudioLoading(true);
         if (audioRef.current) {
           try {
@@ -289,19 +345,21 @@ export const RadioView = memo(({ isActive, searchQuery }: RadioViewProps) => {
             if (playPromise !== undefined) {
               await playPromise;
             }
-            Logger.log('Radio: Resume success');
+            Logger.log('Radio: Stream restart success');
           } catch (err) {
-            Logger.error("Playback resume failed", err);
+            Logger.error("Playback start failed", err);
             setIsAudioLoading(false);
+            stopStream();
           }
         }
+        return;
       }
-      return;
     }
 
     setCurrentStation(station);
     setIsAudioLoading(true);
     setIsPlaying(false);
+    isPlayingRef.current = false;
     
     if (audioRef.current) {
       Logger.log('Radio: Preparing audio element for new source');
@@ -355,11 +413,7 @@ export const RadioView = memo(({ isActive, searchQuery }: RadioViewProps) => {
       } catch (err) {
         Logger.error("Playback start failed", err);
         setIsAudioLoading(false);
-        if (isNative() && isPluginAvailable('MediaSession')) {
-          if (MediaSession && typeof MediaSession.setPlaybackState === 'function') {
-            MediaSession.setPlaybackState({ playbackState: 'none' }).catch(() => {});
-          }
-        }
+        stopStream();
         return; 
       }
     }
@@ -372,26 +426,21 @@ export const RadioView = memo(({ isActive, searchQuery }: RadioViewProps) => {
             Logger.log('MediaSession Action: play');
             if (currentStationRef.current && playStationRef.current) {
               playStationRef.current(currentStationRef.current).catch(e => Logger.error('MS Play error', e));
-            } else {
-              audioRef.current?.play().catch(e => Logger.error('MS Play error', e));
+            } else if (audioRef.current) {
+              audioRef.current.play().catch(e => Logger.error('MS Play error', e));
             }
           });
           navigator.mediaSession.setActionHandler('pause', () => {
             Logger.log('MediaSession Action: pause');
-            if (currentStationRef.current && playStationRef.current) {
-              playStationRef.current(currentStationRef.current).catch(e => Logger.error('MS Pause error', e));
-            } else {
-              audioRef.current?.pause();
+            if (stopStreamRef.current) {
+              stopStreamRef.current();
             }
           });
           navigator.mediaSession.setActionHandler('stop', () => {
             Logger.log('MediaSession Action: stop');
-            audioRef.current?.pause();
-            if (audioRef.current) {
-              audioRef.current.removeAttribute('src');
-              audioRef.current.load();
+            if (stopStationAndStreamRef.current) {
+              stopStationAndStreamRef.current();
             }
-            setCurrentStation(null);
           });
         } catch (e) {
           Logger.error("MediaSession handlers error", e);
@@ -599,7 +648,7 @@ export const RadioView = memo(({ isActive, searchQuery }: RadioViewProps) => {
                 <motion.button
                   whileTap={{ scale: 0.9 }}
                   onClick={() => setSelectedStationDetail(null)}
-                  className="w-10 h-10 shrink-0 flex items-center justify-center rounded-full bg-black border border-white/20 active:bg-white/20 text-white pointer-events-auto transition-colors"
+                  className="w-10 h-10 shrink-0 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 border border-white/20 text-white pointer-events-auto transition-colors"
                   aria-label="Chiudi"
                 >
                   <X className="w-5 h-5 text-gray-200" aria-hidden="true" />
@@ -652,21 +701,16 @@ export const RadioView = memo(({ isActive, searchQuery }: RadioViewProps) => {
                   <div className="flex items-center gap-3">
                     <button
                       onClick={() => playStation(selectedStationDetail)}
-                      className={cn(
-                        "flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl font-semibold text-sm transition-all shadow-md active:scale-95",
-                        currentStation?.stationuuid === selectedStationDetail.stationuuid && isPlaying
-                          ? "bg-white text-gray-900 hover:bg-gray-100"
-                          : "bg-red-500 hover:bg-red-600 text-white"
-                      )}
+                      className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl font-semibold text-sm transition-all shadow-md active:scale-95 bg-red-500 hover:bg-red-600 text-white"
                     >
                       {currentStation?.stationuuid === selectedStationDetail.stationuuid && isAudioLoading ? (
                         <>
-                          <Loader2 className="w-4 h-4 animate-spin font-bold" />
+                          <Loader2 className="w-4 h-4 animate-spin font-bold text-white" />
                           Caricamento...
                         </>
                       ) : currentStation?.stationuuid === selectedStationDetail.stationuuid && isPlaying ? (
                         <>
-                          <Square className="w-4 h-4 fill-current text-gray-900" />
+                          <Square className="w-4 h-4 fill-current text-white" />
                           Interrompi
                         </>
                       ) : (
