@@ -1,3 +1,26 @@
+Skip to content
+malamoffo
+flusso
+Repository navigation
+Code
+Issues
+Pull requests
+4
+ (4)
+Agents
+Actions
+Models
+Security and quality
+10
+ (10)
+Insights
+Settings
+CodeQL Advanced
+CodeQL Advanced #31
+All jobs
+Run details
+Workflow file for this run
+.github/workflows/codeql.yml at 20e2aaf
 # For most projects, this workflow file will not need changing; you simply need
 # to commit it to your repository.
 #
@@ -55,7 +78,6 @@ jobs:
         npm ci
         npm run build
         npx cap sync android
-
     # Imposta Java 21 (versione usata negli altri workflow del progetto)
     - name: Set up JDK 21
       if: matrix.language == 'java-kotlin'
@@ -85,9 +107,7 @@ jobs:
       run: |
         echo "Compilazione manuale del progetto Android..."
         cd android
-        chmod +x gradlew
-        ./gradlew clean assembleDebug --no-daemon --no-build-cache
-
+        gradle assembleDebug --build-cache
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v4
       with:
