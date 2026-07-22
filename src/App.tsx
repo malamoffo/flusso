@@ -5,6 +5,7 @@ import { useReddit } from './context/RedditContext';
 import { useFeedFiltering } from './hooks/useFeedFiltering';
 import { usePagination } from './hooks/usePagination';
 import { usePullToRefresh } from './hooks/usePullToRefresh';
+import { useAutoMarkVisibleItemsAsRead } from './hooks/useAutoMarkVisibleItemsAsRead';
 import { FeedList } from './components/App/FeedList';
 import { SwipeableArticleItem } from './components/SwipeableArticleItem';
 import { createLazyModalWithState, createLazyView, ModalFallback, ViewFallback } from './lib/lazyLoader';
@@ -29,6 +30,7 @@ import { App as CapacitorApp } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
 import { Browser } from '@capacitor/browser';
 import { useAndroidBackNavigation } from './hooks/useAndroidBackNavigation';
+import { deduplicateAndSortSavedArticles } from './utils/articleUtils';
 
 const PAGE_SIZE = 30;
 
@@ -437,29 +439,10 @@ export default function App() {
   });
 
   /**
-   * ⚡ Bolt: Memoize the saved list deduplicated, sorted, and paginated.
+   * ⚡ Bolt: Memoize the saved list deduplicated and sorted using helper utility.
    */
   const memoizedSavedArticles = useMemo(() => {
-    const uniqueMap = new Map<string, Article>();
-    for (let i = 0; i < savedArticles.length; i++) {
-      const art = savedArticles[i];
-      const key = art.link || art.id;
-      if (!uniqueMap.has(key)) {
-        uniqueMap.set(key, art);
-      }
-    }
-    const deduplicated = Array.from(uniqueMap.values());
-
-    deduplicated.sort((a, b) => {
-      const timeA = typeof a.pubDate === 'string' ? new Date(a.pubDate).getTime() : a.pubDate;
-      const timeB = typeof b.pubDate === 'string' ? new Date(b.pubDate).getTime() : b.pubDate;
-      const valA = isNaN(timeA) ? 0 : timeA;
-      const valB = isNaN(timeB) ? 0 : timeB;
-      if (valB !== valA) return valB - valA;
-      return b.id.localeCompare(a.id);
-    });
-
-    return deduplicated;
+    return deduplicateAndSortSavedArticles(savedArticles);
   }, [savedArticles]);
 
   const { visibleCount, loadMore: loadMoreArticles, hasMore: hasMoreArticles, reset: resetPagination } = usePagination(
@@ -506,150 +489,49 @@ export default function App() {
   }, [activeRedditIndex]);
 
 
-  const inboxArticlesRef = useRef(inboxArticles);
-  useEffect(() => { inboxArticlesRef.current = inboxArticles; }, [inboxArticles]);
+  // Centralized auto-marking for inbox articles on scroll/bottom
+  useAutoMarkVisibleItemsAsRead({
+    containerRef: inboxScrollRef,
+    items: inboxArticles,
+    visibleIdsSetRef: visibleInboxArticleIdsRef,
+    enabled: filter === 'inbox',
+    hasMore: hasMoreArticles,
+    bottomThreshold: 50,
+    delay: 5000,
+    mode: 'visible-only',
+    onMarkAsRead: markArticlesAsReadWithPersistence
+  });
 
-  const savedArticlesRef = useRef(savedArticles);
-  useEffect(() => { savedArticlesRef.current = savedArticles; }, [savedArticles]);
+  // Centralized auto-marking for saved articles on scroll/bottom
+  useAutoMarkVisibleItemsAsRead({
+    containerRef: savedScrollRef,
+    items: memoizedSavedArticles,
+    enabled: filter === 'saved',
+    hasMore: hasMoreArticles,
+    bottomThreshold: 5,
+    delay: 5000,
+    mode: 'all-unread',
+    onMarkAsRead: markArticlesAsRead
+  });
 
-  const redditPostsRef = useRef(redditPosts);
-  useEffect(() => { redditPostsRef.current = redditPosts; }, [redditPosts]);
-
-  const inboxTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const savedTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const redditTimerRef = useRef<NodeJS.Timeout | null>(null);
-
-  // Handle marking as read initially when filter changes or new items load
-  useEffect(() => {
-    const inboxContainer = inboxScrollRef.current;
-    if (!inboxContainer || filter !== 'inbox') return;
-    
-    // Check initially in case the list is already at the bottom or empty
-    const checkAtBottom = () => {
-      const isAtBottom = inboxContainer.scrollHeight - inboxContainer.scrollTop <= inboxContainer.clientHeight + 50;
-      const allVisible = !hasMoreArticles;
-
-      if (isAtBottom && allVisible) {
-        const hasUnread = inboxArticlesRef.current.some(a => !a.isRead);
-        if (hasUnread && !inboxTimerRef.current) {
-          inboxTimerRef.current = setTimeout(() => {
-            // ⚡ Bolt: Consolidated O(N) chained array operations (.filter().map()) into a single .reduce() pass to avoid intermediate array allocation
-            const toMark = inboxArticlesRef.current.reduce<string[]>((acc, a) => {
-              if (!a.isRead && visibleInboxArticleIdsRef.current.has(a.id)) acc.push(a.id);
-              return acc;
-            }, []);            
-            if (toMark.length > 0) {
-              markArticlesAsReadWithPersistence(toMark);
-            }
-            inboxTimerRef.current = null;
-          }, 5000);
-        }
-      }
-    };
-    
-    checkAtBottom();
-    
-    return () => {
-      if (inboxTimerRef.current) clearTimeout(inboxTimerRef.current);
-    };
-  }, [filter, hasMoreArticles, markArticlesAsRead]);
-
-  useEffect(() => {
-    const savedContainer = savedScrollRef.current;
-    if (!savedContainer || filter !== 'saved') return;
-    
-    const checkAtBottom = () => {
-      const isAtBottom = savedContainer.scrollHeight - savedContainer.scrollTop <= savedContainer.clientHeight + 5;
-      const allVisible = !hasMoreArticles;
-
-      if (isAtBottom && allVisible) {
-        const hasUnread = savedArticlesRef.current.some(a => !a.isRead);
-        if (hasUnread && !savedTimerRef.current) {
-          savedTimerRef.current = setTimeout(() => {
-            // ⚡ Bolt: Consolidated O(N) chained array operations (.filter().map()) into a single .reduce() pass
-            const toMark = savedArticlesRef.current.reduce<string[]>((acc, a) => {
-              if (!a.isRead) acc.push(a.id);
-              return acc;
-            }, []);            
-            if (toMark.length > 0) {
-              markArticlesAsRead(toMark);
-            }
-            savedTimerRef.current = null;
-          }, 5000);
-        }
-      }
-    };
-    
-    checkAtBottom();
-    
-    return () => {
-      if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
-    };
-  }, [filter, hasMoreArticles, markArticlesAsRead]);
+  // Centralized auto-marking for Reddit posts on scroll/bottom
+  useAutoMarkVisibleItemsAsRead({
+    containerRef: redditScrollRef,
+    items: redditPosts,
+    visibleIdsSetRef: visibleRedditPostIdsRef,
+    enabled: filter === 'reddit',
+    hasMore: isRedditLoading,
+    bottomThreshold: 5,
+    delay: 5000,
+    mode: 'visible-only',
+    onMarkAsRead: markRedditPostsAsRead
+  });
 
   const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>, filterType: 'inbox' | 'saved' | 'reddit') => {
     const container = e.currentTarget;
     isAtTop.current = container.scrollTop <= 0;
     setHeaderScrolled(container.scrollTop > 20);
-
-    // Throttle the bottom check
-    requestAnimationFrame(() => {
-      const isAtBottom = container.scrollHeight - container.scrollTop <= container.clientHeight + 5;
-      
-      if (filterType === 'reddit') {
-          if (isAtBottom && !isRedditLoading) {
-              const hasUnread = redditPostsRef.current.some((p: any) => !p.isRead);
-              if (hasUnread && !redditTimerRef.current) {
-                  redditTimerRef.current = setTimeout(() => {
-                      // ⚡ Bolt: Consolidated O(N) chained array operations (.filter().map()) into a single .reduce() pass
-                      const toMark = redditPostsRef.current.reduce<string[]>((acc, p: any) => {
-                          if (!p.isRead && visibleRedditPostIdsRef.current.has(p.id)) acc.push(p.id);
-                          return acc;
-                      }, []);                      
-                      if (toMark.length > 0) {
-                          markRedditPostsAsRead(toMark);
-                      }
-                      redditTimerRef.current = null;
-                  }, 5000);
-              }
-          } else {
-              if (redditTimerRef.current) {
-                  clearTimeout(redditTimerRef.current);
-                  redditTimerRef.current = null;
-              }
-          }
-          return;
-      }
-
-      const allVisible = !hasMoreArticles;
-
-      if (isAtBottom && allVisible) {
-        const articlesRef = filterType === 'inbox' ? inboxArticlesRef : savedArticlesRef;
-        const timerRef = filterType === 'inbox' ? inboxTimerRef : savedTimerRef;
-
-        const hasUnread = articlesRef.current.some(a => !a.isRead && (filterType !== 'inbox' || visibleInboxArticleIdsRef.current.has(a.id)));
-        if (hasUnread && !timerRef.current) {
-          timerRef.current = setTimeout(() => {
-            // ⚡ Bolt: Consolidated O(N) chained array operations (.filter().map()) into a single .reduce() pass
-            const toMark = articlesRef.current.reduce<string[]>((acc, a) => {
-              if (!a.isRead && (filterType !== 'inbox' || visibleInboxArticleIdsRef.current.has(a.id))) acc.push(a.id);
-              return acc;
-            }, []);            
-            if (toMark.length > 0) {
-              markArticlesAsReadWithPersistence(toMark);
-            }
-            timerRef.current = null;
-          }, 5000);
-        }
-      } else {
-        const timerRef = filterType === 'inbox' ? inboxTimerRef : savedTimerRef;
-        if (timerRef.current) {
-          clearTimeout(timerRef.current);
-          timerRef.current = null;
-        }
-      }
-    });
-  }, [hasMoreArticles, isRedditLoading, markArticlesAsRead, markRedditPostsAsRead, inboxUnreadOnly]);
+  }, []);
 
   const handleArticleClick = useCallback((article: Article) => {
     setSelectedArticle(article);
@@ -1092,6 +974,9 @@ export default function App() {
         <motion.button
           whileTap={{ scale: 0.9 }}
           onClick={() => handleFilterChange('reddit')}
+          onMouseEnter={() => (RedditPostReader as any).prefetch?.()}
+          onTouchStart={() => (RedditPostReader as any).prefetch?.()}
+          onFocus={() => (RedditPostReader as any).prefetch?.()}
           className={cn(
             "relative p-2 rounded-full border-none outline-none",
             filter === 'reddit' ? "text-purple-500" : "text-gray-500"
@@ -1109,8 +994,9 @@ export default function App() {
         <motion.button
           whileTap={{ scale: 0.9 }}
           onClick={() => handleFilterChange('radio')}
-          onMouseEnter={() => (RadioView as any).prefetch()}
-          onTouchStart={() => (RadioView as any).prefetch()}
+          onMouseEnter={() => (RadioView as any).prefetch?.()}
+          onTouchStart={() => (RadioView as any).prefetch?.()}
+          onFocus={() => (RadioView as any).prefetch?.()}
           className={cn(
             "relative p-2 rounded-full border-none outline-none",
             filter === 'radio' ? "text-red-500" : "text-gray-500"
@@ -1123,8 +1009,9 @@ export default function App() {
         <motion.button
           whileTap={{ scale: 0.9 }}
           onClick={() => setIsSettingsOpen(true)}
-          onMouseEnter={() => (SettingsModal as any).prefetch()}
-          onTouchStart={() => (SettingsModal as any).prefetch()}
+          onMouseEnter={() => (SettingsModal as any).prefetch?.()}
+          onTouchStart={() => (SettingsModal as any).prefetch?.()}
+          onFocus={() => (SettingsModal as any).prefetch?.()}
           className={cn(
             "p-2 rounded-full transition-colors text-gray-500 hover:text-gray-300",
             isSettingsOpen && "text-[var(--theme-color)]"

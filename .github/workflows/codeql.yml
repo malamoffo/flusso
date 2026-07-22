@@ -33,7 +33,7 @@ jobs:
         - language: actions
           build-mode: none
         - language: java-kotlin
-          build-mode: manual # <--- MODIFICA 1: Cambiato da 'none' a 'manual'
+          build-mode: manual
         - language: javascript-typescript
           build-mode: none
 
@@ -55,7 +55,6 @@ jobs:
         npm ci
         npm run build
         npx cap sync android
-
     # Imposta Java 21 (versione usata negli altri workflow del progetto)
     - name: Set up JDK 21
       if: matrix.language == 'java-kotlin'
@@ -78,7 +77,6 @@ jobs:
         languages: ${{ matrix.language }}
         build-mode: ${{ matrix.build-mode }}
 
-    # <--- MODIFICA 2: Comandi reali per compilare il progetto Android
     - name: Run manual build steps
       if: matrix.build-mode == 'manual'
       shell: bash

@@ -103,29 +103,31 @@ export const rssStorage = {
     const ARTICLE_LIMIT = articleRetentionDays * 24 * 60 * 60 * 1000;
     const now = Date.now();
 
-    // 1. Retention-based cleanup
-    const oldArticles = await db.articles
-      .filter(a => {
-        if (a.isFavorite) return false;
-        const referenceTime = (a.isRead && a.readAt) ? a.readAt : a.pubDate;
-        return (now - referenceTime) > ARTICLE_LIMIT;
-      })
-      .toArray();
+    await db.transaction('rw', [db.feeds, db.articles, db.articleContents], async () => {
+      // 1. Retention-based cleanup
+      const oldArticles = await db.articles
+        .filter(a => {
+          if (a.isFavorite) return false;
+          const referenceTime = (a.isRead && a.readAt) ? a.readAt : a.pubDate;
+          return (now - referenceTime) > ARTICLE_LIMIT;
+        })
+        .toArray();
 
-    // 2. Orphaned articles cleanup (feeds that no longer exist)
-    const allFeeds = await db.feeds.toArray();
-    const validFeedIds = new Set(allFeeds.map(f => f.id));
-    const orphanedArticles = await db.articles.filter(a => !validFeedIds.has(a.feedId) && !a.isFavorite).toArray();
+      // 2. Orphaned articles cleanup (feeds that no longer exist)
+      const allFeeds = await db.feeds.toArray();
+      const validFeedIds = new Set(allFeeds.map(f => f.id));
+      const orphanedArticles = await db.articles.filter(a => !validFeedIds.has(a.feedId) && !a.isFavorite).toArray();
 
-    const idsToDelete = Array.from(new Set([
-      ...oldArticles.map(a => a.id),
-      ...orphanedArticles.map(a => a.id)
-    ]));
+      const idsToDelete = Array.from(new Set([
+        ...oldArticles.map(a => a.id),
+        ...orphanedArticles.map(a => a.id)
+      ]));
 
-    if (idsToDelete.length > 0) {
-      await db.articles.bulkDelete(idsToDelete);
-      await db.articleContents.bulkDelete(idsToDelete);
-    }
+      if (idsToDelete.length > 0) {
+        await db.articles.bulkDelete(idsToDelete);
+        await db.articleContents.bulkDelete(idsToDelete);
+      }
+    });
   },
 
   async getArticleContent(id: string): Promise<string | null> {
@@ -187,8 +189,10 @@ export const rssStorage = {
   },
 
   async deleteArticle(id: string): Promise<void> {
-    await db.articles.delete(id);
-    await db.articleContents.delete(id);
+    await db.transaction('rw', [db.articles, db.articleContents], async () => {
+      await db.articles.delete(id);
+      await db.articleContents.delete(id);
+    });
   },
 
   async fetchFeedData(feedUrl: string, sinceDate?: number, signal?: AbortSignal): Promise<{ feed: Feed; articles: Article[]; bytesDownloaded: number } | null> {
@@ -260,7 +264,7 @@ export const rssStorage = {
     
     let updatedFeeds = [...feeds];
     let allNewArticles: Article[] = [];
-    let articlesModified = false;
+    const contentItemsToSave: any[] = [];
     
     const articlesToUpdate: Article[] = [];
 
@@ -285,7 +289,18 @@ export const rssStorage = {
             seenLinks.add(a.link);
             const { content, ...lightArticle } = a;
             if (content !== undefined) {
-              this.saveArticleContent(a.id, content).catch(err => console.error('Failed to save article content', err));
+              contentItemsToSave.push({
+                id: a.id,
+                title: '',
+                content,
+                textContent: '',
+                length: content.length,
+                excerpt: '',
+                byline: '',
+                dir: '',
+                siteName: '',
+                lang: ''
+              });
             }
             allNewArticles.push(lightArticle as Article);
           }
@@ -324,7 +339,18 @@ export const rssStorage = {
             existingLinks.add(a.link);
             const { content, ...lightArticle } = a;
             if (content !== undefined) {
-              this.saveArticleContent(a.id, content).catch(err => console.error('Failed to save article content', err));
+              contentItemsToSave.push({
+                id: a.id,
+                title: '',
+                content,
+                textContent: '',
+                length: content.length,
+                excerpt: '',
+                byline: '',
+                dir: '',
+                siteName: '',
+                lang: ''
+              });
             }
             allNewArticles.push({
               ...lightArticle,
@@ -334,7 +360,18 @@ export const rssStorage = {
             const existingMatch = articleByLinkMap.get(a.link);
             if (existingMatch) {
               if (a.content) {
-                this.saveArticleContent(existingMatch.id, a.content).catch(() => {});
+                contentItemsToSave.push({
+                  id: existingMatch.id,
+                  title: '',
+                  content: a.content,
+                  textContent: '',
+                  length: a.content.length,
+                  excerpt: '',
+                  byline: '',
+                  dir: '',
+                  siteName: '',
+                  lang: ''
+                });
               }
             }
           }
@@ -342,14 +379,28 @@ export const rssStorage = {
       }
     }
     
-    if (allNewArticles.length > 0) {
-      await this.saveArticles(allNewArticles);
-    }
-    if (articlesToUpdate.length > 0) {
-      await this.saveArticles(articlesToUpdate);
-    }
-
-    await this.saveFeeds(updatedFeeds);
+    await db.transaction('rw', [db.feeds, db.articles, db.articleContents], async () => {
+      if (contentItemsToSave.length > 0) {
+        await db.articleContents.bulkPut(contentItemsToSave);
+      }
+      if (allNewArticles.length > 0) {
+        const normalized = allNewArticles.map(a => ({
+          ...a,
+          isRead: (a.isRead as any === 1 || a.isRead as any === true) ? 1 : 0,
+          isFavorite: (a.isFavorite as any === 1 || a.isFavorite as any === true) ? 1 : 0
+        }));
+        await db.articles.bulkPut(normalized as Article[]);
+      }
+      if (articlesToUpdate.length > 0) {
+        const normalizedUpdates = articlesToUpdate.map(a => ({
+          ...a,
+          isRead: (a.isRead as any === 1 || a.isRead as any === true) ? 1 : 0,
+          isFavorite: (a.isFavorite as any === 1 || a.isFavorite as any === true) ? 1 : 0
+        }));
+        await db.articles.bulkPut(normalizedUpdates as Article[]);
+      }
+      await db.feeds.bulkPut(updatedFeeds);
+    });
     
     return { updatedFeeds, allNewArticles };
   },
@@ -478,12 +529,14 @@ export const rssStorage = {
 
   async markAllArticlesAsRead(): Promise<void> {
     const now = Date.now();
-    // Use filter instead of where to bypass potentially corrupted index when modifying
-    const unreadIds = await db.articles.filter(a => a.isRead === 0 || (a.isRead as any) === false || (a.isRead as any) === '0' || !a.isRead).primaryKeys();
-    
-    if (unreadIds.length > 0) {
-      await db.articles.where(':id').anyOf(unreadIds).modify({ isRead: 1, readAt: now });
-    }
+    await db.transaction('rw', [db.articles], async () => {
+      // Use filter instead of where to bypass potentially corrupted index when modifying
+      const unreadIds = await db.articles.filter(a => a.isRead === 0 || (a.isRead as any) === false || (a.isRead as any) === '0' || !a.isRead).primaryKeys();
+      
+      if (unreadIds.length > 0) {
+        await db.articles.where(':id').anyOf(unreadIds).modify({ isRead: 1, readAt: now });
+      }
+    });
   },
 
   async markFilteredArticlesAsRead(filters: {
@@ -493,39 +546,45 @@ export const rssStorage = {
     searchQuery?: string;
   }): Promise<void> {
     const now = Date.now();
-    let collection = db.articles.filter(a => a.isRead === 0 || (a.isRead as any) === false || (a.isRead as any) === '0' || !a.isRead);
+    await db.transaction('rw', [db.articles], async () => {
+      let collection = db.articles.filter(a => a.isRead === 0 || (a.isRead as any) === false || (a.isRead as any) === '0' || !a.isRead);
 
-    if (filters.type && filters.type !== 'all' as any) {
-      collection = collection.filter(a => a.type === filters.type);
-    }
-    if (filters.feedId && filters.feedId !== 'all') {
-      collection = collection.filter(a => a.feedId === filters.feedId);
-    }
-    if (filters.timeThreshold) {
-      collection = collection.filter(a => {
-        const pubTime = typeof a.pubDate === 'string' ? new Date(a.pubDate).getTime() : a.pubDate;
-        return pubTime >= filters.timeThreshold!;
-      });
-    }
-    if (filters.searchQuery) {
-      const q = filters.searchQuery.toLowerCase();
-      collection = collection.filter(a => 
-        a.title.toLowerCase().includes(q) || 
-        (a.contentSnippet?.toLowerCase().includes(q) ?? false) ||
-        (a.content?.toLowerCase().includes(q) ?? false)
-      );
-    }
+      if (filters.type && filters.type !== 'all' as any) {
+        collection = collection.filter(a => a.type === filters.type);
+      }
+      if (filters.feedId && filters.feedId !== 'all') {
+        collection = collection.filter(a => a.feedId === filters.feedId);
+      }
+      if (filters.timeThreshold) {
+        collection = collection.filter(a => {
+          const pubTime = typeof a.pubDate === 'string' ? new Date(a.pubDate).getTime() : a.pubDate;
+          return pubTime >= filters.timeThreshold!;
+        });
+      }
+      if (filters.searchQuery) {
+        const q = filters.searchQuery.toLowerCase();
+        collection = collection.filter(a => 
+          a.title.toLowerCase().includes(q) || 
+          (a.contentSnippet?.toLowerCase().includes(q) ?? false) ||
+          (a.content?.toLowerCase().includes(q) ?? false)
+        );
+      }
 
-    await collection.modify({ isRead: 1, readAt: now });
+      await collection.modify({ isRead: 1, readAt: now });
+    });
   },
 
   async removeFeed(id: string): Promise<void> {
     if (!id) return;
-    await db.feeds.delete(id);
-    const articles = await db.articles.where('feedId').equals(id).toArray();
-    const idsToDelete = articles.map(a => a.id);
-    await db.articles.bulkDelete(idsToDelete);
-    await db.articleContents.bulkDelete(idsToDelete);
+    await db.transaction('rw', [db.feeds, db.articles, db.articleContents], async () => {
+      await db.feeds.delete(id);
+      const articles = await db.articles.where('feedId').equals(id).toArray();
+      const idsToDelete = articles.map(a => a.id);
+      if (idsToDelete.length > 0) {
+        await db.articles.bulkDelete(idsToDelete);
+        await db.articleContents.bulkDelete(idsToDelete);
+      }
+    });
   },
 
   async saveRefreshLogs(logs: RefreshLog[]): Promise<void> {

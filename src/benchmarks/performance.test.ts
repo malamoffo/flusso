@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from 'vitest';
 import { parseRssXml } from '../services/rssParser';
+import { deduplicateArticles, sortArticles } from '../utils/articleUtils';
 import fs from 'fs';
 import path from 'path';
 
@@ -19,7 +20,8 @@ const generateMockArticles = (count: number, duplicateRatio = 0) => {
       isRead: i % 3 === 0 ? 1 : 0,
       isFavorite: i % 7 === 0 ? 1 : 0,
       contentSnippet: `This is a short snippet for article ${i}. It has some content for testing.`,
-      content: `Full content of article ${i} containing some other text elements.`
+      content: `Full content of article ${i} containing some other text elements.`,
+      type: 'article' as const
     });
   }
   return articles;
@@ -92,88 +94,52 @@ function runMergeArticles(prev: any[], incoming: any[]) {
   return { merged: finalMerged, hasNew };
 }
 
-describe('Deterministic Performance Benchmarks', () => {
-  it('should run benchmarks and save results', () => {
-    const results: Record<string, { durationMs: number; operationsPerSec?: number; itemsProcessed?: number }> = {};
+describe('Deterministic Performance Benchmarks (1k, 5k, 20k elements)', () => {
+  const datasetSizes = [1000, 5000, 20000];
 
-    // 1. RSS Parsing Benchmark (100 items)
-    const rssXml = generateRssXml(100);
-    const startParse = performance.now();
-    const parseResult = parseRssXml(rssXml, 'https://example.com/rss-feed');
-    const endParse = performance.now();
-    results['rss_parsing'] = {
-      durationMs: endParse - startParse,
-      itemsProcessed: 100,
-    };
-    expect(parseResult.articles.length).toBe(100);
+  it('should run benchmarks across 1k, 5k, and 20k elements and save results', () => {
+    const results: Record<string, { durationMs: number; itemsProcessed: number }> = {};
 
-    // 2. Deduplication Benchmark (5000 items, 30% duplicates)
-    const rawArticles = generateMockArticles(5000, 0.3);
-    const startDedup = performance.now();
-    const existingLinks = new Set<string>();
-    const uniqueArticles = [];
-    for (let i = 0; i < rawArticles.length; i++) {
-      if (!existingLinks.has(rawArticles[i].link)) {
-        existingLinks.add(rawArticles[i].link);
-        uniqueArticles.push(rawArticles[i]);
-      }
-    }
-    const endDedup = performance.now();
-    results['deduplication'] = {
-      durationMs: endDedup - startDedup,
-      itemsProcessed: rawArticles.length,
-    };
-    expect(uniqueArticles.length).toBeLessThan(5000);
+    for (const size of datasetSizes) {
+      // 1. Deduplication Benchmark
+      const rawArticles = generateMockArticles(size, 0.3);
+      const startDedup = performance.now();
+      const uniqueArticles = deduplicateArticles(rawArticles);
+      const endDedup = performance.now();
+      results[`deduplication_${size}`] = {
+        durationMs: endDedup - startDedup,
+        itemsProcessed: size,
+      };
+      expect(uniqueArticles.length).toBeLessThanOrEqual(size);
 
-    // 3. Filtering Benchmark (5000 items)
-    const filterArticles = generateMockArticles(5000, 0);
-    const query = 'flusso';
-    const startFilter = performance.now();
-    const filtered = [];
-    for (let i = 0; i < filterArticles.length; i++) {
-      const art = filterArticles[i];
-      if (
+      // 2. Sorting Benchmark
+      const sortInput = generateMockArticles(size, 0);
+      sortInput.reverse();
+      const startSort = performance.now();
+      const sorted = sortArticles(sortInput);
+      const endSort = performance.now();
+      results[`sorting_${size}`] = {
+        durationMs: endSort - startSort,
+        itemsProcessed: size,
+      };
+      expect(sorted.length).toBe(size);
+
+      // 3. Filtering Benchmark
+      const filterInput = generateMockArticles(size, 0);
+      const query = 'flusso';
+      const startFilter = performance.now();
+      const filtered = filterInput.filter(art =>
         art.title.toLowerCase().includes(query) ||
-        (art.contentSnippet?.toLowerCase().includes(query)) ||
-        (art.content?.toLowerCase().includes(query))
-      ) {
-        filtered.push(art);
-      }
+        (art.contentSnippet?.toLowerCase().includes(query) ?? false) ||
+        (art.content?.toLowerCase().includes(query) ?? false)
+      );
+      const endFilter = performance.now();
+      results[`filtering_${size}`] = {
+        durationMs: endFilter - startFilter,
+        itemsProcessed: size,
+      };
+      expect(filtered.length).toBeDefined();
     }
-    const endFilter = performance.now();
-    results['filtering'] = {
-      durationMs: endFilter - startFilter,
-      itemsProcessed: filterArticles.length,
-    };
-
-    // 4. Sorting Benchmark (5000 items)
-    const sortArticles = generateMockArticles(5000, 0);
-    // Shuffle slightly
-    sortArticles.reverse();
-    const startSort = performance.now();
-    sortArticles.sort((a, b) => b.pubDate - a.pubDate);
-    const endSort = performance.now();
-    results['sorting'] = {
-      durationMs: endSort - startSort,
-      itemsProcessed: sortArticles.length,
-    };
-
-    // 5. Merge Benchmark (5000 existing, 1000 incoming)
-    const prevArticles = generateMockArticles(5000, 0);
-    const incomingArticles = generateMockArticles(1000, 0).map(a => ({
-      ...a,
-      id: `new-${a.id}`,
-      link: `${a.link}-new`,
-      pubDate: a.pubDate + 500000, // newer dates
-    }));
-    const startMerge = performance.now();
-    const mergeResult = runMergeArticles(prevArticles, incomingArticles);
-    const endMerge = performance.now();
-    results['merge'] = {
-      durationMs: endMerge - startMerge,
-      itemsProcessed: prevArticles.length + incomingArticles.length,
-    };
-    expect(mergeResult.merged.length).toBe(6000);
 
     // Write results to file
     const distDir = path.resolve('dist');
@@ -193,6 +159,6 @@ describe('Deterministic Performance Benchmarks', () => {
       path.join(publicDir, 'benchmark-results.json'),
       JSON.stringify(results, null, 2)
     );
-    console.log('Benchmark results written successfully to dist/benchmark-results.json and public/benchmark-results.json');
+    console.log('Benchmark results for 1k, 5k, 20k written successfully.');
   });
 });

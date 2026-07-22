@@ -7,7 +7,7 @@ import { fetchWithProxy } from '../utils/proxy';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn, getHostname } from '../lib/utils';
 import { SwipeAction, Theme, FontSize, Article, Feed, RetroTheme } from '../types';
-import { AddFeedModal } from './AddFeedModal';
+import { createLazyView, ModalFallback } from '../lib/lazyLoader';
 import packageJson from '../../package.json';
 import { CachedImage } from './CachedImage';
 import { Capacitor } from '@capacitor/core';
@@ -18,7 +18,8 @@ import { db } from '../services/db';
 
 import { APP_VERSION, APP_BUILD } from '../main';
 
-import { BrowserLogsModal } from './BrowserLogsModal';
+const AddFeedModal = createLazyView(() => import('./AddFeedModal').then(m => ({ default: m.AddFeedModal })), 'AddFeedModal', ModalFallback);
+const BrowserLogsModal = createLazyView(() => import('./BrowserLogsModal').then(m => ({ default: m.BrowserLogsModal })), 'BrowserLogsModal', ModalFallback);
 
 const isRedditFeedUrl = (feedUrl: string): boolean => {
   try {
@@ -1007,6 +1008,9 @@ export const SettingsModal = React.memo(function SettingsModal({
                 <div className="space-y-3">
                   <button
                     onClick={() => setIsAddModalOpen(true)}
+                    onMouseEnter={() => (AddFeedModal as any).prefetch?.()}
+                    onTouchStart={() => (AddFeedModal as any).prefetch?.()}
+                    onFocus={() => (AddFeedModal as any).prefetch?.()}
                     className="w-full flex items-center justify-center gap-2 p-4 rounded-2xl bg-[var(--theme-color)] text-white hover:bg-opacity-90 transition-colors font-medium shadow-lg shadow-[var(--theme-color)]/20"
                   >
                     <Plus className="w-5 h-5" />
@@ -1234,6 +1238,9 @@ export const SettingsModal = React.memo(function SettingsModal({
                     
                     <button
                       onClick={() => setIsBrowserLogsOpen(true)}
+                      onMouseEnter={() => (BrowserLogsModal as any).prefetch?.()}
+                      onTouchStart={() => (BrowserLogsModal as any).prefetch?.()}
+                      onFocus={() => (BrowserLogsModal as any).prefetch?.()}
                       className="mt-4 w-full flex items-center justify-center gap-2 p-3 rounded-xl bg-gray-900 border border-gray-700 text-gray-300 hover:bg-black hover:text-white transition-all text-xs font-bold uppercase tracking-wider"
                     >
                       <Terminal className="w-4 h-4" />
