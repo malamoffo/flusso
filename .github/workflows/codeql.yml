@@ -33,7 +33,7 @@ jobs:
         - language: actions
           build-mode: none
         - language: java-kotlin
-          build-mode: auto
+          build-mode: manual # <--- MODIFICA 1: Cambiato da 'none' a 'manual'
         - language: javascript-typescript
           build-mode: none
 
@@ -55,6 +55,7 @@ jobs:
         npm ci
         npm run build
         npx cap sync android
+
     # Imposta Java 21 (versione usata negli altri workflow del progetto)
     - name: Set up JDK 21
       if: matrix.language == 'java-kotlin'
@@ -67,7 +68,7 @@ jobs:
       if: matrix.language == 'java-kotlin'
       uses: gradle/actions/setup-gradle@v6
       with:
-        gradle-version: '8.13'
+        gradle-version: '9.5'
         cache-read-only: false
         build-scan-publish: false
 
@@ -77,14 +78,16 @@ jobs:
         languages: ${{ matrix.language }}
         build-mode: ${{ matrix.build-mode }}
 
+    # <--- MODIFICA 2: Comandi reali per compilare il progetto Android
     - name: Run manual build steps
       if: matrix.build-mode == 'manual'
       shell: bash
       run: |
         echo "Compilazione manuale del progetto Android..."
         cd android
-        gradle clean
-        gradle assembleDebug --build-cache
+        chmod +x gradlew
+        ./gradlew assembleDebug
+
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v4
       with:
