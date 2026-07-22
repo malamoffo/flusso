@@ -72,12 +72,6 @@ jobs:
         cache-read-only: false
         build-scan-publish: false
 
-    - name: Ensure Gradle Wrapper Jar
-      if: matrix.language == 'java-kotlin'
-      run: |
-        cd android
-        gradle wrapper --gradle-version 8.13
-
     - name: Initialize CodeQL
       uses: github/codeql-action/init@v4
       with:
