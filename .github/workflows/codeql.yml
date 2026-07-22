@@ -33,7 +33,7 @@ jobs:
         - language: actions
           build-mode: none
         - language: java-kotlin
-          build-mode: none 
+          build-mode: manual
         - language: javascript-typescript
           build-mode: none
 
@@ -67,7 +67,7 @@ jobs:
       if: matrix.language == 'java-kotlin'
       uses: gradle/actions/setup-gradle@v6
       with:
-        gradle-version: '8.13'
+        build-root-directory: android
         cache-read-only: false
         build-scan-publish: false
 
@@ -77,14 +77,14 @@ jobs:
         languages: ${{ matrix.language }}
         build-mode: ${{ matrix.build-mode }}
 
-    # <--- MODIFICA 2: Comandi reali per compilare il progetto Android
     - name: Run manual build steps
       if: matrix.build-mode == 'manual'
       shell: bash
       run: |
         echo "Compilazione manuale del progetto Android..."
         cd android
-        gradle assembleDebug --build-cache
+        chmod +x gradlew
+        ./gradlew assembleDebug --build-cache
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v4
       with:
