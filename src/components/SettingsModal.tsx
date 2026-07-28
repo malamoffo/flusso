@@ -771,10 +771,10 @@ export const SettingsModal = React.memo(function SettingsModal({
                   <div className="space-y-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-300 mb-1">
-                        Modalità Grafica Retro
+                        Modalità Grafica Sperimentale / Retro
                       </label>
                       <p className="text-xs text-gray-400 mb-3 leading-relaxed">
-                        Trasforma istantaneamente l'intera interfaccia nell'aspetto vintage dei leggendari personal computer a 8-bit.
+                        Scegli tra l'interfaccia moderna, il classico computer a 8-bit Commodore 64 o l'interfaccia tattile LCARS di Star Trek TNG con effetti sonori originali.
                       </p>
                       <select
                         value={settings.retroTheme || 'none'}
@@ -783,6 +783,7 @@ export const SettingsModal = React.memo(function SettingsModal({
                       >
                         <option value="none">Disattivato (Moderno)</option>
                         <option value="c64">Commodore 64 (Classic Blue & Cyan)</option>
+                        <option value="lcars">Star Trek LCARS (24th Century UI & Sound)</option>
                       </select>
                     </div>
                   </div>

@@ -473,6 +473,119 @@ body.retro-c64 option {
   color: #ffffff !important;
 }
 
+/* ==========================================================================
+   STAR TREK LCARS (LIBRARY COMPUTER ACCESS & RETRIEVAL SYSTEM) THEME
+   ========================================================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=Antonio:wght@400;600;700&display=swap');
+
+body.retro-lcars {
+  background-color: #000000 !important;
+  background-image: none !important;
+  color: #ff9900 !important;
+  font-family: 'Antonio', 'Oswald', sans-serif !important;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+body.retro-lcars #root,
+body.retro-lcars body {
+  background-color: #000000 !important;
+}
+
+/* LCARS Color Utility Classes */
+body.retro-lcars .bg-lcars-orange { background-color: #ff9900 !important; }
+body.retro-lcars .bg-lcars-tan { background-color: #ffcc99 !important; }
+body.retro-lcars .bg-lcars-lavender { background-color: #cc99cc !important; }
+body.retro-lcars .bg-lcars-blue { background-color: #99ccff !important; }
+body.retro-lcars .bg-lcars-teal { background-color: #336699 !important; }
+body.retro-lcars .bg-lcars-red { background-color: #cc3333 !important; }
+body.retro-lcars .bg-lcars-peach { background-color: #ffaa66 !important; }
+body.retro-lcars .bg-lcars-gold { background-color: #ffcc00 !important; }
+
+body.retro-lcars .text-lcars-orange { color: #ff9900 !important; }
+body.retro-lcars .text-lcars-tan { color: #ffcc99 !important; }
+body.retro-lcars .text-lcars-lavender { color: #cc99cc !important; }
+body.retro-lcars .text-lcars-blue { color: #99ccff !important; }
+body.retro-lcars .text-lcars-red { color: #cc3333 !important; }
+body.retro-lcars .text-lcars-gold { color: #ffcc00 !important; }
+
+/* LCARS Scrollbar */
+body.retro-lcars ::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+body.retro-lcars ::-webkit-scrollbar-track {
+  background: #000000;
+  border-left: 2px solid #ff9900;
+}
+body.retro-lcars ::-webkit-scrollbar-thumb {
+  background: #ffcc99;
+  border-radius: 9999px;
+  border: 1px solid #000000;
+}
+body.retro-lcars ::-webkit-scrollbar-thumb:hover {
+  background: #ff9900;
+}
+
+/* LCARS Card & Container Overrides */
+body.retro-lcars .bg-gray-800,
+body.retro-lcars .bg-gray-900,
+body.retro-lcars .bg-zinc-800,
+body.retro-lcars .bg-zinc-900,
+body.retro-lcars .bg-zinc-950,
+body.retro-lcars .dark\:bg-zinc-900,
+body.retro-lcars .dark\:bg-gray-900,
+body.retro-lcars .dark\:bg-gray-800 {
+  background-color: #000000 !important;
+  border-color: #ff9900 !important;
+}
+
+/* LCARS Inputs and Selects */
+body.retro-lcars input,
+body.retro-lcars select,
+body.retro-lcars textarea {
+  background-color: #000000 !important;
+  color: #ffcc99 !important;
+  border: 2px solid #ff9900 !important;
+  border-radius: 9999px !important;
+  padding-left: 1rem !important;
+  padding-right: 1rem !important;
+  font-family: 'Antonio', sans-serif !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+}
+
+body.retro-lcars select option {
+  background-color: #000000 !important;
+  color: #ff9900 !important;
+}
+
+/* LCARS Button Pill Effects */
+body.retro-lcars button {
+  font-family: 'Antonio', sans-serif !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.08em !important;
+  text-transform: uppercase !important;
+}
+
+/* Subtle scanning line effect overlay for LCARS UI */
+body.retro-lcars::after {
+  content: " ";
+  display: block;
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  right: 0;
+  background: linear-gradient(rgba(0, 0, 0, 0) 50%, rgba(255, 153, 0, 0.05) 50%);
+  background-size: 100% 6px;
+  z-index: 999999;
+  pointer-events: none;
+  opacity: 0.4;
+}
+
+
 
 
 

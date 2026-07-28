@@ -10,6 +10,7 @@ import { contentFetcher } from '../utils/contentFetcher';
 import { CachedImage } from './CachedImage';
 import { cn, getSafeUrl } from '../lib/utils';
 import { extractArticleImages } from './RotatingImageCarousel';
+import { lcarsAudio } from '../utils/lcarsAudio';
 
 // VERY IMPORTANT: Persist swipe state outside component
 const swipeState: Record<string, number> = {};
@@ -158,6 +159,9 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
   }, [inView, entry, article.id, article.isRead, onMarkAsRead, filter]);
 
   const handleArticleClick = () => {
+    if (settings.retroTheme === 'lcars') {
+      lcarsAudio.playSelect();
+    }
     if (!article.isRead) {
       onMarkAsRead(article.id);
     }

@@ -741,6 +741,11 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
 
           <div className="p-3 sm:p-6 lg:p-8">
             <header className="mb-6 text-center max-w-5xl mx-auto">
+              {settings.retroTheme === 'lcars' && (
+                <div className="mb-3 inline-flex items-center gap-2 bg-[#ff9900] text-black font-black text-xs px-4 py-1 rounded-full uppercase tracking-widest shadow-md">
+                  <span>LCARS DATA FILE // READOUT MODE</span>
+                </div>
+              )}
               <div className="flex flex-col items-center gap-3 mb-2">
                 <div className="flex items-center justify-center gap-4 flex-wrap">
                   <div className="flex items-center gap-2.5 px-3 py-1 rounded-full bg-white/5 border border-white/10">

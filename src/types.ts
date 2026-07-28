@@ -1,7 +1,7 @@
 export type SwipeAction = 'toggleFavorite' | 'remove' | 'none';
 export type Theme = 'light' | 'dark' | 'system';
 export type FontSize = 'medium' | 'large';
-export type RetroTheme = 'none' | 'c64';
+export type RetroTheme = 'none' | 'c64' | 'lcars';
 
 export interface Settings {
   swipeLeftAction: SwipeAction;

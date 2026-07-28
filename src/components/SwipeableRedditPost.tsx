@@ -6,6 +6,7 @@ import { RedditPost, Settings } from '../types';
 import { useInView } from 'react-intersection-observer';
 import { cn, getSafeUrl } from '../lib/utils';
 import { CachedImage } from './CachedImage';
+import { lcarsAudio } from '../utils/lcarsAudio';
 import DOMPurify from 'dompurify';
 import he from 'he';
 
@@ -63,6 +64,9 @@ export const SwipeableRedditPost = React.memo(function SwipeableRedditPost({
   }, [inView, entry, post.id, post.isRead, onMarkAsRead, filter]);
 
   const handlePostClick = () => {
+    if (settings.retroTheme === 'lcars') {
+      lcarsAudio.playSelect();
+    }
     if (!post.isRead) {
       onMarkAsRead(post.id);
     }
