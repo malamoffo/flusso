@@ -67,7 +67,7 @@ jobs:
       if: matrix.language == 'java-kotlin'
       uses: gradle/actions/setup-gradle@v6
       with:
-        gradle-version: '9.3.1'
+        gradle-version: '9.5.0'
         cache-read-only: false
         build-scan-publish: false
 
@@ -84,8 +84,9 @@ jobs:
       run: |
         echo "Compilazione manuale del progetto Android..."
         cd android
-        gradle clean
-        gradle assembleDebug --build-cache
+        chmod +x gradlew
+        ./gradlew clean
+        ./gradlew assembleDebug --build-cache
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v4
       with:
