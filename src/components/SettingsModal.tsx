@@ -130,19 +130,31 @@ export const SettingsModal = React.memo(function SettingsModal({
     let isMounted = true;
     const fetchFeedStats = async () => {
       try {
+        const results = await Promise.allSettled(
+          feeds.map(async (feed) => {
+            const arts = await db.articles.where('feedId').equals(feed.id).toArray();
+            const count = arts.length;
+            
+            const dbLatest = count > 0 ? Math.max(...arts.map(a => a.pubDate)) : null;
+            const latestPubDate = dbLatest || feed.lastArticleDate || null;
+            
+            return {
+              id: feed.id,
+              stat: {
+                latestPubDate,
+                articleCount: count,
+              }
+            };
+          })
+        );
+
         const stats: Record<string, { latestPubDate: number | null; articleCount: number }> = {};
-        for (const feed of feeds) {
-          const arts = await db.articles.where('feedId').equals(feed.id).toArray();
-          const count = arts.length;
-          
-          const dbLatest = count > 0 ? Math.max(...arts.map(a => a.pubDate)) : null;
-          const latestPubDate = dbLatest || feed.lastArticleDate || null;
-          
-          stats[feed.id] = {
-            latestPubDate,
-            articleCount: count,
-          };
+        for (const res of results) {
+          if (res.status === 'fulfilled' && res.value) {
+            stats[res.value.id] = res.value.stat;
+          }
         }
+
         if (isMounted) {
           setFeedDetails(stats);
         }

@@ -199,6 +199,28 @@ export const rssStorage = {
     try {
       const feeds = await this.getFeeds();
       const feed = feeds.find(f => f.feedUrl === feedUrl);
+
+      // In simulated dev environment (web preview), do not fetch real feeds over network; return mock data
+      if (!Capacitor.isNativePlatform()) {
+        const feedTitle = feed?.title || 'Mock Feed';
+        const mockArticles: Article[] = [
+          generateMockArticle(feedUrl, feedTitle)
+        ];
+        return {
+          feed: {
+            ...feed,
+            id: feed?.id || crypto.randomUUID(),
+            title: feedTitle,
+            feedUrl,
+            link: feedUrl,
+            type: feed?.type || 'article',
+            lastRefreshStatus: 'success',
+            lastFetched: Date.now()
+          } as Feed,
+          articles: mockArticles,
+          bytesDownloaded: 512
+        };
+      }
       
       let response;
       try {
@@ -268,8 +290,13 @@ export const rssStorage = {
     
     const articlesToUpdate: Article[] = [];
 
+    const feedUrlIndexMap = new Map<string, number>();
+    updatedFeeds.forEach((f, idx) => {
+      feedUrlIndexMap.set(f.feedUrl, idx);
+    });
+
     for (const { feed, articles: newArticles } of results) {
-      const existingFeedIndex = updatedFeeds.findIndex(f => f.feedUrl === feed.feedUrl);
+      const existingFeedIndex = feedUrlIndexMap.get(feed.feedUrl) ?? -1;
       
       const latestFromNew = newArticles.length > 0 
         ? newArticles.reduce((max, a) => Math.max(max, a.pubDate), 0)
@@ -280,7 +307,9 @@ export const rssStorage = {
           ...feed,
           lastArticleDate: latestFromNew
         };
+        const newIndex = updatedFeeds.length;
         updatedFeeds.push(newFeed);
+        feedUrlIndexMap.set(feed.feedUrl, newIndex);
         
         const seenLinks = new Set<string>();
         

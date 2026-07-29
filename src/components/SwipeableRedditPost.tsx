@@ -109,7 +109,9 @@ export const SwipeableRedditPost = React.memo(function SwipeableRedditPost({
       const action = isRight ? settings.swipeRightAction : settings.swipeLeftAction;
       
       if (isSavedSection) {
-        setExitX(isRight ? '100%' : '-100%');
+        const targetX = isRight ? '100%' : '-100%';
+        setExitX(targetX);
+        controls.start({ x: targetX, opacity: 0, transition: { duration: 0.2, ease: "easeOut" } });
         onRemove?.(post.id);
       } else {
         controls.start({ x: 0, transition: { type: "spring", stiffness: 400, damping: 30, restDelta: 0.5 } });
@@ -193,6 +195,7 @@ export const SwipeableRedditPost = React.memo(function SwipeableRedditPost({
         <motion.article
           animate={controls}
           style={{ x }}
+          exit={{ x: exitX, opacity: 0, transition: { duration: 0.2, ease: "easeOut" } }}
           drag={!disableGestures && (isSavedSection || (settings.swipeLeftAction !== 'none' || settings.swipeRightAction !== 'none')) ? "x" : false}
           dragConstraints={{ left: 0, right: 0 }}
           dragElastic={!disableGestures ? { 

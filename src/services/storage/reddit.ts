@@ -203,6 +203,27 @@ export const redditStorage = {
 
   async fetchRedditPosts(subredditName: string, sort: 'new' | 'hot' | 'top' = 'new', after?: string, signal?: AbortSignal): Promise<{posts: RedditPost[], after?: string}> {
     try {
+      // In simulated dev environment (web preview), do not fetch real reddit posts over network
+      if (!Capacitor.isNativePlatform()) {
+        const mockPost: RedditPost = {
+          id: `mock/${subredditName}/${crypto.randomUUID()}`,
+          originalId: 'mock-post',
+          title: `[MOCK] Post Reddit di prova per r/${subredditName}`,
+          author: 'u/dev_mock',
+          subredditId: 'mock',
+          subredditName: subredditName,
+          permalink: `/r/${subredditName}/mock`,
+          url: `https://reddit.com/r/${subredditName}`,
+          createdUtc: Math.floor(Date.now() / 1000) - 3600,
+          score: 120,
+          numComments: 15,
+          selftextHtml: `<p>Questo è un post simulato per r/${subredditName} in ambiente di sviluppo.</p>`,
+          isRead: 0,
+          isFavorite: 0
+        };
+        return { posts: [mockPost] };
+      }
+
       // Don't strictly require subreddit object to perform fetch
       const subreddits = await this.getSubreddits();
       const subreddit = subreddits.find(s => s.name === subredditName);

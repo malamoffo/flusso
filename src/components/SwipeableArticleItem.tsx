@@ -212,7 +212,9 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
       const action = isRight ? settings.swipeRightAction : settings.swipeLeftAction;
       
       if (isSavedSection) {
-        setExitX(isRight ? '100%' : '-100%');
+        const targetX = isRight ? '100%' : '-100%';
+        setExitX(targetX);
+        controls.start({ x: targetX, opacity: 0, transition: { duration: 0.2, ease: "easeOut" } });
         swipeState[article.id] = 0;
         onRemove?.(article.id);
       } else if (action === 'toggleFavorite') {
@@ -298,11 +300,9 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
         opacity: 0, 
         height: 0,
         overflow: "hidden",
-        x: exitX,
         transition: { 
           opacity: { duration: 0.2 },
-          height: { duration: 0.2, delay: 0.1 },
-          x: { duration: 0.2 }
+          height: { duration: 0.2, delay: 0.1 }
         } 
       }}
       transition={{ 

@@ -42,7 +42,7 @@ const ProgressBanner = memo(({ filter }: { filter: string }) => {
   const mbDownloaded = progress.bytesDownloaded ? (progress.bytesDownloaded / (1024 * 1024)).toFixed(2) : '0.00';
   
   return (
-    <div className="bg-blue-50 dark:bg-blue-900/20 px-4 py-2 text-sm text-blue-800 dark:text-blue-300 flex items-center justify-between border-t border-blue-100 dark:border-blue-900/30">
+    <div className="bg-white/5 dark:bg-black/20 backdrop-blur-xl px-4 py-2 text-sm text-gray-900 dark:text-gray-200 flex items-center justify-between border-t border-white/10 dark:border-white/5">
       <span>Updating feeds...</span>
       <div className="flex items-center gap-3">
         {progress.bytesDownloaded !== undefined && (
