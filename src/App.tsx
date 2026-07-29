@@ -251,7 +251,7 @@ export default function App() {
     // ⚡ Bolt: RedditPosts are already sorted by the RedditContext.
     // We avoid redundant O(N log N) sorting here.
     return filtered;
-  }, [redditPosts, deferredSearchQuery, redditSort, subredditFilter]);
+  }, [redditPosts, deferredSearchQuery, subredditFilter]);
 
   useEffect(() => {
     resetPagination();
@@ -261,7 +261,7 @@ export default function App() {
     if (filter === 'reddit' && subreddits.length > 0) {
       refreshReddit();
     }
-  }, [filter]);
+  }, [filter, subreddits.length, refreshReddit]);
 
   const {
     pullProgressTransform,
