@@ -70,7 +70,8 @@
     "minimatch": "^10.2.4",
     "glob": "^13.0.6",
     "@xmldom/xmldom": "^0.8.10",
-    "uuid": "^10.0.0"
+    "uuid": "^11.1.0",
+    "tmp": "^0.2.3"
   },
   "pnpm": {
     "overrides": {
@@ -78,7 +79,8 @@
       "minimatch": "^10.2.4",
       "glob": "^13.0.6",
       "@xmldom/xmldom": "^0.8.10",
-      "uuid": "^10.0.0"
+      "uuid": "^11.1.0",
+      "tmp": "^0.2.3"
     }
   },
   "resolutions": {
@@ -86,6 +88,7 @@
     "minimatch": "^10.2.4",
     "glob": "^13.0.6",
     "@xmldom/xmldom": "^0.8.10",
-    "uuid": "^10.0.0"
+    "uuid": "^11.1.0",
+    "tmp": "^0.2.3"
   }
 }
