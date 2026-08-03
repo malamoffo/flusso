@@ -51,8 +51,8 @@ export async function fetchWithProxy(url: string, isRss: boolean = true, sinceDa
       const response = await CapacitorHttp.get({
         url,
         headers,
-        connectTimeout: 30000,
-        readTimeout: 30000
+        connectTimeout: 10000,
+        readTimeout: 10000
       });
 
       if (response.status === 304) return { 
@@ -84,7 +84,7 @@ export async function fetchWithProxy(url: string, isRss: boolean = true, sinceDa
     if (signal?.aborted) throw new Error('Aborted');
 
     const directController = new AbortController();
-    const directTimeoutId = setTimeout(() => directController.abort(), 30000);
+    const directTimeoutId = setTimeout(() => directController.abort(), 10000);
     
     // Link external signal to our internal controller
     if (signal) {
@@ -187,13 +187,13 @@ export async function fetchWithProxy(url: string, isRss: boolean = true, sinceDa
   }
 
   let lastError: any;
-  const defaultTimeout = 12000;
+  const defaultTimeout = 8000;
 
   for (let i = 0; i < proxies.length; i++) {
     if (signal?.aborted) throw new Error('Aborted');
     
     const proxy = proxies[i];
-    const timeout = proxy.timeout ? Math.min(proxy.timeout, 15000) : defaultTimeout;
+    const timeout = proxy.timeout ? Math.min(proxy.timeout, 10000) : defaultTimeout;
     
     let id: any;
     try {

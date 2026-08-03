@@ -1305,21 +1305,24 @@ export default function App() {
             {filter === 'inbox' && (
               <motion.button
                 whileTap={{ scale: 0.9 }}
-                onClick={() => {
+                onClick={(e) => {
+                  e.stopPropagation();
                   refreshFeeds();
                 }}
                 className={cn(
-                  "w-10 h-10 bg-gray-800 rounded-full shadow-lg flex items-center justify-center hover:bg-gray-700 active:scale-95 transition-transform relative group border border-transparent",
-                  isLoading ? "text-red-400 hover:bg-red-950/40 border-red-500/30" : "text-indigo-400"
+                  "w-10 h-10 rounded-full shadow-lg flex items-center justify-center transition-all duration-200 relative group border",
+                  isLoading 
+                    ? "bg-red-950/90 text-red-400 border-red-500/60 shadow-red-950/50 active:scale-95" 
+                    : "bg-gray-800 text-indigo-400 hover:bg-gray-700 border-transparent active:scale-95"
                 )}
                 title={isLoading ? "Interrompi aggiornamento" : "Aggiorna feed"}
                 aria-label={isLoading ? "Interrompi aggiornamento" : "Aggiorna feed"}
               >
                 {isLoading ? (
-                  <>
-                    <RefreshCw className="w-5 h-5 animate-spin group-hover:hidden" aria-hidden="true" />
-                    <X className="w-5 h-5 hidden group-hover:block text-red-500" aria-hidden="true" />
-                  </>
+                  <div className="relative flex items-center justify-center w-full h-full">
+                    <RefreshCw className="w-5 h-5 animate-spin text-red-400/30 absolute" aria-hidden="true" />
+                    <X className="w-4 h-4 text-red-400 relative z-10" aria-hidden="true" />
+                  </div>
                 ) : (
                   <RefreshCw className="w-5 h-5" aria-hidden="true" />
                 )}
