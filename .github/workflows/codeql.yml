@@ -33,7 +33,7 @@ jobs:
         - language: actions
           build-mode: none
         - language: java-kotlin
-          build-mode: none # <--- MODIFICA 1: Cambiato da 'none' a 'manual'
+          build-mode: manual # <--- MODIFICA 1: Cambiato da 'none' a 'manual'
         - language: javascript-typescript
           build-mode: none
 
