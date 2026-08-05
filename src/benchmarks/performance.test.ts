@@ -100,16 +100,39 @@ describe('Deterministic Performance Benchmarks (1k, 5k, 20k elements)', () => {
   it('should run benchmarks across 1k, 5k, and 20k elements and save results', () => {
     const results: Record<string, { durationMs: number; itemsProcessed: number }> = {};
 
+    // 0. RSS XML Parsing Benchmark (100 items)
+    const xmlData = generateRssXml(100);
+    const startXml = performance.now();
+    parseRssXml(xmlData, 'https://example.com/rss-feed');
+    const endXml = performance.now();
+    results['rss_parsing'] = {
+      durationMs: endXml - startXml,
+      itemsProcessed: 100,
+    };
+
+    // 0. Merge Benchmark (5000 existing + 1000 incoming)
+    const existingArticles = generateMockArticles(5000, 0);
+    const incomingArticles = generateMockArticles(1000, 0.5);
+    const startMerge = performance.now();
+    runMergeArticles(existingArticles, incomingArticles);
+    const endMerge = performance.now();
+    results['merge'] = {
+      durationMs: endMerge - startMerge,
+      itemsProcessed: 6000,
+    };
+
     for (const size of datasetSizes) {
       // 1. Deduplication Benchmark
       const rawArticles = generateMockArticles(size, 0.3);
       const startDedup = performance.now();
       const uniqueArticles = deduplicateArticles(rawArticles);
       const endDedup = performance.now();
-      results[`deduplication_${size}`] = {
+      const dedupResult = {
         durationMs: endDedup - startDedup,
         itemsProcessed: size,
       };
+      results[`deduplication_${size}`] = dedupResult;
+      if (size === 5000) results['deduplication'] = dedupResult;
       expect(uniqueArticles.length).toBeLessThanOrEqual(size);
 
       // 2. Sorting Benchmark
@@ -118,10 +141,12 @@ describe('Deterministic Performance Benchmarks (1k, 5k, 20k elements)', () => {
       const startSort = performance.now();
       const sorted = sortArticles(sortInput);
       const endSort = performance.now();
-      results[`sorting_${size}`] = {
+      const sortResult = {
         durationMs: endSort - startSort,
         itemsProcessed: size,
       };
+      results[`sorting_${size}`] = sortResult;
+      if (size === 5000) results['sorting'] = sortResult;
       expect(sorted.length).toBe(size);
 
       // 3. Filtering Benchmark
@@ -134,10 +159,12 @@ describe('Deterministic Performance Benchmarks (1k, 5k, 20k elements)', () => {
         (art.content?.toLowerCase().includes(query) ?? false)
       );
       const endFilter = performance.now();
-      results[`filtering_${size}`] = {
+      const filterResult = {
         durationMs: endFilter - startFilter,
         itemsProcessed: size,
       };
+      results[`filtering_${size}`] = filterResult;
+      if (size === 5000) results['filtering'] = filterResult;
       expect(filtered.length).toBeDefined();
     }
 

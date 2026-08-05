@@ -12,7 +12,6 @@ export const defaultSettings: Settings = {
   pureBlack: true,
   redditRetentionDays: 1,
   articleRetentionDays: 3,
-  retroTheme: 'none',
 };
 
 export const settingsStorage = {

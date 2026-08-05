@@ -6,7 +6,7 @@ import { useReddit } from '../context/RedditContext';
 import { fetchWithProxy } from '../utils/proxy';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn, getHostname } from '../lib/utils';
-import { SwipeAction, Theme, FontSize, Article, Feed, RetroTheme } from '../types';
+import { SwipeAction, Theme, FontSize, Article, Feed } from '../types';
 import { createLazyView, ModalFallback } from '../lib/lazyLoader';
 import packageJson from '../../package.json';
 import { CachedImage } from './CachedImage';
@@ -773,35 +773,6 @@ export const SettingsModal = React.memo(function SettingsModal({
                     </div>
                   </div>
                 </section>
-
-                {/* Retro Style Settings */}
-                <section className="pt-4 border-t border-gray-700/50">
-                  <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
-                    <FlaskConical className="w-4 h-4 text-amber-500" />
-                    Stile Retro Sperimentale
-                  </h3>
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-1">
-                        Modalità Grafica Sperimentale / Retro
-                      </label>
-                      <p className="text-xs text-gray-400 mb-3 leading-relaxed">
-                        Scegli tra l'interfaccia moderna, il classico computer a 8-bit Commodore 64 o l'interfaccia tattile LCARS di Star Trek TNG con effetti sonori originali.
-                      </p>
-                      <select
-                        value={settings.retroTheme || 'none'}
-                        onChange={(e) => updateSettings({ retroTheme: e.target.value as RetroTheme })}
-                        className="block w-full pl-3 pr-10 py-2 text-base border-gray-700 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-lg bg-gray-800 text-white"
-                      >
-                        <option value="none">Disattivato (Moderno)</option>
-                        <option value="c64">Commodore 64 (Classic Blue & Cyan)</option>
-                        <option value="lcars">Star Trek LCARS (24th Century UI & Sound)</option>
-                      </select>
-                    </div>
-                  </div>
-                </section>
-
-
               </div>
             ) : activeTab === 'retention' ? (
               <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-300">

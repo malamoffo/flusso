@@ -79,11 +79,11 @@ jobs:
       - name: Run Typecheck
         run: npm run lint
 
-      - name: Run Web Tests and Benchmarks
-        run: npx vitest run src/benchmarks/performance.test.ts
-
       - name: Build Web App
         run: npm run build
+
+      - name: Run Web Tests and Benchmarks
+        run: npx vitest run src/benchmarks/performance.test.ts
 
       - name: Run Performance Analysis
         run: node scripts/perf-metrics.js

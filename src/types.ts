@@ -1,7 +1,6 @@
 export type SwipeAction = 'toggleFavorite' | 'remove' | 'none';
 export type Theme = 'light' | 'dark' | 'system';
 export type FontSize = 'medium' | 'large';
-export type RetroTheme = 'none' | 'c64' | 'lcars';
 
 export interface Settings {
   swipeLeftAction: SwipeAction;
@@ -14,7 +13,6 @@ export interface Settings {
   pureBlack: boolean;
   redditRetentionDays: number;
   articleRetentionDays: number;
-  retroTheme?: RetroTheme;
 }
 
 export interface Feed {
