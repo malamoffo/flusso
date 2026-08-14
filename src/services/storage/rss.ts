@@ -44,30 +44,46 @@ export const rssStorage = {
       const validFeeds = await db.feeds.toArray();
       const validFeedIds = new Set(validFeeds.map(f => f.id));
 
-      // Due to IndexedDB corruption on the isRead index for some users, 
-      // we must bypass the index and filter directly to ensure accuracy.
-      // Also filter out orphaned articles or those missing basic data to avoid "ghost" counts.
-      const collection = db.articles.filter(a => {
-          const val = a.isRead;
-          const isUnread = val === 0 || (val as any) === false || (val as any) === '0' || !val;
-          return isUnread && validFeedIds.has(a.feedId) && (!!a.title || !!a.link);
+      // Performance Optimization: Query 'isRead' by index (where 'isRead' equals 0)
+      // to avoid doing a linear full-table O(N) scan. This dramatically speeds up operations
+      // when the database contains thousands of articles.
+      const collection = db.articles.where('isRead').equals(0).filter(a => {
+          return validFeedIds.has(a.feedId) && (!!a.title || !!a.link);
       });
       return await collection.count();
     } catch (e) {
-      console.warn('Filter query failed for unread count:', e);
-      return await db.articles.filter(a => !a.isRead).count();
+      console.warn('Index-based query failed for unread count, falling back to full table scan:', e);
+      // Try-catch fallback: in case of IndexedDB index corruption, fall back to linear scan
+      try {
+        const validFeeds = await db.feeds.toArray();
+        const validFeedIds = new Set(validFeeds.map(f => f.id));
+        const collection = db.articles.filter(a => {
+            const val = a.isRead;
+            const isUnread = val === 0 || (val as any) === false || (val as any) === '0' || !val;
+            return isUnread && validFeedIds.has(a.feedId) && (!!a.title || !!a.link);
+        });
+        return await collection.count();
+      } catch (err) {
+        return await db.articles.filter(a => !a.isRead).count();
+      }
     }
   },
 
   async getAllUnreadArticles(): Promise<Article[]> {
     try {
-      return await db.articles.filter(a => {
-          const val = a.isRead;
-          return val === 0 || (val as any) === false || (val as any) === '0' || !val;
-      }).toArray();
+      // Performance Optimization: Use IndexedDB index query to load only unread articles.
+      return await db.articles.where('isRead').equals(0).toArray();
     } catch (e) {
-      console.error('Failed to load all unread articles:', e);
-      return [];
+      console.warn('Index-based query failed for all unread articles, falling back to full table scan:', e);
+      try {
+        return await db.articles.filter(a => {
+            const val = a.isRead;
+            return val === 0 || (val as any) === false || (val as any) === '0' || !val;
+        }).toArray();
+      } catch (err) {
+        console.error('Failed to load all unread articles:', err);
+        return [];
+      }
     }
   },
 
