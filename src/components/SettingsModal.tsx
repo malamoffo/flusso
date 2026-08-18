@@ -384,11 +384,17 @@ export const SettingsModal = React.memo(function SettingsModal({
       }
 
       if (data.subreddits) {
-        for (const subName of data.subreddits) {
-          if (!subreddits.find(s => s.name === subName) || importMode === 'replace') {
-            await addSubreddit(`https://reddit.com/r/${subName}/.rss`);
-          }
-        }
+        await Promise.all(
+          data.subreddits.map(async (subName: string) => {
+            try {
+              if (!subreddits.find(s => s.name === subName) || importMode === 'replace') {
+                await addSubreddit(`https://reddit.com/r/${subName}/.rss`);
+              }
+            } catch (err) {
+              console.error(`Failed to add subreddit ${subName} during import:`, err);
+            }
+          })
+        );
       }
     } catch (err) {
       console.error('Import backup failed:', err);

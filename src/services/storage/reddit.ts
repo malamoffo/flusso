@@ -119,8 +119,8 @@ export const redditStorage = {
       };
 
       const subs = await this.getSubreddits();
-      if (!subs.find(s => s.name.toLowerCase() === newSub.name.toLowerCase())) {
-        subs.push(newSub);
+      const lowerNewName = newSub.name.toLowerCase();
+      if (!subs.some(s => s.name.toLowerCase() === lowerNewName)) {        subs.push(newSub);
         await this.saveSubreddits(subs);
       }
 
