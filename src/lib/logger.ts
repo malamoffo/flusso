@@ -61,19 +61,41 @@ export const Logger = {
 
 // Setup global listeners after Logger is defined
 if (typeof window !== 'undefined') {
-  window.addEventListener('error', (event) => {
+  window.addEventListener('error', (event: any) => {
+    // Filter out benign ResizeObserver loop notifications per W3C specification
+    const msg = (typeof event === 'string' ? event : (event?.message || event?.error?.message || '')).toLowerCase();
+    if (
+      msg.includes('resizeobserver') ||
+      msg.includes('resize observer')
+    ) {
+      if (event && typeof event.stopImmediatePropagation === 'function') {
+        event.stopImmediatePropagation();
+      }
+      return;
+    }
+
     Logger.error('Global Unhandled Error', {
-      message: event.message,
-      filename: event.filename,
-      lineno: event.lineno,
-      colno: event.colno,
-      error: event.error
+      message: event?.message,
+      filename: event?.filename,
+      lineno: event?.lineno,
+      colno: event?.colno,
+      error: event?.error
     });
   });
 
-  window.addEventListener('unhandledrejection', (event) => {
+  window.addEventListener('unhandledrejection', (event: any) => {
+    const reasonMsg = (event?.reason?.message || String(event?.reason || '')).toLowerCase();
+    if (
+      reasonMsg.includes('resizeobserver') ||
+      reasonMsg.includes('resize observer')
+    ) {
+      if (event && typeof event.stopImmediatePropagation === 'function') {
+        event.stopImmediatePropagation();
+      }
+      return;
+    }
     Logger.error('Global Unhandled Rejection', {
-      reason: event.reason
+      reason: event?.reason
     });
   });
 

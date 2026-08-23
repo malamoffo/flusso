@@ -38,7 +38,7 @@ const ScrollingFeedName = React.memo(function ScrollingFeedName({
   inView = true
 }: { 
   feedName: string; 
-  readableFeedThemeColor: string | null;
+  readableFeedThemeColor?: string | null;
   inView?: boolean;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -46,28 +46,27 @@ const ScrollingFeedName = React.memo(function ScrollingFeedName({
   const [shouldScroll, setShouldScroll] = useState(false);
   const [textWidth, setTextWidth] = useState(0);
 
-  const checkOverflow = () => {
-    if (containerRef.current && textRef.current) {
-      // Use a larger buffer (10px) to prevent unnecessary scrolling for short names
-      // also ensure clientWidth is definitely greater than 0
-      const containerWidth = containerRef.current.clientWidth;
-      const isOverflowing = containerWidth > 0 && textRef.current.scrollWidth > containerWidth + 10;
-      setShouldScroll(isOverflowing);
-      setTextWidth(textRef.current.scrollWidth);
-    }
-  };
-
   useEffect(() => {
-    checkOverflow();
-    
-    // Add ResizeObserver to handle container size changes
-    if (containerRef.current) {
-      const observer = new ResizeObserver(() => {
-        checkOverflow();
-      });
-      observer.observe(containerRef.current);
-      return () => observer.disconnect();
-    }
+    let active = true;
+    const checkOverflow = () => {
+      if (!active || !containerRef.current || !textRef.current) return;
+      const containerWidth = containerRef.current.clientWidth;
+      const singleTextWidth = textRef.current.scrollWidth;
+      const isOverflowing = containerWidth > 0 && singleTextWidth > containerWidth + 8;
+      
+      setShouldScroll(prev => (prev !== isOverflowing ? isOverflowing : prev));
+      setTextWidth(prev => (prev !== singleTextWidth ? singleTextWidth : prev));
+    };
+
+    // Run asynchronously to avoid layout thrashing and observer recursion
+    const timeoutId = setTimeout(checkOverflow, 60);
+    window.addEventListener('resize', checkOverflow, { passive: true });
+
+    return () => {
+      active = false;
+      clearTimeout(timeoutId);
+      window.removeEventListener('resize', checkOverflow);
+    };
   }, [feedName]);
 
   return (
@@ -88,8 +87,17 @@ const ScrollingFeedName = React.memo(function ScrollingFeedName({
           className={cn("text-[10px] font-bold uppercase tracking-wider inline-block", readableFeedThemeColor ? '' : 'text-blue-500')}
           style={{ color: readableFeedThemeColor || undefined }}
         >
-          {feedName}{shouldScroll ? <>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{feedName}</> : ''}
+          {feedName}
         </span>
+        {shouldScroll && (
+          <span
+            className={cn("text-[10px] font-bold uppercase tracking-wider inline-block", readableFeedThemeColor ? '' : 'text-blue-500')}
+            style={{ color: readableFeedThemeColor || undefined }}
+            aria-hidden="true"
+          >
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{feedName}
+          </span>
+        )}
       </motion.div>
     </div>
   );
@@ -131,8 +139,6 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
       swipeState[article.id] = 0;
     }
   }, [article.id, controls]);
-
-  const [feedThemeColor, setFeedThemeColor] = useState<string | null>(null);
 
   const readableFeedThemeColor = null;
   

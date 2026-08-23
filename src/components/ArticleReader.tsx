@@ -335,7 +335,7 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
           hasSetContent = true;
         }
       } catch (error) {
-        console.error('[READER] Error fetching full content:', error);
+        console.warn('[READER] Fallback to summary content:', error);
         if (!hasSetContent) {
           const fallbackContentObj: FullArticleContent = cached ? {
             ...cached,
@@ -679,7 +679,7 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        transition={{ duration: 0.45, ease: 'easeOut' }}
+        transition={{ duration: 0.25, ease: 'easeOut' }}
         className="fixed inset-0 bg-black/60 backdrop-blur-md pointer-events-auto"
         onClick={onClose}
       />

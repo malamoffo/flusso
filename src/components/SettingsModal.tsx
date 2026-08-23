@@ -256,8 +256,6 @@ export const SettingsModal = React.memo(function SettingsModal({
 
   const handleThemeChange = (theme: Theme) => updateSettings({ theme });
   const handleFontSizeChange = (fontSize: FontSize) => updateSettings({ fontSize });
-  const handleSwipeLeftChange = (e: React.ChangeEvent<HTMLSelectElement>) => updateSettings({ swipeLeftAction: e.target.value as SwipeAction });
-  const handleSwipeRightChange = (e: React.ChangeEvent<HTMLSelectElement>) => updateSettings({ swipeRightAction: e.target.value as SwipeAction });
 
   const saveEdit = async (feedId: string) => {
     await updateFeed(feedId, { title: editTitle, feedUrl: editUrl });
@@ -722,17 +720,6 @@ export const SettingsModal = React.memo(function SettingsModal({
                   </div>
                   <span className="text-gray-500">→</span>
                 </button>
-                
-                <button
-                  onClick={() => setActiveTab('general')}
-                  className="w-full flex items-center justify-between p-5 rounded-2xl bg-gray-800 text-white hover:bg-gray-700 transition-colors font-semibold text-lg"
-                >
-                  <div className="flex items-center gap-4">
-                    <Settings className="w-6 h-6 text-indigo-400" />
-                    <span>General Settings</span>
-                  </div>
-                  <span className="text-gray-500">→</span>
-                </button>
 
                 <button
                   onClick={() => setActiveTab('about')}
@@ -744,41 +731,6 @@ export const SettingsModal = React.memo(function SettingsModal({
                   </div>
                   <span className="text-gray-500">→</span>
                 </button>
-              </div>
-            ) : activeTab === 'general' ? (
-              <div className="space-y-8">
-                {/* Gestures Settings */}
-                <section>
-                  <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Gestures</h3>
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-1">
-                        Swipe Left Action
-                      </label>
-                      <select
-                        value={settings.swipeLeftAction}
-                        onChange={handleSwipeLeftChange}
-                        className="block w-full pl-3 pr-10 py-2 text-base border-gray-700 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-lg bg-gray-800 text-white"
-                      >
-                        <option value="toggleFavorite">Favorite</option>
-                        <option value="none">None</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-1">
-                        Swipe Right Action
-                      </label>
-                      <select
-                        value={settings.swipeRightAction}
-                        onChange={handleSwipeRightChange}
-                        className="block w-full pl-3 pr-10 py-2 text-base border-gray-700 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-lg bg-gray-800 text-white"
-                      >
-                        <option value="toggleFavorite">Favorite</option>
-                        <option value="none">None</option>
-                      </select>
-                    </div>
-                  </div>
-                </section>
               </div>
             ) : activeTab === 'retention' ? (
               <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-300">
@@ -826,12 +778,12 @@ export const SettingsModal = React.memo(function SettingsModal({
                         className="overflow-hidden"
                       >
                         <div className="p-2 space-y-1 bg-black">
-                          {articleFeeds.map(feed => {
+                          {articleFeeds.map((feed, idx) => {
                             const domain = getHostname(feed.link);
                             const feedStatus = getFeedStatus(feed);
                             return (
                               <div 
-                                key={feed.id} 
+                                key={`feed-${feed.id}-${idx}`} 
                                 className="group flex items-center justify-between p-3 rounded-xl hover:bg-gray-800 transition-all cursor-pointer" 
                                 onClick={() => { setSelectedFeedId(feed.id); setEditTitle(feed.title); setEditUrl(feed.feedUrl); }}
                               >
@@ -908,9 +860,9 @@ export const SettingsModal = React.memo(function SettingsModal({
                             return (
                               <>
                                 {sortedSubreddits
-                                  .map(sub => (
+                                  .map((sub, idx) => (
                                   <div 
-                                    key={sub.id} 
+                                    key={`sub-${sub.id}-${idx}`} 
                                     className="group flex items-center justify-between p-3 rounded-xl hover:bg-gray-800 transition-all" 
                                   >
                                     <div 
@@ -942,11 +894,11 @@ export const SettingsModal = React.memo(function SettingsModal({
                                   </div>
                                 ))}
                                 {redditFeeds
-                                  .map(feed => {
+                                  .map((feed, idx) => {
                                   const domain = getHostname(feed.link);
                                   return (
                                     <div 
-                                      key={feed.id} 
+                                      key={`rf-${feed.id}-${idx}`} 
                                       className="group flex items-center justify-between p-3 rounded-xl hover:bg-gray-800 transition-all" 
                                     >
                                       <div 
@@ -1254,7 +1206,7 @@ export const SettingsModal = React.memo(function SettingsModal({
                       </div>
                       <div className="max-h-40 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
                         {errorLogs.map((log, i) => (
-                          <div key={i} className="text-[10px] font-mono text-red-300/70 border-b border-red-500/10 pb-1">
+                          <div key={`err-log-${i}-${log.substring(0, 20)}`} className="text-[10px] font-mono text-red-300/70 border-b border-red-500/10 pb-1">
                             {log}
                           </div>
                         ))}

@@ -41,6 +41,14 @@ class ConsoleInterceptor {
         }).join(' ');
 
         const lowerMsg = message.toLowerCase();
+        // Skip ResizeObserver loop notifications as per W3C specification
+        if (
+          lowerMsg.includes('resizeobserver loop completed with undelivered notifications') ||
+          lowerMsg.includes('resizeobserver loop limit exceeded')
+        ) {
+          return;
+        }
+
         // Skip Capacitor integration messages that are unimplemented on Web to keep logs clean
         if (
           lowerMsg.includes('unimplemented') ||

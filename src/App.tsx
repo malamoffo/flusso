@@ -777,8 +777,8 @@ export default function App() {
                         className="appearance-none text-xs bg-white/10 text-white dark:text-gray-300 rounded-full pl-3 pr-8 py-1.5 border-none focus:ring-0 outline-none whitespace-nowrap"
                       >
                         <option value="all">All Sources</option>
-                        {nonRedditFeeds.map(f => (
-                          <option key={f.id} value={f.id}>{f.title}</option>
+                        {nonRedditFeeds.map((f, idx) => (
+                          <option key={`opt-feed-${f.id}-${idx}`} value={f.id}>{f.title}</option>
                         ))}
                       </select>
                       <ChevronDown className="w-3.5 h-3.5 absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none z-10" />
@@ -793,8 +793,8 @@ export default function App() {
                       className="appearance-none text-xs bg-white/10 text-white dark:text-gray-300 rounded-full pl-3 pr-8 py-1.5 border-none focus:ring-0 outline-none whitespace-nowrap"
                     >
                       <option value="all">All Subreddits</option>
-                      {sortedSubreddits.map(s => (
-                        <option key={s.id} value={s.id}>{s.name}</option>
+                      {sortedSubreddits.map((s, idx) => (
+                        <option key={`opt-sub-${s.id}-${idx}`} value={s.id}>{s.name}</option>
                       ))}
                     </select>
                     <ChevronDown className="w-3.5 h-3.5 absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none z-10" />
@@ -803,9 +803,9 @@ export default function App() {
 
                 {filter === 'radio' && (
                   <div className="flex items-center gap-2">
-                    {['Pop', 'Rock', 'Jazz', 'Dance', 'News', 'Classical'].map((cat) => (
+                    {['Pop', 'Rock', 'Jazz', 'Dance', 'News', 'Classical'].map((cat, idx) => (
                       <button
-                        key={cat}
+                        key={`radio-cat-${cat}-${idx}`}
                         onClick={() => setSearchQuery(cat)}
                         className={cn(
                           "px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap",
@@ -850,6 +850,7 @@ export default function App() {
               hasMoreArticles={hasMoreArticles}
               isLoading={isLoading}
               loadMoreArticles={loadMoreArticles}
+              scrollElementRef={inboxScrollRef}
             />
         </div>
 
@@ -864,9 +865,9 @@ export default function App() {
           <div className="flex-1 max-w-3xl mx-auto px-2 py-2 space-y-1">
             <AnimatePresence initial={false} mode="sync">
               {(filter === 'saved' ? visibleArticles : [])
-                .map(item => (
+                .map((item, idx) => (
                   <SwipeableArticleItem
-                    key={item.id}
+                    key={`saved-${item.id}-${idx}`}
                     article={item as any}
                     feedName={feedsMap.get((item as any).feedId)?.title || 'Unknown Feed'}
                     feedImageUrl={feedsMap.get((item as any).feedId)?.imageUrl}
@@ -885,7 +886,7 @@ export default function App() {
               <div className="flex flex-col items-center justify-center h-64 text-gray-500 px-6 text-center">
                 <Star className="w-16 h-16 mb-4 text-yellow-500/40 shadow-[0_0_20px_rgba(234,179,8,0.2)]" />
                 <p className="text-lg font-medium text-white mb-1">No favorites yet</p>
-                <p className="text-sm">Swipe right on an article to save it for later.</p>
+                <p className="text-sm">Tieni premuto per 1 secondo su un articolo per salvarlo nei preferiti.</p>
               </div>
             )}
             <div className="h-20 flex items-center justify-center">
@@ -1191,10 +1192,10 @@ export default function App() {
         )}
       </AnimatePresence>
 
-       <AnimatePresence mode="wait">
+      <AnimatePresence>
         {currentSelectedArticle && (
           <ArticleReader
-            key="article-modal"
+            key={`article-${currentSelectedArticle.id}`}
             article={currentSelectedArticle}
             onClose={() => setSelectedArticle(null)}
             onSelectArticle={(a) => setSelectedArticle(a)}

@@ -10,6 +10,23 @@ import { imagePersistence } from './utils/imagePersistence';
 import { Capacitor } from '@capacitor/core';
 import { App as CapacitorApp } from '@capacitor/app';
 
+// Silence benign ResizeObserver loop errors at the capture phase
+if (typeof window !== 'undefined') {
+  window.addEventListener(
+    'error',
+    (e: any) => {
+      const msg = (e?.message || e?.error?.message || String(e || '')).toLowerCase();
+      if (msg.includes('resizeobserver') || msg.includes('resize observer')) {
+        e.stopImmediatePropagation?.();
+        e.stopPropagation?.();
+        e.preventDefault?.();
+        return true;
+      }
+    },
+    true
+  );
+}
+
 // Version and Build information from environment (GitHub Actions) or fallback to package.json
 export const APP_VERSION = import.meta.env.VITE_APP_VERSION || '1.1.0';
 export const APP_BUILD = import.meta.env.VITE_APP_BUILD || 'dev';

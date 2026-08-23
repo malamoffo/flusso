@@ -533,13 +533,13 @@ export const RadioView = memo(({ isActive, searchQuery }: RadioViewProps) => {
             </div>
           ) : (
             <AnimatePresence initial={false}>
-              {displayStations.map((station) => {
+              {displayStations.map((station, idx) => {
                 const isFavorite = !!favorites[station.stationuuid];
                 const isCurrent = currentStation?.stationuuid === station.stationuuid;
 
                 return (
                   <motion.div
-                    key={station.stationuuid}
+                    key={`station-${station.stationuuid}-${idx}`}
                     layoutId={`radio-${station.stationuuid}`}
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}

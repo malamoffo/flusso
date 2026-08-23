@@ -83,7 +83,7 @@ export function RotatingImageCarousel({
     >
       <AnimatePresence initial={false} mode="popLayout">
         <motion.div
-          key={currentUrl}
+          key={`carousel-img-${index}-${currentUrl}`}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}

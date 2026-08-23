@@ -5,6 +5,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Flusso</title>
     <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+    <script>
+      (function() {
+        window.addEventListener('error', function(e) {
+          var msg = (e && (e.message || (e.error && e.error.message)) || String(e || '')).toLowerCase();
+          if (msg.indexOf('resizeobserver') !== -1 || msg.indexOf('resize observer') !== -1) {
+            if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+            if (e.stopPropagation) e.stopPropagation();
+            if (e.preventDefault) e.preventDefault();
+            return true;
+          }
+        }, true);
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

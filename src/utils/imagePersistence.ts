@@ -185,6 +185,9 @@ export const imagePersistence = {
       })();
       
       this.downloadingImages.set(url, downloadPromise);
+      downloadPromise.finally(() => {
+        this.downloadingImages.delete(url);
+      });
       return downloadPromise;
     }
 

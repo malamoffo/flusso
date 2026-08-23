@@ -35,8 +35,12 @@ export const useFeedFiltering = ({
       month: now - (DAY_MS * 30),
     };
 
+    const seenInboxIds = new Set<string>();
+    const seenSavedIds = new Set<string>();
+
     for (let i = 0; i < articles.length; i++) {
       const article = articles[i];
+      if (!article || !article.id) continue;
       
       // Common filters (Search & Metadata)
       if (isSearchOpen) {
@@ -64,13 +68,19 @@ export const useFeedFiltering = ({
           matchesInbox = false;
         }
       }
-      if (matchesInbox) inbox.push(article);
+      if (matchesInbox && !seenInboxIds.has(article.id)) {
+        seenInboxIds.add(article.id);
+        inbox.push(article);
+      }
 
       // Saved specific filtering
       if (article.isFavorite) {
         let matchesSaved = true;
         if (savedUnreadOnly && article.isRead) matchesSaved = false;
-        if (matchesSaved) saved.push(article);
+        if (matchesSaved && !seenSavedIds.has(article.id)) {
+          seenSavedIds.add(article.id);
+          saved.push(article);
+        }
       }
     }
 

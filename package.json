@@ -26,6 +26,7 @@
     "@capgo/capacitor-media-session": "^8.0.29",
     "@google/genai": "^2.16.0",
     "@mozilla/readability": "^0.6.0",
+    "@tanstack/react-virtual": "^3.14.10",
     "clsx": "^2.1.1",
     "date-fns": "^4.3.0",
     "dexie": "^4.4.4",

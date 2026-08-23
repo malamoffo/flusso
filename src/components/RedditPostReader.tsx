@@ -60,8 +60,8 @@ const CommentNode: React.FC<{ comment: RedditComment; depth?: number; parentAuth
           )}
           {comment.replies && comment.replies.length > 0 && (
             <div className={`mt-4 ${depth < 3 ? 'pl-4 border-l-2 border-purple-500/20' : 'pl-2 border-l border-dashed border-purple-500/10'} space-y-4`}>
-              {comment.replies.map(reply => (
-                <CommentNode key={reply.id} comment={reply} depth={depth + 1} parentAuthor={comment.author} />
+              {comment.replies.map((reply, rIdx) => (
+                <CommentNode key={`reply-${reply.id || 'r'}-${rIdx}`} comment={reply} depth={depth + 1} parentAuthor={comment.author} />
               ))}
             </div>
           )}
@@ -173,7 +173,7 @@ export const RedditPostReader = ({ post, onClose, onNext, onPrev, hasNext, hasPr
               bodyHtml: data.body_html ? DOMPurify.sanitize(
                 data.body_html.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&'),
                 { FORBID_ATTR: ['id', 'name'] }
-              ) : '',
+              ) : (data.body ? DOMPurify.sanitize(`<p>${data.body}</p>`, { FORBID_ATTR: ['id', 'name'] }) : ''),
               score: data.score,
               createdUtc: data.created_utc * 1000,
               depth,
@@ -327,8 +327,8 @@ export const RedditPostReader = ({ post, onClose, onNext, onPrev, hasNext, hasPr
                 transition={{ duration: 0.3 }}
                 className="space-y-4"
               >
-                {comments.map(comment => (
-                  <CommentNode key={comment.id} comment={comment} />
+                {comments.map((comment, cIdx) => (
+                  <CommentNode key={`comment-${comment.id || 'c'}-${cIdx}`} comment={comment} />
                 ))}
               </motion.div>
             ) : (

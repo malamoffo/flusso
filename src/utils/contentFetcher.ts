@@ -9,14 +9,23 @@ class ContentFetcherQueue {
   private queue: { id: string, url: string }[] = [];
   private activeCount = 0;
   private maxConcurrent = 2; // Reduced concurrency to avoid rate limits
+  private maxCacheSize = 100;
   private memoryCache = new Map<string, FullArticleContent>();
 
   async getCachedContent(articleId: string): Promise<FullArticleContent | null> {
     if (this.memoryCache.has(articleId)) {
-      return this.memoryCache.get(articleId)!;
+      const val = this.memoryCache.get(articleId)!;
+      // Refresh LRU order
+      this.memoryCache.delete(articleId);
+      this.memoryCache.set(articleId, val);
+      return val;
     }
     const fromDb = await db.articleContents.get(articleId) || null;
     if (fromDb) {
+      if (this.memoryCache.size >= this.maxCacheSize) {
+        const oldestKey = this.memoryCache.keys().next().value;
+        if (oldestKey) this.memoryCache.delete(oldestKey);
+      }
       this.memoryCache.set(articleId, fromDb);
     }
     return fromDb;
@@ -27,6 +36,10 @@ class ContentFetcherQueue {
   }
 
   async setCachedContent(articleId: string, content: FullArticleContent): Promise<void> {
+    if (this.memoryCache.size >= this.maxCacheSize) {
+      const oldestKey = this.memoryCache.keys().next().value;
+      if (oldestKey) this.memoryCache.delete(oldestKey);
+    }
     this.memoryCache.set(articleId, content);
     await db.articleContents.put({ id: articleId, ...content });
   }

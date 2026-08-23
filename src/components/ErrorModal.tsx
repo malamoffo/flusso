@@ -19,7 +19,7 @@ export function ErrorModal({ failedFeeds, onClose }: { failedFeeds: { feedUrl: s
           <p className="text-gray-400 mb-4 text-sm">The following feeds failed to update:</p>
           <div className="max-h-60 overflow-y-auto mb-6 space-y-2">
             {failedFeeds.map((f, i) => (
-              <div key={i} className="text-xs bg-gray-800 p-2 rounded-lg text-gray-300">
+              <div key={`failed-feed-${f.feedUrl}-${i}`} className="text-xs bg-gray-800 p-2 rounded-lg text-gray-300">
                 <div className="font-semibold text-gray-100 truncate">{f.feedUrl}</div>
                 <div className="text-red-400">{f.error}</div>
               </div>
