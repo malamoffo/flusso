@@ -22,9 +22,9 @@ const CommentNode: React.FC<{ comment: RedditComment; depth?: number; parentAuth
   const [isCollapsed, setIsCollapsed] = useState(false);
 
   return (
-    <div className="mb-2 text-sm bg-black/40 p-3 rounded-xl border border-white/5">
+    <div className="mb-2 text-sm bg-[#1e162a]/60 backdrop-blur-md p-3.5 rounded-2xl border border-purple-500/15 shadow-sm">
       <div 
-        className="flex items-center gap-2 mb-2 cursor-pointer hover:bg-neutral-800 p-1 rounded transition-colors"
+        className="flex items-center gap-2 mb-2 cursor-pointer hover:bg-white/5 p-1 rounded-lg transition-colors"
         onClick={() => setIsCollapsed(!isCollapsed)}
       >
         <span className="font-medium text-purple-400 text-xs">
@@ -48,7 +48,7 @@ const CommentNode: React.FC<{ comment: RedditComment; depth?: number; parentAuth
           {comment.mediaUrls && comment.mediaUrls.length > 0 && (
             <div className="mt-2 pl-2 space-y-2">
               {comment.mediaUrls.map((url, idx) => (
-                <div key={idx} className="relative max-w-full overflow-hidden rounded-lg border border-white/10">
+                <div key={idx} className="relative max-w-full overflow-hidden rounded-xl border border-white/10">
                   <CachedImage 
                     src={getSafeUrl(url)} 
                     alt="Comment attachment" 
@@ -223,25 +223,25 @@ export const RedditPostReader = ({ post, onClose, onNext, onPrev, hasNext, hasPr
         animate={{ y: 0, opacity: 1 }}
         exit={{ y: '100%', opacity: 0 }}
         transition={{ type: 'spring', damping: 30, stiffness: 220 }}
-        className="fixed inset-0 z-10 w-full h-full overflow-hidden flex flex-col transition-colors break-words font-sans bg-zinc-950/80 backdrop-blur-3xl scrollbar-hide pointer-events-auto shadow-2xl isolate transform-gpu"
+        className="fixed inset-0 z-10 w-full h-full overflow-hidden flex flex-col transition-colors break-words font-sans bg-[#110b18] text-gray-100 scrollbar-hide pointer-events-auto isolate transform-gpu"
       >
         
-        <header className="sticky top-0 z-20 px-4 py-4 flex items-center justify-between bg-gradient-to-b from-transparent to-transparent pointer-events-none">
-          <button onClick={onClose} className="w-10 h-10 shrink-0 flex items-center justify-center rounded-full bg-black border border-white/20 active:bg-white/20 text-white pointer-events-auto transition-colors">
+        <header className="sticky top-0 z-20 px-4 py-4 flex items-center justify-between bg-gradient-to-b from-[#110b18]/90 via-[#110b18]/60 to-transparent backdrop-blur-md pointer-events-none">
+          <button onClick={onClose} className="w-10 h-10 shrink-0 flex items-center justify-center rounded-full bg-black/70 hover:bg-black border border-white/20 active:bg-white/20 text-white pointer-events-auto transition-colors">
             <ArrowLeft className="w-6 h-6" />
           </button>
           <div className="flex items-center gap-2 pointer-events-auto">
             <button
               onClick={onPrev}
               disabled={!hasPrev}
-              className="w-10 h-10 flex items-center justify-center rounded-full bg-black border border-white/20 active:bg-white/20 text-white transition-colors disabled:opacity-30"
+              className="w-10 h-10 flex items-center justify-center rounded-full bg-black/70 hover:bg-black border border-white/20 active:bg-white/20 text-white transition-colors disabled:opacity-30 disabled:pointer-events-none"
             >
               <ChevronUp className="w-6 h-6" />
             </button>
             <button
               onClick={onNext}
               disabled={!hasNext}
-              className="w-10 h-10 flex items-center justify-center rounded-full bg-black border border-white/20 active:bg-white/20 text-white transition-colors disabled:opacity-30"
+              className="w-10 h-10 flex items-center justify-center rounded-full bg-black/70 hover:bg-black border border-white/20 active:bg-white/20 text-white transition-colors disabled:opacity-30 disabled:pointer-events-none"
             >
               <ChevronDown className="w-6 h-6" />
             </button>
@@ -250,28 +250,34 @@ export const RedditPostReader = ({ post, onClose, onNext, onPrev, hasNext, hasPr
 
         <div 
           ref={scrollContainerRef}
-          className="flex-1 overflow-y-auto overscroll-contain p-4 max-w-3xl mx-auto w-full pb-20 transform-gpu will-change-scroll scrollbar-hide"
+          className="flex-1 overflow-y-auto overscroll-contain px-4 sm:px-6 lg:px-8 max-w-4xl mx-auto w-full pb-28 transform-gpu will-change-scroll scrollbar-hide"
         >
         <motion.div 
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.45, ease: [0.215, 0.61, 0.355, 1] }}
-          className="mb-8 bg-[#1e162a] p-6 rounded-[2.5rem] border border-purple-500/10 shadow-xl"
+          className="mb-8 w-full"
         >
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mb-2 reddit-post-meta-container">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mb-3 reddit-post-meta-container">
             <span className="text-sm font-bold text-purple-400 drop-shadow-[0_0_5px_rgba(168,85,247,0.4)] truncate max-w-full">r/{post.subredditName}</span>
             <span className="text-xs text-gray-500 truncate max-w-full">• u/{post.author}</span>
             <span className="text-xs text-gray-500 whitespace-nowrap">• {format(post.createdUtc, 'HH:mm dd/MM/yy')}</span>
           </div>
-          <h1 className="text-xl font-bold text-white mb-4" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(post.title, { FORBID_ATTR: ['id', 'name'] }) }} />
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-white mb-6 leading-snug tracking-tight" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(post.title, { FORBID_ATTR: ['id', 'name'] }) }} />
           
           {post.imageUrl && (
-            <CachedImage src={getSafeUrl(post.imageUrl)} alt="" className="w-full rounded-xl mb-4" />
+            <div className="w-full mb-6 overflow-hidden rounded-2xl border border-white/10 bg-black/40 flex items-center justify-center shadow-xl">
+              <CachedImage 
+                src={getSafeUrl(post.imageUrl)} 
+                alt="" 
+                className="w-full h-auto object-contain max-h-[75vh]" 
+              />
+            </div>
           )}
           
           {post.selftextHtml && (
             <div 
-              className="text-gray-300 text-base leading-relaxed reddit-post-body"
+              className="text-gray-300 text-base sm:text-lg leading-relaxed reddit-post-body space-y-4 mb-6"
               dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(
                 post.selftextHtml.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&'),
                 { FORBID_ATTR: ['id', 'name'] }
@@ -279,9 +285,9 @@ export const RedditPostReader = ({ post, onClose, onNext, onPrev, hasNext, hasPr
             />
           )}
 
-          <div className="flex items-center gap-4 mt-4 py-3 border-y border-gray-800 text-sm font-medium text-gray-400">
-            <span className="flex items-center gap-1"><span className="text-purple-400 drop-shadow-[0_0_3px_rgba(168,85,247,0.6)]">↑</span> {post.score}</span>
-            <span className="flex items-center gap-1"><MessageSquare className="w-4 h-4 text-purple-400" /> {post.numComments} Comments</span>
+          <div className="flex items-center gap-6 mt-6 py-4 border-y border-white/10 text-sm font-medium text-gray-400">
+            <span className="flex items-center gap-1.5 font-semibold text-white"><span className="text-purple-400 drop-shadow-[0_0_3px_rgba(168,85,247,0.6)] text-base">↑</span> {post.score}</span>
+            <span className="flex items-center gap-1.5"><MessageSquare className="w-4 h-4 text-purple-400" /> {post.numComments} Comments</span>
           </div>
         </motion.div>
 

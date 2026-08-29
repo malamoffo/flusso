@@ -286,7 +286,34 @@ export default function App() {
     setTemporarilyVisibleUnreadIds(new Set());
     setSearchQuery('');
     setIsSearchOpen(false);
+
+    // Always scroll to top when changing section
+    if (inboxScrollRef.current) inboxScrollRef.current.scrollTop = 0;
+    if (savedScrollRef.current) savedScrollRef.current.scrollTop = 0;
+    if (redditScrollRef.current) redditScrollRef.current.scrollTop = 0;
+    isAtTop.current = true;
   }, [filter]);
+
+  // Always scroll to top when toggling between all and unread RSS articles
+  useEffect(() => {
+    if (inboxScrollRef.current) {
+      inboxScrollRef.current.scrollTop = 0;
+    }
+    isAtTop.current = true;
+    requestAnimationFrame(() => {
+      if (inboxScrollRef.current) inboxScrollRef.current.scrollTop = 0;
+    });
+  }, [inboxUnreadOnly]);
+
+  useEffect(() => {
+    if (savedScrollRef.current) {
+      savedScrollRef.current.scrollTop = 0;
+    }
+    isAtTop.current = true;
+    requestAnimationFrame(() => {
+      if (savedScrollRef.current) savedScrollRef.current.scrollTop = 0;
+    });
+  }, [savedUnreadOnly]);
 
   const handleFilterChange = (newFilter: 'inbox' | 'saved' | 'reddit' | 'radio') => {
     if (newFilter === filter) {
@@ -310,9 +337,14 @@ export default function App() {
     setFilter(newFilter);
     if (newFilter === 'inbox') {
       setInboxUnreadOnly(false);
+      if (inboxScrollRef.current) inboxScrollRef.current.scrollTop = 0;
+    } else if (newFilter === 'saved') {
+      if (savedScrollRef.current) savedScrollRef.current.scrollTop = 0;
     } else if (newFilter === 'reddit') {
       handleRedditSortChange('new');
+      if (redditScrollRef.current) redditScrollRef.current.scrollTop = 0;
     }
+    isAtTop.current = true;
   };
 
   const handleTypeFilterChange = (newType: 'unread') => {
@@ -862,7 +894,7 @@ export default function App() {
             filter === 'saved' ? "z-10 opacity-100 pointer-events-auto" : "z-0 opacity-0 pointer-events-none"
           )}
         >
-          <div className="flex-1 max-w-3xl mx-auto px-2 py-2 space-y-1">
+          <div className="flex-1 max-w-4xl mx-auto px-1 sm:px-2 py-2 space-y-1.5">
             <AnimatePresence initial={false} mode="sync">
               {(filter === 'saved' ? visibleArticles : [])
                 .map((item, idx) => (

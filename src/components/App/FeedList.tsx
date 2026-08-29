@@ -77,7 +77,7 @@ export const FeedList = memo(({
   }, [isSentinelInView, hasMoreArticles, isLoading, isActive, loadMoreArticles]);
 
   return (
-    <div ref={defaultContainerRef} className="flex-1 max-w-3xl mx-auto px-2 pt-0 pb-2 w-full">
+    <div ref={defaultContainerRef} className="flex-1 max-w-4xl mx-auto px-1 sm:px-2 pt-0 pb-2 w-full">
       <div
         style={{
           height: `${rowVirtualizer.getTotalSize()}px`,

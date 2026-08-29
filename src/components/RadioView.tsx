@@ -545,8 +545,8 @@ export const RadioView = memo(({ isActive, searchQuery }: RadioViewProps) => {
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.95 }}
                     className={cn(
-                      "relative overflow-hidden rounded-2xl bg-white/5 dark:bg-black/20 backdrop-blur-xl border transform-gpu",
-                      isCurrent ? "border-red-500/50 shadow-lg shadow-red-500/10" : "border-white/10 dark:border-white/5",
+                      "relative overflow-hidden rounded-3xl bg-[#1e111a]/75 backdrop-blur-lg border transform-gpu transition-all duration-300 shadow-md",
+                      isCurrent ? "border-red-500/50 shadow-lg shadow-red-500/10" : "border-red-500/15 hover:border-red-500/30",
                       "cursor-pointer"
                     )}
                     onClick={() => setSelectedStationDetail(station)}
@@ -641,14 +641,14 @@ export const RadioView = memo(({ isActive, searchQuery }: RadioViewProps) => {
               animate={{ y: 0, opacity: 1 }}
               exit={{ y: '100%', opacity: 0 }}
               transition={{ type: 'spring', damping: 30, stiffness: 220 }}
-              className="fixed inset-0 z-10 w-full h-full overflow-hidden flex flex-col transition-colors break-words font-sans bg-zinc-950/80 backdrop-blur-3xl scrollbar-hide pointer-events-auto shadow-2xl isolate transform-gpu"
+              className="fixed inset-0 z-10 w-full h-full overflow-hidden flex flex-col transition-colors break-words font-sans bg-[#14090e] text-gray-100 scrollbar-hide pointer-events-auto isolate transform-gpu"
             >
               {/* Top App Bar */}
-              <div className="sticky top-0 z-20 px-4 py-4 flex items-center justify-between bg-gradient-to-b from-transparent to-transparent pointer-events-none">
+              <div className="sticky top-0 z-20 px-4 py-4 flex items-center justify-between bg-gradient-to-b from-[#14090e]/90 via-[#14090e]/60 to-transparent backdrop-blur-md pointer-events-none">
                 <motion.button
                   whileTap={{ scale: 0.9 }}
                   onClick={() => setSelectedStationDetail(null)}
-                  className="w-10 h-10 shrink-0 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 border border-white/20 text-white pointer-events-auto transition-colors"
+                  className="w-10 h-10 shrink-0 flex items-center justify-center rounded-full bg-black/70 hover:bg-black border border-white/20 text-white pointer-events-auto transition-colors"
                   aria-label="Chiudi"
                 >
                   <X className="w-5 h-5 text-gray-200" aria-hidden="true" />
@@ -656,8 +656,8 @@ export const RadioView = memo(({ isActive, searchQuery }: RadioViewProps) => {
               </div>
 
               {/* Scrollable Content */}
-              <div className="flex-1 overflow-y-auto scrollbar-hide px-4 pb-12">
-                <div className="max-w-2xl mx-auto w-full pt-4 flex flex-col gap-6">
+              <div className="flex-1 overflow-y-auto scrollbar-hide px-4 sm:px-6 pb-28">
+                <div className="max-w-2xl mx-auto w-full pt-2 flex flex-col gap-6">
                   
                   {/* Station Info Header */}
                   <div className="flex gap-4 items-start pr-8 mt-2">

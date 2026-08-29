@@ -3,24 +3,7 @@ import { Feed, Article, RefreshLog } from '../../types';
 import { Capacitor, CapacitorHttp } from '@capacitor/core';
 import { fetchWithProxy } from '../../utils/proxy';
 import { parseRssXml, escapeXml } from '../rssParser';
-
-const generateMockArticle = (feedUrl: string, feedTitle: string): Article => {
-  const id = crypto.randomUUID();
-  const now = Date.now();
-  return {
-    id,
-    feedId: '', // Will be set by saveAllFeedData
-    title: `[TEST] Placeholder Article for ${feedTitle}`,
-    link: `${feedUrl}/test-${id}`,
-    pubDate: now,
-    author: 'System Test',
-    content: `This is a placeholder article generated because the fetch for ${feedUrl} failed or timed out. Use this for testing UI components.`,
-    contentSnippet: `Placeholder article for testing purposes.`,
-    isRead: 0,
-    isFavorite: 0,
-    type: 'article'
-  } as Article;
-};
+import { isNative } from '../../utils/platform';
 
 export const rssStorage = {
   async getFeeds(): Promise<Feed[]> {
@@ -216,25 +199,25 @@ export const rssStorage = {
       const feeds = await this.getFeeds();
       const feed = feeds.find(f => f.feedUrl === feedUrl);
 
-      // In simulated dev environment (web preview), do not fetch real feeds over network; return mock data
-      if (!Capacitor.isNativePlatform()) {
-        const feedTitle = feed?.title || 'Mock Feed';
-        const mockArticles: Article[] = [
-          generateMockArticle(feedUrl, feedTitle)
-        ];
+      // In ambiente di sviluppo/web non effettuiamo mai chiamate di rete reali: restituiamo i dati mock locali
+      if (!isNative() || feedUrl.includes('example.com/mock-feed') || feedUrl.startsWith('mock:')) {
+        let localArticles = await db.articles.where('feedId').equals(feed?.id || '').toArray();
+        if (localArticles.length === 0) {
+          localArticles = await db.articles.toArray();
+        }
         return {
           feed: {
             ...feed,
             id: feed?.id || crypto.randomUUID(),
-            title: feedTitle,
+            title: feed?.title || 'Feed',
             feedUrl,
             link: feedUrl,
             type: feed?.type || 'article',
             lastRefreshStatus: 'success',
             lastFetched: Date.now()
           } as Feed,
-          articles: mockArticles,
-          bytesDownloaded: 512
+          articles: localArticles,
+          bytesDownloaded: 0
         };
       }
       
@@ -280,11 +263,11 @@ export const rssStorage = {
         articles: filteredArticles,
         bytesDownloaded
       };
-    } catch (e) {
-      if (signal?.aborted) throw e;
+    } catch (e: any) {
+      if (signal?.aborted || e?.name === 'AbortError' || e?.message?.includes('aborted') || e?.message?.includes('Aborted')) {
+        throw e;
+      }
       
-      // If we are in preview mode, we do NOT return mock articles anymore.
-      // throw e; // Rethrow to let the UI know it failed.
       console.error(`[Storage] Fetch failed for ${feedUrl}, throwing error:`, e);
       throw e;
     }
@@ -451,11 +434,17 @@ export const rssStorage = {
   },
 
   async fetchUrlContent(url: string): Promise<string> {
+    if (!isNative()) {
+      return '';
+    }
     const res = await fetchWithProxy(url, false);
     return res.data;
   },
 
   async discoverFeedUrl(url: string): Promise<string> {
+    if (!isNative()) {
+      return url;
+    }
     try {
       const content = await this.fetchUrlContent(url);
       const trimmedContent = content.trim();

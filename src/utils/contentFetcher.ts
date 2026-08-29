@@ -4,6 +4,7 @@ import { getSafeUrl } from '../lib/utils';
 import { Readability } from '@mozilla/readability';
 import { FullArticleContent } from '../types';
 import { db } from '../services/db';
+import { isNative } from './platform';
 
 class ContentFetcherQueue {
   private queue: { id: string, url: string }[] = [];
@@ -86,6 +87,26 @@ class ContentFetcherQueue {
   }
 
   private async fetchAndCache(articleId: string, url: string) {
+    if (!isNative()) {
+      const art = await db.articles.get(articleId);
+      if (art) {
+        const fullContent: FullArticleContent = {
+          title: art.title || 'Articolo',
+          content: art.content || `<p>${art.contentSnippet || art.title}</p>`,
+          textContent: art.contentSnippet || art.title || '',
+          length: (art.content || '').length,
+          excerpt: art.contentSnippet || '',
+          byline: (art as any).author || 'Redazione',
+          dir: 'ltr',
+          siteName: 'Flusso',
+          lang: 'it',
+          isScraped: true
+        };
+        await this.setCachedContent(articleId, fullContent);
+      }
+      return;
+    }
+
     const isNativePlatform = typeof window !== 'undefined' && (window as any).Capacitor?.isNativePlatform();
     const isWeb = typeof window !== 'undefined' && (window as any).Capacitor?.getPlatform() === 'web';
     

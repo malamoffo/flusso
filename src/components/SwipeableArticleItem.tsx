@@ -317,7 +317,7 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
       }} 
       className={cn(
         "relative w-full card-optimize transform-gpu",
-        isInboxOrSaved && "px-1.25 py-0.5",
+        isInboxOrSaved && "px-0.5 sm:px-1 py-0.5",
         !isReadForDisplay ? "z-[35]" : "z-[10]"
       )}
       style={{
@@ -381,7 +381,7 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
           onClick={handleArticleClick}
           exit={{ x: exitX, opacity: 0, transition: { duration: 0.2, ease: "easeOut" } }}
           className={cn(
-            "relative w-full p-4 flex flex-col gap-3 cursor-pointer select-none rounded-[inherit] transition-colors border border-blue-500/10 bg-[#121e36] transform-gpu",
+            "relative w-full p-4 flex flex-col gap-3 cursor-pointer select-none rounded-[inherit] transition-colors border border-blue-500/20 bg-[#121e36]/75 backdrop-blur-lg shadow-lg shadow-black/40 transform-gpu",
             !isReadForDisplay ? "z-[35]" : "z-20",
             filter === 'saved' && "shadow-[0_0_15px_rgba(234,179,8,0.15)]",
             filter === 'inbox' && "shadow-[0_0_15px_rgba(59,130,246,0.15)]"

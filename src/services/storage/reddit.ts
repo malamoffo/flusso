@@ -2,6 +2,7 @@ import { db } from '../db';
 import { Subreddit, RedditPost } from '../../types';
 import { fetchWithProxy } from '../../utils/proxy';
 import { Capacitor } from '@capacitor/core';
+import { isNative } from '../../utils/platform';
 import he from 'he';
 
 export const redditStorage = {
@@ -96,6 +97,24 @@ export const redditStorage = {
 
       if (!cleanName) return null;
 
+      // In ambiente di sviluppo/web non effettuiamo chiamate di rete reali a Reddit
+      if (!isNative()) {
+        const newSub: Subreddit = {
+          id: `sub_${cleanName.toLowerCase()}`,
+          name: cleanName,
+          iconUrl: undefined,
+          addedAt: Date.now(),
+        };
+
+        const subs = await this.getSubreddits();
+        const lowerNewName = newSub.name.toLowerCase();
+        if (!subs.some(s => s.name.toLowerCase() === lowerNewName)) {
+          subs.push(newSub);
+          await this.saveSubreddits(subs);
+        }
+        return newSub;
+      }
+
       const url = `https://www.reddit.com/r/${cleanName}/about.json`;
       const result = await this.fetchJsonWithProxy(url);
 
@@ -120,7 +139,8 @@ export const redditStorage = {
 
       const subs = await this.getSubreddits();
       const lowerNewName = newSub.name.toLowerCase();
-      if (!subs.some(s => s.name.toLowerCase() === lowerNewName)) {        subs.push(newSub);
+      if (!subs.some(s => s.name.toLowerCase() === lowerNewName)) {
+        subs.push(newSub);
         await this.saveSubreddits(subs);
       }
 
@@ -131,8 +151,28 @@ export const redditStorage = {
     }
   },
 
+  async getLocalPostsForSubreddit(subredditName: string): Promise<RedditPost[]> {
+    try {
+      const allPosts = await db.redditPosts.toArray();
+      const target = subredditName.toLowerCase().trim();
+      const filtered = allPosts.filter(p => 
+        (p.subredditName && p.subredditName.toLowerCase() === target) ||
+        (p.id && p.id.toLowerCase().startsWith(`${target}/`))
+      );
+      if (filtered.length > 0) return filtered;
+      return allPosts;
+    } catch {
+      return [];
+    }
+  },
+
   async fetchSubredditPosts(subredditName: string, sinceDate?: number, after?: string, sort: 'new' | 'hot' | 'top' = 'new'): Promise<RedditPost[]> {
     try {
+      // In ambiente di sviluppo/web non effettuiamo chiamate di rete a Reddit: restituiamo i post mock locali
+      if (!isNative()) {
+        return await this.getLocalPostsForSubreddit(subredditName);
+      }
+
       const subreddits = await this.getSubreddits();
       const subreddit = subreddits.find(s => s.name === subredditName);
       
@@ -144,12 +184,15 @@ export const redditStorage = {
       let data;
       try {
         data = await this.fetchJsonWithProxy(url, undefined, subreddit?.etag, subreddit?.lastModified);
-      } catch (e) {
+      } catch (e: any) {
+        if (e?.name === 'AbortError' || e?.message?.includes('aborted') || e?.message?.includes('Aborted')) {
+          return [];
+        }
         console.warn(`FetchSubredditPosts failed for r/${subredditName}, retrying without caching headers...`, e);
         data = await this.fetchJsonWithProxy(url);
       }
       
-      if (!data || data.data.error || !data.data.data || !data.data.data.children) {
+      if (!data || data.data?.error || !data.data?.data || !data.data?.data?.children) {
         return [];
       }
 
@@ -195,33 +238,27 @@ export const redditStorage = {
       }).filter(Boolean) as RedditPost[];
 
       return posts;
-    } catch (e) {
-      console.error(`Failed to fetch posts for r/${subredditName}:`, e);
+    } catch (e: any) {
+      if (e?.name === 'AbortError' || e?.message?.includes('aborted') || e?.message?.includes('Aborted')) {
+        return [];
+      }
+      const localPosts = await this.getLocalPostsForSubreddit(subredditName);
+      if (localPosts.length > 0) {
+        return localPosts;
+      }
+      console.warn(`Could not fetch live posts for r/${subredditName} (network/CORS):`, e?.message || e);
       return [];
     }
   },
 
   async fetchRedditPosts(subredditName: string, sort: 'new' | 'hot' | 'top' = 'new', after?: string, signal?: AbortSignal): Promise<{posts: RedditPost[], after?: string}> {
     try {
-      // In simulated dev environment (web preview), do not fetch real reddit posts over network
-      if (!Capacitor.isNativePlatform()) {
-        const mockPost: RedditPost = {
-          id: `mock/${subredditName}/${crypto.randomUUID()}`,
-          originalId: 'mock-post',
-          title: `[MOCK] Post Reddit di prova per r/${subredditName}`,
-          author: 'u/dev_mock',
-          subredditId: 'mock',
-          subredditName: subredditName,
-          permalink: `/r/${subredditName}/mock`,
-          url: `https://reddit.com/r/${subredditName}`,
-          createdUtc: Math.floor(Date.now() / 1000) - 3600,
-          score: 120,
-          numComments: 15,
-          selftextHtml: `<p>Questo è un post simulato per r/${subredditName} in ambiente di sviluppo.</p>`,
-          isRead: 0,
-          isFavorite: 0
-        };
-        return { posts: [mockPost] };
+      if (signal?.aborted) return { posts: [] };
+
+      // In ambiente di sviluppo/web non effettuiamo chiamate di rete a Reddit: restituiamo i post mock locali
+      if (!isNative()) {
+        const localPosts = await this.getLocalPostsForSubreddit(subredditName);
+        return { posts: localPosts, after: undefined };
       }
 
       // Don't strictly require subreddit object to perform fetch
@@ -239,7 +276,10 @@ export const redditStorage = {
       let result;
       try {
         result = await this.fetchJsonWithProxy(url, signal, subreddit?.etag, subreddit?.lastModified);
-      } catch (e) {
+      } catch (e: any) {
+        if (signal?.aborted || e?.name === 'AbortError' || e?.message?.includes('aborted') || e?.message?.includes('Aborted')) {
+          return { posts: [] };
+        }
         console.warn(`Initial fetch failed for r/${subredditName}, retrying without caching headers...`, e);
         // Retry without etag/lastModified in case it was a 304/cache issue on proxy
         result = await this.fetchJsonWithProxy(url, signal);
@@ -290,35 +330,23 @@ export const redditStorage = {
       });
 
       return { posts, after: result.data.data.after };
-    } catch (e) {
-      if (!Capacitor.isNativePlatform()) {
-        console.warn(`[Reddit] Fetch failed for r/${subredditName}, generating mock post for preview.`);
-        const mockPost: RedditPost = {
-          id: `mock/${subredditName}/${crypto.randomUUID()}`,
-          originalId: 'mock',
-          title: `[TEST] Placeholder post for r/${subredditName}`,
-          author: 'System',
-          subredditId: 'mock',
-          subredditName: subredditName,
-          permalink: `/r/${subredditName}/mock`,
-          url: `https://reddit.com/r/${subredditName}`,
-          createdUtc: Date.now(),
-          score: 100,
-          numComments: 10,
-          selftextHtml: '<p>This is a placeholder post generated because the Reddit fetch failed.</p>',
-          isRead: 0,
-          isFavorite: 0
-        };
-        return { posts: [mockPost] };
+    } catch (e: any) {
+      if (signal?.aborted || e?.name === 'AbortError' || e?.message?.includes('aborted') || e?.message?.includes('Aborted')) {
+        return { posts: [] };
       }
-      console.error(`Failed to fetch posts for r/${subredditName}:`, e);
-      throw e;
+      // In ambiente web/preview o se la rete/CORS fallisce, restituisci i post locali già presenti nel database
+      const localPosts = await this.getLocalPostsForSubreddit(subredditName);
+      if (localPosts.length > 0) {
+        return { posts: localPosts };
+      }
+      console.warn(`Could not fetch live posts for r/${subredditName} (network/CORS):`, e?.message || e);
+      return { posts: [] };
     }
   },
 
   async fetchRedditComments(permalink: string): Promise<any[]> {
     try {
-      if (!permalink || permalink.includes('/mock') || permalink === 'mock') {
+      if (!isNative() || !permalink || permalink.includes('/mock') || permalink === 'mock') {
         const now = Math.floor(Date.now() / 1000);
         return [
           {

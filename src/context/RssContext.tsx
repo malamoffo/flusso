@@ -13,6 +13,7 @@ import { FileOpener } from '@capacitor-community/file-opener';
 import DataWorker from '../workers/dataProcessor.worker.ts?worker';
 import { contentFetcher } from '../utils/contentFetcher';
 import { generateMockDataIfNeeded } from '../utils/mockDataGenerator';
+import { isNative } from '../utils/platform';
 
 const getPubDateTime = (a: { pubDate: string | number }) => {
   if (!a.pubDate) return 0;
@@ -164,6 +165,7 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   }, []);
 
   const checkUpdates = useCallback(async (force = false) => {
+    if (!isNative()) return;
     try {
       // Use a proxy to avoid GitHub API rate limits or CORS issues in some environments
       const response = await fetch('https://api.github.com/repos/malamoffo/flusso/releases/latest');

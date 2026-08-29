@@ -53,6 +53,17 @@ export class FlussoDatabase extends Dexie {
       }
       console.log('[Database] Upgrade to version 6 completed.');
     });
+
+    this.version(7).stores({
+      feeds: 'id, feedUrl',
+      articles: 'id, feedId, pubDate, isRead, isFavorite, type',
+      subreddits: 'id, name',
+      redditPosts: 'id, subredditId, subredditName, createdUtc, isRead, isFavorite',
+      articleContents: 'id',
+      settings: 'id',
+      refreshLogs: 'id, timestamp',
+      kv: 'id'
+    });
   }
 }
 

@@ -689,15 +689,15 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
         animate={{ y: 0, opacity: 1 }}
         exit={{ y: '100%', opacity: 0 }}
         transition={{ type: 'spring', damping: 30, stiffness: 220 }}
-        className="fixed inset-0 z-10 w-full h-full overflow-hidden flex flex-col transition-colors break-words font-sans bg-zinc-950/80 backdrop-blur-3xl scrollbar-hide pointer-events-auto shadow-2xl isolate transform-gpu"
+        className="fixed inset-0 z-10 w-full h-full overflow-hidden flex flex-col transition-colors break-words font-sans bg-[#0c1424] text-gray-100 scrollbar-hide pointer-events-auto isolate transform-gpu"
       >
         
         {/* Top App Bar */}
-        <div className="sticky top-0 z-20 px-4 py-4 flex items-center justify-between bg-gradient-to-b from-transparent to-transparent pointer-events-none">
+        <div className="sticky top-0 z-20 px-4 py-4 flex items-center justify-between bg-gradient-to-b from-[#0c1424]/90 via-[#0c1424]/60 to-transparent backdrop-blur-md pointer-events-none">
           <motion.button
             whileTap={{ scale: 0.9 }}
             onClick={onClose}
-            className="w-10 h-10 shrink-0 flex items-center justify-center rounded-full bg-black border border-white/20 active:bg-white/20 text-white pointer-events-auto"
+            className="w-10 h-10 shrink-0 flex items-center justify-center rounded-full bg-black/70 hover:bg-black border border-white/20 active:bg-white/20 text-white pointer-events-auto transition-colors"
             aria-label="Close article"
           >
             <ArrowLeft className="w-5 h-5 text-gray-200" aria-hidden="true" />
@@ -707,7 +707,7 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
               whileTap={{ scale: 0.9 }}
               onClick={onPrev}
               disabled={!hasPrev}
-              className="w-10 h-10 flex items-center justify-center rounded-full bg-black border border-white/20 active:bg-white/20 text-white disabled:opacity-30 disabled:pointer-events-none"
+              className="w-10 h-10 flex items-center justify-center rounded-full bg-black/70 hover:bg-black border border-white/20 active:bg-white/20 text-white disabled:opacity-30 disabled:pointer-events-none transition-colors"
               aria-label="Previous article"
             >
               <ChevronUp className="w-5 h-5 text-gray-200" aria-hidden="true" />
@@ -716,7 +716,7 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
               whileTap={{ scale: 0.9 }}
               onClick={onNext}
               disabled={!hasNext}
-              className="w-10 h-10 flex items-center justify-center rounded-full bg-black border border-white/20 active:bg-white/20 text-white disabled:opacity-30 disabled:pointer-events-none"
+              className="w-10 h-10 flex items-center justify-center rounded-full bg-black/70 hover:bg-black border border-white/20 active:bg-white/20 text-white disabled:opacity-30 disabled:pointer-events-none transition-colors"
               aria-label="Next article"
             >
               <ChevronDown className="w-5 h-5 text-gray-200" aria-hidden="true" />
@@ -724,14 +724,13 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
           </div>
         </div>
 
-        {/* Article Content with Glass Container */}
+        {/* Article Fullscreen Content */}
         <div 
           ref={scrollContainerRef}
-          className="relative z-10 flex-1 px-2 sm:px-4 max-w-5xl mx-auto w-full pb-20 overflow-y-auto overscroll-contain transform-gpu will-change-scroll scrollbar-hide"
+          className="relative z-10 flex-1 w-full pb-28 overflow-y-auto overscroll-contain transform-gpu will-change-scroll scrollbar-hide"
         >
-        <div className="bg-[#121e36] border border-blue-500/10 rounded-[2.5rem] overflow-hidden shadow-2xl mb-24">
           {extractedImages.length > 0 && (
-            <div className="relative group overflow-hidden bg-black/40 w-full aspect-[16/10] max-h-[55vh] flex flex-col items-center justify-center">
+            <div className="relative group overflow-hidden bg-black/40 w-full aspect-[16/10] max-h-[60vh] flex flex-col items-center justify-center mb-8 border-b border-blue-500/20 shadow-xl">
               <RotatingImageCarousel
                 urls={extractedImages}
                 className="w-full h-full"
@@ -739,8 +738,8 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
             </div>
           )}
 
-          <div className="p-3 sm:p-6 lg:p-8">
-            <header className="mb-6 text-center max-w-5xl mx-auto">
+          <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
+            <header className="mb-6 text-center max-w-4xl mx-auto">
               <div className="flex flex-col items-center gap-3 mb-2">
                 <div className="flex items-center justify-center gap-4 flex-wrap">
                   <div className="flex items-center gap-2.5 px-3 py-1 rounded-full bg-white/5 border border-white/10">
@@ -922,8 +921,7 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
             </AnimatePresence>
           </div>
         </div>
-      </div>
-    </motion.article>
+      </motion.article>
     </motion.div>
   );
 });

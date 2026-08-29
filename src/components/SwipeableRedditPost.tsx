@@ -203,7 +203,7 @@ export const SwipeableRedditPost = React.memo(function SwipeableRedditPost({
           onDragEnd={handleDragEnd}
           onClick={handlePostClick}
           className={cn(
-            "relative w-full p-4 flex flex-col gap-3 cursor-pointer select-none rounded-[inherit] transition-colors border border-purple-500/10 bg-[#1e162a] transform-gpu",
+            "relative w-full p-4 flex flex-col gap-3 cursor-pointer select-none rounded-[inherit] transition-colors border border-purple-500/20 bg-[#1e162a]/75 backdrop-blur-lg shadow-lg shadow-black/40 transform-gpu",
             !post.isRead ? "z-[35]" : "z-20",
             filter === 'saved' && "shadow-[0_0_15px_rgba(234,179,8,0.15)]",
             filter === 'reddit' && "shadow-[0_0_15px_rgba(168,85,247,0.15)]"
@@ -218,15 +218,13 @@ export const SwipeableRedditPost = React.memo(function SwipeableRedditPost({
             </>
           )}
         <div className="relative z-10 flex flex-col gap-2">
-          {/* Image at the top */}
+          {/* Image at the top - Natural full original aspect ratio without height restriction */}
           {decodedImageUrl && (
-            <div className="relative overflow-hidden flex-shrink-0 w-full rounded-lg bg-gray-800/50 aspect-[16/10] max-h-[300px] md:max-h-[360px] mb-1 transform-gpu">
+            <div className="relative overflow-hidden flex-shrink-0 w-full rounded-2xl bg-gray-800/50 mb-1 transform-gpu">
               <CachedImage 
                 src={getSafeUrl(decodedImageUrl)}
                 alt="" 
-                className={cn(
-                  "transition-opacity w-full h-full object-cover"
-                )}
+                className="w-full h-auto block rounded-[inherit] transition-opacity cursor-pointer"
                 referrerPolicy="no-referrer"
                 onClick={(e) => { e.stopPropagation(); onImageClick(decodedImageUrl); }}
               />

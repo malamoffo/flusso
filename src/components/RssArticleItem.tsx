@@ -311,7 +311,7 @@ export const RssArticleItem = React.memo(
         ref={setRefs}
         style={style}
         className={cn(
-          "w-full px-1.25 py-1 select-none transition-transform duration-150 ease-out",
+          "w-full px-0.5 sm:px-1 py-1 select-none transition-transform duration-150 ease-out",
           !isReadForDisplay ? "z-[35]" : "z-[10]",
           isHolding && "scale-[0.985]"
         )}
@@ -327,7 +327,7 @@ export const RssArticleItem = React.memo(
       >
         <div 
           className={cn(
-            "relative w-full rounded-3xl p-4 flex flex-col gap-3 cursor-pointer transition-all duration-300 border border-blue-500/10 bg-[#121e36] shadow-md shadow-black/30 overflow-hidden",
+            "relative w-full rounded-3xl p-4 flex flex-col gap-3 cursor-pointer transition-all duration-300 border border-blue-500/20 bg-[#121e36]/75 backdrop-blur-lg shadow-lg shadow-black/40 overflow-hidden",
             !isReadForDisplay ? "z-[35]" : "z-20",
             isFavorite && "border-yellow-500/30 shadow-[0_0_18px_rgba(234,179,8,0.12)]",
             isHolding && "border-yellow-400 ring-2 ring-yellow-400/40 shadow-[0_0_25px_rgba(234,179,8,0.3)]"

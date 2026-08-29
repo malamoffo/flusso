@@ -77,7 +77,7 @@ export const RedditListView = memo(({
           <p className="text-sm">Add a subreddit in settings to see posts here.</p>
         </div>
       ) : (
-        <div className="flex-1 max-w-3xl mx-auto px-2 pt-0 pb-2 space-y-0">
+        <div className="flex-1 max-w-4xl mx-auto px-1 sm:px-2 pt-0 pb-2 space-y-0">
           <AnimatePresence initial={false} mode="sync">
             {posts.map((post, idx) => (
               <SwipeableRedditPost

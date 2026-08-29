@@ -15,3 +15,8 @@ android/app/src/main/res/drawable-*/
 android/app/src/main/res/drawable/splash.png
 icons/
 public/icons/
+
+# Mock images (not to be synced to GitHub)
+src/assets/images/
+public/mock_images/
+
