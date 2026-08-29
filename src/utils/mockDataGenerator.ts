@@ -2,14 +2,169 @@ import { db } from '../services/db';
 import { isNative } from './platform';
 import { Feed, Article, Subreddit, RedditPost, FullArticleContent } from '../types';
 
-import quantumImg from '../assets/images/quantum_computing_1788011278912.jpg';
-import photosynthesisImg from '../assets/images/art_photosynthesis_1788011292569.jpg';
-import pizzaImg from '../assets/images/neapolitan_pizza_1788011305762.jpg';
-import telescopeImg from '../assets/images/space_telescope_1788011317596.jpg';
-import cyberpunkTowerImg from '../assets/images/reddit_cyberpunk_tower_1788011698879.jpg';
-import retroBotImg from '../assets/images/reddit_retro_bot_1788011713932.jpg';
-import macroMineralImg from '../assets/images/reddit_macro_mineral_1788011728262.jpg';
-import synthwaveSunsetImg from '../assets/images/reddit_synthwave_sunset_1788011742811.jpg';
+const createSvg = (w: number, h: number, bg: string, content: string) => {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="100%" height="100%">
+    <rect width="${w}" height="${h}" fill="${bg}"/>
+    ${content}
+  </svg>`;
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+};
+
+const quantumImg = createSvg(
+  800, 450, '#0B0F19',
+  `<defs>
+    <linearGradient id="qg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3B82F6"/>
+      <stop offset="50%" stop-color="#8B5CF6"/>
+      <stop offset="100%" stop-color="#06B6D4"/>
+    </linearGradient>
+    <radialGradient id="qglow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#6366F1" stop-opacity="0.4"/>
+      <stop offset="100%" stop-color="#0B0F19" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="800" height="450" fill="url(#qglow)"/>
+  <circle cx="400" cy="225" r="120" fill="none" stroke="url(#qg)" stroke-width="2" stroke-dasharray="6,6" opacity="0.6"/>
+  <circle cx="400" cy="225" r="70" fill="none" stroke="#60A5FA" stroke-width="3"/>
+  <ellipse cx="400" cy="225" rx="140" ry="50" fill="none" stroke="#A855F7" stroke-width="2" transform="rotate(30 400 225)"/>
+  <ellipse cx="400" cy="225" rx="140" ry="50" fill="none" stroke="#06B6D4" stroke-width="2" transform="rotate(-30 400 225)"/>
+  <circle cx="400" cy="225" r="18" fill="#F8FAFC"/>
+  <circle cx="400" cy="225" r="30" fill="#38BDF8" opacity="0.4"/>
+  <text x="400" y="380" font-family="system-ui, sans-serif" font-size="20" font-weight="600" fill="#E2E8F0" text-anchor="middle" letter-spacing="2">QUANTUM COMPUTING LAB</text>`
+);
+
+const photosynthesisImg = createSvg(
+  800, 450, '#062419',
+  `<defs>
+    <linearGradient id="pg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#10B981"/>
+      <stop offset="50%" stop-color="#059669"/>
+      <stop offset="100%" stop-color="#34D399"/>
+    </linearGradient>
+  </defs>
+  <path d="M 300 280 C 300 160 400 120 500 120 C 500 240 400 280 300 280 Z" fill="url(#pg)" opacity="0.85"/>
+  <path d="M 300 280 Q 400 200 500 120" stroke="#ECFDF5" stroke-width="3" fill="none"/>
+  <circle cx="360" cy="200" r="8" fill="#FDE047" opacity="0.9"/>
+  <circle cx="440" cy="180" r="10" fill="#67E8F9" opacity="0.9"/>
+  <circle cx="410" cy="240" r="6" fill="#FDE047" opacity="0.8"/>
+  <text x="400" y="370" font-family="system-ui, sans-serif" font-size="20" font-weight="600" fill="#D1FAE5" text-anchor="middle" letter-spacing="2">ARTIFICIAL PHOTOSYNTHESIS</text>`
+);
+
+const pizzaImg = createSvg(
+  800, 450, '#1C130E',
+  `<defs>
+    <radialGradient id="pizzaglow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#D97706" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="#1C130E" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="800" height="450" fill="url(#pizzaglow)"/>
+  <circle cx="400" cy="210" r="130" fill="#D97706" stroke="#92400E" stroke-width="8"/>
+  <circle cx="400" cy="210" r="110" fill="#DC2626"/>
+  <circle cx="370" cy="180" r="28" fill="#FEF3C7"/>
+  <circle cx="440" cy="220" r="32" fill="#FEF3C7"/>
+  <circle cx="380" cy="240" r="22" fill="#FEF3C7"/>
+  <circle cx="430" cy="170" r="20" fill="#FEF3C7"/>
+  <path d="M 400 195 C 410 185 425 190 420 205 C 415 220 400 210 400 195 Z" fill="#16A34A"/>
+  <path d="M 360 210 C 370 200 380 208 375 218 C 370 228 360 220 360 210 Z" fill="#16A34A"/>
+  <text x="400" y="380" font-family="system-ui, sans-serif" font-size="20" font-weight="600" fill="#FED7AA" text-anchor="middle" letter-spacing="2">CHIMICA DELLA PIZZA NAPOLETANA</text>`
+);
+
+const telescopeImg = createSvg(
+  800, 450, '#030712',
+  `<defs>
+    <radialGradient id="spacebg" cx="50%" cy="50%" r="60%">
+      <stop offset="0%" stop-color="#4C1D95" stop-opacity="0.5"/>
+      <stop offset="50%" stop-color="#1E1B4B" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="#030712" stop-opacity="1"/>
+    </radialGradient>
+  </defs>
+  <rect width="800" height="450" fill="url(#spacebg)"/>
+  <circle cx="200" cy="100" r="1.5" fill="#FFFFFF"/>
+  <circle cx="650" cy="120" r="2" fill="#FFFFFF"/>
+  <circle cx="150" cy="300" r="2" fill="#FDE047"/>
+  <circle cx="680" cy="320" r="1.5" fill="#FFFFFF"/>
+  <polygon points="400,140 440,165 440,215 400,240 360,215 360,165" fill="#F59E0B" stroke="#B45309" stroke-width="2"/>
+  <polygon points="445,165 485,190 485,240 445,265 405,240 405,190" fill="#FBBF24" stroke="#B45309" stroke-width="2"/>
+  <polygon points="355,165 395,190 395,240 355,265 315,240 315,190" fill="#FBBF24" stroke="#B45309" stroke-width="2"/>
+  <text x="400" y="375" font-family="system-ui, sans-serif" font-size="20" font-weight="600" fill="#E0E7FF" text-anchor="middle" letter-spacing="2">DEEP SPACE OBSERVATORY</text>`
+);
+
+const cyberpunkTowerImg = createSvg(
+  540, 960, '#090514',
+  `<defs>
+    <linearGradient id="towerg" x1="0%" y1="100%" x2="0%" y2="0%">
+      <stop offset="0%" stop-color="#3B0764"/>
+      <stop offset="60%" stop-color="#06B6D4"/>
+      <stop offset="100%" stop-color="#EC4899"/>
+    </linearGradient>
+  </defs>
+  <rect width="540" height="960" fill="#090514"/>
+  <polygon points="200,960 230,220 310,220 340,960" fill="url(#towerg)" opacity="0.8"/>
+  <line x1="270" y1="220" x2="270" y2="90" stroke="#EC4899" stroke-width="4"/>
+  <circle cx="270" cy="80" r="10" fill="#F43F5E"/>
+  <line x1="215" y1="350" x2="325" y2="350" stroke="#22D3EE" stroke-width="3"/>
+  <line x1="210" y1="500" x2="330" y2="500" stroke="#22D3EE" stroke-width="3"/>
+  <line x1="205" y1="650" x2="335" y2="650" stroke="#22D3EE" stroke-width="3"/>
+  <line x1="200" y1="800" x2="340" y2="800" stroke="#22D3EE" stroke-width="3"/>
+  <text x="270" y="900" font-family="system-ui, sans-serif" font-size="18" font-weight="700" fill="#F472B6" text-anchor="middle" letter-spacing="3">MEGASTRUCTURE 9:16</text>`
+);
+
+const retroBotImg = createSvg(
+  600, 600, '#1E232A',
+  `<defs>
+    <radialGradient id="crtglow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#22C55E" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="#052E16" stop-opacity="1"/>
+    </radialGradient>
+  </defs>
+  <rect x="100" y="80" width="400" height="340" rx="24" fill="#E2E8F0" stroke="#94A3B8" stroke-width="8"/>
+  <rect x="135" y="115" width="330" height="270" rx="16" fill="url(#crtglow)" stroke="#15803D" stroke-width="4"/>
+  <text x="160" y="180" font-family="monospace" font-size="20" fill="#4ADE80">&gt; BOOTING OS v1.1...</text>
+  <text x="160" y="220" font-family="monospace" font-size="18" fill="#86EFAC">&gt; MEMORY: 640KB OK</text>
+  <text x="160" y="260" font-family="monospace" font-size="18" fill="#4ADE80">&gt; RETRO COMPUTING</text>
+  <rect x="100" y="445" width="400" height="90" rx="12" fill="#CBD5E1"/>
+  <text x="300" y="580" font-family="system-ui, sans-serif" font-size="18" font-weight="600" fill="#94A3B8" text-anchor="middle">CRT TERMINAL 1:1</text>`
+);
+
+const macroMineralImg = createSvg(
+  600, 800, '#020617',
+  `<defs>
+    <linearGradient id="crystalg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#A855F7"/>
+      <stop offset="50%" stop-color="#3B82F6"/>
+      <stop offset="100%" stop-color="#06B6D4"/>
+    </linearGradient>
+  </defs>
+  <polygon points="300,120 440,320 300,560 160,320" fill="url(#crystalg)" opacity="0.85"/>
+  <polygon points="300,120 370,320 300,560" fill="#C084FC" opacity="0.6"/>
+  <polygon points="300,560 480,480 300,680 120,480" fill="url(#crystalg)" opacity="0.7"/>
+  <text x="300" y="740" font-family="system-ui, sans-serif" font-size="18" font-weight="600" fill="#C4B5FD" text-anchor="middle" letter-spacing="2">BIOLUMINESCENT MINERAL 3:4</text>`
+);
+
+const synthwaveSunsetImg = createSvg(
+  800, 450, '#110726',
+  `<defs>
+    <linearGradient id="sung" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FBBF24"/>
+      <stop offset="100%" stop-color="#EC4899"/>
+    </linearGradient>
+  </defs>
+  <circle cx="400" cy="220" r="100" fill="url(#sung)"/>
+  <rect x="280" y="170" width="240" height="6" fill="#110726"/>
+  <rect x="290" y="190" width="220" height="8" fill="#110726"/>
+  <rect x="305" y="215" width="190" height="10" fill="#110726"/>
+  <polygon points="0,270 800,270 800,450 0,450" fill="#180B38"/>
+  <line x1="0" y1="270" x2="800" y2="270" stroke="#06B6D4" stroke-width="2"/>
+  <line x1="400" y1="270" x2="400" y2="450" stroke="#EC4899" stroke-width="2"/>
+  <line x1="400" y1="270" x2="150" y2="450" stroke="#EC4899" stroke-width="2"/>
+  <line x1="400" y1="270" x2="650" y2="450" stroke="#EC4899" stroke-width="2"/>
+  <line x1="400" y1="270" x2="-100" y2="450" stroke="#EC4899" stroke-width="1.5"/>
+  <line x1="400" y1="270" x2="900" y2="450" stroke="#EC4899" stroke-width="1.5"/>
+  <line x1="0" y1="310" x2="800" y2="310" stroke="#06B6D4" stroke-width="1.5"/>
+  <line x1="0" y1="360" x2="800" y2="360" stroke="#06B6D4" stroke-width="2"/>
+  <line x1="0" y1="420" x2="800" y2="420" stroke="#06B6D4" stroke-width="2.5"/>`
+);
 
 export async function generateMockDataIfNeeded() {
   // Solo quando non siamo in ambiente nativo (es. sul device)
