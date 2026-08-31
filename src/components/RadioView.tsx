@@ -545,8 +545,8 @@ export const RadioView = memo(({ isActive, searchQuery }: RadioViewProps) => {
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.95 }}
                     className={cn(
-                      "relative overflow-hidden rounded-3xl bg-[#1e111a]/75 backdrop-blur-lg border transform-gpu transition-all duration-300 shadow-md",
-                      isCurrent ? "border-red-500/50 shadow-lg shadow-red-500/10" : "border-red-500/15 hover:border-red-500/30",
+                      "relative overflow-hidden rounded-3xl bg-rose-950/30 dark:bg-[#1e0f17]/45 backdrop-blur-2xl border transform-gpu transition-all duration-300 shadow-[0_8px_32px_0_rgba(0,0,0,0.37),inset_0_1px_1px_0_rgba(255,255,255,0.15)]",
+                      isCurrent ? "border-red-500/50 shadow-lg shadow-red-500/20" : "border-white/15 dark:border-red-500/20 hover:border-red-500/40",
                       "cursor-pointer"
                     )}
                     onClick={() => setSelectedStationDetail(station)}
@@ -632,7 +632,7 @@ export const RadioView = memo(({ isActive, searchQuery }: RadioViewProps) => {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.45, ease: 'easeOut' }}
-              className="fixed inset-0 bg-black/60 backdrop-blur-md pointer-events-auto"
+              className="fixed inset-0 bg-black/70 backdrop-blur-xl pointer-events-auto"
               onClick={() => setSelectedStationDetail(null)}
             />
             <motion.article 
@@ -641,14 +641,14 @@ export const RadioView = memo(({ isActive, searchQuery }: RadioViewProps) => {
               animate={{ y: 0, opacity: 1 }}
               exit={{ y: '100%', opacity: 0 }}
               transition={{ type: 'spring', damping: 30, stiffness: 220 }}
-              className="fixed inset-0 z-10 w-full h-full overflow-hidden flex flex-col transition-colors break-words font-sans bg-[#14090e] text-gray-100 scrollbar-hide pointer-events-auto isolate transform-gpu"
+              className="fixed inset-0 z-10 w-full h-full overflow-hidden flex flex-col transition-colors break-words font-sans bg-[#14090e]/85 backdrop-blur-3xl text-gray-100 scrollbar-hide pointer-events-auto isolate transform-gpu shadow-2xl"
             >
               {/* Top App Bar */}
-              <div className="sticky top-0 z-20 px-4 py-4 flex items-center justify-between bg-gradient-to-b from-[#14090e]/90 via-[#14090e]/60 to-transparent backdrop-blur-md pointer-events-none">
+              <div className="sticky top-0 z-20 px-4 py-4 flex items-center justify-between bg-gradient-to-b from-[#14090e]/90 via-[#14090e]/70 to-transparent backdrop-blur-2xl border-b border-white/10 pointer-events-none">
                 <motion.button
                   whileTap={{ scale: 0.9 }}
                   onClick={() => setSelectedStationDetail(null)}
-                  className="w-10 h-10 shrink-0 flex items-center justify-center rounded-full bg-black/70 hover:bg-black border border-white/20 text-white pointer-events-auto transition-colors"
+                  className="w-10 h-10 shrink-0 flex items-center justify-center rounded-full bg-black/40 hover:bg-white/15 active:bg-white/25 backdrop-blur-xl border border-white/20 text-white pointer-events-auto transition-all shadow-lg"
                   aria-label="Chiudi"
                 >
                   <X className="w-5 h-5 text-gray-200" aria-hidden="true" />

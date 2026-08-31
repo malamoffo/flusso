@@ -45,8 +45,8 @@ export const FeedList = memo(({
     count: articles.length,
     getScrollElement,
     estimateSize: () => 140,
-    overscan: 6,
-    getItemKey: (index) => `${articles[index]?.id || 'art'}-${index}`,
+    overscan: 10,
+    getItemKey: (index) => articles[index]?.id ?? index,
   });
 
   const virtualItems = rowVirtualizer.getVirtualItems();

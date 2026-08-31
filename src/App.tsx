@@ -158,61 +158,26 @@ export default function App() {
   const [settingsTab, setSettingsTab] = useState<'main' | 'subscriptions' | 'about' | 'general' | undefined>(undefined);
   const [isMarkAllReadOpen, setIsMarkAllReadOpen] = useState(false);
   const [temporarilyVisibleUnreadIds, setTemporarilyVisibleUnreadIds] = useState<Set<string>>(new Set());
-  const [visibleInboxArticleIds, setVisibleInboxArticleIds] = useState<Set<string>>(new Set());
   const visibleInboxArticleIdsRef = useRef<Set<string>>(new Set());
-  const [visibleRedditPostIds, setVisibleRedditPostIds] = useState<Set<string>>(new Set());
   const visibleRedditPostIdsRef = useRef<Set<string>>(new Set());
   
   const handleVisibilityChange = useCallback((id: string, isVisible: boolean) => {
-    setVisibleInboxArticleIds(prev => {
-      const next = new Set(prev);
-      if (isVisible) next.add(id);
-      else next.delete(id);
-      visibleInboxArticleIdsRef.current = next; // Sync the ref
-      return next;
-    });
+    if (isVisible) {
+      visibleInboxArticleIdsRef.current.add(id);
+    } else {
+      visibleInboxArticleIdsRef.current.delete(id);
+    }
   }, []);
 
   const handleRedditVisibilityChange = useCallback((id: string, isVisible: boolean) => {
-    setVisibleRedditPostIds(prev => {
-      const next = new Set(prev);
-      if (isVisible) next.add(id);
-      else next.delete(id);
-      visibleRedditPostIdsRef.current = next; // Sync the ref
-      return next;
-    });
+    if (isVisible) {
+      visibleRedditPostIdsRef.current.add(id);
+    } else {
+      visibleRedditPostIdsRef.current.delete(id);
+    }
   }, []);
   
   const [filter, setFilter] = useState<'inbox' | 'saved' | 'reddit' | 'radio'>('inbox');
-  const scrollPositions = useRef<Record<string, number>>({});
-  const activeSectionRef = useRef<React.RefObject<HTMLDivElement> | null>(null);
-
-  useEffect(() => {
-    // Save current scroll position before filter changes
-    if (activeSectionRef.current?.current) {
-      scrollPositions.current[filter] = activeSectionRef.current.current.scrollTop;
-    }
-  }, [filter]);
-
-  useEffect(() => {
-    // Restore scroll position after filter changes
-    if (activeSectionRef.current?.current) {
-      activeSectionRef.current.current.scrollTop = scrollPositions.current[filter] || 0;
-    }
-  }, [filter]);
-
-  const getActiveScrollRef = useCallback(() => {
-    switch (filter) {
-      case 'inbox': return inboxScrollRef;
-      case 'saved': return savedScrollRef;
-      case 'reddit': return redditScrollRef;
-      default: return null;
-    }
-  }, [filter]);
-
-  useEffect(() => {
-    activeSectionRef.current = getActiveScrollRef() as any;
-  }, [filter, getActiveScrollRef]);
   
   const [inboxUnreadOnly, setInboxUnreadOnly] = useState(false);
   const [savedUnreadOnly, setSavedUnreadOnly] = useState(false);
@@ -551,7 +516,8 @@ export default function App() {
   const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>, filterType: 'inbox' | 'saved' | 'reddit') => {
     const container = e.currentTarget;
     isAtTop.current = container.scrollTop <= 0;
-    setHeaderScrolled(container.scrollTop > 20);
+    const isScrolled = container.scrollTop > 20;
+    setHeaderScrolled(prev => prev !== isScrolled ? isScrolled : prev);
   }, []);
 
   const handleArticleClick = useCallback((article: Article) => {
@@ -863,7 +829,7 @@ export default function App() {
           ref={inboxScrollRef}
           onScroll={(e) => handleScroll(e, 'inbox')}
           className={cn(
-            "absolute inset-0 overflow-y-auto pb-24 pt-0 scroll-smooth transition-opacity duration-300 transform-gpu will-change-scroll scrollbar-hide",
+            "absolute inset-0 overflow-y-auto pb-24 pt-0 transition-opacity duration-300 transform-gpu will-change-scroll scrollbar-hide",
             filter === 'inbox' ? "z-10 opacity-100 pointer-events-auto" : "z-0 opacity-0 pointer-events-none"
           )}
         >
@@ -890,7 +856,7 @@ export default function App() {
           ref={savedScrollRef}
           onScroll={(e) => handleScroll(e, 'saved')}
           className={cn(
-            "absolute inset-0 overflow-y-auto pb-24 pt-0 scroll-smooth transition-opacity duration-300 transform-gpu will-change-scroll scrollbar-hide",
+            "absolute inset-0 overflow-y-auto pb-24 pt-0 transition-opacity duration-300 transform-gpu will-change-scroll scrollbar-hide",
             filter === 'saved' ? "z-10 opacity-100 pointer-events-auto" : "z-0 opacity-0 pointer-events-none"
           )}
         >

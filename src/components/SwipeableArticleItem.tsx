@@ -381,23 +381,23 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
           onClick={handleArticleClick}
           exit={{ x: exitX, opacity: 0, transition: { duration: 0.2, ease: "easeOut" } }}
           className={cn(
-            "relative w-full p-4 flex flex-col gap-3 cursor-pointer select-none rounded-[inherit] transition-colors border border-blue-500/20 bg-[#121e36]/75 backdrop-blur-lg shadow-lg shadow-black/40 transform-gpu",
+            "relative w-full p-4 flex flex-col gap-3 cursor-pointer select-none rounded-[inherit] transition-all border border-white/15 dark:border-blue-400/25 bg-slate-900/40 dark:bg-[#0f1b33]/45 backdrop-blur-2xl shadow-[0_8px_32px_0_rgba(0,0,0,0.37),inset_0_1px_1px_0_rgba(255,255,255,0.15)] transform-gpu",
             !isReadForDisplay ? "z-[35]" : "z-20",
-            filter === 'saved' && "shadow-[0_0_15px_rgba(234,179,8,0.15)]",
-            filter === 'inbox' && "shadow-[0_0_15px_rgba(59,130,246,0.15)]"
+            filter === 'saved' && "shadow-[0_0_20px_rgba(234,179,8,0.2),inset_0_1px_1px_0_rgba(255,255,255,0.15)]",
+            filter === 'inbox' && "shadow-[0_0_20px_rgba(59,130,246,0.2),inset_0_1px_1px_0_rgba(255,255,255,0.15)]"
           )}
         >
           {!isReadForDisplay && filter !== 'saved' && (
             <>
-              <span className="absolute top-1 right-4 z-40 px-2 py-0.5 bg-blue-600 text-[9px] font-black text-white rounded-full shadow-[0_0_12px_rgba(59,130,246,0.8)] border border-blue-400 uppercase tracking-widest animate-pulse">
+              <span className="absolute top-1 right-4 z-40 px-2 py-0.5 bg-blue-600/90 backdrop-blur-md text-[9px] font-black text-white rounded-full shadow-[0_0_12px_rgba(59,130,246,0.8)] border border-blue-400 uppercase tracking-widest animate-pulse">
                 NEW
               </span>
-              <div className="absolute inset-0 z-20 pointer-events-none rounded-[inherit] border-2 border-blue-400 shadow-[0_0_28px_rgba(59,130,246,0.95),inset_0_0_18px_rgba(59,130,246,0.6)] animate-pulse" style={{ animationDuration: '3s' }} />
+              <div className="absolute inset-0 z-20 pointer-events-none rounded-[inherit] border-2 border-blue-400/80 shadow-[0_0_28px_rgba(59,130,246,0.95),inset_0_0_18px_rgba(59,130,246,0.6)] animate-pulse" style={{ animationDuration: '3s' }} />
             </>
           )}
           <div className="relative z-10 flex flex-col gap-2">
             {hasImage && firstImage ? (
-              <div className="relative overflow-hidden flex-shrink-0 w-full rounded-2xl bg-gray-800/50 transform-gpu">
+              <div className="relative overflow-hidden flex-shrink-0 w-full rounded-2xl bg-black/30 backdrop-blur-md border border-white/10 transform-gpu">
                 <CachedImage 
                   src={getSafeUrl(firstImage)}
                   alt=""

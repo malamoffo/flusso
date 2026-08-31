@@ -327,9 +327,9 @@ export const RssArticleItem = React.memo(
       >
         <div 
           className={cn(
-            "relative w-full rounded-3xl p-4 flex flex-col gap-3 cursor-pointer transition-all duration-300 border border-blue-500/20 bg-[#121e36]/75 backdrop-blur-lg shadow-lg shadow-black/40 overflow-hidden",
+            "relative w-full rounded-3xl p-4 flex flex-col gap-3 cursor-pointer transition-all duration-300 border border-white/15 dark:border-blue-400/25 bg-slate-900/40 dark:bg-[#0f1b33]/45 backdrop-blur-2xl shadow-[0_8px_32px_0_rgba(0,0,0,0.37),inset_0_1px_1px_0_rgba(255,255,255,0.15)] overflow-hidden",
             !isReadForDisplay ? "z-[35]" : "z-20",
-            isFavorite && "border-yellow-500/30 shadow-[0_0_18px_rgba(234,179,8,0.12)]",
+            isFavorite && "border-yellow-500/30 shadow-[0_0_20px_rgba(234,179,8,0.2),inset_0_1px_1px_0_rgba(255,255,255,0.15)]",
             isHolding && "border-yellow-400 ring-2 ring-yellow-400/40 shadow-[0_0_25px_rgba(234,179,8,0.3)]"
           )}
         >

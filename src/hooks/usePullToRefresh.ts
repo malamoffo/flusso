@@ -40,14 +40,22 @@ export const usePullToRefresh = ({
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
-    if (!isPulling || !isAtTop.current) return;
-    const deltaY = e.touches[0].clientY - touchStartY.current;
-    if (deltaY < 0) {
+    if (!isPulling) return;
+    const activeScrollRef = scrollRefs[activeScrollRefKey];
+    const scrollTop = activeScrollRef?.current?.scrollTop || 0;
+    if (scrollTop > 0) {
+      isAtTop.current = false;
       setIsPulling(false);
       pullProgress.set(0);
       return;
     }
-    if (deltaY > 0) {
+    const deltaY = e.touches[0].clientY - touchStartY.current;
+    if (deltaY <= 0) {
+      setIsPulling(false);
+      pullProgress.set(0);
+      return;
+    }
+    if (deltaY > 0 && isAtTop.current) {
       pullProgress.set(Math.min(deltaY * 0.4, PULL_THRESHOLD + 30));
     }
   };

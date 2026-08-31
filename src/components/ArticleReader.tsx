@@ -680,7 +680,7 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         transition={{ duration: 0.25, ease: 'easeOut' }}
-        className="fixed inset-0 bg-black/60 backdrop-blur-md pointer-events-auto"
+        className="fixed inset-0 bg-black/70 backdrop-blur-xl pointer-events-auto"
         onClick={onClose}
       />
       <motion.article 
@@ -689,15 +689,15 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
         animate={{ y: 0, opacity: 1 }}
         exit={{ y: '100%', opacity: 0 }}
         transition={{ type: 'spring', damping: 30, stiffness: 220 }}
-        className="fixed inset-0 z-10 w-full h-full overflow-hidden flex flex-col transition-colors break-words font-sans bg-[#0c1424] text-gray-100 scrollbar-hide pointer-events-auto isolate transform-gpu"
+        className="fixed inset-0 z-10 w-full h-full overflow-hidden flex flex-col transition-colors break-words font-sans bg-[#0c1424]/85 backdrop-blur-3xl text-gray-100 scrollbar-hide pointer-events-auto isolate transform-gpu shadow-2xl"
       >
         
         {/* Top App Bar */}
-        <div className="sticky top-0 z-20 px-4 py-4 flex items-center justify-between bg-gradient-to-b from-[#0c1424]/90 via-[#0c1424]/60 to-transparent backdrop-blur-md pointer-events-none">
+        <div className="sticky top-0 z-20 px-4 py-4 flex items-center justify-between bg-gradient-to-b from-[#0c1424]/90 via-[#0c1424]/70 to-transparent backdrop-blur-2xl border-b border-white/10 pointer-events-none">
           <motion.button
             whileTap={{ scale: 0.9 }}
             onClick={onClose}
-            className="w-10 h-10 shrink-0 flex items-center justify-center rounded-full bg-black/70 hover:bg-black border border-white/20 active:bg-white/20 text-white pointer-events-auto transition-colors"
+            className="w-10 h-10 shrink-0 flex items-center justify-center rounded-full bg-black/40 hover:bg-white/15 active:bg-white/25 backdrop-blur-xl border border-white/20 text-white pointer-events-auto transition-all shadow-lg"
             aria-label="Close article"
           >
             <ArrowLeft className="w-5 h-5 text-gray-200" aria-hidden="true" />
@@ -707,7 +707,7 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
               whileTap={{ scale: 0.9 }}
               onClick={onPrev}
               disabled={!hasPrev}
-              className="w-10 h-10 flex items-center justify-center rounded-full bg-black/70 hover:bg-black border border-white/20 active:bg-white/20 text-white disabled:opacity-30 disabled:pointer-events-none transition-colors"
+              className="w-10 h-10 flex items-center justify-center rounded-full bg-black/40 hover:bg-white/15 active:bg-white/25 backdrop-blur-xl border border-white/20 text-white disabled:opacity-30 disabled:pointer-events-none transition-all shadow-lg"
               aria-label="Previous article"
             >
               <ChevronUp className="w-5 h-5 text-gray-200" aria-hidden="true" />
@@ -716,7 +716,7 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
               whileTap={{ scale: 0.9 }}
               onClick={onNext}
               disabled={!hasNext}
-              className="w-10 h-10 flex items-center justify-center rounded-full bg-black/70 hover:bg-black border border-white/20 active:bg-white/20 text-white disabled:opacity-30 disabled:pointer-events-none transition-colors"
+              className="w-10 h-10 flex items-center justify-center rounded-full bg-black/40 hover:bg-white/15 active:bg-white/25 backdrop-blur-xl border border-white/20 text-white disabled:opacity-30 disabled:pointer-events-none transition-all shadow-lg"
               aria-label="Next article"
             >
               <ChevronDown className="w-5 h-5 text-gray-200" aria-hidden="true" />
@@ -730,7 +730,7 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
           className="relative z-10 flex-1 w-full pb-28 overflow-y-auto overscroll-contain transform-gpu will-change-scroll scrollbar-hide"
         >
           {extractedImages.length > 0 && (
-            <div className="relative group overflow-hidden bg-black/40 w-full aspect-[16/10] max-h-[60vh] flex flex-col items-center justify-center mb-8 border-b border-blue-500/20 shadow-xl">
+            <div className="relative group overflow-hidden bg-black/30 backdrop-blur-xl w-full aspect-[16/10] max-h-[60vh] flex flex-col items-center justify-center mb-8 border-b border-blue-500/25 shadow-2xl">
               <RotatingImageCarousel
                 urls={extractedImages}
                 className="w-full h-full"
@@ -742,7 +742,7 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
             <header className="mb-6 text-center max-w-4xl mx-auto">
               <div className="flex flex-col items-center gap-3 mb-2">
                 <div className="flex items-center justify-center gap-4 flex-wrap">
-                  <div className="flex items-center gap-2.5 px-3 py-1 rounded-full bg-white/5 border border-white/10">
+                  <div className="flex items-center gap-2.5 px-3.5 py-1.5 rounded-full bg-white/[0.08] backdrop-blur-xl border border-white/15 shadow-sm">
                     {article.link && (
                       <CachedImage 
                         src={`https://icons.duckduckgo.com/ip3/${(() => {
