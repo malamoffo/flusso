@@ -59,7 +59,7 @@
     "esbuild": "^0.28.2",
     "jsdom": "^30.0.1",
     "sharp": "^0.35.3",
-    "sharp-cli": "^5.2.0",
+    "sharp-cli": "^6.0.0",
     "tailwindcss": "^4.1.14",
     "tsx": "^4.23.12",
     "typescript": "^7.0.2",
