@@ -2,6 +2,8 @@ import { Feed, Article } from '../types';
 import DOMPurify from 'dompurify';
 import he from 'he';
 import { getSafeUrl, resolveUrl } from '../lib/utils';
+const IGNORED_IMAGE_PATTERN = /1x1|pixel|tracker|stats|gravatar|avatar|favicon|icon|logo|wp-includes\/images\/smilies|share|button|badge|advert|spinner|loading/i;
+
 
 // Helper to escape XML special characters
 export function escapeXml(unsafe: string): string {
@@ -99,29 +101,8 @@ export function extractBestImage(content: string, baseUrl?: string): string | nu
                   getFirstSrcsetUrl(imgTag.getAttribute('srcset')) ||
                 imgTag.getAttribute('src');
     if (!url) continue;
-    
-    // Skip likely tracking pixels or icons based on URL
-    const lowerUrl = url.toLowerCase();
-    
-    if (
-      lowerUrl.includes('1x1') ||
-      lowerUrl.includes('pixel') ||
-      lowerUrl.includes('tracker') ||
-      (lowerUrl.includes('feedburner') && (lowerUrl.includes('pixel') || lowerUrl.includes('1x1') || lowerUrl.includes('stats'))) ||
-      lowerUrl.includes('stats') ||
-      lowerUrl.includes('gravatar') ||
-      lowerUrl.includes('avatar') ||
-      lowerUrl.includes('favicon') ||
-      lowerUrl.includes('icon') ||
-      lowerUrl.includes('logo') ||
-      lowerUrl.includes('wp-includes/images/smilies') ||
-      lowerUrl.includes('share') ||
-      lowerUrl.includes('button') ||
-      lowerUrl.includes('badge') ||
-      lowerUrl.includes('advert') ||
-      lowerUrl.includes('spinner') ||
-      lowerUrl.includes('loading')
-    ) {
+    // (Note: Feedburner tracking is caught by the 'pixel' or 'stats' pattern check)
+    if (IGNORED_IMAGE_PATTERN.test(url)) {
       continue;
     }
 
