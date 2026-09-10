@@ -315,8 +315,10 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
         ref(node);
         visibleRef(node);
       }} 
+      data-saved-article={isSavedSection ? "true" : undefined}
       className={cn(
         "relative w-full card-optimize transform-gpu",
+        isSavedSection && "saved-article-item",
         isInboxOrSaved && "px-0.5 sm:px-1 py-0.5",
         !isReadForDisplay ? "z-[35]" : "z-[10]"
       )}

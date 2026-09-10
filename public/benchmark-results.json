@@ -1,58 +1,58 @@
 {
   "rss_parsing": {
-    "durationMs": 224.15403199999992,
+    "durationMs": 244.51819799999998,
     "itemsProcessed": 100
   },
   "merge": {
-    "durationMs": 2.7982300000001032,
+    "durationMs": 3.251549000000068,
     "itemsProcessed": 6000
   },
   "deduplication_1000": {
-    "durationMs": 0.4014360000001034,
+    "durationMs": 0.39707599999997,
     "itemsProcessed": 1000
   },
   "sorting_1000": {
-    "durationMs": 0.17111799999997857,
+    "durationMs": 0.20634100000006583,
     "itemsProcessed": 1000
   },
   "filtering_1000": {
-    "durationMs": 0.3737999999998465,
+    "durationMs": 0.3313670000000002,
     "itemsProcessed": 1000
   },
   "deduplication_5000": {
-    "durationMs": 1.6114500000001044,
+    "durationMs": 2.0182690000001458,
     "itemsProcessed": 5000
   },
   "deduplication": {
-    "durationMs": 1.6114500000001044,
+    "durationMs": 2.0182690000001458,
     "itemsProcessed": 5000
   },
   "sorting_5000": {
-    "durationMs": 0.5820380000000114,
+    "durationMs": 0.8458769999999731,
     "itemsProcessed": 5000
   },
   "sorting": {
-    "durationMs": 0.5820380000000114,
+    "durationMs": 0.8458769999999731,
     "itemsProcessed": 5000
   },
   "filtering_5000": {
-    "durationMs": 1.0039189999999962,
+    "durationMs": 1.258497000000034,
     "itemsProcessed": 5000
   },
   "filtering": {
-    "durationMs": 1.0039189999999962,
+    "durationMs": 1.258497000000034,
     "itemsProcessed": 5000
   },
   "deduplication_20000": {
-    "durationMs": 8.871441000000004,
+    "durationMs": 7.635518000000047,
     "itemsProcessed": 20000
   },
   "sorting_20000": {
-    "durationMs": 1.24297300000012,
+    "durationMs": 1.1982700000000932,
     "itemsProcessed": 20000
   },
   "filtering_20000": {
-    "durationMs": 5.716348000000153,
+    "durationMs": 5.650279000000182,
     "itemsProcessed": 20000
   }
 }

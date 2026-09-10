@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, memo } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Play, Square, Heart, Search, Loader2, Globe, X, Radio, ThumbsUp, Copy, Check, Info } from 'lucide-react';
 import { cn } from '../lib/utils';
@@ -516,10 +517,7 @@ export const RadioView = memo(({ isActive, searchQuery }: RadioViewProps) => {
   return (
     <>
       <motion.main
-        className={cn(
-          "absolute inset-0 overflow-y-auto transition-opacity duration-300 transform-gpu will-change-scroll pb-32 bg-transparent scrollbar-hide",
-          isActive ? "z-10 opacity-100 pointer-events-auto" : "z-0 opacity-0 pointer-events-none"
-        )}
+        className="w-full h-full overflow-y-auto transform-gpu will-change-scroll pb-32 bg-transparent scrollbar-hide pointer-events-auto"
         initial={false}
       >
         <div className="flex-1 max-w-3xl mx-auto px-2 pt-0 pb-2 space-y-2">
@@ -621,7 +619,7 @@ export const RadioView = memo(({ isActive, searchQuery }: RadioViewProps) => {
       </motion.main>
 
       <AnimatePresence>
-        {selectedStationDetail && (
+        {selectedStationDetail && typeof document !== 'undefined' && createPortal(
           <motion.div 
             className="fixed inset-0 z-50 pointer-events-none transform-gpu"
             style={{ willChange: 'transform' }}
@@ -840,7 +838,8 @@ export const RadioView = memo(({ isActive, searchQuery }: RadioViewProps) => {
                 </div>
               </div>
             </motion.article>
-          </motion.div>
+          </motion.div>,
+          document.body
         )}
       </AnimatePresence>
     </>

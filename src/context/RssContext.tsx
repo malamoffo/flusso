@@ -285,11 +285,11 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       
       const loadedFeeds = await storage.getFeeds();
       
-      // Cleanup old articles, locked to 3 days, throttled to once per day
+      // Cleanup old articles, set to 3 days, throttled to once per day
       const lastCleanupTime = parseInt((await storage.get('lastCleanupTime')) || '0', 10);
       const ONE_DAY = 24 * 60 * 60 * 1000;
       if (Date.now() - lastCleanupTime > ONE_DAY) {
-        await storage.cleanUpOldArticles(3);
+        await storage.cleanUpOldArticles(settings.articleRetentionDays || 3);
         await storage.set('lastCleanupTime', Date.now().toString());
       }
 

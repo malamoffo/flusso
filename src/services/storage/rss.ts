@@ -98,8 +98,8 @@ export const rssStorage = {
     }
   },
 
-  async cleanUpOldArticles(articleRetentionDays: number): Promise<void> {
-    const ARTICLE_LIMIT = articleRetentionDays * 24 * 60 * 60 * 1000;
+  async cleanUpOldArticles(articleRetentionDays: number = 3): Promise<void> {
+    const ARTICLE_LIMIT = (articleRetentionDays || 3) * 24 * 60 * 60 * 1000;
     const now = Date.now();
 
     await db.transaction('rw', [db.feeds, db.articles, db.articleContents], async () => {
@@ -177,13 +177,13 @@ export const rssStorage = {
     } catch (error) {
       console.error('[Storage] Failed to bulkPut articles:', error);
       // Fallback to individual put if bulk fails
-      for (const art of normalized) {
+      await Promise.all(normalized.map(async (art) => {
         try {
           await db.articles.put(art as Article);
         } catch (e) {
           console.error(`[Storage] Individual put failed for article ${art.id}:`, e);
         }
-      }
+      }));
     }
   },
 

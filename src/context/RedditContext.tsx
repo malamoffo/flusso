@@ -72,7 +72,7 @@ export const RedditProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       // Generate mock data if running in dev/web environment and DB is empty
       await generateMockDataIfNeeded();
       
-      await storage.cleanupOldRedditPosts(1);
+      await storage.cleanupOldRedditPosts(settings.redditRetentionDays || 3);
       const loadedSubreddits = await storage.getSubreddits();
       const loadedRedditPosts = await storage.getRedditPosts(0, PAGE_SIZE);
       setRedditPosts(loadedRedditPosts);
@@ -143,7 +143,8 @@ export const RedditProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
             const merged: RedditPost[] = e.data.merged;
             
-            const retentionMs = 1 * 24 * 60 * 60 * 1000;
+            const retentionDays = settings.redditRetentionDays || 3;
+            const retentionMs = retentionDays * 24 * 60 * 60 * 1000;
             const now = Date.now();
             
             let filtered = merged.filter(p => {
@@ -222,7 +223,8 @@ export const RedditProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     setIsLoading(true);
     try {
       const oldestPost = redditPostsRef.current[redditPostsRef.current.length - 1];
-      const targetDateBoundary = oldestPost ? oldestPost.createdUtc - (24 * 60 * 60 * 1000) : Date.now() - (24 * 60 * 60 * 1000);
+      const retentionDays = settings.redditRetentionDays || 3;
+      const targetDateBoundary = oldestPost ? oldestPost.createdUtc - (retentionDays * 24 * 60 * 60 * 1000) : Date.now() - (retentionDays * 24 * 60 * 60 * 1000);
       
       let allNewPosts: RedditPost[] = [];
       let reachedBoundary = false;
@@ -396,12 +398,12 @@ export const RedditProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   }, []);
 
   const enforceRetention = useCallback(async () => {
-    await storage.cleanupOldRedditPosts(1);
+    await storage.cleanupOldRedditPosts(settings.redditRetentionDays || 3);
     const limit = Math.max(PAGE_SIZE, redditPostsRef.current.length, redditOffset.current);
     const loadedRedditPosts = await storage.getRedditPosts(0, limit);
     setRedditPosts(loadedRedditPosts);
     redditOffset.current = loadedRedditPosts.length;
-  }, []);
+  }, [settings.redditRetentionDays]);
 
   // Independent triggers for Reddit (startup, 5min period, resume)
   useEffect(() => {

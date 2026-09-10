@@ -10,14 +10,31 @@ export const defaultSettings: Settings = {
   autoCheckUpdates: false,
   theme: 'dark',
   pureBlack: true,
-  redditRetentionDays: 1,
+  redditRetentionDays: 3,
   articleRetentionDays: 3,
 };
 
 export const settingsStorage = {
   async getSettings(): Promise<Settings> {
     const stored = await db.settings.get('user_settings');
-    return { ...defaultSettings, ...stored };
+    const settings: Settings = { ...defaultSettings, ...stored };
+    let needsUpdate = false;
+    if (!settings.articleRetentionDays || settings.articleRetentionDays < 3) {
+      settings.articleRetentionDays = 3;
+      needsUpdate = true;
+    }
+    if (!settings.redditRetentionDays || settings.redditRetentionDays < 3) {
+      settings.redditRetentionDays = 3;
+      needsUpdate = true;
+    }
+    if (needsUpdate) {
+      try {
+        await db.settings.put({ id: 'user_settings', ...settings });
+      } catch (err) {
+        console.warn('Failed to update migrated settings to DB:', err);
+      }
+    }
+    return settings;
   },
 
   async saveSettings(settings: Settings): Promise<void> {

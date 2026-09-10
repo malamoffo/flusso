@@ -54,6 +54,8 @@ const ProgressBanner = memo(({ filter }: { filter: string }) => {
 });
 
 
+const SECTIONS: Array<'saved' | 'inbox' | 'reddit' | 'radio'> = ['saved', 'inbox', 'reddit', 'radio'];
+
 export default function App() {
   const inboxScrollRef = useRef<HTMLDivElement>(null);
   const savedScrollRef = useRef<HTMLDivElement>(null);
@@ -62,7 +64,15 @@ export default function App() {
   const savedBottomRef = useRef<HTMLDivElement>(null);
   const touchStartX = useRef(0);
   const touchStartY = useRef(0);
+  const touchStartTime = useRef(0);
+  const isSectionSwipeValid = useRef(false);
+  const isVerticalScrolling = useRef(false);
   const isAtTop = useRef(true);
+
+  const [dragOffset, setDragOffset] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const hasSwipedRef = useRef(false);
+  const swipePhaseRef = useRef<'none' | 'undecided' | 'horizontal' | 'vertical'>('none');
 
   const {
     articles, feeds, isLoading, error, setError, failedFeeds, clearFailedFeeds, 
@@ -280,7 +290,7 @@ export default function App() {
     });
   }, [savedUnreadOnly]);
 
-  const handleFilterChange = (newFilter: 'inbox' | 'saved' | 'reddit' | 'radio') => {
+  const handleFilterChange = (newFilter: 'inbox' | 'saved' | 'reddit' | 'radio', isSwipe = false) => {
     if (newFilter === filter) {
       if (filter === 'inbox') {
         handleTypeFilterChange('unread');
@@ -300,14 +310,16 @@ export default function App() {
     
     // Batch updates
     setFilter(newFilter);
-    if (newFilter === 'inbox') {
-      setInboxUnreadOnly(false);
-      if (inboxScrollRef.current) inboxScrollRef.current.scrollTop = 0;
-    } else if (newFilter === 'saved') {
-      if (savedScrollRef.current) savedScrollRef.current.scrollTop = 0;
-    } else if (newFilter === 'reddit') {
-      handleRedditSortChange('new');
-      if (redditScrollRef.current) redditScrollRef.current.scrollTop = 0;
+    if (!isSwipe) {
+      if (newFilter === 'inbox') {
+        setInboxUnreadOnly(false);
+        if (inboxScrollRef.current) inboxScrollRef.current.scrollTop = 0;
+      } else if (newFilter === 'saved') {
+        if (savedScrollRef.current) savedScrollRef.current.scrollTop = 0;
+      } else if (newFilter === 'reddit') {
+        handleRedditSortChange('new');
+        if (redditScrollRef.current) redditScrollRef.current.scrollTop = 0;
+      }
     }
     isAtTop.current = true;
   };
@@ -443,6 +455,14 @@ export default function App() {
   
   const visibleArticles = useMemo(() => activeArticles.slice(0, visibleCount), [activeArticles, visibleCount]);
 
+  const visibleInboxArticles = useMemo(() => {
+    return inboxArticles.slice(0, filter === 'inbox' ? visibleCount : Math.min(inboxArticles.length, 30));
+  }, [inboxArticles, filter, visibleCount]);
+
+  const visibleSavedArticles = useMemo(() => {
+    return memoizedSavedArticles.slice(0, filter === 'saved' ? visibleCount : Math.min(memoizedSavedArticles.length, 30));
+  }, [memoizedSavedArticles, filter, visibleCount]);
+
   const activeIndex = useMemo(() => {
     if (!selectedArticle) return -1;
     return activeArticles.findIndex(a => a.id === selectedArticle.id);
@@ -565,64 +585,161 @@ export default function App() {
   const [blob1, blob2, blob3, blob4] = blobColors;
 
   const handleAppTouchStart = (e: React.TouchEvent) => {
-    const target = e.target as HTMLElement;
-    
-    // Check if the touch target or any parent is a card, interactive, or modal element
-    let current: HTMLElement | null = target;
-    let isInsideItemOrCard = false;
-    
-    while (current && current !== e.currentTarget) {
-      const tagName = current.tagName;
-      const classList = current.classList;
-      
-      if (
-        ['BUTTON', 'INPUT', 'TEXTAREA', 'SELECT', 'A'].includes(tagName) || 
-        current.getAttribute('role') === 'button'
-      ) {
-        isInsideItemOrCard = true;
-        break;
-      }
-      
-      if (
-        classList.contains('swipeable-item') ||
-        classList.contains('reddit-card') ||
-        classList.contains('station-card') ||
-        classList.contains('active-reader') ||
-        classList.contains('settings-modal') ||
-        classList.contains('custom-modal') ||
-        tagName === 'LI' ||
-        current.id === 'article-reader-content' ||
-        // Check general relative item wrappers
-        (classList.contains('relative') && classList.contains('w-full') && current.querySelector('.rounded-3xl') !== null)
-      ) {
-        isInsideItemOrCard = true;
-        break;
-      }
-      
-      current = current.parentElement;
-    }
-
-    if (isInsideItemOrCard) {
-      touchStartX.current = 0;
-      touchStartY.current = 0;
-    } else {
-      touchStartX.current = e.touches[0].clientX;
-      touchStartY.current = e.touches[0].clientY;
-    }
+    // Pull-to-refresh handling
     hookHandleTouchStart(e);
-  };
 
-  const handleAppTouchMove = (e: React.TouchEvent) => {
-    hookHandleTouchMove(e);
-  };
+    hasSwipedRef.current = false;
 
-  const handleAppTouchEnd = (e: React.TouchEvent) => {
-    if (touchStartX.current === 0) {
-      hookHandleTouchEnd();
+    // Se ci sono lettori o modali aperti, disabilita lo swipe tra sezioni
+    if (selectedArticle || selectedRedditPost || selectedImage || isSettingsOpen || webViewUrl) {
+      isSectionSwipeValid.current = false;
+      swipePhaseRef.current = 'none';
       return;
     }
 
+    const target = e.target as HTMLElement | null;
+
+    // Disabilita lo swipe se il tocco è su modali z-50 o sulla bottom navigation bar
+    if (
+      target?.closest('.fixed.inset-0.z-50') ||
+      target?.closest('.fixed.z-50') ||
+      target?.closest('.fixed.bottom-0')
+    ) {
+      isSectionSwipeValid.current = false;
+      swipePhaseRef.current = 'none';
+      return;
+    }
+
+    // Disabilita se si toccano elementi di input o interattivi
+    if (target?.closest('button, input, textarea, select, a, [role="button"], input[type="range"]')) {
+      isSectionSwipeValid.current = false;
+      swipePhaseRef.current = 'none';
+      return;
+    }
+
+    // REGOLA SPECIALE RICHIESTA DALL'UTENTE:
+    // Nella sezione dei preferiti lo swipe tra sezioni deve funzionare solo negli spazi vuoti
+    // in modo da non interferire con lo swipe sugli articoli che serve per toglierli dai preferiti.
+    if (filter === 'saved') {
+      const isOverSavedArticle = !!(
+        target?.closest('[data-saved-article="true"]') ||
+        target?.closest('.saved-article-item') ||
+        target?.closest('article')
+      );
+
+      if (isOverSavedArticle) {
+        // Tocco sopra un articolo dei preferiti: non attivare lo swipe tra sezioni
+        isSectionSwipeValid.current = false;
+        swipePhaseRef.current = 'none';
+        return;
+      }
+    }
+
+    // Tracciamento inizio swipe orizzontale
+    touchStartX.current = e.touches[0].clientX;
+    touchStartY.current = e.touches[0].clientY;
+    touchStartTime.current = Date.now();
+    isSectionSwipeValid.current = true;
+    swipePhaseRef.current = 'undecided';
+  };
+
+  const handleAppTouchMove = (e: React.TouchEvent) => {
+    if (swipePhaseRef.current !== 'horizontal') {
+      hookHandleTouchMove(e);
+    }
+
+    if (!isSectionSwipeValid.current || swipePhaseRef.current === 'vertical') return;
+
+    const currentX = e.touches[0].clientX;
+    const currentY = e.touches[0].clientY;
+    const deltaX = currentX - touchStartX.current;
+    const deltaY = currentY - touchStartY.current;
+
+    // Rileva se il movimento è verticale (scroll lista) o orizzontale (swipe tra sezioni)
+    if (swipePhaseRef.current === 'undecided') {
+      if (Math.abs(deltaY) > 8 && Math.abs(deltaY) > Math.abs(deltaX)) {
+        swipePhaseRef.current = 'vertical';
+        isSectionSwipeValid.current = false;
+        return;
+      }
+      if (Math.abs(deltaX) > 8 && Math.abs(deltaX) > Math.abs(deltaY)) {
+        swipePhaseRef.current = 'horizontal';
+        hasSwipedRef.current = true;
+        setIsDragging(true);
+      }
+    }
+
+    if (swipePhaseRef.current === 'horizontal') {
+      const currentIndex = SECTIONS.indexOf(filter);
+      let calculatedOffset = deltaX;
+
+      // Resistenza elastica (rubber-banding) alle estremità
+      if ((currentIndex === 0 && deltaX > 0) || (currentIndex === SECTIONS.length - 1 && deltaX < 0)) {
+        calculatedOffset = deltaX * 0.28;
+      }
+
+      setDragOffset(calculatedOffset);
+    }
+  };
+
+  const handleAppTouchEnd = (e: React.TouchEvent) => {
     hookHandleTouchEnd();
+
+    if (!isSectionSwipeValid.current || swipePhaseRef.current !== 'horizontal') {
+      isSectionSwipeValid.current = false;
+      swipePhaseRef.current = 'none';
+      if (isDragging) {
+        setIsDragging(false);
+        setDragOffset(0);
+      }
+      return;
+    }
+
+    const endTouch = e.changedTouches[0];
+    const finalDeltaX = endTouch ? endTouch.clientX - touchStartX.current : dragOffset;
+    const deltaTime = Date.now() - touchStartTime.current;
+    const velocity = Math.abs(finalDeltaX) / Math.max(deltaTime, 1);
+    const screenWidth = typeof window !== 'undefined' ? window.innerWidth : 360;
+
+    const currentIndex = SECTIONS.indexOf(filter);
+    let targetIndex = currentIndex;
+
+    // Soglie di attivazione: distanza (>20% larghezza schermo o >55px) oppure flick rapido (>35px con velocità)
+    const isDistanceReached = Math.abs(finalDeltaX) > Math.min(screenWidth * 0.2, 80) || Math.abs(finalDeltaX) > 55;
+    const isFlick = Math.abs(finalDeltaX) > 35 && velocity > 0.35;
+
+    if (isDistanceReached || isFlick) {
+      if (finalDeltaX < 0 && currentIndex < SECTIONS.length - 1) {
+        // Swipe verso sinistra -> passa alla sezione successiva (a destra)
+        targetIndex = currentIndex + 1;
+      } else if (finalDeltaX > 0 && currentIndex > 0) {
+        // Swipe verso destra -> passa alla sezione precedente (a sinistra)
+        targetIndex = currentIndex - 1;
+      }
+    }
+
+    // Termina il drag istantaneo e azzera offset
+    setIsDragging(false);
+    setDragOffset(0);
+
+    if (targetIndex !== currentIndex) {
+      handleFilterChange(SECTIONS[targetIndex], true);
+    }
+
+    isSectionSwipeValid.current = false;
+    swipePhaseRef.current = 'none';
+
+    // Blocca temporaneamente click accidentali sulle card dopo uno swipe
+    setTimeout(() => {
+      hasSwipedRef.current = false;
+    }, 120);
+  };
+
+  const handleClickCapture = (e: React.MouseEvent) => {
+    if (hasSwipedRef.current) {
+      e.stopPropagation();
+      e.preventDefault();
+    }
   };
 
   return (
@@ -635,6 +752,8 @@ export default function App() {
       onTouchStart={handleAppTouchStart}
       onTouchMove={handleAppTouchMove}
       onTouchEnd={handleAppTouchEnd}
+      onTouchCancel={handleAppTouchEnd}
+      onClickCapture={handleClickCapture}
     >
       <div className="fixed inset-0 z-[0] pointer-events-none overflow-hidden">
         <div className={cn("absolute -top-[10%] -left-[10%] w-[70vw] h-[70vh] rounded-full blur-[80px] opacity-100 transition-colors duration-700 transform-gpu", blob1)} />
@@ -824,100 +943,114 @@ export default function App() {
         <ProgressBanner filter={filter} />
       </div>
 
-      <div className="flex-1 relative overflow-hidden">
+      <div className="flex-1 relative overflow-hidden w-full h-full">
         <div 
-          ref={inboxScrollRef}
-          onScroll={(e) => handleScroll(e, 'inbox')}
-          className={cn(
-            "absolute inset-0 overflow-y-auto pb-24 pt-0 transition-opacity duration-300 transform-gpu will-change-scroll scrollbar-hide",
-            filter === 'inbox' ? "z-10 opacity-100 pointer-events-auto" : "z-0 opacity-0 pointer-events-none"
-          )}
+          className="w-full h-full flex flex-row flex-nowrap transform-gpu will-change-transform"
+          style={{
+            transform: `translate3d(calc(${-Math.max(0, SECTIONS.indexOf(filter)) * 100}% + ${dragOffset}px), 0, 0)`,
+            transition: isDragging ? 'none' : 'transform 0.32s cubic-bezier(0.2, 0.9, 0.3, 1)',
+          }}
         >
-            <FeedList
-              articles={filter === 'inbox' ? visibleArticles : []}
-              feedsMap={feedsMap}
-              settings={settings}
-              handleArticleClick={handleArticleClick}
-              markAsRead={markAsReadWithPersistence}
-              toggleRead={toggleReadWithPersistence}
-              toggleFavorite={toggleFavorite}
-              handleRemoveArticle={handleRemoveArticle}
-              onVisibilityChange={filter === 'inbox' ? handleVisibilityChange : undefined}
-              isSavedSection={false}
-              isActive={filter === 'inbox'}
-              hasMoreArticles={hasMoreArticles}
-              isLoading={isLoading}
-              loadMoreArticles={loadMoreArticles}
-              scrollElementRef={inboxScrollRef}
-            />
-        </div>
-
-        <div 
-          ref={savedScrollRef}
-          onScroll={(e) => handleScroll(e, 'saved')}
-          className={cn(
-            "absolute inset-0 overflow-y-auto pb-24 pt-0 transition-opacity duration-300 transform-gpu will-change-scroll scrollbar-hide",
-            filter === 'saved' ? "z-10 opacity-100 pointer-events-auto" : "z-0 opacity-0 pointer-events-none"
-          )}
-        >
-          <div className="flex-1 max-w-4xl mx-auto px-1 sm:px-2 py-2 space-y-1.5">
-            <AnimatePresence initial={false} mode="sync">
-              {(filter === 'saved' ? visibleArticles : [])
-                .map((item, idx) => (
-                  <SwipeableArticleItem
-                    key={`saved-${item.id}-${idx}`}
-                    article={item as any}
-                    feedName={feedsMap.get((item as any).feedId)?.title || 'Unknown Feed'}
-                    feedImageUrl={feedsMap.get((item as any).feedId)?.imageUrl}
-                    settings={settings}
-                    onClick={handleArticleClick}
-                    onMarkAsRead={markAsReadWithPersistence}
-                    toggleRead={toggleReadWithPersistence}
-                    toggleFavorite={toggleFavorite}
-                    onRemove={handleRemoveArticle}
-                    isSavedSection={true}
-                    filter="saved"
-                  />
-                ))}
-            </AnimatePresence>
-            {savedCount === 0 && (
-              <div className="flex flex-col items-center justify-center h-64 text-gray-500 px-6 text-center">
-                <Star className="w-16 h-16 mb-4 text-yellow-500/40 shadow-[0_0_20px_rgba(234,179,8,0.2)]" />
-                <p className="text-lg font-medium text-white mb-1">No favorites yet</p>
-                <p className="text-sm">Tieni premuto per 1 secondo su un articolo per salvarlo nei preferiti.</p>
+          {/* Panel 0: Saved */}
+          <div className="w-full h-full flex-shrink-0 relative overflow-hidden">
+            <div 
+              ref={savedScrollRef}
+              onScroll={(e) => handleScroll(e, 'saved')}
+              className="w-full h-full overflow-y-auto pb-24 pt-0 transform-gpu will-change-scroll scrollbar-hide"
+            >
+              <div className="flex-1 max-w-4xl mx-auto px-1 sm:px-2 py-2 space-y-1.5">
+                <AnimatePresence initial={false} mode="sync">
+                  {visibleSavedArticles.map((item, idx) => (
+                    <SwipeableArticleItem
+                      key={`saved-${item.id}-${idx}`}
+                      article={item as any}
+                      feedName={feedsMap.get((item as any).feedId)?.title || 'Unknown Feed'}
+                      feedImageUrl={feedsMap.get((item as any).feedId)?.imageUrl}
+                      settings={settings}
+                      onClick={handleArticleClick}
+                      onMarkAsRead={markAsReadWithPersistence}
+                      toggleRead={toggleReadWithPersistence}
+                      toggleFavorite={toggleFavorite}
+                      onRemove={handleRemoveArticle}
+                      isSavedSection={true}
+                      filter="saved"
+                    />
+                  ))}
+                </AnimatePresence>
+                {savedCount === 0 && (
+                  <div className="flex flex-col items-center justify-center h-64 text-gray-500 px-6 text-center">
+                    <Star className="w-16 h-16 mb-4 text-yellow-500/40 shadow-[0_0_20px_rgba(234,179,8,0.2)]" />
+                    <p className="text-lg font-medium text-white mb-1">No favorites yet</p>
+                    <p className="text-sm">Tieni premuto per 1 secondo su un articolo per salvarlo nei preferiti.</p>
+                  </div>
+                )}
+                <div className="h-20 flex items-center justify-center">
+                  {hasMoreArticles && (
+                    <Loader2 className="w-6 h-6 text-gray-400 animate-spin" />
+                  )}
+                </div>
               </div>
-            )}
-            <div className="h-20 flex items-center justify-center">
-              {hasMoreArticles && (
-                <Loader2 className="w-6 h-6 text-gray-400 animate-spin" />
-              )}
             </div>
           </div>
-        </div>
 
-        <RedditListView
-          isActive={filter === 'reddit'}
-          posts={filteredRedditPosts}
-          onPostClick={(post) => {
-            setSelectedRedditPost(post);
-            if (!post.isRead) markRedditAsRead(post.id);
-          }}
-          onImageClick={setSelectedImage}
-          onVisibilityChange={handleRedditVisibilityChange}
-          isLoading={isRedditLoading}
-          refreshReddit={refreshReddit}
-          loadMoreReddit={loadMoreReddit}
-          settings={settings}
-          onMarkAsRead={markRedditAsRead}
-          toggleRead={toggleRedditRead}
-          toggleFavorite={toggleRedditFavorite}
-          scrollRef={redditScrollRef}
-          handleScroll={(e) => handleScroll(e, 'reddit')}
-        />
-        <RadioView
-          isActive={filter === 'radio'}
-          searchQuery={searchQuery}
-        />
+          {/* Panel 1: Inbox */}
+          <div className="w-full h-full flex-shrink-0 relative overflow-hidden">
+            <div 
+              ref={inboxScrollRef}
+              onScroll={(e) => handleScroll(e, 'inbox')}
+              className="w-full h-full overflow-y-auto pb-24 pt-0 transform-gpu will-change-scroll scrollbar-hide"
+            >
+              <FeedList
+                articles={visibleInboxArticles}
+                feedsMap={feedsMap}
+                settings={settings}
+                handleArticleClick={handleArticleClick}
+                markAsRead={markAsReadWithPersistence}
+                toggleRead={toggleReadWithPersistence}
+                toggleFavorite={toggleFavorite}
+                handleRemoveArticle={handleRemoveArticle}
+                onVisibilityChange={filter === 'inbox' ? handleVisibilityChange : undefined}
+                isSavedSection={false}
+                isActive={filter === 'inbox'}
+                hasMoreArticles={hasMoreArticles}
+                isLoading={isLoading}
+                loadMoreArticles={loadMoreArticles}
+                scrollElementRef={inboxScrollRef}
+              />
+            </div>
+          </div>
+
+          {/* Panel 2: Reddit */}
+          <div className="w-full h-full flex-shrink-0 relative overflow-hidden">
+            <RedditListView
+              isActive={filter === 'reddit'}
+              posts={filteredRedditPosts}
+              onPostClick={(post) => {
+                setSelectedRedditPost(post);
+                if (!post.isRead) markRedditAsRead(post.id);
+              }}
+              onImageClick={setSelectedImage}
+              onVisibilityChange={handleRedditVisibilityChange}
+              isLoading={isRedditLoading}
+              refreshReddit={refreshReddit}
+              loadMoreReddit={loadMoreReddit}
+              settings={settings}
+              onMarkAsRead={markRedditAsRead}
+              toggleRead={toggleRedditRead}
+              toggleFavorite={toggleRedditFavorite}
+              scrollRef={redditScrollRef}
+              handleScroll={(e) => handleScroll(e, 'reddit')}
+            />
+          </div>
+
+          {/* Panel 3: Radio */}
+          <div className="w-full h-full flex-shrink-0 relative overflow-hidden">
+            <RadioView
+              isActive={filter === 'radio'}
+              searchQuery={searchQuery}
+            />
+          </div>
+        </div>
       </div>
 
       {selectedImage && (

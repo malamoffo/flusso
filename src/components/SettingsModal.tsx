@@ -743,14 +743,21 @@ export const SettingsModal = React.memo(function SettingsModal({
                         Articles Retention
                       </label>
                       <select
-                        value={settings.articleRetentionDays}
-                        onChange={(e) => updateSettings({ articleRetentionDays: parseInt(e.target.value) })}
+                        value={settings.articleRetentionDays || 3}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value, 10);
+                          updateSettings({ articleRetentionDays: val, redditRetentionDays: val });
+                        }}
                         className="block w-full pl-3 pr-10 py-2 text-base border-gray-700 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-lg bg-gray-800 text-white"
                       >
-                        <option value={1}>1 Day</option>
-                        <option value={3}>3 Days</option>
+                        <option value={3}>3 Days (Default)</option>
                         <option value={7}>7 Days</option>
+                        <option value={14}>14 Days</option>
+                        <option value={30}>30 Days</option>
                       </select>
+                      <p className="text-xs text-gray-500 mt-2">
+                        Gli articoli non salvati nei preferiti e più vecchi del periodo di retention vengono rimossi automaticamente per mantenere l'app scattante e leggera.
+                      </p>
                     </div>
                   </div>
                 </section>

@@ -454,9 +454,9 @@ export const redditStorage = {
     }
   },
   
-  async cleanupOldRedditPosts(retentionDays: number = 1): Promise<void> {
+  async cleanupOldRedditPosts(retentionDays: number = 3): Promise<void> {
     try {
-      const retentionMs = retentionDays * 24 * 60 * 60 * 1000;
+      const retentionMs = (retentionDays || 3) * 24 * 60 * 60 * 1000;
       const now = Date.now();
       
       const posts = await this.getRedditPosts();
