@@ -9,6 +9,7 @@ import { App as CapacitorApp } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
 import { Logger } from '../lib/logger';
 import { isPluginAvailable, isNative } from '../utils/platform';
+import { radioService } from '../services/radioService';
 
 interface RadioViewProps {
   isActive: boolean;
@@ -18,8 +19,8 @@ interface RadioViewProps {
 const STORAGE_KEY = 'flusso_radio_favorites';
 
 export const RadioView = memo(({ isActive, searchQuery }: RadioViewProps) => {
-  const [stations, setStations] = useState<RadioStation[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [stations, setStations] = useState<RadioStation[]>(() => radioService.getStations());
+  const [isLoading, setIsLoading] = useState(() => radioService.isLoading() && radioService.getStations().length === 0);
   const [favorites, setFavorites] = useState<Record<string, RadioStation>>(() => {
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
@@ -234,64 +235,27 @@ export const RadioView = memo(({ isActive, searchQuery }: RadioViewProps) => {
     }
   }, []);
 
-  const fetchStations = async (query: string = '') => {
-    setIsLoading(true);
-    const mirrors = [
-      'https://de1.api.radio-browser.info',
-      'https://at1.api.radio-browser.info',
-      'https://nl1.api.radio-browser.info',
-      'https://fr1.api.radio-browser.info',
-    ];
-
-    let lastError: any = null;
-    let success = false;
-
-    for (const mirror of mirrors) {
-      try {
-        const response = await fetch(`${mirror}/json/stations/search`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            countrycode: 'IT',
-            limit: 100,
-            name: query,
-            hidebroken: true,
-            order: 'clickcount',
-            reverse: true,
-          }),
-        });
-        
-        if (!response.ok) {
-          throw new Error(`HTTP status ${response.status}`);
-        }
-        
-        const data = await response.json();
-        setStations(Array.isArray(data) ? data : []);
-        success = true;
-        break; // Stop attempting other mirrors on success
-      } catch (error: any) {
-        console.warn(`Failed to fetch stations from ${mirror} (Error: ${error?.message || error}). Trying next mirror...`);
-        lastError = error;
-      }
-    }
-
-    if (!success) {
-      console.error('Failed to fetch stations:', lastError);
-    }
-    setIsLoading(false);
-  };
+  // Listen to background Web Worker radio service updates
+  useEffect(() => {
+    const unsubscribe = radioService.subscribe((state) => {
+      setStations(state.stations);
+      setIsLoading(state.isLoading);
+    });
+    return unsubscribe;
+  }, []);
 
   useEffect(() => {
+    if (!isActive) return;
     const handler = setTimeout(() => {
-      if (isActive) fetchStations(searchQuery);
-    }, 500);
+      radioService.search(searchQuery);
+    }, 400);
     return () => clearTimeout(handler);
   }, [searchQuery, isActive]);
 
   useEffect(() => {
-    if (isActive && stations.length === 0) fetchStations();
+    if (isActive && radioService.getStations().length === 0) {
+      radioService.preload();
+    }
   }, [isActive]);
 
   useEffect(() => {

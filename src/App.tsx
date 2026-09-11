@@ -13,6 +13,8 @@ import { SwipeableRedditPost } from './components/SwipeableRedditPost';
 import { storage } from './services/storage';
 import { RedditListView } from './components/RedditListView';
 import { ErrorNotification } from './components/ErrorNotification';
+import { SectionGlow } from './components/SectionGlow';
+import { radioService } from './services/radioService';
 import { motion, AnimatePresence, useMotionValue, useTransform, animate } from 'framer-motion';
 
 const SettingsModal = createLazyModalWithState(() => import('./components/SettingsModal').then(m => ({ default: m.SettingsModal })), 'SettingsModal', ModalFallback);
@@ -133,6 +135,11 @@ export default function App() {
         setTimeout(doPrefetch, 2000);
       }
     }
+  }, []);
+
+  useEffect(() => {
+    // Isolated parallel background Web Worker thread: preloads radio stations before opening Radio view
+    radioService.preload();
   }, []);
 
   useEffect(() => {
@@ -553,17 +560,107 @@ export default function App() {
 
   const feedsMap = useMemo(() => new Map(feeds.map(f => [f.id, f])), [feeds]);
 
-  const scrollToTop = () => {
+  const scrollAnimRef = useRef<number | null>(null);
+
+  const scrollToTop = useCallback(() => {
     let activeScrollRef;
     if (filter === 'inbox') activeScrollRef = inboxScrollRef;
     else if (filter === 'saved') activeScrollRef = savedScrollRef;
     else if (filter === 'reddit') activeScrollRef = redditScrollRef;
 
-    if (activeScrollRef?.current) {
-      activeScrollRef.current.scrollTo({ top: 0, behavior: 'smooth' });
-      isAtTop.current = true;
+    const container = activeScrollRef?.current;
+    if (!container) return;
+
+    if (scrollAnimRef.current !== null) {
+      cancelAnimationFrame(scrollAnimRef.current);
+      scrollAnimRef.current = null;
     }
-  };
+
+    const currentScrollY = container.scrollTop;
+    if (currentScrollY <= 0) {
+      isAtTop.current = true;
+      setHeaderScrolled(false);
+      return;
+    }
+
+    // Optimization: If very far down (> 2500px), immediately clamp to 1500px
+    // to avoid layout thrashing across hundreds of virtual elements while keeping smooth visual descent
+    if (currentScrollY > 2500) {
+      container.scrollTop = 1500;
+    }
+
+    const startY = container.scrollTop;
+    const duration = Math.min(380, Math.max(200, Math.round(Math.sqrt(startY) * 8)));
+    const startTime = performance.now();
+
+    // Ease-out cubic: 1 - (1 - t)^3
+    const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
+
+    let userInterrupted = false;
+    const onUserTouch = () => {
+      userInterrupted = true;
+      if (scrollAnimRef.current !== null) {
+        cancelAnimationFrame(scrollAnimRef.current);
+        scrollAnimRef.current = null;
+      }
+      cleanup();
+    };
+
+    const cleanup = () => {
+      container.removeEventListener('touchstart', onUserTouch);
+      container.removeEventListener('wheel', onUserTouch);
+    };
+
+    container.addEventListener('touchstart', onUserTouch, { passive: true, once: true });
+    container.addEventListener('wheel', onUserTouch, { passive: true, once: true });
+
+    const step = (currentTime: number) => {
+      if (userInterrupted) return;
+
+      const elapsed = currentTime - startTime;
+      const progress = Math.min(1, elapsed / duration);
+      const ease = easeOutCubic(progress);
+
+      const targetY = Math.round(startY * (1 - ease));
+      container.scrollTop = targetY;
+
+      if (progress < 1) {
+        scrollAnimRef.current = requestAnimationFrame(step);
+      } else {
+        container.scrollTop = 0;
+        isAtTop.current = true;
+        setHeaderScrolled(false);
+        scrollAnimRef.current = null;
+        cleanup();
+
+        // Safety verification in the next frame to overcome any concurrent layout shift / DOM update
+        requestAnimationFrame(() => {
+          if (!userInterrupted && container.scrollTop !== 0) {
+            container.scrollTop = 0;
+            isAtTop.current = true;
+            setHeaderScrolled(false);
+          }
+        });
+        setTimeout(() => {
+          if (!userInterrupted && container.scrollTop !== 0) {
+            container.scrollTop = 0;
+            isAtTop.current = true;
+            setHeaderScrolled(false);
+          }
+        }, 60);
+      }
+    };
+
+    scrollAnimRef.current = requestAnimationFrame(step);
+  }, [filter]);
+
+  useEffect(() => {
+    return () => {
+      if (scrollAnimRef.current !== null) {
+        cancelAnimationFrame(scrollAnimRef.current);
+      }
+    };
+  }, []);
 
   const themeColorRgb = useMemo(() => {
     const hex = settings.themeColor.replace('#', '');
@@ -794,39 +891,51 @@ export default function App() {
           <div className="flex items-center gap-2">
             <AnimatePresence mode="wait">
               {filter === 'inbox' && (
-                <motion.div
+                <motion.button
                   key="inbox-status"
+                  type="button"
+                  onClick={scrollToTop}
+                  whileTap={{ scale: 0.95 }}
                   initial={{ opacity: 0, scale: 0.9, y: -2 }}
                   animate={{ opacity: 1, scale: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.9, y: 2 }}
                   transition={{ duration: 0.15 }}
-                  className="text-[10px] font-bold uppercase tracking-widest text-blue-500 dark:text-blue-400 bg-blue-500/10 px-2.5 py-1 rounded-full border border-blue-500/15 dark:border-blue-500/25 flex items-center gap-1 shadow-sm"
+                  className="text-[10px] font-bold uppercase tracking-widest text-blue-500 dark:text-blue-400 bg-blue-500/10 px-2.5 py-1 rounded-full border border-blue-500/15 dark:border-blue-500/25 flex items-center gap-1 shadow-sm cursor-pointer select-none active:opacity-75"
+                  title="Torna all'inizio"
                 >
                   <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
                   {inboxUnreadOnly ? "Unread" : "All"}
-                </motion.div>
+                </motion.button>
               )}
               {filter === 'saved' && (
-                <motion.div
+                <motion.button
                   key="saved-status"
+                  type="button"
+                  onClick={scrollToTop}
+                  whileTap={{ scale: 0.95 }}
                   initial={{ opacity: 0, scale: 0.9, y: -2 }}
                   animate={{ opacity: 1, scale: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.9, y: 2 }}
                   transition={{ duration: 0.15 }}
-                  className="text-[10px] font-bold uppercase tracking-widest text-yellow-600 dark:text-yellow-400 bg-yellow-500/10 px-2.5 py-1 rounded-full border border-yellow-500/15 dark:border-yellow-500/25 flex items-center gap-1 shadow-sm"
+                  className="text-[10px] font-bold uppercase tracking-widest text-yellow-600 dark:text-yellow-400 bg-yellow-500/10 px-2.5 py-1 rounded-full border border-yellow-500/15 dark:border-yellow-500/25 flex items-center gap-1 shadow-sm cursor-pointer select-none active:opacity-75"
+                  title="Torna all'inizio"
                 >
                   <span className="w-1.5 h-1.5 rounded-full bg-yellow-500" />
                   Saved
-                </motion.div>
+                </motion.button>
               )}
               {filter === 'reddit' && (
-                <motion.div
+                <motion.button
                   key="reddit-status"
+                  type="button"
+                  onClick={scrollToTop}
+                  whileTap={{ scale: 0.95 }}
                   initial={{ opacity: 0, scale: 0.9, y: -2 }}
                   animate={{ opacity: 1, scale: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.9, y: 2 }}
                   transition={{ duration: 0.15 }}
-                  className="text-[10px] font-bold uppercase tracking-widest text-purple-600 dark:text-purple-400 bg-purple-500/10 px-2.5 py-1 rounded-full border border-purple-500/15 dark:border-purple-500/25 flex items-center gap-1 shadow-sm"
+                  className="text-[10px] font-bold uppercase tracking-widest text-purple-600 dark:text-purple-400 bg-purple-500/10 px-2.5 py-1 rounded-full border border-purple-500/15 dark:border-purple-500/25 flex items-center gap-1 shadow-sm cursor-pointer select-none active:opacity-75"
+                  title="Torna all'inizio"
                 >
                   {redditSort === 'hot' ? (
                     <>
@@ -839,20 +948,24 @@ export default function App() {
                       New
                     </>
                   )}
-                </motion.div>
+                </motion.button>
               )}
               {filter === 'radio' && (
-                <motion.div
+                <motion.button
                   key="radio-status"
+                  type="button"
+                  onClick={scrollToTop}
+                  whileTap={{ scale: 0.95 }}
                   initial={{ opacity: 0, scale: 0.9, y: -2 }}
                   animate={{ opacity: 1, scale: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.9, y: 2 }}
                   transition={{ duration: 0.15 }}
-                  className="text-[10px] font-bold uppercase tracking-widest text-red-600 dark:text-red-400 bg-red-500/10 px-2.5 py-1 rounded-full border border-red-500/15 dark:border-red-500/25 flex items-center gap-1 shadow-sm"
+                  className="text-[10px] font-bold uppercase tracking-widest text-red-600 dark:text-red-400 bg-red-500/10 px-2.5 py-1 rounded-full border border-red-500/15 dark:border-red-500/25 flex items-center gap-1 shadow-sm cursor-pointer select-none active:opacity-75"
+                  title="Torna all'inizio"
                 >
                   <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-ping" style={{ animationDuration: '2s' }} />
                   Radio
-                </motion.div>
+                </motion.button>
               )}
             </AnimatePresence>
           </div>
@@ -953,10 +1066,12 @@ export default function App() {
         >
           {/* Panel 0: Saved */}
           <div className="w-full h-full flex-shrink-0 relative overflow-hidden">
+            <SectionGlow variant="saved" />
             <div 
               ref={savedScrollRef}
               onScroll={(e) => handleScroll(e, 'saved')}
-              className="w-full h-full overflow-y-auto pb-24 pt-0 transform-gpu will-change-scroll scrollbar-hide"
+              style={{ overflowAnchor: 'none' }}
+              className="w-full h-full overflow-y-auto pb-24 pt-0 transform-gpu will-change-scroll scrollbar-hide relative z-10"
             >
               <div className="flex-1 max-w-4xl mx-auto px-1 sm:px-2 py-2 space-y-1.5">
                 <AnimatePresence initial={false} mode="sync">
@@ -995,10 +1110,12 @@ export default function App() {
 
           {/* Panel 1: Inbox */}
           <div className="w-full h-full flex-shrink-0 relative overflow-hidden">
+            <SectionGlow variant="inbox" themeColorRgb={themeColorRgb} />
             <div 
               ref={inboxScrollRef}
               onScroll={(e) => handleScroll(e, 'inbox')}
-              className="w-full h-full overflow-y-auto pb-24 pt-0 transform-gpu will-change-scroll scrollbar-hide"
+              style={{ overflowAnchor: 'none' }}
+              className="w-full h-full overflow-y-auto pb-24 pt-0 transform-gpu will-change-scroll scrollbar-hide relative z-10"
             >
               <FeedList
                 articles={visibleInboxArticles}
@@ -1022,6 +1139,7 @@ export default function App() {
 
           {/* Panel 2: Reddit */}
           <div className="w-full h-full flex-shrink-0 relative overflow-hidden">
+            <SectionGlow variant="reddit" />
             <RedditListView
               isActive={filter === 'reddit'}
               posts={filteredRedditPosts}
@@ -1045,6 +1163,7 @@ export default function App() {
 
           {/* Panel 3: Radio */}
           <div className="w-full h-full flex-shrink-0 relative overflow-hidden">
+            <SectionGlow variant="radio" />
             <RadioView
               isActive={filter === 'radio'}
               searchQuery={searchQuery}

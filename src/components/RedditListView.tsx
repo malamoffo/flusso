@@ -64,6 +64,7 @@ export const RedditListView = memo(({
     <motion.main
       ref={scrollRef as any}
       onScroll={handleScroll}
+      style={{ overflowAnchor: 'none' }}
       className="w-full h-full overflow-y-auto transform-gpu will-change-scroll pb-32 pt-0 bg-transparent scrollbar-hide pointer-events-auto"
       initial={false}
     >
