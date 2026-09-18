@@ -92,6 +92,30 @@ export const rssService = {
                   await (mergeChain = mergeChain.then(async () => {
                     // Push to the final collection that will be saved to db
                     allFinalArticles.push(...genuinelyNewArticles);
+                    // Progressively update articles in UI so user immediately sees articles as they arrive
+                    onUpdateArticles(prev => {
+                      const merged = [...prev];
+                      const uniqueLinks = new Set(merged.map(x => x.link));
+                      let stateChanged = false;
+                      for (const a of genuinelyNewArticles) {
+                        if (!uniqueLinks.has(a.link)) {
+                          merged.push(a);
+                          uniqueLinks.add(a.link);
+                          stateChanged = true;
+                        }
+                      }
+                      if (stateChanged) {
+                        merged.sort((a, b) => {
+                          const timeA = typeof a.pubDate === 'string' ? new Date(a.pubDate).getTime() : a.pubDate;
+                          const timeB = typeof b.pubDate === 'string' ? new Date(b.pubDate).getTime() : b.pubDate;
+                          const valA = isNaN(timeA) ? 0 : timeA;
+                          const valB = isNaN(timeB) ? 0 : timeB;
+                          if (valB !== valA) return valB - valA;
+                          return b.id.localeCompare(a.id);
+                        });
+                      }
+                      return stateChanged ? merged : prev;
+                    });
                   }));
                 }
                 

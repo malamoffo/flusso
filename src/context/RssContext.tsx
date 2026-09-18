@@ -397,32 +397,51 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           isRead: 0 // New articles are always unread
         };
       });
-      await storage.saveArticles(articlesToSave);
       
-      // Update local state to match DB
-      setArticles(prev => {
-        const newArticlesMap = new Map(articlesToSave.map(a => [a.id, a]));
-        return prev.map(a => newArticlesMap.has(a.id) ? newArticlesMap.get(a.id)! : a);
-      });
+      if (articlesToSave.length > 0) {
+        await storage.saveArticles(articlesToSave);
+        
+        // Update local state to include all downloaded articles deduplicated by link/id
+        setArticles(prev => {
+          const articleMap = new Map<string, Article>();
+          for (const a of prev) {
+            articleMap.set(a.link || a.id, a);
+          }
+          for (const a of articlesToSave) {
+            articleMap.set(a.link || a.id, a);
+          }
+          const merged = Array.from(articleMap.values());
+          merged.sort((a, b) => {
+            const timeA = typeof a.pubDate === 'string' ? new Date(a.pubDate).getTime() : a.pubDate;
+            const timeB = typeof b.pubDate === 'string' ? new Date(b.pubDate).getTime() : b.pubDate;
+            return (timeB || 0) - (timeA || 0);
+          });
+          articlesRef.current = merged;
+          return merged;
+        });
+      }
       
       // Fetch latest feeds from storage to avoid overwriting newly added ones
-      const currentFeedsInStorage = await storage.getFeeds();
-      const updatedFeeds = currentFeedsInStorage.map(f => {
-        const refreshed = finalFeeds.find(r => r.id === f.id);
-        if (refreshed) {
-          return refreshed;
-        }
-        return f;
-      });
-      await storage.saveFeeds(updatedFeeds);
-      setFeeds(updatedFeeds);
-      feedsRef.current = updatedFeeds;
+      if (finalFeeds.length > 0) {
+        const currentFeedsInStorage = await storage.getFeeds();
+        const updatedFeeds = currentFeedsInStorage.map(f => {
+          const refreshed = finalFeeds.find(r => r.id === f.id);
+          if (refreshed) {
+            return refreshed;
+          }
+          return f;
+        });
+        await storage.saveFeeds(updatedFeeds);
+        setFeeds(updatedFeeds);
+        feedsRef.current = updatedFeeds;
+      }
       
-      setProgress(p => p ? { ...p, status: "Finalizing..." } : null);
+      setProgress(p => p ? { ...p, status: controller.signal.aborted ? "Interrotto" : "Finalizing..." } : null);
       lastRefresh.current = Date.now();
       await updateCounts();
     } catch (e) {
-      // Failed to refresh feeds or aborted
+      // Failed to refresh feeds or aborted: ensure current counts and partial items are saved
+      await updateCounts();
     } finally {
       setIsLoading(false);
       setProgress(null);

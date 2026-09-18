@@ -43,13 +43,13 @@ const ProgressBanner = memo(({ filter }: { filter: string }) => {
   const mbDownloaded = progress.bytesDownloaded ? (progress.bytesDownloaded / (1024 * 1024)).toFixed(2) : '0.00';
   
   return (
-    <div className="bg-white/5 dark:bg-black/20 backdrop-blur-xl px-4 py-2 text-sm text-gray-900 dark:text-gray-200 flex items-center justify-between border-t border-white/10 dark:border-white/5">
-      <span>Updating feeds...</span>
+    <div className="bg-white/5 dark:bg-black/20 backdrop-blur-xl px-4 py-2 text-sm text-gray-900 dark:text-gray-200 flex items-center justify-between border-t border-white/10 dark:border-white/5 transition-all duration-300">
+      <span className="font-medium text-xs tracking-wide text-gray-300">{progress.status || "Updating feeds..."}</span>
       <div className="flex items-center gap-3">
         {progress.bytesDownloaded !== undefined && (
           <span className="text-xs opacity-75">{mbDownloaded} MB</span>
         )}
-        <span className="font-medium">{progress.current} / {progress.total}</span>
+        <span className="font-medium text-xs text-blue-400">{progress.current} / {progress.total}</span>
       </div>
     </div>
   );
@@ -1061,17 +1061,30 @@ export default function App() {
           className="w-full h-full flex flex-row flex-nowrap transform-gpu will-change-transform"
           style={{
             transform: `translate3d(calc(${-Math.max(0, SECTIONS.indexOf(filter)) * 100}% + ${dragOffset}px), 0, 0)`,
-            transition: isDragging ? 'none' : 'transform 0.32s cubic-bezier(0.2, 0.9, 0.3, 1)',
+            transition: isDragging ? 'none' : 'transform 0.38s cubic-bezier(0.22, 1, 0.36, 1)',
           }}
         >
           {/* Panel 0: Saved */}
-          <div className="w-full h-full flex-shrink-0 relative overflow-hidden">
+          <div 
+            className="w-full h-full flex-shrink-0 relative overflow-hidden transform-gpu"
+            style={{
+              opacity: filter === 'saved' ? 1 : isDragging ? 0.7 : 0.35,
+              transform: filter === 'saved' ? 'scale(1)' : 'scale(0.985)',
+              filter: filter === 'saved' ? 'blur(0px)' : 'blur(0.8px)',
+              transition: isDragging ? 'none' : 'opacity 0.38s cubic-bezier(0.22, 1, 0.36, 1), transform 0.38s cubic-bezier(0.22, 1, 0.36, 1), filter 0.38s ease',
+              pointerEvents: filter === 'saved' ? 'auto' : 'none'
+            }}
+          >
             <SectionGlow variant="saved" />
             <div 
               ref={savedScrollRef}
               onScroll={(e) => handleScroll(e, 'saved')}
-              style={{ overflowAnchor: 'none' }}
-              className="w-full h-full overflow-y-auto pb-24 pt-0 transform-gpu will-change-scroll scrollbar-hide relative z-10"
+              style={{ 
+                overflowAnchor: 'none',
+                maskImage: 'linear-gradient(to bottom, transparent 0px, black 16px, black calc(100% - 24px), transparent 100%)',
+                WebkitMaskImage: 'linear-gradient(to bottom, transparent 0px, black 16px, black calc(100% - 24px), transparent 100%)'
+              }}
+              className="w-full h-full overflow-y-auto pb-24 pt-1 transform-gpu will-change-scroll scrollbar-hide relative z-10"
             >
               <div className="flex-1 max-w-4xl mx-auto px-1 sm:px-2 py-2 space-y-1.5">
                 <AnimatePresence initial={false} mode="sync">
@@ -1109,13 +1122,26 @@ export default function App() {
           </div>
 
           {/* Panel 1: Inbox */}
-          <div className="w-full h-full flex-shrink-0 relative overflow-hidden">
+          <div 
+            className="w-full h-full flex-shrink-0 relative overflow-hidden transform-gpu"
+            style={{
+              opacity: filter === 'inbox' ? 1 : isDragging ? 0.7 : 0.35,
+              transform: filter === 'inbox' ? 'scale(1)' : 'scale(0.985)',
+              filter: filter === 'inbox' ? 'blur(0px)' : 'blur(0.8px)',
+              transition: isDragging ? 'none' : 'opacity 0.38s cubic-bezier(0.22, 1, 0.36, 1), transform 0.38s cubic-bezier(0.22, 1, 0.36, 1), filter 0.38s ease',
+              pointerEvents: filter === 'inbox' ? 'auto' : 'none'
+            }}
+          >
             <SectionGlow variant="inbox" themeColorRgb={themeColorRgb} />
             <div 
               ref={inboxScrollRef}
               onScroll={(e) => handleScroll(e, 'inbox')}
-              style={{ overflowAnchor: 'none' }}
-              className="w-full h-full overflow-y-auto pb-24 pt-0 transform-gpu will-change-scroll scrollbar-hide relative z-10"
+              style={{ 
+                overflowAnchor: 'none',
+                maskImage: 'linear-gradient(to bottom, transparent 0px, black 16px, black calc(100% - 24px), transparent 100%)',
+                WebkitMaskImage: 'linear-gradient(to bottom, transparent 0px, black 16px, black calc(100% - 24px), transparent 100%)'
+              }}
+              className="w-full h-full overflow-y-auto pb-24 pt-1 transform-gpu will-change-scroll scrollbar-hide relative z-10"
             >
               <FeedList
                 articles={visibleInboxArticles}
@@ -1138,7 +1164,16 @@ export default function App() {
           </div>
 
           {/* Panel 2: Reddit */}
-          <div className="w-full h-full flex-shrink-0 relative overflow-hidden">
+          <div 
+            className="w-full h-full flex-shrink-0 relative overflow-hidden transform-gpu"
+            style={{
+              opacity: filter === 'reddit' ? 1 : isDragging ? 0.7 : 0.35,
+              transform: filter === 'reddit' ? 'scale(1)' : 'scale(0.985)',
+              filter: filter === 'reddit' ? 'blur(0px)' : 'blur(0.8px)',
+              transition: isDragging ? 'none' : 'opacity 0.38s cubic-bezier(0.22, 1, 0.36, 1), transform 0.38s cubic-bezier(0.22, 1, 0.36, 1), filter 0.38s ease',
+              pointerEvents: filter === 'reddit' ? 'auto' : 'none'
+            }}
+          >
             <SectionGlow variant="reddit" />
             <RedditListView
               isActive={filter === 'reddit'}
@@ -1162,7 +1197,16 @@ export default function App() {
           </div>
 
           {/* Panel 3: Radio */}
-          <div className="w-full h-full flex-shrink-0 relative overflow-hidden">
+          <div 
+            className="w-full h-full flex-shrink-0 relative overflow-hidden transform-gpu"
+            style={{
+              opacity: filter === 'radio' ? 1 : isDragging ? 0.7 : 0.35,
+              transform: filter === 'radio' ? 'scale(1)' : 'scale(0.985)',
+              filter: filter === 'radio' ? 'blur(0px)' : 'blur(0.8px)',
+              transition: isDragging ? 'none' : 'opacity 0.38s cubic-bezier(0.22, 1, 0.36, 1), transform 0.38s cubic-bezier(0.22, 1, 0.36, 1), filter 0.38s ease',
+              pointerEvents: filter === 'radio' ? 'auto' : 'none'
+            }}
+          >
             <SectionGlow variant="radio" />
             <RadioView
               isActive={filter === 'radio'}
@@ -1181,15 +1225,22 @@ export default function App() {
           whileTap={{ scale: 0.9 }}
           onClick={() => handleFilterChange('saved')}
           className={cn(
-            "relative p-2 rounded-full border-none outline-none",
-            filter === 'saved' ? "text-yellow-500" : "text-gray-500"
+            "relative p-2.5 rounded-full border-none outline-none transition-colors duration-200",
+            filter === 'saved' ? "text-yellow-500" : "text-gray-500 hover:text-gray-300"
           )}
           aria-label="Saved articles"
           aria-pressed={filter === 'saved'}
         >
-          <Star className={cn("w-6 h-6", filter === 'saved' && "drop-shadow-[0_0_8px_rgba(234,179,8,0.5)]")} aria-hidden="true" />
+          {filter === 'saved' && (
+            <motion.div
+              layoutId="activeNavPill"
+              className="absolute inset-0 rounded-full bg-yellow-500/15 border border-yellow-500/30 shadow-[0_0_12px_rgba(234,179,8,0.25)]"
+              transition={{ type: "spring", stiffness: 400, damping: 32 }}
+            />
+          )}
+          <Star className={cn("w-6 h-6 relative z-10 transition-transform duration-200", filter === 'saved' && "scale-105 drop-shadow-[0_0_8px_rgba(234,179,8,0.5)]")} aria-hidden="true" />
           {savedCount > 0 && (
-            <span className="absolute -top-1 -right-1 bg-yellow-500 text-black text-[10px] font-bold px-1.5 py-0.5 rounded-full border-2 border-black">
+            <span className="absolute -top-1 -right-1 bg-yellow-500 text-black text-[10px] font-bold px-1.5 py-0.5 rounded-full border-2 border-black z-20">
               {savedCount > 99 ? '99+' : savedCount}
             </span>
           )}
@@ -1198,15 +1249,22 @@ export default function App() {
           whileTap={{ scale: 0.9 }}
           onClick={() => handleFilterChange('inbox')}
           className={cn(
-            "relative p-2 rounded-full border-none outline-none",
-            filter === 'inbox' ? "text-blue-500" : "text-gray-500"
+            "relative p-2.5 rounded-full border-none outline-none transition-colors duration-200",
+            filter === 'inbox' ? "text-blue-500" : "text-gray-500 hover:text-gray-300"
           )}
           aria-label="Inbox"
           aria-pressed={filter === 'inbox'}
         >
-          <Inbox className={cn("w-6 h-6", filter === 'inbox' && "drop-shadow-[0_0_8px_rgba(59,130,246,0.5)]")} aria-hidden="true" />
+          {filter === 'inbox' && (
+            <motion.div
+              layoutId="activeNavPill"
+              className="absolute inset-0 rounded-full bg-blue-500/15 border border-blue-500/30 shadow-[0_0_12px_rgba(59,130,246,0.25)]"
+              transition={{ type: "spring", stiffness: 400, damping: 32 }}
+            />
+          )}
+          <Inbox className={cn("w-6 h-6 relative z-10 transition-transform duration-200", filter === 'inbox' && "scale-105 drop-shadow-[0_0_8px_rgba(59,130,246,0.5)]")} aria-hidden="true" />
           {unreadCount > 0 && (
-            <span className="absolute -top-1 -right-1 bg-blue-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full border-2 border-black">
+            <span className="absolute -top-1 -right-1 bg-blue-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full border-2 border-black z-20">
               {unreadCount > 99 ? '99+' : unreadCount}
             </span>
           )}
@@ -1218,15 +1276,22 @@ export default function App() {
           onTouchStart={() => (RedditPostReader as any).prefetch?.()}
           onFocus={() => (RedditPostReader as any).prefetch?.()}
           className={cn(
-            "relative p-2 rounded-full border-none outline-none",
-            filter === 'reddit' ? "text-purple-500" : "text-gray-500"
+            "relative p-2.5 rounded-full border-none outline-none transition-colors duration-200",
+            filter === 'reddit' ? "text-purple-500" : "text-gray-500 hover:text-gray-300"
           )}
           aria-label="Reddit"
           aria-pressed={filter === 'reddit'}
         >
-          <MessageSquare className={cn("w-6 h-6", filter === 'reddit' && "drop-shadow-[0_0_8px_rgba(168,85,247,0.5)]")} aria-hidden="true" />
+          {filter === 'reddit' && (
+            <motion.div
+              layoutId="activeNavPill"
+              className="absolute inset-0 rounded-full bg-purple-500/15 border border-purple-500/30 shadow-[0_0_12px_rgba(168,85,247,0.25)]"
+              transition={{ type: "spring", stiffness: 400, damping: 32 }}
+            />
+          )}
+          <MessageSquare className={cn("w-6 h-6 relative z-10 transition-transform duration-200", filter === 'reddit' && "scale-105 drop-shadow-[0_0_8px_rgba(168,85,247,0.5)]")} aria-hidden="true" />
           {redditUnreadCount > 0 && (
-            <span className="absolute -top-1 -right-1 bg-purple-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full border-2 border-black">
+            <span className="absolute -top-1 -right-1 bg-purple-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full border-2 border-black z-20">
               {redditUnreadCount > 99 ? '99+' : redditUnreadCount}
             </span>
           )}
@@ -1238,13 +1303,20 @@ export default function App() {
           onTouchStart={() => (RadioView as any).prefetch?.()}
           onFocus={() => (RadioView as any).prefetch?.()}
           className={cn(
-            "relative p-2 rounded-full border-none outline-none",
-            filter === 'radio' ? "text-red-500" : "text-gray-500"
+            "relative p-2.5 rounded-full border-none outline-none transition-colors duration-200",
+            filter === 'radio' ? "text-red-500" : "text-gray-500 hover:text-gray-300"
           )}
           aria-label="Radio"
           aria-pressed={filter === 'radio'}
         >
-          <Radio className={cn("w-6 h-6", filter === 'radio' && "drop-shadow-[0_0_8px_rgba(239,68,68,0.5)]")} aria-hidden="true" />
+          {filter === 'radio' && (
+            <motion.div
+              layoutId="activeNavPill"
+              className="absolute inset-0 rounded-full bg-red-500/15 border border-red-500/30 shadow-[0_0_12px_rgba(239,68,68,0.25)]"
+              transition={{ type: "spring", stiffness: 400, damping: 32 }}
+            />
+          )}
+          <Radio className={cn("w-6 h-6 relative z-10 transition-transform duration-200", filter === 'radio' && "scale-105 drop-shadow-[0_0_8px_rgba(239,68,68,0.5)]")} aria-hidden="true" />
         </motion.button>
         <motion.button
           whileTap={{ scale: 0.9 }}
@@ -1253,7 +1325,7 @@ export default function App() {
           onTouchStart={() => (SettingsModal as any).prefetch?.()}
           onFocus={() => (SettingsModal as any).prefetch?.()}
           className={cn(
-            "p-2 rounded-full transition-colors text-gray-500 hover:text-gray-300",
+            "p-2.5 rounded-full transition-colors text-gray-500 hover:text-gray-300",
             isSettingsOpen && "text-[var(--theme-color)]"
           )}
           aria-label="Settings"
