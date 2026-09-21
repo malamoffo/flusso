@@ -67,28 +67,31 @@
     "vitest": "^5.0.0"
   },
   "overrides": {
-    "tar": "^7.5.13",
+    "tar": "^7.5.22",
     "minimatch": "^10.2.4",
     "glob": "^13.0.6",
-    "@xmldom/xmldom": "^0.8.10",
+    "@xmldom/xmldom": "^0.8.15",
+    "sharp": "^0.35.4",
     "uuid": "^11.1.0",
     "tmp": "^0.2.3"
   },
   "pnpm": {
     "overrides": {
-      "tar": "^7.5.13",
+      "tar": "^7.5.22",
       "minimatch": "^10.2.4",
       "glob": "^13.0.6",
-      "@xmldom/xmldom": "^0.8.10",
+      "@xmldom/xmldom": "^0.8.15",
+      "sharp": "^0.35.4",
       "uuid": "^11.1.0",
       "tmp": "^0.2.3"
     }
   },
   "resolutions": {
-    "tar": "^7.5.13",
+    "tar": "^7.5.22",
     "minimatch": "^10.2.4",
     "glob": "^13.0.6",
-    "@xmldom/xmldom": "^0.8.10",
+    "@xmldom/xmldom": "^0.8.15",
+    "sharp": "^0.35.4",
     "uuid": "^11.1.0",
     "tmp": "^0.2.3"
   }
