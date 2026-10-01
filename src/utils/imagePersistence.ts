@@ -22,12 +22,12 @@ export const imagePersistence = {
       if (savedMap && savedMap.value) {
         this.resolvedLocalUrls = new Map(JSON.parse(savedMap.value));
       }
-      
+
       // Cleanup old images on init
       const settings = await db.settings.get('user_settings');
       // Use 3 days for image retention to match article retention
       const retentionDays = 3;
-      
+
       if (checkIsNative() && isPluginAvailable('Filesystem')) {
         await this.cleanupOldImages(retentionDays);
       }
@@ -69,7 +69,7 @@ export const imagePersistence = {
    */
   async getCachedUrl(url: string): Promise<string | null> {
     if (!checkIsNative() || !isPluginAvailable('Filesystem')) return null;
-    
+
     if (!this.isInitialized) await this.init();
     if (this.resolvedLocalUrls.has(url)) return this.resolvedLocalUrls.get(url)!;
 
@@ -81,7 +81,7 @@ export const imagePersistence = {
         path,
         directory: Directory.Data
       });
-      
+
       if (stat.size > 0) {
         const uriResult = await Filesystem.getUri({
           path,
@@ -114,7 +114,7 @@ export const imagePersistence = {
         path,
         directory: Directory.Data
       });
-      
+
       if (stat.size > 0) {
         const uriResult = await Filesystem.getUri({
           path,
@@ -149,7 +149,7 @@ export const imagePersistence = {
             } else {
               base64Data = await this.arrayBufferToBase64(downloadResult.data);
             }
-            
+
             // Ensure directory exists
             try {
               await Filesystem.mkdir({
@@ -183,7 +183,7 @@ export const imagePersistence = {
         }
         return url;
       })();
-      
+
       this.downloadingImages.set(url, downloadPromise);
       downloadPromise.finally(() => {
         this.downloadingImages.delete(url);
@@ -223,7 +223,7 @@ export const imagePersistence = {
    */
   async cleanupOldImages(maxAgeDays: number): Promise<void> {
     if (!checkIsNative() || !isPluginAvailable('Filesystem')) return;
-    
+
     try {
       const exists = await Filesystem.stat({
         path: CACHE_DIR,
@@ -253,7 +253,7 @@ export const imagePersistence = {
               directory: Directory.Data
             });
             return 1;
-            
+
             // Remove from resolved map if we can find the original URL
             // This is tricky since we only have the filename.
             // We'll just clear the map if we deleted many files to be safe

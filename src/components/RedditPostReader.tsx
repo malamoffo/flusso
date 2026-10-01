@@ -227,23 +227,25 @@ export const RedditPostReader = ({ post, onClose, onNext, onPrev, hasNext, hasPr
       >
         
         <header className="sticky top-0 z-20 px-4 py-4 flex items-center justify-between bg-gradient-to-b from-[#110b18]/90 via-[#110b18]/70 to-transparent backdrop-blur-2xl border-b border-white/10 pointer-events-none">
-          <button onClick={onClose} className="w-10 h-10 shrink-0 flex items-center justify-center rounded-full bg-black/40 hover:bg-white/15 active:bg-white/25 backdrop-blur-xl border border-white/20 text-white pointer-events-auto transition-all shadow-lg">
-            <ArrowLeft className="w-6 h-6" />
+          <button onClick={onClose} className="w-10 h-10 shrink-0 flex items-center justify-center rounded-full bg-black/40 hover:bg-white/15 active:bg-white/25 backdrop-blur-xl border border-white/20 text-white pointer-events-auto transition-all shadow-lg" aria-label="Close">
+            <ArrowLeft className="w-6 h-6" aria-hidden="true" />
           </button>
           <div className="flex items-center gap-2 pointer-events-auto">
             <button
               onClick={onPrev}
               disabled={!hasPrev}
               className="w-10 h-10 flex items-center justify-center rounded-full bg-black/40 hover:bg-white/15 active:bg-white/25 backdrop-blur-xl border border-white/20 text-white transition-all disabled:opacity-30 disabled:pointer-events-none shadow-lg"
+              aria-label="Previous post"
             >
-              <ChevronUp className="w-6 h-6" />
+              <ChevronUp className="w-6 h-6" aria-hidden="true" />
             </button>
             <button
               onClick={onNext}
               disabled={!hasNext}
               className="w-10 h-10 flex items-center justify-center rounded-full bg-black/40 hover:bg-white/15 active:bg-white/25 backdrop-blur-xl border border-white/20 text-white transition-all disabled:opacity-30 disabled:pointer-events-none shadow-lg"
+              aria-label="Next post"
             >
-              <ChevronDown className="w-6 h-6" />
+              <ChevronDown className="w-6 h-6" aria-hidden="true" />
             </button>
           </div>
         </header>
