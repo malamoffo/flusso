@@ -2,6 +2,7 @@ import { Filesystem, Directory } from '@capacitor/filesystem';
 import { Capacitor, CapacitorHttp } from '@capacitor/core';
 import { db } from '../services/db';
 import { isNative as checkIsNative, isPluginAvailable } from './platform';
+import { getSafeUrl } from '../lib/utils';
 
 const CACHE_DIR = 'image_cache';
 
@@ -298,6 +299,80 @@ export const imagePersistence = {
       };
       reader.onerror = reject;
       reader.readAsDataURL(blob);
+    });
+  },
+
+  /**
+   * Preloads an image into browser and native cache in advance before focus arrives.
+   */
+  async preloadImage(url: string): Promise<string | null> {
+    if (!url || typeof url !== 'string' || !url.trim()) return null;
+    const safeUrl = getSafeUrl(url.trim());
+    if (!safeUrl) return null;
+
+    const lower = safeUrl.toLowerCase();
+    if (lower.startsWith('data:') || lower.includes('pixel.gif') || lower.includes('tracker')) {
+      return safeUrl;
+    }
+
+    if (this.loadedUrls.has(safeUrl) || this.memoryCache.has(safeUrl)) {
+      return this.memoryCache.get(safeUrl) || safeUrl;
+    }
+
+    if (this.downloadingImages.has(safeUrl)) {
+      return this.downloadingImages.get(safeUrl)!;
+    }
+
+    // On native platform, pre-cache to local filesystem
+    if (checkIsNative() && isPluginAvailable('Filesystem')) {
+      try {
+        const localUri = await this.getLocalUrl(safeUrl);
+        if (localUri) {
+          this.loadedUrls.add(localUri);
+          this.loadedUrls.add(safeUrl);
+          this.memoryCache.set(safeUrl, localUri);
+          return localUri;
+        }
+      } catch (e) {
+        // Fallback to browser preload
+      }
+    }
+
+    // Preload into browser memory/HTTP cache
+    if (typeof window !== 'undefined') {
+      const preloadPromise = new Promise<string>((resolve) => {
+        const img = new Image();
+        img.referrerPolicy = 'no-referrer';
+        img.onload = () => {
+          this.loadedUrls.add(safeUrl);
+          this.memoryCache.set(safeUrl, safeUrl);
+          resolve(safeUrl);
+        };
+        img.onerror = () => {
+          // Resolve gracefully without throwing
+          resolve(safeUrl);
+        };
+        img.src = safeUrl;
+      });
+
+      this.downloadingImages.set(safeUrl, preloadPromise);
+      preloadPromise.finally(() => {
+        this.downloadingImages.delete(safeUrl);
+      });
+      return preloadPromise;
+    }
+
+    return safeUrl;
+  },
+
+  /**
+   * Batch preloads multiple images concurrently.
+   */
+  preloadImages(urls: string[]): void {
+    if (!urls || urls.length === 0) return;
+    const unique = Array.from(new Set(urls.filter(Boolean)));
+    unique.forEach(url => {
+      this.preloadImage(url).catch(() => {});
     });
   },
 };

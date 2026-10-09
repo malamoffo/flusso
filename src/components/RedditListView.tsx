@@ -4,6 +4,7 @@ import { RedditPost, Settings } from '../types';
 import { MessageSquare, RefreshCw, Check } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { SwipeableRedditPost } from './SwipeableRedditPost';
+import { imagePersistence } from '../utils/imagePersistence';
 
 interface RedditListViewProps {
   isActive: boolean;
@@ -39,6 +40,19 @@ export const RedditListView = memo(({
   handleScroll
 }: RedditListViewProps) => {
   const observerRef = React.useRef<HTMLDivElement>(null);
+
+  // Preload Reddit post images in advance before scroll reaches them
+  React.useEffect(() => {
+    if (!posts || posts.length === 0) return;
+    const urls = posts
+      .slice(0, 25)
+      .map(p => p.imageUrl)
+      .filter((url): url is string => !!url);
+
+    if (urls.length > 0) {
+      imagePersistence.preloadImages(urls);
+    }
+  }, [posts]);
 
   React.useEffect(() => {
     const observerTarget = observerRef.current;

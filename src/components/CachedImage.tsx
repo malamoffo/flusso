@@ -11,9 +11,10 @@ import { isNative as checkIsNative } from '../utils/platform';
 type CachedImageProps = React.ImgHTMLAttributes<HTMLImageElement> & {
   src: string;
   fallback?: React.ReactNode;
+  priority?: boolean;
 };
 
-export function CachedImage({ src, className, fallback, alt, ...props }: CachedImageProps) {
+export function CachedImage({ src, className, fallback, alt, priority, ...props }: CachedImageProps) {
   const isGif = React.useMemo(() => {
     if (!src) return false;
     const s = src.toLowerCase();
@@ -107,9 +108,15 @@ export function CachedImage({ src, className, fallback, alt, ...props }: CachedI
 
   const hasExplicitHeight = React.useMemo(() => {
     if (!className) return false;
-    // Match any "h-" class unless it is exactly "h-auto"
-    return /\bh-(?!auto\b)[^\s]+/.test(className);
+    // Match any "h-" class unless it is exactly "h-auto", or aspect ratio class
+    return /\bh-(?!auto\b)[^\s]+/.test(className) || /\baspect-[^\s]+/.test(className);
   }, [className]);
+
+  const isPreloaded = Boolean(
+    priority || 
+    (src && (imagePersistence.loadedUrls.has(src) || imagePersistence.memoryCache.has(src))) ||
+    (currentSrc && imagePersistence.loadedUrls.has(currentSrc))
+  );
 
   const handleLoad = () => {
     if (currentSrc) {
@@ -164,7 +171,7 @@ export function CachedImage({ src, className, fallback, alt, ...props }: CachedI
         alt={alt}
         draggable={false}
         referrerPolicy="no-referrer"
-        loading="lazy"
+        loading={isPreloaded ? "eager" : "lazy"}
         decoding="async"
         className={cn(
           "w-full transition-opacity duration-300",

@@ -264,6 +264,7 @@ export const SettingsModal = React.memo(function SettingsModal({
   };
 
   const downloadOpml = async (opml: string, filename: string) => {
+    const safeFilename = filename.replace(/[/\\?%*:|"<>]/g, '_');
     const isWeb = Capacitor.getPlatform() === 'web';
     const isFilesystemAvailable = Capacitor.isNativePlatform() && !isWeb && Capacitor.isPluginAvailable('Filesystem');
     const isShareAvailable = Capacitor.isNativePlatform() && !isWeb && Capacitor.isPluginAvailable('Share');
@@ -271,7 +272,7 @@ export const SettingsModal = React.memo(function SettingsModal({
     if (isFilesystemAvailable && isShareAvailable) {
       try {
         const result = await Filesystem.writeFile({
-          path: filename,
+          path: safeFilename,
           data: opml,
           directory: Directory.Cache,
           encoding: Encoding.UTF8,
@@ -291,7 +292,7 @@ export const SettingsModal = React.memo(function SettingsModal({
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = filename;
+      a.download = safeFilename;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -300,6 +301,7 @@ export const SettingsModal = React.memo(function SettingsModal({
   };
 
   const downloadJson = async (json: string, filename: string) => {
+    const safeFilename = filename.replace(/[/\\?%*:|"<>]/g, '_');
     const isWeb = Capacitor.getPlatform() === 'web';
     const isFilesystemAvailable = Capacitor.isNativePlatform() && !isWeb && Capacitor.isPluginAvailable('Filesystem');
     const isShareAvailable = Capacitor.isNativePlatform() && !isWeb && Capacitor.isPluginAvailable('Share');
@@ -307,7 +309,7 @@ export const SettingsModal = React.memo(function SettingsModal({
     if (isFilesystemAvailable && isShareAvailable) {
       try {
         const result = await Filesystem.writeFile({
-          path: filename,
+          path: safeFilename,
           data: json,
           directory: Directory.Cache,
           encoding: Encoding.UTF8,
@@ -327,7 +329,7 @@ export const SettingsModal = React.memo(function SettingsModal({
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = filename;
+      a.download = safeFilename;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);

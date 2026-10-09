@@ -249,7 +249,8 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         reader.readAsDataURL(blob);
       });
 
-      const fileName = `flusso-update-${updateInfo.latestRelease.version}.apk`;
+      const safeVersion = (updateInfo.latestRelease.version || '').replace(/[^a-zA-Z0-9._-]/g, '') || 'latest';
+      const fileName = `flusso-update-${safeVersion}.apk`;
       
       const savedFile = await Filesystem.writeFile({
         path: fileName,
@@ -679,6 +680,14 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const pendingReadIds = useRef<Set<string>>(new Set());
   const markAsReadTimeout = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (markAsReadTimeout.current) {
+        clearTimeout(markAsReadTimeout.current);
+      }
+    };
+  }, []);
 
   const markAsRead = useCallback((id: string) => {
     pendingReadIds.current.add(id);

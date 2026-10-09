@@ -4,6 +4,8 @@ import { Article, Settings } from '../../types';
 import { RssArticleItem } from '../RssArticleItem';
 import { Loader2 } from 'lucide-react';
 import { useInView } from 'react-intersection-observer';
+import { imagePersistence } from '../../utils/imagePersistence';
+import { extractArticleImages } from '../RotatingImageCarousel';
 
 interface FeedListProps {
   articles: Article[];
@@ -44,12 +46,45 @@ export const FeedList = memo(({
   const rowVirtualizer = useVirtualizer({
     count: articles.length,
     getScrollElement,
-    estimateSize: () => 140,
-    overscan: 10,
+    estimateSize: (index) => {
+      const art = articles[index];
+      if (art) {
+        const hasImg = !!art.imageUrl || (art.postImageUrls && art.postImageUrls.length > 0);
+        return hasImg ? 340 : 140;
+      }
+      return 140;
+    },
+    overscan: 12,
     getItemKey: (index) => articles[index]?.id ?? index,
   });
 
   const virtualItems = rowVirtualizer.getVirtualItems();
+
+  // Preload images for current virtual items and upcoming items before scroll focus arrives
+  useEffect(() => {
+    if (!articles || articles.length === 0) return;
+
+    const startIndex = virtualItems.length > 0 ? virtualItems[0].index : 0;
+    const endIndex = virtualItems.length > 0 ? virtualItems[virtualItems.length - 1].index : Math.min(15, articles.length - 1);
+
+    // Look ahead 20 items so images are already cached and decoded before scroll focus arrives
+    const lookAheadEnd = Math.min(articles.length, endIndex + 20);
+    const lookBehindStart = Math.max(0, startIndex - 5);
+
+    const urlsToPreload: string[] = [];
+    for (let i = lookBehindStart; i < lookAheadEnd; i++) {
+      const art = articles[i];
+      if (!art) continue;
+      const images = extractArticleImages(art);
+      if (images && images.length > 0) {
+        urlsToPreload.push(...images);
+      }
+    }
+
+    if (urlsToPreload.length > 0) {
+      imagePersistence.preloadImages(urlsToPreload);
+    }
+  }, [virtualItems, articles]);
 
   // Infinite scroll trigger when reaching near the bottom of the virtualized list
   const lastVirtualItem = virtualItems[virtualItems.length - 1];

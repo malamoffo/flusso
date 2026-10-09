@@ -106,133 +106,165 @@ export const RadioView = memo(({ isActive, searchQuery }: RadioViewProps) => {
   });
   
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(favorites));
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(favorites));
+    } catch (e) {
+      Logger.error('Failed to save radio favorites to localStorage', e);
+    }
   }, [favorites]);
 
   useEffect(() => {
     Logger.log('RadioView: Initializing audio element and listeners');
     if (!audioRef.current) {
       audioRef.current = new Audio();
-      
-      const audio = audioRef.current;
+    }
+    
+    const audio = audioRef.current;
 
-      audio.addEventListener('playing', () => {
-        Logger.log('Audio: playing event');
-        isPlayingRef.current = true;
-        setIsPlaying(true);
-        setIsAudioLoading(false);
-        if (isNative() && isPluginAvailable('MediaSession')) {
-          if (MediaSession && typeof MediaSession.setPlaybackState === 'function') {
-            Logger.log('Native: setting playbackState to playing');
-            MediaSession.setPlaybackState({ playbackState: 'playing' }).catch(err => {
-              Logger.error('Native: setPlaybackState error', err);
-            });
-          }
-        } else if ('mediaSession' in navigator) {
-          try {
-            navigator.mediaSession.playbackState = 'playing';
-          } catch (e) {}
-        }
-      });
-
-      audio.addEventListener('pause', () => {
-        Logger.log('Audio: pause event');
-        isPlayingRef.current = false;
-        setIsPlaying(false);
-        setIsAudioLoading(false);
-
-        // Ensure live stream connection is completely severed when paused
-        if (audio.src && audio.src !== 'about:blank' && audio.src !== window.location.href) {
-          try {
-            audio.removeAttribute('src');
-            audio.load();
-          } catch (e) {}
-        }
-
-        if (isNative() && isPluginAvailable('MediaSession')) {
-          if (MediaSession && typeof MediaSession.setPlaybackState === 'function') {
-            Logger.log('Native: setting playbackState to paused');
-            MediaSession.setPlaybackState({ playbackState: 'paused' }).catch(err => {
-              Logger.error('Native: setPlaybackState error', err);
-            });
-          }
-        } else if ('mediaSession' in navigator) {
-          try {
-            navigator.mediaSession.playbackState = 'paused';
-          } catch (e) {}
-        }
-      });
-
-      audio.addEventListener('error', (e) => {
-        const error = (e.target as any).error;
-        Logger.error('Audio: error event', { 
-          code: error?.code, 
-          message: error?.message, 
-          src: audio.src 
-        });
-        isPlayingRef.current = false;
-        setIsPlaying(false);
-        setIsAudioLoading(false);
-        if (isNative() && isPluginAvailable('MediaSession')) {
-          if (MediaSession && typeof MediaSession.setPlaybackState === 'function') {
-            MediaSession.setPlaybackState({ playbackState: 'none' }).catch(() => {});
-          }
-        } else if ('mediaSession' in navigator) {
-          try {
-            navigator.mediaSession.playbackState = 'none';
-          } catch (e) {}
-        }
-      });
-
-      audio.addEventListener('waiting', () => {
-        Logger.log('Audio: waiting event');
-        setIsAudioLoading(true);
-      });
-
-      audio.addEventListener('canplay', () => {
-        Logger.log('Audio: canplay event');
-        setIsAudioLoading(false);
-      });
-
-      audio.addEventListener('loadstart', () => Logger.log('Audio: loadstart event'));
-      audio.addEventListener('loadedmetadata', () => Logger.log('Audio: loadedmetadata event'));
-
-      // Setup platform handlers
+    const handlePlaying = () => {
+      Logger.log('Audio: playing event');
+      isPlayingRef.current = true;
+      setIsPlaying(true);
+      setIsAudioLoading(false);
       if (isNative() && isPluginAvailable('MediaSession')) {
-        try {
-          Logger.log('Native: Setting up MediaSession handlers');
-          
-          if (MediaSession && typeof MediaSession.setActionHandler === 'function') {
-            MediaSession.setActionHandler({ action: 'play' }, () => {
-              Logger.log('Native: MediaSession Action: play');
-              if (currentStationRef.current && playStationRef.current) {
-                playStationRef.current(currentStationRef.current).catch(err => Logger.error("Native play handler error", err));
-              } else if (audioRef.current) {
-                audioRef.current.play().catch(err => Logger.error("Native play handler error", err));
-              }
-            }).catch(err => Logger.warn("Failed to set native play handler", err));
-            
-            MediaSession.setActionHandler({ action: 'pause' }, () => {
-              Logger.log('Native: MediaSession Action: pause');
-              if (stopStreamRef.current) {
-                stopStreamRef.current();
-              }
-            }).catch(err => Logger.warn("Failed to set native pause handler", err));
-            
-            MediaSession.setActionHandler({ action: 'stop' }, () => {
-              Logger.log('Native: MediaSession Action: stop');
-              if (stopStationAndStreamRef.current) {
-                stopStationAndStreamRef.current();
-              }
-            }).catch(err => Logger.warn("Failed to set native stop handler", err));
-          } else {
-            Logger.warn('Native: MediaSession or setActionHandler not available');
-          }
-        } catch (e) {
-          Logger.error("Native: MediaSession initialization exception", e);
+        if (MediaSession && typeof MediaSession.setPlaybackState === 'function') {
+          Logger.log('Native: setting playbackState to playing');
+          MediaSession.setPlaybackState({ playbackState: 'playing' }).catch(err => {
+            Logger.error('Native: setPlaybackState error', err);
+          });
         }
+      } else if ('mediaSession' in navigator) {
+        try {
+          navigator.mediaSession.playbackState = 'playing';
+        } catch (e) {}
+      }
+    };
+
+    const handlePause = () => {
+      Logger.log('Audio: pause event');
+      isPlayingRef.current = false;
+      setIsPlaying(false);
+      setIsAudioLoading(false);
+
+      // Ensure live stream connection is completely severed when paused
+      if (audio.src && audio.src !== 'about:blank' && audio.src !== window.location.href) {
+        try {
+          audio.removeAttribute('src');
+          audio.load();
+        } catch (e) {}
+      }
+
+      if (isNative() && isPluginAvailable('MediaSession')) {
+        if (MediaSession && typeof MediaSession.setPlaybackState === 'function') {
+          Logger.log('Native: setting playbackState to paused');
+          MediaSession.setPlaybackState({ playbackState: 'paused' }).catch(err => {
+            Logger.error('Native: setPlaybackState error', err);
+          });
+        }
+      } else if ('mediaSession' in navigator) {
+        try {
+          navigator.mediaSession.playbackState = 'paused';
+        } catch (e) {}
+      }
+    };
+
+    const handleError = (e: any) => {
+      const error = (e.target as any).error;
+      Logger.error('Audio: error event', { 
+        code: error?.code, 
+        message: error?.message, 
+        src: audio.src 
+      });
+      isPlayingRef.current = false;
+      setIsPlaying(false);
+      setIsAudioLoading(false);
+      if (isNative() && isPluginAvailable('MediaSession')) {
+        if (MediaSession && typeof MediaSession.setPlaybackState === 'function') {
+          MediaSession.setPlaybackState({ playbackState: 'none' }).catch(() => {});
+        }
+      } else if ('mediaSession' in navigator) {
+        try {
+          navigator.mediaSession.playbackState = 'none';
+        } catch (e) {}
+      }
+    };
+
+    const handleWaiting = () => {
+      Logger.log('Audio: waiting event');
+      setIsAudioLoading(true);
+    };
+
+    const handleCanPlay = () => {
+      Logger.log('Audio: canplay event');
+      setIsAudioLoading(false);
+    };
+
+    const handleLoadStart = () => Logger.log('Audio: loadstart event');
+    const handleLoadedMetadata = () => Logger.log('Audio: loadedmetadata event');
+
+    audio.addEventListener('playing', handlePlaying);
+    audio.addEventListener('pause', handlePause);
+    audio.addEventListener('error', handleError);
+    audio.addEventListener('waiting', handleWaiting);
+    audio.addEventListener('canplay', handleCanPlay);
+    audio.addEventListener('loadstart', handleLoadStart);
+    audio.addEventListener('loadedmetadata', handleLoadedMetadata);
+
+    // Setup platform handlers
+    if (isNative() && isPluginAvailable('MediaSession')) {
+      try {
+        Logger.log('Native: Setting up MediaSession handlers');
+        
+        if (MediaSession && typeof MediaSession.setActionHandler === 'function') {
+          MediaSession.setActionHandler({ action: 'play' }, () => {
+            Logger.log('Native: MediaSession Action: play');
+            if (currentStationRef.current && playStationRef.current) {
+              playStationRef.current(currentStationRef.current).catch(err => Logger.error("Native play handler error", err));
+            } else if (audioRef.current) {
+              audioRef.current.play().catch(err => Logger.error("Native play handler error", err));
+            }
+          }).catch(err => Logger.warn("Failed to set native play handler", err));
+          
+          MediaSession.setActionHandler({ action: 'pause' }, () => {
+            Logger.log('Native: MediaSession Action: pause');
+            if (stopStreamRef.current) {
+              stopStreamRef.current();
+            }
+          }).catch(err => Logger.warn("Failed to set native pause handler", err));
+          
+          MediaSession.setActionHandler({ action: 'stop' }, () => {
+            Logger.log('Native: MediaSession Action: stop');
+            if (stopStationAndStreamRef.current) {
+              stopStationAndStreamRef.current();
+            }
+          }).catch(err => Logger.warn("Failed to set native stop handler", err));
+        } else {
+          Logger.warn('Native: MediaSession or setActionHandler not available');
+        }
+      } catch (e) {
+        Logger.error("Native: MediaSession initialization exception", e);
       }
     }
+
+    return () => {
+      audio.removeEventListener('playing', handlePlaying);
+      audio.removeEventListener('pause', handlePause);
+      audio.removeEventListener('error', handleError);
+      audio.removeEventListener('waiting', handleWaiting);
+      audio.removeEventListener('canplay', handleCanPlay);
+      audio.removeEventListener('loadstart', handleLoadStart);
+      audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
+      try {
+        audio.pause();
+        audio.removeAttribute('src');
+        audio.load();
+      } catch (e) {}
+      if ('mediaSession' in navigator) {
+        try {
+          navigator.mediaSession.playbackState = 'none';
+        } catch (e) {}
+      }
+    };
   }, []);
 
   // Listen to background Web Worker radio service updates
@@ -502,7 +534,6 @@ export const RadioView = memo(({ isActive, searchQuery }: RadioViewProps) => {
                 return (
                   <motion.div
                     key={`station-${station.stationuuid}-${idx}`}
-                    layoutId={`radio-${station.stationuuid}`}
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.95 }}
@@ -582,29 +613,31 @@ export const RadioView = memo(({ isActive, searchQuery }: RadioViewProps) => {
         </div>
       </motion.main>
 
-      <AnimatePresence>
-        {selectedStationDetail && typeof document !== 'undefined' && createPortal(
-          <motion.div 
-            className="fixed inset-0 z-50 pointer-events-none transform-gpu"
-            style={{ willChange: 'transform' }}
-          >
+      {typeof document !== 'undefined' && createPortal(
+        <AnimatePresence>
+          {selectedStationDetail && (
             <motion.div 
-              key="radio-reader-backdrop"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.45, ease: 'easeOut' }}
-              className="fixed inset-0 bg-black/70 backdrop-blur-xl pointer-events-auto"
-              onClick={() => setSelectedStationDetail(null)}
-            />
-            <motion.article 
-              key="radio-reader-modal"
-              initial={{ y: '100%', opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: '100%', opacity: 0 }}
-              transition={{ type: 'spring', damping: 30, stiffness: 220 }}
-              className="fixed inset-0 z-10 w-full h-full overflow-hidden flex flex-col transition-colors break-words font-sans bg-[#14090e]/85 backdrop-blur-3xl text-gray-100 scrollbar-hide pointer-events-auto isolate transform-gpu shadow-2xl"
+              key={`radio-detail-${selectedStationDetail.stationuuid}`}
+              className="fixed inset-0 z-50 pointer-events-none transform-gpu"
+              style={{ willChange: 'transform' }}
             >
+              <motion.div 
+                key="radio-reader-backdrop"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.45, ease: 'easeOut' }}
+                className="fixed inset-0 bg-black/70 backdrop-blur-xl pointer-events-auto"
+                onClick={() => setSelectedStationDetail(null)}
+              />
+              <motion.article 
+                key="radio-reader-modal"
+                initial={{ y: '100%', opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                exit={{ y: '100%', opacity: 0 }}
+                transition={{ type: 'spring', damping: 30, stiffness: 220 }}
+                className="fixed inset-0 z-10 w-full h-full overflow-hidden flex flex-col transition-colors break-words font-sans bg-[#14090e]/85 backdrop-blur-3xl text-gray-100 scrollbar-hide pointer-events-auto isolate transform-gpu shadow-2xl"
+              >
               {/* Top App Bar */}
               <div className="sticky top-0 z-20 px-4 py-4 flex items-center justify-between bg-gradient-to-b from-[#14090e]/90 via-[#14090e]/70 to-transparent backdrop-blur-2xl border-b border-white/10 pointer-events-none">
                 <motion.button
@@ -802,10 +835,11 @@ export const RadioView = memo(({ isActive, searchQuery }: RadioViewProps) => {
                 </div>
               </div>
             </motion.article>
-          </motion.div>,
-          document.body
+          </motion.div>
         )}
-      </AnimatePresence>
-    </>
+      </AnimatePresence>,
+      document.body
+    )}
+  </>
   );
 });

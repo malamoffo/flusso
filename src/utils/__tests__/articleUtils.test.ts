@@ -1,8 +1,53 @@
 import { describe, it, expect } from 'vitest';
-import { deduplicateArticles, sortArticles, deduplicateAndSortSavedArticles } from '../articleUtils';
+import { deduplicateArticles, sortArticles, deduplicateAndSortSavedArticles, getArticleEvidenza } from '../articleUtils';
 import { Article } from '../../types';
 
 describe('articleUtils', () => {
+  it('computes evidenza levels correctly (alta, media, bassa)', () => {
+    const now = Date.now();
+    const artAlta: Article = {
+      id: 'a1',
+      feedId: 'f1',
+      title: 'Breaking News',
+      link: 'https://example.com/a1',
+      pubDate: now - 3600000, // 1h ago
+      isRead: 0,
+      isFavorite: 0,
+      type: 'article'
+    };
+    expect(getArticleEvidenza(artAlta)).toBe('alta');
+
+    const artMedia: Article = {
+      id: 'a2',
+      feedId: 'f1',
+      title: 'Notable News',
+      link: 'https://example.com/a2',
+      pubDate: now - 36000000, // 10h ago
+      isRead: 0,
+      isFavorite: 0,
+      type: 'article'
+    };
+    expect(getArticleEvidenza(artMedia)).toBe('media');
+
+    const artBassa: Article = {
+      id: 'a3',
+      feedId: 'f1',
+      title: 'Older News',
+      link: 'https://example.com/a3',
+      pubDate: now - 172800000, // 48h ago
+      isRead: 0,
+      isFavorite: 0,
+      type: 'article'
+    };
+    expect(getArticleEvidenza(artBassa)).toBe('bassa');
+
+    // Explicit override
+    const artExplicit: Article = {
+      ...artBassa,
+      evidenza: 'alta'
+    };
+    expect(getArticleEvidenza(artExplicit)).toBe('alta');
+  });
   const mockArticles: Article[] = [
     {
       id: '1',

@@ -84,6 +84,22 @@ export const redditStorage = {
     await db.redditPosts.bulkPut(normalized as RedditPost[]);
   },
 
+  async updateRedditPost(id: string, updates: Partial<RedditPost>): Promise<void> {
+    const normalizedUpdates: any = { ...updates };
+    if ('isRead' in normalizedUpdates) normalizedUpdates.isRead = normalizedUpdates.isRead ? 1 : 0;
+    if ('isFavorite' in normalizedUpdates) normalizedUpdates.isFavorite = normalizedUpdates.isFavorite ? 1 : 0;
+    await db.redditPosts.update(id, normalizedUpdates);
+  },
+
+  async markRedditPostsAsRead(ids: string[]): Promise<void> {
+    if (!ids || ids.length === 0) return;
+    await db.transaction('rw', db.redditPosts, async () => {
+      for (const id of ids) {
+        await db.redditPosts.update(id, { isRead: 1 });
+      }
+    });
+  },
+
   async addSubreddit(name: string): Promise<Subreddit | null> {
     try {
       let cleanName = name.trim();
@@ -348,6 +364,53 @@ export const redditStorage = {
     try {
       if (!isNative() || !permalink || permalink.includes('/mock') || permalink === 'mock') {
         const now = Math.floor(Date.now() / 1000);
+
+        if (permalink && permalink.includes('mock_20_levels')) {
+          // Generate 20 levels of consecutively nested replies
+          let innerComment: any = null;
+
+          for (let lvl = 20; lvl >= 1; lvl--) {
+            const parentAuthor = lvl > 1 ? `dev_livello_${lvl - 1}` : undefined;
+            const commentObj: any = {
+              id: `mock_20_c_${lvl}`,
+              author: `dev_livello_${lvl}`,
+              score: Math.max(1, 65 - lvl * 2),
+              created_utc: now - (21 - lvl) * 120,
+              body: `Questo è il commento al Livello ${lvl} di profondità della discussione.${lvl > 3 ? " Oltre il 3° commento l'indentatura è interrotta: la larghezza rimane costante e leggibile al 100%." : " Questo commento è ancora nei primi 3 livelli e presenta la classica indentazione a sinistra."}${parentAuthor ? ` (In risposta a u/${parentAuthor})` : ''}`,
+              body_html: `<p>Questo è il commento al <strong>Livello ${lvl}</strong> di profondità.${lvl > 3 ? " <span class='text-purple-300'>Notare come l'indentatura non aumenti ulteriormente</span>, garantendo massima leggibilità e spazio per il testo." : " Livello ad indentazione progressiva."}</p>`,
+              replies: innerComment ? {
+                data: {
+                  children: [
+                    {
+                      kind: 't1',
+                      data: innerComment
+                    }
+                  ]
+                }
+              } : ''
+            };
+            innerComment = commentObj;
+          }
+
+          return [
+            {
+              kind: 't1',
+              data: innerComment
+            },
+            {
+              kind: 't1',
+              data: {
+                id: 'mock_20_c_side',
+                author: 'osservatore_ux',
+                score: 24,
+                created_utc: now - 300,
+                body: 'Confermo: con questa impostazione i thread molto profondi non collassano più in una colonna microscopica!',
+                body_html: '<p>Confermo: con questa impostazione i thread molto profondi non collassano più in una colonna microscopica!</p>'
+              }
+            }
+          ];
+        }
+
         return [
           {
             kind: 't1',

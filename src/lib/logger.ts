@@ -10,6 +10,35 @@ interface LogEntry {
 const LOGS_KEY = 'flusso_debug_logs';
 const MAX_LOGS = 1000;
 
+let memoryLogs: LogEntry[] | null = null;
+let flushTimeout: any = null;
+
+function getMemoryLogs(): LogEntry[] {
+  if (memoryLogs === null) {
+    try {
+      const stored = localStorage.getItem(LOGS_KEY);
+      memoryLogs = stored ? JSON.parse(stored) : [];
+    } catch {
+      memoryLogs = [];
+    }
+  }
+  return memoryLogs ?? [];
+}
+
+function scheduleFlush() {
+  if (flushTimeout !== null) return;
+  flushTimeout = setTimeout(() => {
+    flushTimeout = null;
+    if (memoryLogs) {
+      try {
+        localStorage.setItem(LOGS_KEY, JSON.stringify(memoryLogs));
+      } catch (e) {
+        console.error('Failed to save log to localStorage', e);
+      }
+    }
+  }, 1000);
+}
+
 export const Logger = {
   log: (message: string, data?: any) => Logger.append('info', message, data),
   warn: (message: string, data?: any) => Logger.append('warn', message, data),
@@ -28,10 +57,9 @@ export const Logger = {
     else if (level === 'warn') console.warn(`[LOGGER] ${message}`, data || '');
     else console.log(`[LOGGER] ${message}`, data || '');
 
-    // Persistent storage
+    // Buffered memory storage with debounced write
     try {
-      const stored = localStorage.getItem(LOGS_KEY);
-      const logs: LogEntry[] = stored ? JSON.parse(stored) : [];
+      const logs = getMemoryLogs();
       logs.push(entry);
       
       // Prune
@@ -39,23 +67,25 @@ export const Logger = {
         logs.splice(0, logs.length - MAX_LOGS);
       }
       
-      localStorage.setItem(LOGS_KEY, JSON.stringify(logs));
+      scheduleFlush();
     } catch (e) {
-      console.error('Failed to save log to localStorage', e);
+      console.error('Failed to buffer log', e);
     }
   },
 
   getLogs: (): LogEntry[] => {
-    try {
-      const stored = localStorage.getItem(LOGS_KEY);
-      return stored ? JSON.parse(stored) : [];
-    } catch {
-      return [];
-    }
+    return [...getMemoryLogs()];
   },
 
   clearLogs: () => {
-    localStorage.removeItem(LOGS_KEY);
+    memoryLogs = [];
+    if (flushTimeout !== null) {
+      clearTimeout(flushTimeout);
+      flushTimeout = null;
+    }
+    try {
+      localStorage.removeItem(LOGS_KEY);
+    } catch {}
   }
 };
 

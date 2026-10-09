@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { Article } from '../types';
+import { getArticleEvidenza } from '../utils/articleUtils';
 
 interface UseFeedFilteringProps {
   articles: Article[];
@@ -8,6 +9,7 @@ interface UseFeedFilteringProps {
   deferredSearchQuery: string;
   sourceFilter: string;
   timeFilter: string;
+  evidenzaFilter?: string;
   isSearchOpen: boolean;
   temporarilyVisibleUnreadIds?: Set<string>;
 }
@@ -19,6 +21,7 @@ export const useFeedFiltering = ({
   deferredSearchQuery,
   sourceFilter,
   timeFilter,
+  evidenzaFilter = 'all',
   isSearchOpen,
   temporarilyVisibleUnreadIds
 }: UseFeedFilteringProps) => {
@@ -50,6 +53,10 @@ export const useFeedFiltering = ({
           // Robustly handle string or number pubDate
           const pubTime = typeof article.pubDate === 'string' ? new Date(article.pubDate).getTime() : article.pubDate;
           if (threshold && pubTime < threshold) continue;
+        }
+        if (evidenzaFilter && evidenzaFilter !== 'all') {
+          const ev = getArticleEvidenza(article);
+          if (ev !== evidenzaFilter) continue;
         }
       }
       

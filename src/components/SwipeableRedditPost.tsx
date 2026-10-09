@@ -218,13 +218,13 @@ export const SwipeableRedditPost = React.memo(function SwipeableRedditPost({
             </>
           )}
         <div className="relative z-10 flex flex-col gap-2">
-          {/* Image at the top - Natural full original aspect ratio without height restriction */}
+          {/* Image at the top - Stable aspect ratio preview to prevent layout shifts while scrolling */}
           {decodedImageUrl && (
-            <div className="relative overflow-hidden flex-shrink-0 w-full rounded-2xl bg-black/30 backdrop-blur-md border border-white/10 mb-1 transform-gpu">
+            <div className="relative overflow-hidden flex-shrink-0 w-full rounded-2xl bg-black/30 backdrop-blur-md border border-white/10 mb-1 transform-gpu aspect-[16/9] min-h-[180px] max-h-[420px]">
               <CachedImage 
                 src={getSafeUrl(decodedImageUrl)}
                 alt="" 
-                className="w-full h-auto block rounded-[inherit] transition-opacity cursor-pointer"
+                className="w-full h-full object-cover block rounded-[inherit] transition-opacity cursor-pointer"
                 referrerPolicy="no-referrer"
                 onClick={(e) => { e.stopPropagation(); onImageClick(decodedImageUrl); }}
               />

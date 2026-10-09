@@ -10,6 +10,7 @@ import { contentFetcher } from '../utils/contentFetcher';
 import { CachedImage } from './CachedImage';
 import { cn, getSafeUrl } from '../lib/utils';
 import { extractArticleImages } from './RotatingImageCarousel';
+import { getArticleEvidenza } from '../utils/articleUtils';
 
 // VERY IMPORTANT: Persist swipe state outside component
 const swipeState: Record<string, number> = {};
@@ -289,6 +290,7 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
   const isInboxOrSaved = filter === 'inbox' || filter === 'saved' || isSavedSection;
 
   const isReadForDisplay = article.isRead;
+  const evidenza = React.useMemo(() => getArticleEvidenza(article), [article]);
 
   const sanitizedTitle = React.useMemo(() => ({ 
     __html: DOMPurify.sanitize(article.title, { FORBID_ATTR: ['id', 'name'] }) 
@@ -383,27 +385,58 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
           onClick={handleArticleClick}
           exit={{ x: exitX, opacity: 0, transition: { duration: 0.2, ease: "easeOut" } }}
           className={cn(
-            "relative w-full p-4 flex flex-col gap-3 cursor-pointer select-none rounded-[inherit] transition-all border border-white/15 dark:border-blue-400/25 bg-slate-900/40 dark:bg-[#0f1b33]/45 backdrop-blur-2xl shadow-[0_8px_32px_0_rgba(0,0,0,0.37),inset_0_1px_1px_0_rgba(255,255,255,0.15)] transform-gpu",
-            !isReadForDisplay ? "z-[35]" : "z-20",
+            "relative w-full p-4 flex flex-col gap-3 cursor-pointer select-none rounded-[inherit] transition-all border bg-slate-900/40 dark:bg-[#0f1b33]/45 backdrop-blur-2xl shadow-[0_8px_32px_0_rgba(0,0,0,0.37),inset_0_1px_1px_0_rgba(255,255,255,0.15)] transform-gpu",
+            !isReadForDisplay
+              ? evidenza === 'alta'
+                ? "border-blue-400/70 z-[35]"
+                : evidenza === 'media'
+                ? "border-cyan-400/50 z-[30]"
+                : "border-slate-500/30 z-[25]"
+              : "border-white/15 dark:border-blue-400/25 z-20",
             filter === 'saved' && "shadow-[0_0_20px_rgba(234,179,8,0.2),inset_0_1px_1px_0_rgba(255,255,255,0.15)]",
             filter === 'inbox' && "shadow-[0_0_20px_rgba(59,130,246,0.2),inset_0_1px_1px_0_rgba(255,255,255,0.15)]"
           )}
         >
           {!isReadForDisplay && filter !== 'saved' && (
             <>
-              <span className="absolute top-1 right-4 z-40 px-2 py-0.5 bg-blue-600/90 backdrop-blur-md text-[9px] font-black text-white rounded-full shadow-[0_0_12px_rgba(59,130,246,0.8)] border border-blue-400 uppercase tracking-widest animate-pulse">
-                NEW
-              </span>
-              <div className="absolute inset-0 z-20 pointer-events-none rounded-[inherit] border-2 border-blue-400/80 shadow-[0_0_28px_rgba(59,130,246,0.95),inset_0_0_18px_rgba(59,130,246,0.6)] animate-pulse" style={{ animationDuration: '3s' }} />
+              {evidenza === 'alta' && (
+                <>
+                  <span className="absolute top-1 right-4 z-40 px-2.5 py-0.5 bg-gradient-to-r from-blue-600/95 to-indigo-600/95 backdrop-blur-md text-[9px] font-black text-white rounded-full shadow-[0_0_14px_rgba(59,130,246,0.85)] border border-blue-400 uppercase tracking-widest animate-pulse flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-cyan-300 animate-ping" />
+                    ALTA
+                  </span>
+                  <div className="absolute inset-0 z-20 pointer-events-none rounded-[inherit] border-2 border-blue-400/80 shadow-[0_0_28px_rgba(59,130,246,0.95),inset_0_0_18px_rgba(59,130,246,0.6)] animate-pulse" style={{ animationDuration: '3s' }} />
+                </>
+              )}
+
+              {evidenza === 'media' && (
+                <>
+                  <span className="absolute top-1 right-4 z-40 px-2.5 py-0.5 bg-gradient-to-r from-cyan-600/90 to-blue-500/90 backdrop-blur-md text-[9px] font-black text-white rounded-full shadow-[0_0_12px_rgba(6,182,212,0.6)] border border-cyan-400 uppercase tracking-wider flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-cyan-200" />
+                    MEDIA
+                  </span>
+                  <div className="absolute inset-0 z-20 pointer-events-none rounded-[inherit] border-2 border-cyan-400/70 shadow-[0_0_18px_rgba(6,182,212,0.5),inset_0_0_12px_rgba(6,182,212,0.25)]" />
+                </>
+              )}
+
+              {evidenza === 'bassa' && (
+                <>
+                  <span className="absolute top-1 right-4 z-40 px-2 py-0.5 bg-slate-800/90 backdrop-blur-md text-[9px] font-bold text-slate-300 rounded-full border border-slate-600/50 uppercase tracking-wider flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+                    BASSA
+                  </span>
+                  <div className="absolute inset-0 z-20 pointer-events-none rounded-[inherit] border border-blue-400/30 shadow-[0_0_8px_rgba(59,130,246,0.15)]" />
+                </>
+              )}
             </>
           )}
           <div className="relative z-10 flex flex-col gap-2">
             {hasImage && firstImage ? (
-              <div className="relative overflow-hidden flex-shrink-0 w-full rounded-2xl bg-black/30 backdrop-blur-md border border-white/10 transform-gpu">
+              <div className="relative overflow-hidden flex-shrink-0 w-full rounded-2xl bg-black/30 backdrop-blur-md border border-white/10 transform-gpu aspect-[16/9] min-h-[160px] max-h-[380px]">
                 <CachedImage 
                   src={getSafeUrl(firstImage)}
                   alt=""
-                  className="w-full h-auto block rounded-[inherit]"
+                  className="w-full h-full object-cover block rounded-[inherit]"
                   referrerPolicy="no-referrer"
                 />
               </div>

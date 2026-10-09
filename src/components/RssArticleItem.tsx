@@ -9,6 +9,7 @@ import { useInView } from 'react-intersection-observer';
 import { CachedImage } from './CachedImage';
 import { cn, getSafeUrl } from '../lib/utils';
 import { extractArticleImages } from './RotatingImageCarousel';
+import { getArticleEvidenza } from '../utils/articleUtils';
 
 interface RssArticleItemProps {
   article: Article;
@@ -106,6 +107,7 @@ export const RssArticleItem = React.memo(
   ) {
     const isFavorite = !!article.isFavorite;
     const isReadForDisplay = article.isRead;
+    const evidenza = useMemo(() => getArticleEvidenza(article), [article]);
 
     // Intersection observers
     const { ref: inViewRef, inView, entry } = useInView({
@@ -327,8 +329,14 @@ export const RssArticleItem = React.memo(
       >
         <div 
           className={cn(
-            "relative w-full rounded-3xl p-4 flex flex-col gap-3 cursor-pointer transition-all duration-300 border border-white/15 dark:border-blue-400/25 bg-slate-900/40 dark:bg-[#0f1b33]/45 backdrop-blur-2xl shadow-[0_8px_32px_0_rgba(0,0,0,0.37),inset_0_1px_1px_0_rgba(255,255,255,0.15)] overflow-hidden animate-in fade-in duration-200",
-            !isReadForDisplay ? "z-[35]" : "z-20",
+            "relative w-full rounded-3xl p-4 flex flex-col gap-3 cursor-pointer transition-all duration-300 border bg-slate-900/40 dark:bg-[#0f1b33]/45 backdrop-blur-2xl shadow-[0_8px_32px_0_rgba(0,0,0,0.37),inset_0_1px_1px_0_rgba(255,255,255,0.15)] overflow-hidden animate-in fade-in duration-200",
+            !isReadForDisplay
+              ? evidenza === 'alta'
+                ? "border-blue-400/70 z-[35]"
+                : evidenza === 'media'
+                ? "border-cyan-400/50 z-[30]"
+                : "border-slate-500/30 z-[25]"
+              : "border-white/15 dark:border-blue-400/25 z-20",
             isFavorite && "border-yellow-500/30 shadow-[0_0_20px_rgba(234,179,8,0.2),inset_0_1px_1px_0_rgba(255,255,255,0.15)]",
             isHolding && "border-yellow-400 ring-2 ring-yellow-400/40 shadow-[0_0_25px_rgba(234,179,8,0.3)]"
           )}
@@ -378,26 +386,55 @@ export const RssArticleItem = React.memo(
             )}
           </AnimatePresence>
 
-          {/* Unread Glowing Pulse & Badge */}
+          {/* Unread Evidenza Glowing Pulse & Badges (Alta, Media, Bassa) */}
           {!isReadForDisplay && (
             <>
-              <span className="absolute top-1 right-4 z-40 px-2 py-0.5 bg-blue-600 text-[9px] font-black text-white rounded-full shadow-[0_0_12px_rgba(59,130,246,0.8)] border border-blue-400 uppercase tracking-widest animate-pulse">
-                NEW
-              </span>
-              <div 
-                className="absolute inset-0 z-20 pointer-events-none rounded-[inherit] border-2 border-blue-400 shadow-[0_0_28px_rgba(59,130,246,0.95),inset_0_0_18px_rgba(59,130,246,0.6)] animate-pulse" 
-                style={{ animationDuration: '3s' }} 
-              />
+              {evidenza === 'alta' && (
+                <>
+                  <span className="absolute top-1 right-4 z-40 px-2.5 py-0.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-[9px] font-black text-white rounded-full shadow-[0_0_14px_rgba(59,130,246,0.85)] border border-blue-400 uppercase tracking-widest animate-pulse flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-cyan-300 animate-ping" />
+                    ALTA
+                  </span>
+                  <div 
+                    className="absolute inset-0 z-20 pointer-events-none rounded-[inherit] border-2 border-blue-400 shadow-[0_0_28px_rgba(59,130,246,0.95),inset_0_0_18px_rgba(59,130,246,0.6)] animate-pulse" 
+                    style={{ animationDuration: '3s' }} 
+                  />
+                </>
+              )}
+
+              {evidenza === 'media' && (
+                <>
+                  <span className="absolute top-1 right-4 z-40 px-2.5 py-0.5 bg-gradient-to-r from-cyan-600 to-blue-500 text-[9px] font-black text-white rounded-full shadow-[0_0_12px_rgba(6,182,212,0.6)] border border-cyan-300 uppercase tracking-wider backdrop-blur-md flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-cyan-200" />
+                    MEDIA
+                  </span>
+                  <div 
+                    className="absolute inset-0 z-20 pointer-events-none rounded-[inherit] border-2 border-cyan-400/70 shadow-[0_0_18px_rgba(6,182,212,0.5),inset_0_0_12px_rgba(6,182,212,0.25)]" 
+                  />
+                </>
+              )}
+
+              {evidenza === 'bassa' && (
+                <>
+                  <span className="absolute top-1 right-4 z-40 px-2 py-0.5 bg-slate-800/90 text-[9px] font-bold text-slate-300 rounded-full border border-slate-600/50 uppercase tracking-wider backdrop-blur-md flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+                    BASSA
+                  </span>
+                  <div 
+                    className="absolute inset-0 z-20 pointer-events-none rounded-[inherit] border border-blue-400/30 shadow-[0_0_8px_rgba(59,130,246,0.15)]" 
+                  />
+                </>
+              )}
             </>
           )}
 
           <div className="relative z-10 flex flex-col gap-2">
             {hasImage && firstImage && (
-              <div className="relative overflow-hidden flex-shrink-0 w-full rounded-2xl bg-gray-800/50 transform-gpu">
+              <div className="relative overflow-hidden flex-shrink-0 w-full rounded-2xl bg-gray-800/50 transform-gpu aspect-[16/9] min-h-[160px] max-h-[380px]">
                 <CachedImage 
                   src={getSafeUrl(firstImage)}
                   alt=""
-                  className="w-full h-auto block rounded-[inherit]"
+                  className="w-full h-full object-cover block rounded-[inherit]"
                   referrerPolicy="no-referrer"
                 />
               </div>

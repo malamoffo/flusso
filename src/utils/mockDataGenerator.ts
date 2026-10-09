@@ -242,6 +242,7 @@ Tuttavia, la ricerca non è ferma: scienziati e crittografi di tutto il mondo st
         isRead: 0,
         isFavorite: 0,
         type: 'article',
+        evidenza: 'alta',
       },
       {
         id: 'mock-art-2',
@@ -261,13 +262,14 @@ Se integrata su scala industriale, la fotosintesi artificiale potrebbe non solo 
         isRead: 0,
         isFavorite: 0,
         type: 'article',
+        evidenza: 'alta',
       },
       {
         id: 'mock-art-3',
         feedId: 'mock-feed-stili',
         title: "L'arte dell'impasto: la scienza chimica dietro la pizza napoletana perfetta",
         link: 'https://example.com/mock-art-3',
-        pubDate: Date.now() - 10800000, // 3h fa
+        pubDate: Date.now() - 43200000, // 12h fa
         imageUrl: pizzaImg,
         contentSnippet: "La pizza perfetta non è solo questione di passione, ma anche di termodinamica e biochimica. Dalla maturazione delle proteine del glutine all'azione dei lieviti, ecco la spiegazione scientifica.",
         content: `La preparazione della pizza napoletana è considerata un'arte tradizionale, protetta anche dall'UNESCO, ma dal punto di vista scientifico si tratta di un affascinante esperimento di biochimica e termodinamica. Ogni fase, dall'idratazione della farina fino alla cottura rapida nel forno a legna, è regolata da precise leggi scientifiche.
@@ -280,13 +282,14 @@ Infine, la cottura. La vera pizza napoletana deve cuocere a temperature comprese
         isRead: 0,
         isFavorite: 0,
         type: 'article',
+        evidenza: 'media',
       },
       {
         id: 'mock-art-4',
         feedId: 'mock-feed-stili',
         title: "Esplorazione del cosmo: le nuove frontiere dell'astrofotografia profonda",
         link: 'https://example.com/mock-art-4',
-        pubDate: Date.now() - 86400000, // 1 giorno fa
+        pubDate: Date.now() - 172800000, // 2 giorni fa
         imageUrl: telescopeImg,
         contentSnippet: "I moderni sensori e i telescopi spaziali permettono di osservare la nascita delle prime stelle dell'universo. Una guida alle meraviglie visive dell'astronomia moderna.",
         content: `Negli ultimi anni, l'astrofisica e l'osservazione dello spazio profondo hanno compiuto passi da gigante grazie all'integrazione di sensori iperspettrali a bassissimo rumore termico e specchi primari segmentati in berillio e oro.
@@ -297,6 +300,7 @@ Attraverso tecniche avanzate di de-rumorizzazione e stacking matematico, gli ast
         isRead: 0,
         isFavorite: 0,
         type: 'article',
+        evidenza: 'bassa',
       }
     ];
 
@@ -328,7 +332,9 @@ Attraverso tecniche avanzate di de-rumorizzazione e stacking matematico, gli ast
           await db.articles.update(art.id, {
             imageUrl: art.imageUrl,
             content: art.content,
-            contentSnippet: art.contentSnippet
+            contentSnippet: art.contentSnippet,
+            evidenza: art.evidenza,
+            pubDate: art.pubDate
           });
         }
       }
@@ -358,6 +364,23 @@ Attraverso tecniche avanzate di de-rumorizzazione e stacking matematico, gli ast
     ];
 
     const mockRedditPosts: RedditPost[] = [
+      {
+        id: 'mock-post-20-levels',
+        subredditId: 'mock-sub-1',
+        subredditName: 'tecnologia',
+        title: "Test Thread: Discussione con 20 livelli di commenti nidificati (Verifica indentazione)",
+        author: 'u/thread_tester',
+        url: 'https://reddit.com/r/tecnologia/comments/mock_20_levels',
+        permalink: '/r/tecnologia/comments/mock_20_levels',
+        imageUrl: quantumImg,
+        score: 3420,
+        numComments: 42,
+        createdUtc: Math.floor((Date.now() - 300000) / 1000), // 5min fa
+        selftextHtml: `<p>Questo thread di test include una conversazione approfondita con <strong>20 livelli di risposte nidificate</strong> per testare e verificare il comportamento dell'interfaccia.</p>
+<p>Oltre il terzo commento, l'indentatura viene interrotta in modo che le risposte mantengano la larghezza piena e ottimale per la lettura sui display di smartphone e tablet, indicando l'ordine gerarchico tramite badge di livello e autore a cui si risponde.</p>`,
+        isRead: 0,
+        isFavorite: 0,
+      },
       {
         id: 'mock-post-1',
         subredditId: 'mock-sub-4',

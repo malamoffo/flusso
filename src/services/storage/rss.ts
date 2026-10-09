@@ -612,8 +612,7 @@ export const rssStorage = {
     if (!id) return;
     await db.transaction('rw', [db.feeds, db.articles, db.articleContents], async () => {
       await db.feeds.delete(id);
-      const articles = await db.articles.where('feedId').equals(id).toArray();
-      const idsToDelete = articles.map(a => a.id);
+      const idsToDelete = await db.articles.where('feedId').equals(id).primaryKeys();
       if (idsToDelete.length > 0) {
         await db.articles.bulkDelete(idsToDelete);
         await db.articleContents.bulkDelete(idsToDelete);

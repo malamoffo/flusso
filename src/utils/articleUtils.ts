@@ -1,4 +1,28 @@
-import { Article } from '../types';
+import { Article, EvidenzaLevel } from '../types';
+
+/**
+ * Computes or retrieves the evidenza level for an article.
+ * - 'alta': Breaking/very fresh news (<= 4h or explicit 'alta')
+ * - 'media': Notable/today's news (<= 24h or explicit 'media')
+ * - 'bassa': Standard/older news (> 24h or explicit 'bassa')
+ */
+export function getArticleEvidenza(article: Article): EvidenzaLevel {
+  if (article.evidenza === 'alta' || article.evidenza === 'media' || article.evidenza === 'bassa') {
+    return article.evidenza;
+  }
+  const now = Date.now();
+  const pubTime = typeof article.pubDate === 'string' ? new Date(article.pubDate).getTime() : article.pubDate;
+  if (!pubTime || isNaN(pubTime)) return 'bassa';
+  
+  const diffHours = (now - pubTime) / (1000 * 60 * 60);
+  if (diffHours <= 4) {
+    return 'alta';
+  } else if (diffHours <= 24) {
+    return 'media';
+  } else {
+    return 'bassa';
+  }
+}
 
 /**
  * Deduplicates articles by link or id.

@@ -32,25 +32,16 @@ export class FlussoDatabase extends Dexie {
         return 0;
       };
       
-      const articles = await tx.table('articles').toArray();
-      console.log(`[Database] Upgrading ${articles.length} articles...`);
-      if (articles.length > 0) {
-        await tx.table('articles').bulkPut(articles.map(article => ({
-          ...article,
-          isRead: convert(article.isRead),
-          isFavorite: convert(article.isFavorite)
-        })));
-      }
+      await tx.table('articles').toCollection().modify((article: any) => {
+        article.isRead = convert(article.isRead);
+        article.isFavorite = convert(article.isFavorite);
+      });
 
-      const posts = await tx.table('redditPosts').toArray();
-      console.log(`[Database] Upgrading ${posts.length} reddit posts...`);
-      if (posts.length > 0) {
-        await tx.table('redditPosts').bulkPut(posts.map(post => ({
-          ...post,
-          isRead: convert(post.isRead),
-          isFavorite: convert(post.isFavorite)
-        })));
-      }
+      await tx.table('redditPosts').toCollection().modify((post: any) => {
+        post.isRead = convert(post.isRead);
+        post.isFavorite = convert(post.isFavorite);
+      });
+
       console.log('[Database] Upgrade to version 6 completed.');
     });
 

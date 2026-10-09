@@ -17,6 +17,7 @@ import { Readability } from '@mozilla/readability';
 import { fetchWithProxy } from '../utils/proxy';
 import { contentFetcher } from '../utils/contentFetcher';
 import { extractBestImage } from '../services/rssParser';
+import { getArticleEvidenza } from '../utils/articleUtils';
 
 interface ArticleReaderProps {
   key?: React.Key;
@@ -92,27 +93,33 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
   };
 
   useEffect(() => {
+    let isCancelled = false;
     const fetchFullContent = async () => {
       let cached: FullArticleContent | null = null;
       let hasSetContent = false;
       try {
         const syncCached = contentFetcher.getCachedContentSync(article.id);
         if (syncCached && syncCached.isScraped) {
-          setFullContent(syncCached);
-          setIsLoading(false);
+          if (!isCancelled) {
+            setFullContent(syncCached);
+            setIsLoading(false);
+          }
           return;
         }
 
-        setIsLoading(true);
+        if (!isCancelled) setIsLoading(true);
         
         // Check cache first
         cached = await contentFetcher.getCachedContent(article.id);
+        if (isCancelled) return;
         if (cached) {
           // If already scraped via proxy/readability, use it directly
           if (cached.isScraped) {
-            setFullContent(cached);
-            hasSetContent = true;
-            setIsLoading(false);
+            if (!isCancelled) {
+              setFullContent(cached);
+              hasSetContent = true;
+              setIsLoading(false);
+            }
             return;
           }
 
@@ -129,9 +136,11 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
           const looksLikeFullArticle = cached.textContent && textLength > 1500;
           
           if (looksLikeFullArticle) {
-            setFullContent(cached);
-            hasSetContent = true;
-            setIsLoading(false);
+            if (!isCancelled) {
+              setFullContent(cached);
+              hasSetContent = true;
+              setIsLoading(false);
+            }
             return;
           }
         }
@@ -309,9 +318,11 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
               lang: '',
               isScraped: true
             };
-            setFullContent(fallbackContentObj);
-            contentFetcher.setCachedContent(article.id, fallbackContentObj);
-            hasSetContent = true;
+            if (!isCancelled) {
+              setFullContent(fallbackContentObj);
+              contentFetcher.setCachedContent(article.id, fallbackContentObj);
+              hasSetContent = true;
+            }
           }
         } else {
           // If html retrieve resulted in empty content, fall back to cached content
@@ -330,13 +341,15 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
             lang: '',
             isScraped: true
           };
-          setFullContent(fallbackContentObj);
-          contentFetcher.setCachedContent(article.id, fallbackContentObj);
-          hasSetContent = true;
+          if (!isCancelled) {
+            setFullContent(fallbackContentObj);
+            contentFetcher.setCachedContent(article.id, fallbackContentObj);
+            hasSetContent = true;
+          }
         }
       } catch (error) {
         console.warn('[READER] Fallback to summary content:', error);
-        if (!hasSetContent) {
+        if (!hasSetContent && !isCancelled) {
           const fallbackContentObj: FullArticleContent = cached ? {
             ...cached,
             isScraped: true
@@ -356,11 +369,16 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
           contentFetcher.setCachedContent(article.id, fallbackContentObj);
         }
       } finally {
-        setIsLoading(false);
+        if (!isCancelled) {
+          setIsLoading(false);
+        }
       }
     };
 
     fetchFullContent();
+    return () => {
+      isCancelled = true;
+    };
   }, [article.link, article.id]);
 
   const contentRef = useRef<HTMLDivElement>(null);
@@ -432,7 +450,7 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
         node.setAttribute('rel', 'nofollow noopener noreferrer');
       }
       if (node.tagName === 'IFRAME') {
-        node.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-popups allow-forms');
+        node.setAttribute('sandbox', 'allow-scripts allow-popups allow-forms');
       }
 
       if (node.tagName === 'IMG') {
@@ -765,6 +783,31 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
                     </span>
                   </div>
                   <span className="text-gray-500 text-xs font-medium uppercase tracking-wider">{formattedDate}</span>
+                  {(() => {
+                    const ev = getArticleEvidenza(article);
+                    if (ev === 'alta') {
+                      return (
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-blue-600/80 text-white border border-blue-400/70 shadow-sm flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-cyan-300 animate-ping" />
+                          Evidenza Alta
+                        </span>
+                      );
+                    }
+                    if (ev === 'media') {
+                      return (
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-cyan-600/80 text-white border border-cyan-400/70 shadow-sm flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-cyan-200" />
+                          Evidenza Media
+                        </span>
+                      );
+                    }
+                    return (
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-slate-800/80 text-slate-300 border border-slate-600/50 shadow-sm flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+                        Evidenza Bassa
+                      </span>
+                    );
+                  })()}
                 </div>
                 
                 <h1 className={cn(`${getTitleSize()} font-black text-white tracking-tight leading-[1.1]`)}>

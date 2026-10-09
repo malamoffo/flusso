@@ -6,13 +6,25 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 /**
- * Validates if a URL uses a safe protocol (http, https, mailto).
- * Prevents javascript: and other dangerous protocols.
+ * Validates if a URL uses a safe protocol (http, https, mailto, tel, capacitor, or safe image data).
+ * Prevents javascript:, data:text/html, and other dangerous protocols.
  */
 export function isSafeUrl(url: string | null | undefined): boolean {
   if (!url) return false;
   const trimmed = url.trim();
   if (!trimmed) return false;
+
+  const lower = trimmed.toLowerCase();
+  // Reject obvious dangerous pseudo-protocols
+  if (
+    lower.startsWith('javascript:') ||
+    lower.startsWith('vbscript:') ||
+    lower.startsWith('data:text/html') ||
+    lower.startsWith('data:application/') ||
+    lower.startsWith('data:text/javascript')
+  ) {
+    return false;
+  }
 
   // Allow protocol-relative URLs, relative paths, and anchors
   if (
@@ -25,16 +37,26 @@ export function isSafeUrl(url: string | null | undefined): boolean {
     return true;
   }
 
+  // Allow safe image data URLs (including urlencoded and base64 SVG, PNG, JPEG, GIF, WebP, etc.)
+  if (lower.startsWith('data:image/')) {
+    return /^data:image\/(png|jpeg|jpg|gif|webp|svg\+xml|avif|bmp|x-icon|vnd\.microsoft\.icon)(;[a-z0-9=._-]+)*([,;])/i.test(trimmed);
+  }
+
+  // Allow blob URLs
+  if (lower.startsWith('blob:')) {
+    return true;
+  }
+
   try {
     // Use the URL constructor for robust protocol validation
     const parsed = new URL(trimmed);
-    return ['http:', 'https:', 'mailto:', 'tel:', 'capacitor:', 'blob:', 'data:'].includes(parsed.protocol);
+    if (['http:', 'https:', 'mailto:', 'tel:', 'capacitor:'].includes(parsed.protocol)) {
+      return true;
+    }
+    return false;
   } catch (e) {
     // If it's a protocol-relative URL, it's safe
     if (trimmed.startsWith('//')) return true;
-    
-    // If URL parsing fails and it's not a relative path we handle above,
-    // we return false to be safe.
     return false;
   }
 }
@@ -51,11 +73,6 @@ export function getSafeUrl(url: string | null | undefined, fallback: any = ''): 
   // Ensure protocol-relative URLs are converted to https
   if (url.startsWith('//')) {
     return `https:${url}`;
-  }
-  
-  // Upgrade http to https to avoid cleartext traffic issues on native apps
-  if (url.startsWith('http://')) {
-    return url.replace('http://', 'https://');
   }
   
   return url;

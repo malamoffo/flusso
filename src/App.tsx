@@ -26,7 +26,7 @@ const ErrorModal = createLazyView(() => import('./components/ErrorModal').then(m
 const InAppWebView = createLazyView(() => import('./components/InAppWebView').then(m => ({ default: m.InAppWebView })), 'InAppWebView', ModalFallback);
 import { Loader2, Search, X, Check, Rss, Settings, Star, CheckCircle2, RefreshCw, Layers, FileText, Inbox, MessageSquare, ChevronDown, Flame, Radio } from 'lucide-react';
 import { useInView } from 'react-intersection-observer';
-import { cn, getHostname } from './lib/utils';
+import { cn, getHostname, isSafeUrl } from './lib/utils';
 import { Article, Feed } from './types';
 import { App as CapacitorApp } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
@@ -148,7 +148,17 @@ export default function App() {
       const anchor = target.closest('a');
       if (anchor) {
         const href = anchor.getAttribute('href');
-        if (href && (href.startsWith('http://') || href.startsWith('https://') || href.startsWith('//'))) {
+        if (!href) return;
+
+        // Block dangerous scripts and execution protocols
+        const lowerHref = href.trim().toLowerCase();
+        if (lowerHref.startsWith('javascript:') || lowerHref.startsWith('vbscript:')) {
+          e.preventDefault();
+          e.stopPropagation();
+          return;
+        }
+
+        if (isSafeUrl(href) && (href.startsWith('http://') || href.startsWith('https://') || href.startsWith('//'))) {
           e.preventDefault();
           e.stopPropagation();
           if (Capacitor.isNativePlatform()) {
@@ -201,6 +211,7 @@ export default function App() {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [sourceFilter, setSourceFilter] = useState<string>('all');
   const [timeFilter, setTimeFilter] = useState<string>('all');
+  const [evidenzaFilter, setEvidenzaFilter] = useState<string>('all');
   const [subredditFilter, setSubredditFilter] = useState<string>('all');
 
   const filteredRedditPosts = useMemo(() => {
@@ -223,7 +234,7 @@ export default function App() {
 
   useEffect(() => {
     resetPagination();
-  }, [filter, deferredSearchQuery, inboxUnreadOnly, savedUnreadOnly, sourceFilter, timeFilter]);
+  }, [filter, deferredSearchQuery, inboxUnreadOnly, savedUnreadOnly, sourceFilter, timeFilter, evidenzaFilter]);
 
   useEffect(() => {
     if (filter === 'reddit' && subreddits.length > 0) {
@@ -369,12 +380,12 @@ export default function App() {
   }, [articles, selectedArticle]);
 
   useEffect(() => {
-    if (isSearchOpen || searchQuery || sourceFilter !== 'all' || timeFilter !== 'all') {
+    if (isSearchOpen || searchQuery || sourceFilter !== 'all' || timeFilter !== 'all' || evidenzaFilter !== 'all') {
       if (inboxScrollRef.current) inboxScrollRef.current.scrollTop = 0;
       if (savedScrollRef.current) savedScrollRef.current.scrollTop = 0;
       isAtTop.current = true;
     }
-  }, [isSearchOpen, searchQuery, sourceFilter, timeFilter]);
+  }, [isSearchOpen, searchQuery, sourceFilter, timeFilter, evidenzaFilter]);
 
   useAndroidBackNavigation({
     selectedImage,
@@ -439,6 +450,7 @@ export default function App() {
     deferredSearchQuery,
     sourceFilter,
     timeFilter,
+    evidenzaFilter,
     isSearchOpen,
     temporarilyVisibleUnreadIds
   });
@@ -990,6 +1002,7 @@ export default function App() {
                   setIsSearchOpen(false);
                   setSourceFilter('all');
                   setTimeFilter('all');
+                  setEvidenzaFilter('all');
                 }}
                 className="p-1 text-gray-500"
                 aria-label="Close search"
@@ -1010,6 +1023,21 @@ export default function App() {
                         {nonRedditFeeds.map((f, idx) => (
                           <option key={`opt-feed-${f.id}-${idx}`} value={f.id}>{f.title}</option>
                         ))}
+                      </select>
+                      <ChevronDown className="w-3.5 h-3.5 absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none z-10" />
+                    </div>
+
+                    <div className="relative">
+                      <select
+                        value={evidenzaFilter}
+                        onChange={(e) => setEvidenzaFilter(e.target.value)}
+                        className="appearance-none text-xs bg-white/10 text-white dark:text-gray-300 rounded-full pl-3 pr-8 py-1.5 border-none focus:ring-0 outline-none whitespace-nowrap"
+                        aria-label="Filtro Evidenza"
+                      >
+                        <option value="all">Tutte le evidenze</option>
+                        <option value="alta">⚡ Evidenza Alta</option>
+                        <option value="media">✦ Evidenza Media</option>
+                        <option value="bassa">• Evidenza Bassa</option>
                       </select>
                       <ChevronDown className="w-3.5 h-3.5 absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none z-10" />
                     </div>

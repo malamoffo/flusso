@@ -5,7 +5,7 @@ import { ArrowLeft, MessageSquare, ChevronUp, ChevronDown } from 'lucide-react';
 import { useReddit } from '../context/RedditContext';
 import DOMPurify from 'dompurify';
 import { format } from 'date-fns';
-import { getSafeUrl } from '../lib/utils';
+import { cn, getSafeUrl } from '../lib/utils';
 import { CachedImage } from './CachedImage';
 
 interface RedditPostReaderProps {
@@ -20,52 +20,76 @@ interface RedditPostReaderProps {
 
 const CommentNode: React.FC<{ comment: RedditComment; depth?: number; parentAuthor?: string }> = ({ comment, depth = 0, parentAuthor }) => {
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const isCapped = depth >= 3;
 
   return (
-    <div className="mb-2 text-sm bg-white/[0.04] dark:bg-[#1a1128]/50 backdrop-blur-xl p-3.5 rounded-2xl border border-purple-400/20 shadow-[0_4px_20px_rgba(0,0,0,0.25),inset_0_1px_1px_rgba(255,255,255,0.08)]">
-      <div 
-        className="flex items-center gap-2 mb-2 cursor-pointer hover:bg-white/5 p-1 rounded-lg transition-colors"
-        onClick={() => setIsCollapsed(!isCollapsed)}
-      >
-        <span className="font-medium text-purple-400 text-xs">
-          u/{comment.author}
-          {depth >= 3 && parentAuthor && (
-            <span className="text-gray-500 font-normal text-[10px]">
-              {' '}→ <span className="text-purple-300">u/{parentAuthor}</span>
+    <div className="mb-2 text-sm w-full">
+      {/* Scheda del commento separata per evitare che il padding si accumuli all'interno dei figli */}
+      <div className={cn(
+        "bg-white/[0.04] dark:bg-[#1a1128]/50 backdrop-blur-xl p-3.5 rounded-2xl border shadow-[0_4px_20px_rgba(0,0,0,0.25),inset_0_1px_1px_rgba(255,255,255,0.08)]",
+        isCapped ? "border-purple-400/30 border-l-4 border-l-purple-500" : "border-purple-400/20"
+      )}>
+        <div 
+          className="flex items-center gap-2 mb-2 cursor-pointer hover:bg-white/5 p-1 rounded-lg transition-colors"
+          onClick={() => setIsCollapsed(!isCollapsed)}
+        >
+          <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+            <span className="font-medium text-purple-400 text-xs">
+              u/{comment.author}
             </span>
-          )}
-        </span>
-        <span className="text-gray-500 text-[10px]">• {format(comment.createdUtc, 'HH:mm dd/MM/yy')}</span>
-        <span className="text-gray-500 text-[10px]">• ↑ {comment.score}</span>
-        <span className="text-gray-600 text-[10px] ml-auto">{isCollapsed ? '[+]' : '[-]'}</span>
+            {depth > 0 && parentAuthor && (
+              <span className="text-gray-400 font-normal text-[10px]">
+                → <span className="text-purple-300">u/{parentAuthor}</span>
+              </span>
+            )}
+            {depth >= 3 && (
+              <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-purple-500/20 text-purple-300 border border-purple-400/30 whitespace-nowrap">
+                Livello {depth + 1}
+              </span>
+            )}
+          </div>
+          <span className="text-gray-500 text-[10px] whitespace-nowrap">• {format(comment.createdUtc, 'HH:mm dd/MM/yy')}</span>
+          <span className="text-gray-500 text-[10px] whitespace-nowrap">• ↑ {comment.score}</span>
+          <span className="text-gray-600 text-[10px] ml-auto font-mono">{isCollapsed ? '[+]' : '[-]'}</span>
+        </div>
+        {!isCollapsed && (
+          <>
+            <div 
+              className="text-gray-300 reddit-comment-body pl-2 break-words text-sm leading-relaxed"
+              dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(comment.bodyHtml, { FORBID_ATTR: ['id', 'name'] }) }}
+            />
+            {comment.mediaUrls && comment.mediaUrls.length > 0 && (
+              <div className="mt-2 pl-2 space-y-2">
+                {comment.mediaUrls.map((url, idx) => (
+                  <div key={idx} className="relative max-w-full overflow-hidden rounded-xl border border-white/15 bg-black/30 backdrop-blur-md">
+                    <CachedImage 
+                      src={getSafeUrl(url)} 
+                      alt="Comment attachment" 
+                      className="w-full h-auto object-contain max-h-[300px]"
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
       </div>
-      {!isCollapsed && (
-        <>
-          <div 
-            className="text-gray-300 reddit-comment-body pl-2 break-words text-sm leading-relaxed"
-            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(comment.bodyHtml, { FORBID_ATTR: ['id', 'name'] }) }}
-          />
-          {comment.mediaUrls && comment.mediaUrls.length > 0 && (
-            <div className="mt-2 pl-2 space-y-2">
-              {comment.mediaUrls.map((url, idx) => (
-                <div key={idx} className="relative max-w-full overflow-hidden rounded-xl border border-white/15 bg-black/30 backdrop-blur-md">
-                  <CachedImage 
-                    src={getSafeUrl(url)} 
-                    alt="Comment attachment" 
-                    className="w-full h-auto object-contain max-h-[300px]"
-                  />
-                </div>
-              ))}
-            </div>
-          )}
-          {comment.replies && comment.replies.length > 0 && (
-            <div className={`mt-4 ${depth < 3 ? 'pl-4 border-l-2 border-purple-500/30' : 'pl-2 border-l border-dashed border-purple-500/20'} space-y-4`}>
-              {comment.replies.map((reply, rIdx) => (
-                <CommentNode key={`reply-${reply.id || 'r'}-${rIdx}`} comment={reply} depth={depth + 1} parentAuthor={comment.author} />
-              ))}
-            </div>
-          )}
-        </>
+
+      {/* Contenitore delle risposte: oltre il 3° livello (depth >= 3), interrompe l'indentatura */}
+      {!isCollapsed && comment.replies && comment.replies.length > 0 && (
+        <div className={cn(
+          "mt-2.5 space-y-2.5",
+          depth < 3 ? "pl-3.5 sm:pl-4 border-l-2 border-purple-500/35 ml-1.5" : "pl-0 ml-0 border-l-0"
+        )}>
+          {comment.replies.map((reply, rIdx) => (
+            <CommentNode 
+              key={`reply-${reply.id || 'r'}-${rIdx}`} 
+              comment={reply} 
+              depth={depth + 1} 
+              parentAuthor={comment.author} 
+            />
+          ))}
+        </div>
       )}
     </div>
   );
@@ -87,6 +111,7 @@ export const RedditPostReader = ({ post, onClose, onNext, onPrev, hasNext, hasPr
   }, [post.id]);
 
   useEffect(() => {
+    let isCancelled = false;
     const loadComments = async () => {
       setIsLoading(true);
       setError(null);
@@ -99,6 +124,8 @@ export const RedditPostReader = ({ post, onClose, onNext, onPrev, hasNext, hasPr
           const { storage } = await import('../services/storage');
           rawComments = await storage.fetchRedditComments(post.permalink);
         }
+
+        if (isCancelled) return;
 
         if (!rawComments || rawComments.length === 0) {
            setError(null);
@@ -183,16 +210,25 @@ export const RedditPostReader = ({ post, onClose, onNext, onPrev, hasNext, hasPr
           }).filter(Boolean) as RedditComment[];
         };
 
-        setComments(parseComments(rawComments, 0));
+        if (!isCancelled) {
+          setComments(parseComments(rawComments, 0));
+        }
       } catch (e) {
-        console.error("Failed to load comments", e);
-        setError("Error connecting to Reddit. Please try again later.");
+        if (!isCancelled) {
+          console.error("Failed to load comments", e);
+          setError("Error connecting to Reddit. Please try again later.");
+        }
       } finally {
-        setIsLoading(false);
+        if (!isCancelled) {
+          setIsLoading(false);
+        }
       }
     };
     
     loadComments();
+    return () => {
+      isCancelled = true;
+    };
   }, [post.permalink]);
 
   useEffect(() => {

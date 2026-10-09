@@ -31,6 +31,8 @@ export interface Feed {
   lastModified?: string;
 }
 
+export type EvidenzaLevel = 'alta' | 'media' | 'bassa';
+
 export interface Article {
   id: string;
   feedId: string;
@@ -46,6 +48,7 @@ export interface Article {
   readAt?: number;
   isFavorite: number; // 0 or 1
   type: 'article';
+  evidenza?: EvidenzaLevel;
 }
 
 export interface RefreshLog {

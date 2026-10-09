@@ -138,7 +138,7 @@ export function InAppWebView({ url, onClose }: InAppWebViewProps) {
             src={url}
             className="w-full h-full border-none"
             title="Sito web incorporato"
-            sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
+            sandbox="allow-scripts allow-popups allow-forms"
             referrerPolicy="no-referrer"
             onLoad={() => setIsLoading(false)}
           />
