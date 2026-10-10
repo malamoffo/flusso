@@ -399,35 +399,17 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
         >
           {!isReadForDisplay && filter !== 'saved' && (
             <>
-              {evidenza === 'alta' && (
-                <>
-                  <span className="absolute top-1 right-4 z-40 px-2.5 py-0.5 bg-gradient-to-r from-blue-600/95 to-indigo-600/95 backdrop-blur-md text-[9px] font-black text-white rounded-full shadow-[0_0_14px_rgba(59,130,246,0.85)] border border-blue-400 uppercase tracking-widest animate-pulse flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-cyan-300 animate-ping" />
-                    ALTA
-                  </span>
-                  <div className="absolute inset-0 z-20 pointer-events-none rounded-[inherit] border-2 border-blue-400/80 shadow-[0_0_28px_rgba(59,130,246,0.95),inset_0_0_18px_rgba(59,130,246,0.6)] animate-pulse" style={{ animationDuration: '3s' }} />
-                </>
-              )}
-
-              {evidenza === 'media' && (
-                <>
-                  <span className="absolute top-1 right-4 z-40 px-2.5 py-0.5 bg-gradient-to-r from-cyan-600/90 to-blue-500/90 backdrop-blur-md text-[9px] font-black text-white rounded-full shadow-[0_0_12px_rgba(6,182,212,0.6)] border border-cyan-400 uppercase tracking-wider flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-cyan-200" />
-                    MEDIA
-                  </span>
-                  <div className="absolute inset-0 z-20 pointer-events-none rounded-[inherit] border-2 border-cyan-400/70 shadow-[0_0_18px_rgba(6,182,212,0.5),inset_0_0_12px_rgba(6,182,212,0.25)]" />
-                </>
-              )}
-
-              {evidenza === 'bassa' && (
-                <>
-                  <span className="absolute top-1 right-4 z-40 px-2 py-0.5 bg-slate-800/90 backdrop-blur-md text-[9px] font-bold text-slate-300 rounded-full border border-slate-600/50 uppercase tracking-wider flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
-                    BASSA
-                  </span>
-                  <div className="absolute inset-0 z-20 pointer-events-none rounded-[inherit] border border-blue-400/30 shadow-[0_0_8px_rgba(59,130,246,0.15)]" />
-                </>
-              )}
+              <span className="absolute top-1 right-4 z-40 px-2.5 py-0.5 bg-blue-600/90 backdrop-blur-md text-[9px] font-black text-white rounded-full shadow-[0_0_12px_rgba(59,130,246,0.8)] border border-blue-400 uppercase tracking-widest animate-pulse flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-cyan-300 animate-ping" />
+                NEW
+              </span>
+              <div 
+                className={cn(
+                  "absolute inset-0 z-20 pointer-events-none rounded-[inherit] border-2 shadow-[0_0_28px_rgba(59,130,246,0.95),inset_0_0_18px_rgba(59,130,246,0.6)] animate-pulse",
+                  evidenza === 'alta' ? "border-blue-400/80" : evidenza === 'media' ? "border-cyan-400/70" : "border-slate-400/50"
+                )} 
+                style={{ animationDuration: '3s' }} 
+              />
             </>
           )}
           <div className="relative z-10 flex flex-col gap-2">

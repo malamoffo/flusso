@@ -783,31 +783,6 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
                     </span>
                   </div>
                   <span className="text-gray-500 text-xs font-medium uppercase tracking-wider">{formattedDate}</span>
-                  {(() => {
-                    const ev = getArticleEvidenza(article);
-                    if (ev === 'alta') {
-                      return (
-                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-blue-600/80 text-white border border-blue-400/70 shadow-sm flex items-center gap-1">
-                          <span className="w-1.5 h-1.5 rounded-full bg-cyan-300 animate-ping" />
-                          Evidenza Alta
-                        </span>
-                      );
-                    }
-                    if (ev === 'media') {
-                      return (
-                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-cyan-600/80 text-white border border-cyan-400/70 shadow-sm flex items-center gap-1">
-                          <span className="w-1.5 h-1.5 rounded-full bg-cyan-200" />
-                          Evidenza Media
-                        </span>
-                      );
-                    }
-                    return (
-                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-slate-800/80 text-slate-300 border border-slate-600/50 shadow-sm flex items-center gap-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
-                        Evidenza Bassa
-                      </span>
-                    );
-                  })()}
                 </div>
                 
                 <h1 className={cn(`${getTitleSize()} font-black text-white tracking-tight leading-[1.1]`)}>
