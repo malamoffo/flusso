@@ -152,7 +152,7 @@ export default function App() {
 
         // Block dangerous scripts and execution protocols
         const lowerHref = href.trim().toLowerCase();
-        if (lowerHref.startsWith('javascript:') || lowerHref.startsWith('vbscript:')) {
+        if (lowerHref.startsWith('javascript:') || lowerHref.startsWith('vbscript:') || lowerHref.startsWith('data:')) {
           e.preventDefault();
           e.stopPropagation();
           return;
