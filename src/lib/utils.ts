@@ -15,14 +15,19 @@ export function isSafeUrl(url: string | null | undefined): boolean {
   if (!trimmed) return false;
 
   const lower = trimmed.toLowerCase();
-  // Reject obvious dangerous pseudo-protocols
+  // Reject dangerous pseudo-protocols
   if (
     lower.startsWith('javascript:') ||
-    lower.startsWith('vbscript:') ||
-    lower.startsWith('data:text/html') ||
-    lower.startsWith('data:application/') ||
-    lower.startsWith('data:text/javascript')
+    lower.startsWith('vbscript:')
   ) {
+    return false;
+  }
+
+  // Handle data: URLs explicitly — only allow vetted image data URLs
+  if (lower.startsWith('data:')) {
+    if (lower.startsWith('data:image/')) {
+      return /^data:image\/(png|jpeg|jpg|gif|webp|svg\+xml|avif|bmp|x-icon|vnd\.microsoft\.icon)(;[a-z0-9=._-]+)*([,;])/i.test(trimmed);
+    }
     return false;
   }
 
@@ -35,11 +40,6 @@ export function isSafeUrl(url: string | null | undefined): boolean {
     trimmed.startsWith('#')
   ) {
     return true;
-  }
-
-  // Allow safe image data URLs (including urlencoded and base64 SVG, PNG, JPEG, GIF, WebP, etc.)
-  if (lower.startsWith('data:image/')) {
-    return /^data:image\/(png|jpeg|jpg|gif|webp|svg\+xml|avif|bmp|x-icon|vnd\.microsoft\.icon)(;[a-z0-9=._-]+)*([,;])/i.test(trimmed);
   }
 
   // Allow blob URLs
