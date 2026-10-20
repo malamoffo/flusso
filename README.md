@@ -1,91 +1,105 @@
-# 🌊 Flusso - Your Modern RSS Reader
+# 🌊 Flusso - Your Modern RSS & News Reader
 
 [![Build Web App](https://github.com/malamoffo/flusso/actions/workflows/android.yml/badge.svg)](https://github.com/malamoffo/flusso/actions/workflows/android.yml)
 [![Latest Release](https://img.shields.io/github/v/release/malamoffo/flusso)](https://github.com/malamoffo/flusso/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**Flusso** is a fast, privacy-focused, and highly customizable news reader designed to provide a superior reading experience on both web and mobile devices.
- 
+**Flusso** is a fast, privacy-focused, and highly customizable news and RSS reader designed for both web and Android devices. It combines traditional RSS/Atom feed subscriptions with subreddit integration, an offline-first storage architecture, and an distraction-free reading experience.
+
 ---
 
-## ✨ Advanced Features
+## ✨ Features
 
-### 🛠️ Smart Widgets & Dynamic Header
-*   **Real-time Weather**: Integrated weather widget that automatically detects your location to provide current conditions.
-*   **Synchronized Clock**: A minimalist design that integrates time and weather directly into your news flow.
+### 🧭 Clean 4-Section Architecture
+The bottom navigation bar features evenly spaced, quick-access sections with ambient dynamic lighting:
+*   ⭐ **Saved (Preferiti)**: Curated collection of bookmarked articles and saved Reddit posts, filterable by read/unread status.
+*   📥 **Inbox (Flusso Notizie)**: Unified stream of all your subscribed RSS/Atom articles, with fast pull-to-refresh, auto-mark-as-read on scroll, and custom search.
+*   💬 **Reddit**: Native subreddit reader with hot/new/top sorting, thumbnail previews, and a deep discussion viewer with collapsible nested comment trees.
+*   ⚙️ **Settings (Impostazioni)**: Full control over feeds, OPML import/export, reading preferences, theme accents, and data retention.
 
-### 🤖 Reddit Integration
-*   **Subreddit Support**: Follow your favorite subreddits directly within Flusso with dedicated purple-themed UI.
-*   **On-Demand Content**: Load Reddit comments only when needed to save data.
-*   **Smart Retention**: Customizable retention policies to keep your feeds fast and relevant.
+### 🤖 Resilient Reddit Integration
+*   **Atom/RSS Engine**: Uses Reddit's official Atom/RSS feed streams to reliably fetch posts without being blocked by 403 Forbidden unauthenticated JSON API restrictions.
+*   **Rate-Limit Protection**: Sequential fetching with backoff intervals and compliant User-Agent headers (`<platform>:<app_id>:<version> (by /u/<username>)`) to avoid 429 Too Many Requests.
+*   **Threaded Comment Viewer**: Read Reddit comment threads with support for up to 20 levels of nesting, with an intelligent indentation cap (after level 3) designed for optimal mobile screen readability.
+*   **Timestamp Normalization & Smart Retention**: Millisecond-accurate timestamp handling with configurable retention (default 3 days), ensuring favorite and active posts are preserved.
 
-### 📖 Immersive Reading Experience
-*   **Smart Feed Discovery**: Simply enter a website URL, and Flusso will automatically find the RSS/Atom feed for you.
-*   **Distraction-Free Mode**: Automatic content extraction via *Mozilla Readability* for a clean and consistent reading experience.
-*   **Search & Organization**: Integrated search engine to quickly find articles across all your feeds.
-*   **Ambient Background**: Dynamic but static color blobs and glows that provide depth without distracting from content.
-*   **Smart Prefetching**: Articles are pre-loaded in the background to ensure instant opening, even offline.
-*   **Uncompromised Images**: Optimized display of full-height images (no cropping) in both the preview and the full article.
-*   **Vertical Navigation**: Swipe up and down in the article reader to seamlessly move between articles.
-*   **Visual Polish**: Elegant gradient borders with fading glow effects between list items for a premium feel.
+### 📖 Distraction-Free Reading
+*   **Smart Feed Discovery**: Enter any website URL or domain to automatically discover and subscribe to valid RSS or Atom feeds.
+*   **Article Reader Mode**: Clean, ad-free article extraction powered by *@mozilla/readability* and *DOMPurify*.
+*   **Image Viewer**: Full-screen zoomable image viewer with pinch-to-zoom and pan support.
+*   **Ambient Glows (SectionGlow)**: Subtle, GPU-accelerated backdrop glows tailored to each section (Golden Amber for Saved, Electric Blue for Inbox, Cosmic Violet for Reddit).
+*   **Swipe Gestures**: Swipe left or right on article cards to toggle read status or bookmark to favorites.
 
-### 🎨 Extreme Customization
-*   **OLED Ready**: Includes the **Pure Black** theme for maximum energy savings on AMOLED screens.
-*   **Variable Typography**: Support for Sans-serif (Inter) fonts with adjustable sizes from *Small* to *X-Large*.
-*   **Intuitive Gestures**: Customizable swipe actions to mark as read or add to favorites with a single touch.
-*   **OPML Import/Merge**: Support for both replacing existing feeds or merging new ones from OPML files.
-*   **Organized Subscriptions**: Collapsible accordion sections for Articles, Podcasts, and Subreddits to keep your settings clean.
+### 🎨 Customization & Theming
+*   **OLED Pure Black**: Complete dark mode optimized for AMOLED battery saving.
+*   **Accent Color Themes**: Customizable accent colors (Blue, Purple, Emerald, Amber, Rose, etc.).
+*   **Typography Controls**: Adjustable font scale (*Small*, *Medium*, *Large*, *X-Large*).
+*   **OPML Management**: Import and export standard OPML subscription lists, with options to merge with existing feeds or replace them.
+*   **Collapsible Subscriptions**: Categorized management for RSS feeds and subreddits.
 
-### 🚀 Technology & Performance
-*   **Offline First**: All feeds and articles are saved locally via *IndexedDB*.
-*   **Android Native**: Custom icons and splash screens for a smooth native app experience powered by *Capacitor*.
-*   **Automated CI/CD**: Automatic builds for every Pull Request and automated releases via GitHub Actions.
-*   **In-App Updates**: Stay up to date with the latest features! Flusso now automatically checks for new releases on GitHub and allows you to update directly from the settings.
-*   **Robust Fetching**: Advanced multi-proxy system with automatic failover and JSON validation for maximum reliability.
-*   **Error Logging**: Dedicated error log section in "About Flusso" to help diagnose and fix issues without cluttering the main UI.
+### 🚀 Performance & Architecture
+*   **Offline-First**: All feeds, articles, posts, and user states are stored locally via *Dexie.js* (IndexedDB).
+*   **Dedicated Web Worker**: Heavy sorting, deduplication, and list merging are handled in `dataProcessor.worker.ts` off the main thread.
+*   **Native Android Integration**: Built with *Capacitor 6*, featuring native HTTP handling (`CapacitorHttp`), hardware back button management, and in-app browser capabilities.
+*   **Diagnostics & Error Logging**: Built-in error logger in "About Flusso" to troubleshoot connection and feed parsing issues locally.
 
 ---
 
 ## 🛠️ Tech Stack
 
-*   **Frontend**: React 19 + TypeScript
-*   **Styling**: Tailwind CSS 4.0 (Modern Utility-First)
-*   **Animations**: Framer Motion (Fluid transitions and visual haptic feedback)
-*   **Storage**: idb-keyval (IndexedDB)
-*   **Native Bridge**: Capacitor (Access to native Android/iOS APIs)
-*   **Media Session**: @capgo/capacitor-media-session (Lock screen audio controls)
-*   **Content Engine**: @mozilla/readability
+*   **Frontend**: React 19 + TypeScript + Vite
+*   **Styling**: Tailwind CSS v4.0
+*   **Animations & Gestures**: Framer Motion
+*   **Database**: Dexie.js (IndexedDB wrapper) + `dexie-react-hooks`
+*   **Concurrency**: Dedicated Web Worker (`dataProcessor.worker.ts`)
+*   **Content Engine**: `@mozilla/readability`, `dompurify`, `he`
+*   **Native Bridge**: Capacitor 6 (`@capacitor/core`, `@capacitor/android`, `@capacitor/browser`, `@capacitor/app`)
+*   **Testing**: Vitest (34 unit & performance benchmark tests)
 
 ---
 
 ## 📱 Installation & Development
 
-### Requirements
+### Prerequisites
 *   Node.js (v18+)
 *   npm
 
-### Local Setup
+### Local Development
 ```bash
 # Install dependencies
 npm install
 
-# Start development server
+# Start Vite development server
 npm run dev
 ```
 
-### Android Build
+### Run Tests & Verification
 ```bash
-# Generate production build
-npm run build
+# Run unit and performance tests
+npm test
 
-# Sync with Android project
+# Type checking
+npm run lint
+
+# Production build
+npm run build
+```
+
+### Android Sync & Build
+```bash
+# Build web assets and sync with native Android shell
+npm run build
 npx cap sync android
+
+# Open Android Studio
+npx cap open android
 ```
 
 ---
 
 ## 🛡️ Privacy & Security
-Flusso does not track your reading habits. All your feed data remains on your device. Images are loaded with `referrerPolicy="no-referrer"` to protect your identity while browsing.
+Flusso does not track your reading habits, require cloud account creation, or send telemetry to external servers. All feeds, credentials, and articles remain exclusively on your device. Images are fetched using `referrerPolicy="no-referrer"` to protect your identity while browsing.
 
 ---
-*Developed with ❤️ for a better reading experience.*
+
+*Flusso — Semplice, veloce e senza distrazioni.*
