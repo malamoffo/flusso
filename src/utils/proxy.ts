@@ -43,10 +43,13 @@ export async function fetchWithProxy(
   // 1. Native platform (CapacitorHttp)
   if (isNative) {
     try {
+      const isReddit = url.includes('reddit.com');
       const headers: Record<string, string> = {
-        'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
-        'Accept': isRss 
-          ? 'application/rss+xml, application/xml, text/xml, */*' 
+        'User-Agent': isReddit
+          ? 'android:com.flusso.app:v1.1.0 (by /u/flusso_dev)'
+          : 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
+        'Accept': (isRss || isReddit)
+          ? 'application/atom+xml, application/rss+xml, application/xml, text/xml, */*' 
           : 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8'
       };
 

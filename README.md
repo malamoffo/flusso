@@ -14,14 +14,6 @@
 *   **Real-time Weather**: Integrated weather widget that automatically detects your location to provide current conditions.
 *   **Synchronized Clock**: A minimalist design that integrates time and weather directly into your news flow.
 
-### 🎙️ Radio & Audio Experience (New!)
-*   **Live Radio Streaming**: Access thousands of Italian and international radio stations via the *Radio-Browser API*.
-*   **Continuous Playback**: Listen to your favorite stations even with the screen off or app in background.
-*   **Native Media Controls**: Full integration with Android/iOS media sessions for playback management from notifications and lock screen.
-*   **Smart Favorites**: Pin your most-listened stations to the top of the list for instant access.
-*   **Search & Discover**: Filter stations by name, tag, or category with a dedicated search interface.
-*   **Visual Feedback**: Red-themed audio interface with dynamic loading states and high-quality favicons.
-
 ### 🤖 Reddit Integration
 *   **Subreddit Support**: Follow your favorite subreddits directly within Flusso with dedicated purple-themed UI.
 *   **On-Demand Content**: Load Reddit comments only when needed to save data.

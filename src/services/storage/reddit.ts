@@ -5,6 +5,111 @@ import { Capacitor } from '@capacitor/core';
 import { isNative } from '../../utils/platform';
 import he from 'he';
 
+export function parseRedditAtom(xmlString: string, defaultSubreddit: string): { posts: RedditPost[], after?: string } {
+  try {
+    const parser = new DOMParser();
+    let doc = parser.parseFromString(xmlString, 'text/xml');
+    
+    if (doc.getElementsByTagName('parsererror').length > 0) {
+      doc = parser.parseFromString(xmlString, 'text/html');
+    }
+
+    const entries = Array.from(doc.getElementsByTagName('entry'));
+    if (entries.length === 0) {
+      return { posts: [] };
+    }
+
+    let lastEntryId: string | undefined = undefined;
+    const posts: RedditPost[] = [];
+
+    for (const entry of entries) {
+      const rawId = entry.getElementsByTagName('id')[0]?.textContent?.trim() || '';
+      const originalId = rawId.replace(/^t3_/, '');
+      lastEntryId = rawId || (originalId ? `t3_${originalId}` : undefined);
+
+      const rawTitle = entry.getElementsByTagName('title')[0]?.textContent?.trim() || 'Senza titolo';
+      const title = he.decode(rawTitle);
+
+      const authorEl = entry.getElementsByTagName('author')[0];
+      const rawAuthor = authorEl ? (authorEl.getElementsByTagName('name')[0]?.textContent || '') : '';
+      const author = rawAuthor.replace(/^\/?u\//i, '').trim() || 'reddit_user';
+
+      const catEl = entry.getElementsByTagName('category')[0];
+      const subName = (catEl?.getAttribute('term') || defaultSubreddit).replace(/^r\//i, '').trim();
+
+      const linkEl = entry.getElementsByTagName('link')[0];
+      const permalinkUrl = linkEl?.getAttribute('href') || '';
+      let permalink = permalinkUrl;
+      try {
+        const parsed = new URL(permalinkUrl);
+        permalink = parsed.pathname;
+      } catch {}
+
+      const publishedStr = entry.getElementsByTagName('published')[0]?.textContent || 
+                           entry.getElementsByTagName('updated')[0]?.textContent || '';
+      let createdUtc = publishedStr ? new Date(publishedStr).getTime() : Date.now();
+      if (isNaN(createdUtc)) createdUtc = Date.now();
+
+      let imageUrl: string | undefined = undefined;
+      const mediaThumb = entry.getElementsByTagName('media:thumbnail')[0];
+      if (mediaThumb) {
+        const thumbUrl = mediaThumb.getAttribute('url');
+        if (thumbUrl && !thumbUrl.includes('default') && !thumbUrl.includes('self')) {
+          imageUrl = thumbUrl;
+        }
+      }
+
+      const contentEl = entry.getElementsByTagName('content')[0];
+      const contentHtml = contentEl?.textContent || '';
+      
+      let outboundUrl = permalinkUrl;
+      let selftextHtml: string | undefined = undefined;
+
+      if (contentHtml) {
+        const linkMatch = contentHtml.match(/<a\s+href="([^"]+)">\[link\]<\/a>/i);
+        if (linkMatch && linkMatch[1]) {
+          outboundUrl = he.decode(linkMatch[1]);
+        }
+
+        if (!imageUrl) {
+          const imgMatch = contentHtml.match(/<img[^>]+src="([^">]+)"/i);
+          if (imgMatch && imgMatch[1]) {
+            imageUrl = he.decode(imgMatch[1]);
+          }
+        }
+
+        const selftextMatch = contentHtml.match(/<div class="md">([\s\S]*?)<\/div>/i);
+        if (selftextMatch && selftextMatch[1]) {
+          selftextHtml = selftextMatch[1];
+        }
+      }
+
+      posts.push({
+        id: `${subName}/${originalId || rawId || crypto.randomUUID()}`,
+        originalId: originalId || rawId,
+        title,
+        author,
+        subredditId: `sub_${subName.toLowerCase()}`,
+        subredditName: subName,
+        permalink,
+        url: outboundUrl,
+        imageUrl: imageUrl ? he.decode(imageUrl) : undefined,
+        createdUtc,
+        score: 1,
+        numComments: 1,
+        selftextHtml,
+        isRead: 0,
+        isFavorite: 0
+      });
+    }
+
+    return { posts, after: lastEntryId };
+  } catch (err) {
+    console.error('Failed to parse Reddit Atom XML:', err);
+    return { posts: [] };
+  }
+}
+
 export const redditStorage = {
    isImgurUrl(url: string): boolean {
     try {
@@ -113,42 +218,42 @@ export const redditStorage = {
 
       if (!cleanName) return null;
 
-      // In ambiente di sviluppo/web non effettuiamo chiamate di rete reali a Reddit
-      if (!isNative()) {
-        const newSub: Subreddit = {
-          id: `sub_${cleanName.toLowerCase()}`,
-          name: cleanName,
-          iconUrl: undefined,
-          addedAt: Date.now(),
-        };
+      let displayName = cleanName;
+      let iconUrl: string | undefined = undefined;
 
-        const subs = await this.getSubreddits();
-        const lowerNewName = newSub.name.toLowerCase();
-        if (!subs.some(s => s.name.toLowerCase() === lowerNewName)) {
-          subs.push(newSub);
-          await this.saveSubreddits(subs);
+      // 1. Try checking Reddit via RSS (works without API key/OAuth)
+      try {
+        const rssUrl = `https://www.reddit.com/r/${cleanName}/.rss`;
+        const res = await fetchWithProxy(rssUrl, true);
+        if (res.data && (res.data.includes('<feed') || res.data.includes('<entry'))) {
+          const parser = new DOMParser();
+          const doc = parser.parseFromString(res.data, 'text/xml');
+          const title = doc.getElementsByTagName('title')[0]?.textContent;
+          if (title) displayName = title.replace(/^r\//i, '').trim() || cleanName;
+          const logo = doc.getElementsByTagName('logo')[0]?.textContent || doc.getElementsByTagName('icon')[0]?.textContent;
+          if (logo) iconUrl = logo;
         }
-        return newSub;
-      }
-
-      const url = `https://www.reddit.com/r/${cleanName}/about.json`;
-      const result = await this.fetchJsonWithProxy(url);
-
-      if (!result || result.data.error || !result.data.data) {
-        console.error('Subreddit not found or error:', result);
-        return null;
-      }
-
-      const subData = result.data.data;
-      let iconUrl = subData.icon_img || subData.community_icon || undefined;
-      if (iconUrl) {
-        iconUrl = iconUrl.split('?')[0];
-        iconUrl = he.decode(iconUrl);
+      } catch (err) {
+        // Fallback to about.json if possible
+        try {
+          const url = `https://www.reddit.com/r/${cleanName}/about.json`;
+          const result = await this.fetchJsonWithProxy(url);
+          if (result && result.data && result.data.data) {
+            const subData = result.data.data;
+            displayName = subData.display_name || cleanName;
+            let rawIcon = subData.icon_img || subData.community_icon || undefined;
+            if (rawIcon) {
+              iconUrl = he.decode(rawIcon.split('?')[0]);
+            }
+          }
+        } catch {
+          // Keep default cleanName
+        }
       }
 
       const newSub: Subreddit = {
-        id: subData.name,
-        name: subData.display_name || cleanName,
+        id: `sub_${cleanName.toLowerCase()}`,
+        name: displayName || cleanName,
         iconUrl,
         addedAt: Date.now(),
       };
@@ -183,180 +288,109 @@ export const redditStorage = {
   },
 
   async fetchSubredditPosts(subredditName: string, sinceDate?: number, after?: string, sort: 'new' | 'hot' | 'top' = 'new'): Promise<RedditPost[]> {
-    try {
-      // In ambiente di sviluppo/web non effettuiamo chiamate di rete a Reddit: restituiamo i post mock locali
-      if (!isNative()) {
-        return await this.getLocalPostsForSubreddit(subredditName);
-      }
-
-      const subreddits = await this.getSubreddits();
-      const subreddit = subreddits.find(s => s.name === subredditName);
-      
-      let url = `https://www.reddit.com/r/${subredditName}/${sort}.json?limit=25`;
-      if (after) {
-        url += `&after=t3_${after}`;
-      }
-      
-      let data;
-      try {
-        data = await this.fetchJsonWithProxy(url, undefined, subreddit?.etag, subreddit?.lastModified);
-      } catch (e: any) {
-        if (e?.name === 'AbortError' || e?.message?.includes('aborted') || e?.message?.includes('Aborted')) {
-          return [];
-        }
-        console.warn(`FetchSubredditPosts failed for r/${subredditName}, retrying without caching headers...`, e);
-        data = await this.fetchJsonWithProxy(url);
-      }
-      
-      if (!data || data.data?.error || !data.data?.data || !data.data?.data?.children) {
-        return [];
-      }
-
-      // Update etag and lastModified for the subreddit
-      if (subreddit) {
-        subreddit.etag = data.etag;
-        subreddit.lastModified = data.lastModified;
-        await this.saveSubreddits(subreddits);
-      }
-
-      const posts: RedditPost[] = data.data.data.children.map((child: any) => {
-        const post = child.data;
-        const createdUtc = post.created_utc * 1000;
-
-        if (sinceDate && createdUtc <= sinceDate) return null;
-
-        let imageUrl = undefined;
-        if (post.preview && post.preview.images && post.preview.images.length > 0) {
-          const preview = post.preview.images[0];
-          imageUrl = preview.source.url;
-        } else if (post.url && (post.url.match(/\.(jpg|jpeg|png|gif|webp)$/) || this.isImgurUrl(post.url))) {
-          imageUrl = post.url;
-        } else if (post.thumbnail && post.thumbnail.startsWith('http')) {
-          imageUrl = post.thumbnail;
-        }
-
-        return {
-          id: `${post.subreddit}/${post.id}`,
-          subredditId: post.subreddit_id,
-          subredditName: post.subreddit,
-          title: he.decode(post.title),
-          author: post.author,
-          url: post.url,
-          permalink: post.permalink,
-          score: post.score,
-          numComments: post.num_comments,
-          createdUtc,
-          selftextHtml: post.selftext_html ? he.decode(post.selftext_html) : undefined,
-          imageUrl: imageUrl ? he.decode(imageUrl) : undefined,
-          isRead: 0,
-          isFavorite: 0,
-        };
-      }).filter(Boolean) as RedditPost[];
-
-      return posts;
-    } catch (e: any) {
-      if (e?.name === 'AbortError' || e?.message?.includes('aborted') || e?.message?.includes('Aborted')) {
-        return [];
-      }
-      const localPosts = await this.getLocalPostsForSubreddit(subredditName);
-      if (localPosts.length > 0) {
-        return localPosts;
-      }
-      console.warn(`Could not fetch live posts for r/${subredditName} (network/CORS):`, e?.message || e);
-      return [];
+    const res = await this.fetchRedditPosts(subredditName, sort, after);
+    if (sinceDate) {
+      return res.posts.filter(p => p.createdUtc > sinceDate);
     }
+    return res.posts;
   },
 
   async fetchRedditPosts(subredditName: string, sort: 'new' | 'hot' | 'top' = 'new', after?: string, signal?: AbortSignal): Promise<{posts: RedditPost[], after?: string}> {
     try {
       if (signal?.aborted) return { posts: [] };
 
-      // In ambiente di sviluppo/web non effettuiamo chiamate di rete a Reddit: restituiamo i post mock locali
-      if (!isNative()) {
-        const localPosts = await this.getLocalPostsForSubreddit(subredditName);
-        return { posts: localPosts, after: undefined };
-      }
-
-      // Don't strictly require subreddit object to perform fetch
       const subreddits = await this.getSubreddits();
-      const subreddit = subreddits.find(s => s.name === subredditName);
-      
-      let url = `https://www.reddit.com/r/${subredditName}/${sort}.json?limit=25`;
-      if (after) {
-        // If 'after' already contains 't3_', use it as is, otherwise prefix it.
-        const cursor = after.startsWith('t3_') ? after : `t3_${after}`;
-        url += `&after=${cursor}`;
-      }
+      const subreddit = subreddits.find(s => s.name.toLowerCase() === subredditName.toLowerCase());
 
-      // Use etag from subreddit if available
-      let result;
+      // 1. Primary Strategy: Reddit's Atom/RSS feed (Public, reliable, NOT blocked with 403)
       try {
-        result = await this.fetchJsonWithProxy(url, signal, subreddit?.etag, subreddit?.lastModified);
-      } catch (e: any) {
-        if (signal?.aborted || e?.name === 'AbortError' || e?.message?.includes('aborted') || e?.message?.includes('Aborted')) {
+        const cursor = after ? (after.startsWith('t3_') ? after : `t3_${after}`) : undefined;
+        const rssUrl = `https://www.reddit.com/r/${subredditName}/${sort}.rss?limit=25${cursor ? `&after=${cursor}` : ''}`;
+        
+        const rssRes = await fetchWithProxy(rssUrl, true, undefined, signal, subreddit?.etag, subreddit?.lastModified);
+        if (rssRes.data && (rssRes.data.includes('<entry') || rssRes.data.includes('<feed'))) {
+          const parsed = parseRedditAtom(rssRes.data, subredditName);
+          if (parsed.posts.length > 0) {
+            if (subreddit) {
+              subreddit.etag = rssRes.etag;
+              subreddit.lastModified = rssRes.lastModified;
+              subreddit.lastFetched = Date.now();
+              await this.saveSubreddits(subreddits);
+            }
+            return parsed;
+          }
+        }
+      } catch (rssErr: any) {
+        if (signal?.aborted || rssErr?.name === 'AbortError' || rssErr?.message?.includes('aborted') || rssErr?.message?.includes('Aborted')) {
           return { posts: [] };
         }
-        console.warn(`Initial fetch failed for r/${subredditName}, retrying without caching headers...`, e);
-        // Retry without etag/lastModified in case it was a 304/cache issue on proxy
-        result = await this.fetchJsonWithProxy(url, signal);
-      }
-      
-      if (!result || result.data === null) return { posts: [] }; // 304 Not Modified
-
-      // Update etag, lastModified and lastFetched for the subreddit IF it exists
-      if (subreddit) {
-        subreddit.etag = result.etag;
-        subreddit.lastModified = result.lastModified;
-        subreddit.lastFetched = Date.now();
-        await this.saveSubreddits(subreddits);
+        console.warn(`RSS fetch for r/${subredditName} did not succeed, trying JSON fallback...`, rssErr?.message || rssErr);
       }
 
-      if (!result.data.data || !result.data.data.children) return { posts: [] };
-
-      const posts = result.data.data.children.map((child: any) => {
-        const post = child.data;
-        let imageUrl = undefined;
-        
-        if (post.preview && post.preview.images && post.preview.images.length > 0) {
-          const preview = post.preview.images[0];
-          imageUrl = preview.source.url;
-        } else if (post.url && (post.url.match(/\.(jpg|jpeg|png|gif|webp)$/) || this.isImgurUrl(post.url))) {
-          imageUrl = post.url;
-        } else if (post.thumbnail && post.thumbnail.startsWith('http')) {
-          imageUrl = post.thumbnail;
+      // 2. Secondary Strategy: Reddit JSON API
+      try {
+        let url = `https://www.reddit.com/r/${subredditName}/${sort}.json?limit=25`;
+        if (after) {
+          const cursor = after.startsWith('t3_') ? after : `t3_${after}`;
+          url += `&after=${cursor}`;
         }
+        const result = await this.fetchJsonWithProxy(url, signal, subreddit?.etag, subreddit?.lastModified);
+        if (result && result.data && result.data.data && result.data.data.children) {
+          if (subreddit) {
+            subreddit.etag = result.etag;
+            subreddit.lastModified = result.lastModified;
+            subreddit.lastFetched = Date.now();
+            await this.saveSubreddits(subreddits);
+          }
+          const posts = result.data.data.children.map((child: any) => {
+            const post = child.data;
+            let imageUrl = undefined;
+            if (post.preview && post.preview.images && post.preview.images.length > 0) {
+              imageUrl = post.preview.images[0].source.url;
+            } else if (post.url && (post.url.match(/\.(jpg|jpeg|png|gif|webp)$/) || this.isImgurUrl(post.url))) {
+              imageUrl = post.url;
+            } else if (post.thumbnail && post.thumbnail.startsWith('http')) {
+              imageUrl = post.thumbnail;
+            }
 
-        return {
-          id: `${post.subreddit}/${post.id}`,
-          originalId: post.id,                // Need this for cursor tracking
-          title: he.decode(post.title),
-          author: post.author,
-          subredditId: post.subreddit_id,
-          subredditName: post.subreddit,
-          permalink: post.permalink,
-          url: post.url,
-          imageUrl: imageUrl ? he.decode(imageUrl) : undefined,
-          createdUtc: post.created_utc * 1000,
-          score: post.score,
-          numComments: post.num_comments,
-          selftextHtml: post.selftext_html ? he.decode(post.selftext_html) : undefined,
-          isRead: 0,
-          isFavorite: 0
-        };
-      });
-
-      return { posts, after: result.data.data.after };
-    } catch (e: any) {
-      if (signal?.aborted || e?.name === 'AbortError' || e?.message?.includes('aborted') || e?.message?.includes('Aborted')) {
-        return { posts: [] };
+            return {
+              id: `${post.subreddit}/${post.id}`,
+              originalId: post.id,
+              title: he.decode(post.title),
+              author: post.author,
+              subredditId: post.subreddit_id,
+              subredditName: post.subreddit,
+              permalink: post.permalink,
+              url: post.url,
+              imageUrl: imageUrl ? he.decode(imageUrl) : undefined,
+              createdUtc: post.created_utc * 1000,
+              score: post.score,
+              numComments: post.num_comments,
+              selftextHtml: post.selftext_html ? he.decode(post.selftext_html) : undefined,
+              isRead: 0,
+              isFavorite: 0
+            };
+          });
+          return { posts, after: result.data.data.after };
+        }
+      } catch (jsonErr: any) {
+        if (signal?.aborted || jsonErr?.name === 'AbortError' || jsonErr?.message?.includes('aborted') || jsonErr?.message?.includes('Aborted')) {
+          return { posts: [] };
+        }
       }
-      // In ambiente web/preview o se la rete/CORS fallisce, restituisci i post locali già presenti nel database
+
+      // 3. Fallback: Return locally stored/mock posts for this subreddit
       const localPosts = await this.getLocalPostsForSubreddit(subredditName);
       if (localPosts.length > 0) {
         return { posts: localPosts };
       }
-      console.warn(`Could not fetch live posts for r/${subredditName} (network/CORS):`, e?.message || e);
       return { posts: [] };
+    } catch (e: any) {
+      if (signal?.aborted || e?.name === 'AbortError' || e?.message?.includes('aborted') || e?.message?.includes('Aborted')) {
+        return { posts: [] };
+      }
+      const localPosts = await this.getLocalPostsForSubreddit(subredditName);
+      return { posts: localPosts };
     }
   },
 
@@ -533,8 +567,17 @@ export const redditStorage = {
 
       // 2. Retention-based cleanup
       const oldPosts = posts
-        .filter(p => !p.isFavorite && (now - (p.createdUtc || 0)) > retentionMs && validSubNames.has((p.subredditName || '').toLowerCase()))
-        .sort((a, b) => (b.createdUtc || 0) - (a.createdUtc || 0)); // Newest first
+        .filter(p => {
+          if (p.isFavorite) return false;
+          if (!validSubNames.has((p.subredditName || '').toLowerCase())) return false;
+          const postUtc = (p.createdUtc || 0) < 10000000000 ? (p.createdUtc || 0) * 1000 : (p.createdUtc || 0);
+          return (now - postUtc) > retentionMs;
+        })
+        .sort((a, b) => {
+          const aUtc = (a.createdUtc || 0) < 10000000000 ? (a.createdUtc || 0) * 1000 : (a.createdUtc || 0);
+          const bUtc = (b.createdUtc || 0) < 10000000000 ? (b.createdUtc || 0) * 1000 : (b.createdUtc || 0);
+          return bUtc - aUtc;
+        }); // Newest first
       
       let idsToDelete: string[] = orphanedPosts.map(p => p.id);
       

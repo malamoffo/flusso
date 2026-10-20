@@ -114,22 +114,26 @@ export const RedditProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
     setIsLoading(true);
     try {
-     const fetchPromises = targetSubs.map(async (sub) => {
+      const results: RedditPost[][] = [];
+      for (const sub of targetSubs) {
+        if (controller.signal.aborted) break;
         try {
           const result = await storage.fetchRedditPosts(sub.name, targetSort, undefined, controller.signal);
           if (result.after) {
             paginationCursors.current[sub.name] = result.after;
           }
-          return result.posts;
+          if (result.posts && result.posts.length > 0) {
+            results.push(result.posts);
+          }
         } catch (e: any) {
           if (e.name !== 'AbortError') {
             console.error(`Failed to refresh r/${sub.name}`, e);
           }
-          return [];
         }
-      });
-      
-      const results = await Promise.all(fetchPromises);
+        if (targetSubs.length > 1) {
+          await new Promise(resolve => setTimeout(resolve, 200));
+        }
+      }
       if (controller.signal.aborted) return;
       const posts: RedditPost[] = results.flat();
 
@@ -150,8 +154,9 @@ export const RedditProvider: React.FC<{ children: ReactNode }> = ({ children }) 
             
             let filtered = merged.filter(p => {
               if (p.isFavorite) return true;
-              const isWithinRetention = (now - p.createdUtc) < retentionMs;
-              const hasComments = p.numComments > 0;
+              const postUtc = (p.createdUtc || 0) < 10000000000 ? (p.createdUtc || 0) * 1000 : (p.createdUtc || 0);
+              const isWithinRetention = (now - postUtc) < retentionMs;
+              const hasComments = p.numComments >= 0;
               return isWithinRetention && hasComments;
             });
 
@@ -238,23 +243,31 @@ export const RedditProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       while (!reachedBoundary && attempts < MAX_ATTEMPTS) {
         if (controller.signal.aborted) break;
         attempts++;
-        const fetchPromises = targetSubs.map(async (sub) => {
-           const cursor = paginationCursors.current[sub.name];
-           if (cursor === 'end') return []; // No more posts for this sub
+        const batch: RedditPost[] = [];
+        for (const sub of targetSubs) {
+          if (controller.signal.aborted) break;
+          const cursor = paginationCursors.current[sub.name];
+          if (cursor === 'end') continue;
 
-           const result = await storage.fetchRedditPosts(sub.name, redditSort, cursor, controller.signal);
-           
-           if (!result.after) {
-             paginationCursors.current[sub.name] = 'end';
-           } else {
-             paginationCursors.current[sub.name] = result.after;
-           }
-           return result.posts;
-        });
-        
-        const results = await Promise.all(fetchPromises);
-        if (controller.signal.aborted) break;
-        const batch = results.flat();
+          try {
+            const result = await storage.fetchRedditPosts(sub.name, redditSort, cursor, controller.signal);
+            if (!result.after) {
+              paginationCursors.current[sub.name] = 'end';
+            } else {
+              paginationCursors.current[sub.name] = result.after;
+            }
+            if (result.posts && result.posts.length > 0) {
+              batch.push(...result.posts);
+            }
+          } catch (e: any) {
+            if (e.name !== 'AbortError') {
+              console.error(`Failed to load more for r/${sub.name}`, e);
+            }
+          }
+          if (targetSubs.length > 1) {
+            await new Promise(resolve => setTimeout(resolve, 200));
+          }
+        }
         
         if (batch.length === 0) break;
         

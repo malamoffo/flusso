@@ -375,7 +375,7 @@ Attraverso tecniche avanzate di de-rumorizzazione e stacking matematico, gli ast
         imageUrl: quantumImg,
         score: 3420,
         numComments: 42,
-        createdUtc: Math.floor((Date.now() - 300000) / 1000), // 5min fa
+        createdUtc: Date.now() - 300000, // 5min fa
         selftextHtml: `<p>Questo thread di test include una conversazione approfondita con <strong>20 livelli di risposte nidificate</strong> per testare e verificare il comportamento dell'interfaccia.</p>
 <p>Oltre il terzo commento, l'indentatura viene interrotta in modo che le risposte mantengano la larghezza piena e ottimale per la lettura sui display di smartphone e tablet, indicando l'ordine gerarchico tramite badge di livello e autore a cui si risponde.</p>`,
         isRead: 0,
@@ -392,7 +392,7 @@ Attraverso tecniche avanzate di de-rumorizzazione e stacking matematico, gli ast
         imageUrl: cyberpunkTowerImg,
         score: 1420,
         numComments: 215,
-        createdUtc: Math.floor((Date.now() - 1800000) / 1000), // 30min fa
+        createdUtc: Date.now() - 1800000, // 30min fa
         selftextHtml: `<p>Condivido con la community questo studio architettonico per una torre residenziale ad altissima densità e biosostenibilità verticale.</p>
 <p>L'edificio integra giardini pensili eolicamente schermati, facciate a celle solari organiche traslucide e un sistema di raccolta e purificazione ciclica dell'acqua piovana lungo l'intera altezza.</p>
 <p>Cosa ne pensate dell'impatto visivo e dell'integrazione con il tessuto urbano metropolitano?</p>`,
@@ -410,7 +410,7 @@ Attraverso tecniche avanzate di de-rumorizzazione e stacking matematico, gli ast
         imageUrl: retroBotImg,
         score: 980,
         numComments: 87,
-        createdUtc: Math.floor((Date.now() - 5400000) / 1000), // 1.5h fa
+        createdUtc: Date.now() - 5400000, // 1.5h fa
         selftextHtml: `<p>Dopo 3 mesi di lavoro di recupero componenti originali anni '80 e cablaggio con un microcontroller moderno, ecco il risultato!</p>
 <p>Lo chassis è stato sabbiato e riverniciato con finitura opaca beige vintage. La tastiera meccanica utilizza switch lineari originali e lo schermo a fosfori verdi è incredibilmente rilassante per la lettura.</p>`,
         isRead: 0,
@@ -427,7 +427,7 @@ Attraverso tecniche avanzate di de-rumorizzazione e stacking matematico, gli ast
         imageUrl: macroMineralImg,
         score: 1250,
         numComments: 104,
-        createdUtc: Math.floor((Date.now() - 10800000) / 1000), // 3h fa
+        createdUtc: Date.now() - 10800000, // 3h fa
         selftextHtml: `<p>Scatto effettuato con ottica macro 100mm a 2.5x di ingrandimento sotto illuminazione UV ad onde corte.</p>
 <p>La fluorescenza naturale è dovuta alla presenza di tracce di ioni di terre rare (europio e terbio) intrappolati nel reticolo cristallino durante la genesi idrotermale primordiale.</p>`,
         isRead: 0,
@@ -444,7 +444,7 @@ Attraverso tecniche avanzate di de-rumorizzazione e stacking matematico, gli ast
         imageUrl: synthwaveSunsetImg,
         score: 670,
         numComments: 58,
-        createdUtc: Math.floor((Date.now() - 14400000) / 1000), // 4h fa
+        createdUtc: Date.now() - 14400000, // 4h fa
         selftextHtml: `<p>Esperimento con compute shaders personalizzati in WebGPU per generare il terreno infinito e l'atmosfera retro-futuristica con ray marching volumetrico in tempo reale.</p>
 <p>Il consumo di memoria video è inferiore a 120MB grazie alla generazione procedurale delle geometrie.</p>`,
         isRead: 0,
@@ -461,7 +461,7 @@ Attraverso tecniche avanzate di de-rumorizzazione e stacking matematico, gli ast
         imageUrl: telescopeImg,
         score: 821,
         numComments: 144,
-        createdUtc: Math.floor((Date.now() - 21600000) / 1000), // 6h fa
+        createdUtc: Date.now() - 21600000, // 6h fa
         selftextHtml: `<p>Oggi è una giornata storica per l'astrofisica. L'agenzia spaziale ha confermato il perfetto posizionamento in orbita del telescopio "Eclissi", progettato appositamente per mappare la distribuzione della materia oscura e svelare i segreti dell'energia oscura.</p>
 <p>L'energia oscura costituisce circa il 68% dell'universo conosciuto ed è la responsabile dell'espansione accelerata dello spazio, ma la sua natura intima rimane uno dei misteri più grandi della fisica moderna.</p>`,
         isRead: 0,

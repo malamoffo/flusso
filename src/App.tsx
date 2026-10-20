@@ -14,17 +14,15 @@ import { storage } from './services/storage';
 import { RedditListView } from './components/RedditListView';
 import { ErrorNotification } from './components/ErrorNotification';
 import { SectionGlow } from './components/SectionGlow';
-import { radioService } from './services/radioService';
 import { motion, AnimatePresence, useMotionValue, useTransform, animate } from 'framer-motion';
 
 const SettingsModal = createLazyModalWithState(() => import('./components/SettingsModal').then(m => ({ default: m.SettingsModal })), 'SettingsModal', ModalFallback);
-const RadioView = createLazyModalWithState(() => import('./components/RadioView').then(m => ({ default: m.RadioView })), 'RadioView', ViewFallback);
 const ArticleReader = createLazyView(() => import('./components/ArticleReader').then(m => ({ default: m.ArticleReader })), 'ArticleReader', ModalFallback);
 const RedditPostReader = createLazyView(() => import('./components/RedditPostReader').then(m => ({ default: m.RedditPostReader })), 'RedditPostReader', ModalFallback);
 const ImageViewer = createLazyView(() => import('./components/ImageViewer').then(m => ({ default: m.ImageViewer })), 'ImageViewer', ModalFallback);
 const ErrorModal = createLazyView(() => import('./components/ErrorModal').then(m => ({ default: m.ErrorModal })), 'ErrorModal', ModalFallback);
 const InAppWebView = createLazyView(() => import('./components/InAppWebView').then(m => ({ default: m.InAppWebView })), 'InAppWebView', ModalFallback);
-import { Loader2, Search, X, Check, Rss, Settings, Star, CheckCircle2, RefreshCw, Layers, FileText, Inbox, MessageSquare, ChevronDown, Flame, Radio } from 'lucide-react';
+import { Loader2, Search, X, Check, Rss, Settings, Star, CheckCircle2, RefreshCw, Layers, FileText, Inbox, MessageSquare, ChevronDown, Flame } from 'lucide-react';
 import { useInView } from 'react-intersection-observer';
 import { cn, getHostname, isSafeUrl } from './lib/utils';
 import { Article, Feed } from './types';
@@ -38,7 +36,7 @@ const PAGE_SIZE = 30;
 
 const ProgressBanner = memo(({ filter }: { filter: string }) => {
   const { progress } = useRss();
-  if (!progress || filter === 'radio') return null;
+  if (!progress) return null;
   
   const mbDownloaded = progress.bytesDownloaded ? (progress.bytesDownloaded / (1024 * 1024)).toFixed(2) : '0.00';
   
@@ -56,7 +54,7 @@ const ProgressBanner = memo(({ filter }: { filter: string }) => {
 });
 
 
-const SECTIONS: Array<'saved' | 'inbox' | 'reddit' | 'radio'> = ['saved', 'inbox', 'reddit', 'radio'];
+const SECTIONS: Array<'saved' | 'inbox' | 'reddit'> = ['saved', 'inbox', 'reddit'];
 
 export default function App() {
   const inboxScrollRef = useRef<HTMLDivElement>(null);
@@ -120,7 +118,6 @@ export default function App() {
       const doPrefetch = () => {
         try {
           (SettingsModal as any).prefetch();
-          (RadioView as any).prefetch();
           (ArticleReader as any).prefetch();
           (RedditPostReader as any).prefetch();
           (ImageViewer as any).prefetch();
@@ -135,11 +132,6 @@ export default function App() {
         setTimeout(doPrefetch, 2000);
       }
     }
-  }, []);
-
-  useEffect(() => {
-    // Isolated parallel background Web Worker thread: preloads radio stations before opening Radio view
-    radioService.preload();
   }, []);
 
   useEffect(() => {
@@ -204,7 +196,7 @@ export default function App() {
     }
   }, []);
   
-  const [filter, setFilter] = useState<'inbox' | 'saved' | 'reddit' | 'radio'>('inbox');
+  const [filter, setFilter] = useState<'inbox' | 'saved' | 'reddit'>('inbox');
   
   const [inboxUnreadOnly, setInboxUnreadOnly] = useState(false);
   const [savedUnreadOnly, setSavedUnreadOnly] = useState(false);
@@ -252,7 +244,7 @@ export default function App() {
   } = usePullToRefresh({
     onRefresh: refreshFeeds,
     isLoading,
-    isDisabled: isSettingsOpen || filter === 'reddit' || filter === 'saved' || filter === 'radio' || !!selectedArticle || !!selectedRedditPost,
+    isDisabled: isSettingsOpen || filter === 'reddit' || filter === 'saved' || !!selectedArticle || !!selectedRedditPost,
     scrollRefs: {
       inbox: inboxScrollRef as RefObject<HTMLDivElement>,
       saved: savedScrollRef as RefObject<HTMLDivElement>,
@@ -308,7 +300,7 @@ export default function App() {
     });
   }, [savedUnreadOnly]);
 
-  const handleFilterChange = (newFilter: 'inbox' | 'saved' | 'reddit' | 'radio', isSwipe = false) => {
+  const handleFilterChange = (newFilter: 'inbox' | 'saved' | 'reddit', isSwipe = false) => {
     if (newFilter === filter) {
       if (filter === 'inbox') {
         handleTypeFilterChange('unread');
@@ -686,7 +678,6 @@ export default function App() {
     switch (filter) {
       case 'saved': return ['bg-yellow-500/60', 'bg-amber-500/50', 'bg-yellow-400/50', 'bg-orange-500/40'];
       case 'reddit': return ['bg-purple-500/60', 'bg-fuchsia-500/50', 'bg-violet-500/50', 'bg-purple-400/40'];
-      case 'radio': return ['bg-red-500/60', 'bg-orange-500/50', 'bg-rose-500/50', 'bg-red-400/40'];
       case 'inbox':
       default: return ['bg-blue-500/60', 'bg-indigo-500/50', 'bg-sky-500/50', 'bg-blue-400/40'];
     }
@@ -889,12 +880,8 @@ export default function App() {
             className="flex items-center gap-3 active:opacity-70 transition-opacity focus-visible:ring-2 focus-visible:ring-indigo-500 rounded-lg px-1 outline-none"
             aria-label="Scroll to top"
           >
-            <div className="w-10 h-10 rounded-full flex items-center justify-center relative transition-colors" style={{ backgroundColor: filter === 'radio' ? 'rgba(239, 68, 68, 0.1)' : filter === 'reddit' ? 'rgba(147, 51, 234, 0.1)' : filter === 'saved' ? 'rgba(234, 179, 8, 0.1)' : 'rgba(37, 99, 235, 0.1)' }}>
-              {filter === 'radio' ? (
-                <Radio className="w-6 h-6 transition-colors text-red-600 dark:text-red-400" />
-              ) : (
-                <Rss className={cn("w-6 h-6 transition-colors", filter === 'reddit' ? "text-purple-600 dark:text-purple-400" : filter === 'saved' ? "text-yellow-600 dark:text-yellow-400" : "text-blue-600 dark:text-blue-400")} />
-              )}
+            <div className="w-10 h-10 rounded-full flex items-center justify-center relative transition-colors" style={{ backgroundColor: filter === 'reddit' ? 'rgba(147, 51, 234, 0.1)' : filter === 'saved' ? 'rgba(234, 179, 8, 0.1)' : 'rgba(37, 99, 235, 0.1)' }}>
+              <Rss className={cn("w-6 h-6 transition-colors", filter === 'reddit' ? "text-purple-600 dark:text-purple-400" : filter === 'saved' ? "text-yellow-600 dark:text-yellow-400" : "text-blue-600 dark:text-blue-400")} />
             </div>
             <div className="flex items-baseline gap-4">
               <h1 className="text-xl font-bold text-gray-900 dark:text-white tracking-tight">flusso</h1>
@@ -962,23 +949,6 @@ export default function App() {
                   )}
                 </motion.button>
               )}
-              {filter === 'radio' && (
-                <motion.button
-                  key="radio-status"
-                  type="button"
-                  onClick={scrollToTop}
-                  whileTap={{ scale: 0.95 }}
-                  initial={{ opacity: 0, scale: 0.9, y: -2 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.9, y: 2 }}
-                  transition={{ duration: 0.15 }}
-                  className="text-[10px] font-bold uppercase tracking-widest text-red-600 dark:text-red-400 bg-red-500/10 px-2.5 py-1 rounded-full border border-red-500/15 dark:border-red-500/25 flex items-center gap-1 shadow-sm cursor-pointer select-none active:opacity-75"
-                  title="Torna all'inizio"
-                >
-                  <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-ping" style={{ animationDuration: '2s' }} />
-                  Radio
-                </motion.button>
-              )}
             </AnimatePresence>
           </div>
         </header>
@@ -991,9 +961,9 @@ export default function App() {
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder={filter === 'reddit' ? "Search Reddit posts..." : filter === 'radio' ? "Search radio stations..." : "Search articles..."}
+                placeholder={filter === 'reddit' ? "Search Reddit posts..." : "Search articles..."}
                 className="flex-1 bg-transparent text-gray-900 dark:text-white focus:outline-none"
-                aria-label={filter === 'reddit' ? "Search Reddit posts" : filter === 'radio' ? "Search radio stations" : "Search articles"}
+                aria-label={filter === 'reddit' ? "Search Reddit posts" : "Search articles"}
                 autoFocus
               />
               <button 
@@ -1011,7 +981,7 @@ export default function App() {
               </button>
             </div>
             <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide">
-                {filter !== 'reddit' && filter !== 'radio' && (
+                {filter !== 'reddit' && (
                   <>
                     <div className="relative">
                       <select
@@ -1056,25 +1026,6 @@ export default function App() {
                       ))}
                     </select>
                     <ChevronDown className="w-3.5 h-3.5 absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none z-10" />
-                  </div>
-                )}
-
-                {filter === 'radio' && (
-                  <div className="flex items-center gap-2">
-                    {['Pop', 'Rock', 'Jazz', 'Dance', 'News', 'Classical'].map((cat, idx) => (
-                      <button
-                        key={`radio-cat-${cat}-${idx}`}
-                        onClick={() => setSearchQuery(cat)}
-                        className={cn(
-                          "px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap",
-                          searchQuery.toLowerCase() === cat.toLowerCase()
-                            ? "bg-red-600 text-white shadow-sm"
-                            : "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700"
-                        )}
-                      >
-                        {cat}
-                      </button>
-                    ))}
                   </div>
                 )}
             </div>
@@ -1223,24 +1174,6 @@ export default function App() {
               handleScroll={(e) => handleScroll(e, 'reddit')}
             />
           </div>
-
-          {/* Panel 3: Radio */}
-          <div 
-            className="w-full h-full flex-shrink-0 relative overflow-hidden transform-gpu"
-            style={{
-              opacity: filter === 'radio' ? 1 : isDragging ? 0.7 : 0.35,
-              transform: filter === 'radio' ? 'scale(1)' : 'scale(0.985)',
-              filter: filter === 'radio' ? 'blur(0px)' : 'blur(0.8px)',
-              transition: isDragging ? 'none' : 'opacity 0.38s cubic-bezier(0.22, 1, 0.36, 1), transform 0.38s cubic-bezier(0.22, 1, 0.36, 1), filter 0.38s ease',
-              pointerEvents: filter === 'radio' ? 'auto' : 'none'
-            }}
-          >
-            <SectionGlow variant="radio" />
-            <RadioView
-              isActive={filter === 'radio'}
-              searchQuery={searchQuery}
-            />
-          </div>
         </div>
       </div>
 
@@ -1326,28 +1259,6 @@ export default function App() {
         </motion.button>
         <motion.button
           whileTap={{ scale: 0.9 }}
-          onClick={() => handleFilterChange('radio')}
-          onMouseEnter={() => (RadioView as any).prefetch?.()}
-          onTouchStart={() => (RadioView as any).prefetch?.()}
-          onFocus={() => (RadioView as any).prefetch?.()}
-          className={cn(
-            "relative p-2.5 rounded-full border-none outline-none transition-colors duration-200",
-            filter === 'radio' ? "text-red-500" : "text-gray-500 hover:text-gray-300"
-          )}
-          aria-label="Radio"
-          aria-pressed={filter === 'radio'}
-        >
-          {filter === 'radio' && (
-            <motion.div
-              layoutId="activeNavPill"
-              className="absolute inset-0 rounded-full bg-red-500/15 border border-red-500/30 shadow-[0_0_12px_rgba(239,68,68,0.25)]"
-              transition={{ type: "spring", stiffness: 400, damping: 32 }}
-            />
-          )}
-          <Radio className={cn("w-6 h-6 relative z-10 transition-transform duration-200", filter === 'radio' && "scale-105 drop-shadow-[0_0_8px_rgba(239,68,68,0.5)]")} aria-hidden="true" />
-        </motion.button>
-        <motion.button
-          whileTap={{ scale: 0.9 }}
           onClick={() => setIsSettingsOpen(true)}
           onMouseEnter={() => (SettingsModal as any).prefetch?.()}
           onTouchStart={() => (SettingsModal as any).prefetch?.()}
@@ -1363,7 +1274,7 @@ export default function App() {
       </div>
 
       <AnimatePresence>
-        {(filter === 'inbox' || filter === 'saved' || filter === 'reddit' || filter === 'radio') && (
+        {(filter === 'inbox' || filter === 'saved' || filter === 'reddit') && (
           <motion.div 
             initial={{ opacity: 0, scale: 0.8, x: 20 }}
             animate={{ opacity: 1, scale: 1, x: 0 }}

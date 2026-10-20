@@ -1,6 +1,6 @@
 import React, { memo } from 'react';
 
-export type SectionGlowVariant = 'saved' | 'inbox' | 'reddit' | 'radio';
+export type SectionGlowVariant = 'saved' | 'inbox' | 'reddit';
 
 interface SectionGlowProps {
   variant: SectionGlowVariant;
@@ -91,32 +91,6 @@ export const SectionGlow: React.FC<SectionGlowProps> = memo(({
             className="absolute -bottom-[10%] -left-[10%] w-[65vw] h-[42vh] rounded-full blur-[90px] opacity-65 dark:opacity-55 transition-opacity duration-700 transform-gpu"
             style={{
               background: 'radial-gradient(circle at center, rgba(192, 38, 211, 0.15) 0%, transparent 70%)',
-            }}
-          />
-        </>
-      )}
-
-      {variant === 'radio' && (
-        <>
-          {/* Primary Crimson Ruby Soundwave Glow */}
-          <div
-            className="absolute -top-[12%] left-1/2 -translate-x-1/2 w-[110%] h-[58%] rounded-full blur-[90px] opacity-85 dark:opacity-80 transition-opacity duration-700 transform-gpu"
-            style={{
-              background: 'radial-gradient(ellipse at center, rgba(239, 68, 68, 0.26) 0%, rgba(244, 63, 94, 0.13) 45%, transparent 75%)',
-            }}
-          />
-          {/* Studio Broadcast Ambient Live Pulse */}
-          <div
-            className="absolute top-[32%] -left-[15%] w-[65vw] h-[45vh] rounded-full blur-[100px] opacity-75 dark:opacity-65 transition-opacity duration-700 transform-gpu"
-            style={{
-              background: 'radial-gradient(circle at center, rgba(225, 29, 72, 0.18) 0%, rgba(239, 68, 68, 0.07) 50%, transparent 75%)',
-            }}
-          />
-          {/* Sunset Rose Grounding Bloom */}
-          <div
-            className="absolute -bottom-[12%] -right-[12%] w-[65vw] h-[42vh] rounded-full blur-[90px] opacity-65 dark:opacity-55 transition-opacity duration-700 transform-gpu"
-            style={{
-              background: 'radial-gradient(circle at center, rgba(251, 113, 133, 0.16) 0%, transparent 70%)',
             }}
           />
         </>

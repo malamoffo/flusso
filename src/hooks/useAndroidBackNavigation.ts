@@ -21,8 +21,8 @@ export interface UseAndroidBackNavigationProps {
   setSearchQuery: (query: string) => void;
   setSourceFilter: (filter: string) => void;
   setTimeFilter: (filter: string) => void;
-  filter: 'inbox' | 'saved' | 'reddit' | 'radio';
-  handleFilterChange: (filter: 'inbox' | 'saved' | 'reddit' | 'radio') => void;
+  filter: 'inbox' | 'saved' | 'reddit';
+  handleFilterChange: (filter: 'inbox' | 'saved' | 'reddit') => void;
 }
 
 export function useAndroidBackNavigation(props: UseAndroidBackNavigationProps) {
