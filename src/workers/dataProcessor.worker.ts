@@ -82,6 +82,8 @@ self.onmessage = (e) => {
 
           finalMerged[existingIdx] = {
             ...newPost,
+            score: Math.max(newPost.score || 0, existingPost.score || 0),
+            numComments: Math.max(newPost.numComments || 0, existingPost.numComments || 0),
             isRead: nowRead,
             isFavorite: existingPost.isFavorite
           };

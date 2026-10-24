@@ -62,27 +62,37 @@ jobs:
           fi
           npx cap sync android
 
-      - name: Decode Keystore
-        if: env.ANDROID_KEYSTORE_BASE64 != ''
+      - name: Setup Keystore
         run: |
-          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > android/app/release.keystore
-        env:
-          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          if [ -n "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" ]; then
+            echo "Using provided secret release keystore..."
+            echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > android/app/release.keystore
+            echo "KEYSTORE_FILE=release.keystore" >> $GITHUB_ENV
+            echo "KEYSTORE_PASS=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" >> $GITHUB_ENV
+            echo "KEY_ALIAS=${{ secrets.ANDROID_KEY_ALIAS }}" >> $GITHUB_ENV
+            echo "KEY_PASS=${{ secrets.ANDROID_KEY_PASSWORD }}" >> $GITHUB_ENV
+          else
+            echo "Generating production release keystore for secure signed APK..."
+            keytool -genkey -v -keystore android/app/release.keystore \
+              -alias flusso_release -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass "flusso_safe_keystore_2026" -keypass "flusso_safe_keystore_2026" \
+              -dname "CN=Flusso, OU=Mobile, O=Flusso Team, L=Rome, ST=RM, C=IT"
+            echo "KEYSTORE_FILE=release.keystore" >> $GITHUB_ENV
+            echo "KEYSTORE_PASS=flusso_safe_keystore_2026" >> $GITHUB_ENV
+            echo "KEY_ALIAS=flusso_release" >> $GITHUB_ENV
+            echo "KEY_PASS=flusso_safe_keystore_2026" >> $GITHUB_ENV
+          fi
 
-      - name: Build Android APK
+      - name: Build Android Release APK
         run: |
           cd android
           gradle clean
-          if [ -f "app/release.keystore" ]; then
-            gradle assembleRelease --build-cache
-          else
-            gradle assembleDebug --build-cache
-          fi
+          gradle assembleRelease --build-cache
         env:
-          ANDROID_KEYSTORE_FILE: release.keystore
-          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_KEYSTORE_FILE: ${{ env.KEYSTORE_FILE }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ env.KEYSTORE_PASS }}
+          ANDROID_KEY_ALIAS: ${{ env.KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ env.KEY_PASS }}
           GITHUB_RUN_NUMBER: ${{ github.run_number }}
 
       - name: Create GitHub Release

@@ -100,7 +100,7 @@ export const RedditPostReader = ({ post, onClose, onNext, onPrev, hasNext, hasPr
   const [comments, setComments] = useState<RedditComment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const { getCachedComments } = useReddit();
+  const { getCachedComments, updateRedditPost } = useReddit();
 
   const scrollContainerRef = React.useRef<HTMLDivElement>(null);
 
@@ -211,7 +211,29 @@ export const RedditPostReader = ({ post, onClose, onNext, onPrev, hasNext, hasPr
         };
 
         if (!isCancelled) {
-          setComments(parseComments(rawComments, 0));
+          const parsed = parseComments(rawComments, 0);
+          setComments(parsed);
+
+          const countAll = (list: RedditComment[]): number => {
+            let total = 0;
+            for (const c of list) {
+              total++;
+              if (c.replies && c.replies.length > 0) {
+                total += countAll(c.replies);
+              }
+            }
+            return total;
+          };
+
+          const totalCount = countAll(parsed);
+          if (totalCount > 0) {
+            const nextCount = Math.max(post.numComments || 0, totalCount);
+            post.numComments = nextCount;
+            updateRedditPost?.(post.id, { numComments: nextCount });
+            import('../services/storage').then(({ storage }) => {
+              storage.updateRedditPostCommentsCount(post.id, nextCount);
+            }).catch(() => {});
+          }
         }
       } catch (e) {
         if (!isCancelled) {
@@ -325,7 +347,7 @@ export const RedditPostReader = ({ post, onClose, onNext, onPrev, hasNext, hasPr
 
           <div className="flex items-center gap-6 mt-6 py-3.5 px-4 rounded-2xl bg-white/[0.04] backdrop-blur-md border border-white/10 text-sm font-medium text-gray-300 shadow-sm">
             <span className="flex items-center gap-1.5 font-semibold text-white"><span className="text-purple-400 drop-shadow-[0_0_3px_rgba(168,85,247,0.6)] text-base">↑</span> {post.score}</span>
-            <span className="flex items-center gap-1.5"><MessageSquare className="w-4 h-4 text-purple-400" /> {post.numComments} Comments</span>
+            <span className="flex items-center gap-1.5"><MessageSquare className="w-4 h-4 text-purple-400" /> {Math.max(post.numComments || 0, comments.length)} Comments</span>
           </div>
         </motion.div>
 

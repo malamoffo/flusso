@@ -7,9 +7,8 @@ import { useSettings } from './SettingsContext';
 import { useReddit } from './RedditContext';
 import packageJson from '../../package.json';
 import { Capacitor } from '@capacitor/core';
+import { Browser } from '@capacitor/browser';
 import { BackgroundPlugin } from '../plugins/BackgroundPlugin';
-import { Filesystem, Directory } from '@capacitor/filesystem';
-import { FileOpener } from '@capacitor-community/file-opener';
 import DataWorker from '../workers/dataProcessor.worker.ts?worker';
 import { contentFetcher } from '../utils/contentFetcher';
 import { generateMockDataIfNeeded } from '../utils/mockDataGenerator';
@@ -200,82 +199,19 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   }, []);
 
   const downloadAndInstallUpdate = useCallback(async () => {
-    if (!updateInfo?.latestRelease?.apkUrl) {
-      if (updateInfo?.latestRelease?.url) {
-        window.open(updateInfo.latestRelease.url, '_blank');
-      }
-      return;
-    }
+    const targetUrl = updateInfo?.latestRelease?.apkUrl || updateInfo?.latestRelease?.url;
+    if (!targetUrl) return;
 
     try {
-      setIsLoading(true);
-      setProgress({ current: 0, total: 100, status: "Downloading update..." });
-
-      const response = await fetch(updateInfo.latestRelease.apkUrl);
-      if (!response.ok) throw new Error('Download failed');
-      
-      const contentLength = response.headers.get('content-length');
-      const total = contentLength ? parseInt(contentLength, 10) : 0;
-      
-      const reader = response.body?.getReader();
-      if (!reader) throw new Error('Could not read response body');
-
-      let receivedLength = 0;
-      const chunks = [];
-      
-      while(true) {
-        const {done, value} = await reader.read();
-        if (done) break;
-        chunks.push(value);
-        if (value) {
-          receivedLength += value.length;
-          if (total) {
-            const percent = Math.round((receivedLength / total) * 100);
-            setProgress({ current: percent, total: 100, status: `Downloading: ${percent}%` });
-          }
-        }
+      if (isNative()) {
+        await Browser.open({ url: targetUrl });
+      } else {
+        window.open(targetUrl, '_blank');
       }
-
-      const blob = new Blob(chunks);
-      
-      // Convert to base64 for Filesystem
-      setProgress({ current: 100, total: 100, status: "Preparing installation..." });
-      const base64Data = await new Promise<string>((resolve) => {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          const base64 = reader.result as string;
-          resolve(base64.split(',')[1]);
-        };
-        reader.readAsDataURL(blob);
-      });
-
-      const safeVersion = (updateInfo.latestRelease.version || '').replace(/[^a-zA-Z0-9._-]/g, '') || 'latest';
-      const fileName = `flusso-update-${safeVersion}.apk`;
-      
-      const savedFile = await Filesystem.writeFile({
-        path: fileName,
-        data: base64Data,
-        directory: Directory.ExternalCache,
-      });
-
-      setProgress({ current: 100, total: 100, status: "Launching installer..." });
-      
-      await FileOpener.open({
-        filePath: savedFile.uri,
-        contentType: 'application/vnd.android.package-archive',
-      });
-
-    } catch (err) {
-      console.error('Update download/install failed:', err);
-      setError('Aggiornamento fallito. Prova a scaricarlo manualmente.');
-      if (updateInfo?.latestRelease?.url) {
-        window.open(updateInfo.latestRelease.url, '_blank');
-      }
-    } finally {
-      setIsLoading(false);
-      setProgress(null);
+    } catch {
+      window.open(targetUrl, '_blank');
     }
-  }, [updateInfo, setError]);
+  }, [updateInfo]);
 
   const loadData = useCallback(async () => {
     try {

@@ -74,7 +74,8 @@
     "sharp": "^0.35.5",
     "postcss-selector-parser": "^7.1.6",
     "uuid": "^11.1.0",
-    "tmp": "^0.2.3"
+    "tmp": "^0.2.3",
+    "dompurify": "^3.4.17"
   },
   "pnpm": {
     "overrides": {
@@ -85,7 +86,8 @@
       "sharp": "^0.35.5",
       "postcss-selector-parser": "^7.1.6",
       "uuid": "^11.1.0",
-      "tmp": "^0.2.3"
+      "tmp": "^0.2.3",
+      "dompurify": "^3.4.17"
     }
   },
   "resolutions": {
@@ -96,6 +98,7 @@
     "sharp": "^0.35.5",
     "postcss-selector-parser": "^7.1.6",
     "uuid": "^11.1.0",
-    "tmp": "^0.2.3"
+    "tmp": "^0.2.3",
+    "dompurify": "^3.4.17"
   }
 }

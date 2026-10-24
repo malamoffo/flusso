@@ -44,13 +44,16 @@ export async function fetchWithProxy(
   if (isNative) {
     try {
       const isReddit = url.includes('reddit.com');
+      const isJson = url.includes('.json');
       const headers: Record<string, string> = {
         'User-Agent': isReddit
           ? 'android:com.flusso.app:v1.1.0 (by /u/flusso_dev)'
           : 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
-        'Accept': (isRss || isReddit)
-          ? 'application/atom+xml, application/rss+xml, application/xml, text/xml, */*' 
-          : 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8'
+        'Accept': isJson
+          ? 'application/json, text/plain, */*'
+          : (isRss || url.includes('.rss'))
+            ? 'application/atom+xml, application/rss+xml, application/xml, text/xml, */*' 
+            : 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8'
       };
 
       if (sinceDate) {
@@ -104,9 +107,11 @@ export async function fetchWithProxy(
   }
 
   const headers: Record<string, string> = {
-    'Accept': isRss 
-      ? 'application/rss+xml, application/xml, text/xml, */*' 
-      : 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+    'Accept': url.includes('.json')
+      ? 'application/json, text/plain, */*'
+      : (isRss || url.includes('.rss')) 
+        ? 'application/atom+xml, application/rss+xml, application/xml, text/xml, */*' 
+        : 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
   };
 
   if (sinceDate) {

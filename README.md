@@ -18,9 +18,11 @@ The bottom navigation bar features evenly spaced, quick-access sections with amb
 *   ⚙️ **Settings (Impostazioni)**: Full control over feeds, OPML import/export, reading preferences, theme accents, and data retention.
 
 ### 🤖 Resilient Reddit Integration
-*   **Atom/RSS Engine**: Uses Reddit's official Atom/RSS feed streams to reliably fetch posts without being blocked by 403 Forbidden unauthenticated JSON API restrictions.
-*   **Rate-Limit Protection**: Sequential fetching with backoff intervals and compliant User-Agent headers (`<platform>:<app_id>:<version> (by /u/<username>)`) to avoid 429 Too Many Requests.
+*   **Dual Atom & RSS Engine**: Uses Reddit's official Atom/RSS feed streams to reliably fetch posts without being blocked by 403 Forbidden unauthenticated JSON API restrictions.
+*   **Multi-Strategy Comment Resolution**: Resolves Reddit comment threads using direct canonical post endpoints (`/comments/<id>/.rss` and `/comments/<id>.json`), guaranteeing comments and real comment counts load reliably even when slug URLs change.
 *   **Threaded Comment Viewer**: Read Reddit comment threads with support for up to 20 levels of nesting, with an intelligent indentation cap (after level 3) designed for optimal mobile screen readability.
+*   **Dynamic Comment Counts**: Displays real comment counts, automatically refreshed and persisted to Dexie when viewing discussions.
+*   **Rate-Limit Protection**: Sequential fetching with backoff intervals and compliant User-Agent headers (`<platform>:<app_id>:<version> (by /u/<username>)`) to avoid 429 Too Many Requests.
 *   **Timestamp Normalization & Smart Retention**: Millisecond-accurate timestamp handling with configurable retention (default 3 days), ensuring favorite and active posts are preserved.
 
 ### 📖 Distraction-Free Reading
@@ -98,7 +100,11 @@ npx cap open android
 ---
 
 ## 🛡️ Privacy & Security
-Flusso does not track your reading habits, require cloud account creation, or send telemetry to external servers. All feeds, credentials, and articles remain exclusively on your device. Images are fetched using `referrerPolicy="no-referrer"` to protect your identity while browsing.
+*   **Google Play Protect Hardened**: Zero dropper permissions (removed `REQUEST_INSTALL_PACKAGES` and obsolete foreground media services). Clean, scoped file provider (`cache` & `files` only).
+*   **Encrypted Transport**: Insecure cleartext traffic disabled (`android:usesCleartextTraffic="false"`).
+*   **Signed Release Pipeline**: Automated production keystore generation in GitHub Actions workflow, eliminating untrusted debug certificate warnings during sideloading.
+*   **Zero Vulnerabilities**: All dependencies audited (`npm audit` shows 0 vulnerabilities, overriding patched versions of `sharp`, `postcss-selector-parser`, `tar`, `glob`, `minimatch`, and `@xmldom/xmldom`).
+*   **Privacy-First**: Flusso does not track reading habits, require cloud account creation, or send telemetry to external servers. All feeds, credentials, and articles remain exclusively on your device. Images are fetched using `referrerPolicy="no-referrer"` to protect your identity while browsing.
 
 ---
 
