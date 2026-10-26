@@ -114,4 +114,28 @@ describe('parseRedditAtomComments', () => {
     expect(comments[0].data.replies.data.children[0].data.id).toBe('reply1');
     expect(comments[0].data.replies.data.children[0].data.author).toBe('reply_user');
   });
+
+  it('correctly nests replies when parent is referenced via [parent] link in content', async () => {
+    const parentLinkAtom = `<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <entry>
+    <id>t1_root99</id>
+    <author><name>/u/first_user</name></author>
+    <content type="html">&lt;div class="md"&gt;&lt;p&gt;Parent comment&lt;/p&gt;&lt;/div&gt;</content>
+  </entry>
+  <entry>
+    <id>t1_reply99</id>
+    <author><name>/u/second_user</name></author>
+    <content type="html">&lt;div class="md"&gt;&lt;p&gt;Child reply&lt;/p&gt;&lt;/div&gt;&lt;a href="https://www.reddit.com/r/technology/comments/xyz/post/root99"&gt;[parent]&lt;/a&gt;</content>
+  </entry>
+</feed>`;
+    const { parseRedditAtomComments } = await import('../reddit');
+    const comments = parseRedditAtomComments(parentLinkAtom);
+    expect(comments).toHaveLength(1);
+    expect(comments[0].data.id).toBe('root99');
+    expect(comments[0].data.replies.data.children).toHaveLength(1);
+    expect(comments[0].data.replies.data.children[0].data.id).toBe('reply99');
+    expect(comments[0].data.replies.data.children[0].data.author).toBe('second_user');
+  });
 });
+

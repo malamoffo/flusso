@@ -18,10 +18,10 @@ The bottom navigation bar features evenly spaced, quick-access sections with amb
 *   ⚙️ **Settings (Impostazioni)**: Full control over feeds, OPML import/export, reading preferences, theme accents, and data retention.
 
 ### 🤖 Resilient Reddit Integration
-*   **Dual Atom & RSS Engine**: Uses Reddit's official Atom/RSS feed streams to reliably fetch posts without being blocked by 403 Forbidden unauthenticated JSON API restrictions.
-*   **Multi-Strategy Comment Resolution**: Resolves Reddit comment threads using direct canonical post endpoints (`/comments/<id>/.rss` and `/comments/<id>.json`), guaranteeing comments and real comment counts load reliably even when slug URLs change.
-*   **Threaded Comment Viewer**: Read Reddit comment threads with support for up to 20 levels of nesting, with an intelligent indentation cap (after level 3) designed for optimal mobile screen readability.
-*   **Dynamic Comment Counts**: Displays real comment counts, automatically refreshed and persisted to Dexie when viewing discussions.
+*   **Dual Atom & RSS Engine with Real Counters**: Fetches posts reliably via multi-domain JSON (`www`, `api`, `old`) and Atom/RSS feeds. Automatically enriches post lists with real upvote scores (`score`) and comment counts (`numComments`) using Reddit's batch `/api/info.json` endpoint.
+*   **Multi-Strategy Comment Resolution**: Prioritizes Reddit's recursive JSON comment trees, falls back to modern `shreddit-comment` DOM scraping with `parentid`/`depth` reconstruction, and seamlessly falls back to Atom threading links (`[parent]`, `thr:in-reply-to`).
+*   **Threaded & Indented Comment Viewer**: Renders full hierarchical comment reply trees with visual indentation and purple guide bars for child comments. Incorporates an intelligent indentation cap (after level 3) designed for optimal mobile screen readability without horizontal squishing.
+*   **Dynamic Comment Counts & Scores**: Automatically updates and synchronizes real post upvotes and total comments to local Dexie storage and UI state upon opening discussions.
 *   **Rate-Limit Protection**: Sequential fetching with backoff intervals and compliant User-Agent headers (`<platform>:<app_id>:<version> (by /u/<username>)`) to avoid 429 Too Many Requests.
 *   **Timestamp Normalization & Smart Retention**: Millisecond-accurate timestamp handling with configurable retention (default 3 days), ensuring favorite and active posts are preserved.
 
@@ -56,7 +56,7 @@ The bottom navigation bar features evenly spaced, quick-access sections with amb
 *   **Concurrency**: Dedicated Web Worker (`dataProcessor.worker.ts`)
 *   **Content Engine**: `@mozilla/readability`, `dompurify`, `he`
 *   **Native Bridge**: Capacitor 6 (`@capacitor/core`, `@capacitor/android`, `@capacitor/browser`, `@capacitor/app`)
-*   **Testing**: Vitest (34 unit & performance benchmark tests)
+*   **Testing**: Vitest (38 unit & performance benchmark tests)
 
 ---
 

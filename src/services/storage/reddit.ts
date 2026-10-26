@@ -117,11 +117,32 @@ export function parseRedditAtom(xmlString: string, defaultSubreddit: string): { 
       }
 
       let numComments = 0;
-      const commentCountMatch = contentHtml.match(/([0-9,]+)\s+comments?/i) ||
-                                title.match(/\(([0-9,]+)\s+comments?\)/i) ||
-                                contentHtml.match(/\[([0-9,]+)\s+comments?\]/i);
-      if (commentCountMatch && commentCountMatch[1]) {
-        numComments = parseInt(commentCountMatch[1].replace(/,/g, ''), 10) || 0;
+      const thrTotal = entry.getElementsByTagName('thr:total')[0] || 
+                       entry.getElementsByTagNameNS('*', 'total')[0] ||
+                       entry.getElementsByTagName('slash:comments')[0] ||
+                       entry.getElementsByTagNameNS('*', 'comments')[0];
+      if (thrTotal && thrTotal.textContent) {
+        const parsedTotal = parseInt(thrTotal.textContent.trim(), 10);
+        if (!isNaN(parsedTotal) && parsedTotal >= 0) {
+          numComments = parsedTotal;
+        }
+      }
+      if (numComments === 0) {
+        const commentCountMatch = contentHtml.match(/([0-9,]+)\s*(?:commenti|comments)/i) ||
+                                  title.match(/\(([0-9,]+)\s*(?:commenti|comments)\)/i) ||
+                                  contentHtml.match(/\[([0-9,]+)\s*(?:commenti|comments)\]/i);
+        if (commentCountMatch && commentCountMatch[1]) {
+          numComments = parseInt(commentCountMatch[1].replace(/,/g, ''), 10) || 0;
+        }
+      }
+
+      let score = 1;
+      const scoreMatch = contentHtml.match(/([0-9,]+)\s+(?:points?|punti)/i);
+      if (scoreMatch && scoreMatch[1]) {
+        const parsedScore = parseInt(scoreMatch[1].replace(/,/g, ''), 10);
+        if (!isNaN(parsedScore) && parsedScore > 0) {
+          score = parsedScore;
+        }
       }
 
       posts.push({
@@ -135,7 +156,7 @@ export function parseRedditAtom(xmlString: string, defaultSubreddit: string): { 
         url: outboundUrl,
         imageUrl: imageUrl ? he.decode(imageUrl) : undefined,
         createdUtc,
-        score: 1,
+        score,
         numComments,
         selftextHtml,
         isRead: 0,
@@ -223,12 +244,33 @@ export function parseRedditAtomComments(xmlString: string): any[] {
         inReplyTo = inReplyTo.replace(/^t1_/, '').replace(/^.*?:t1_/, '');
       }
 
+      // If inReplyTo wasn't explicitly declared via XML attribute, extract from [parent] or [context] HTML links
+      if (!inReplyTo && rawContent) {
+        const parentMatch = rawContent.match(/href="[^"]*\/comments\/[^\/]+\/[^\/]+\/([a-zA-Z0-9_]+)[^"]*">\s*\[parent\]/i);
+        if (parentMatch && parentMatch[1]) {
+          inReplyTo = parentMatch[1].replace(/^t1_/, '');
+        }
+      }
+      if (!inReplyTo && rawContent) {
+        const contextMatch = rawContent.match(/href="[^"]*\/comment\/([a-zA-Z0-9_]+)[^"]*">\s*\[context\]/i);
+        if (contextMatch && contextMatch[1]) {
+          inReplyTo = contextMatch[1].replace(/^t1_/, '');
+        }
+      }
+
+      let score = 1;
+      const scoreMatch = rawContent.match(/([0-9,]+)\s+(?:points?|punti)/i);
+      if (scoreMatch && scoreMatch[1]) {
+        const parsedScore = parseInt(scoreMatch[1].replace(/,/g, ''), 10);
+        if (!isNaN(parsedScore)) score = parsedScore;
+      }
+
       const commentNode = {
         kind: 't1',
         data: {
           id: id || crypto.randomUUID(),
           author,
-          score: 1,
+          score,
           created_utc: createdUtc,
           body: body.trim(),
           body_html: bodyHtml,
@@ -256,7 +298,9 @@ export function parseRedditAtomComments(xmlString: string): any[] {
       }
     }
 
-    return topLevel.length > 0 ? topLevel : comments;
+    const result = topLevel.length > 0 ? topLevel : comments;
+    (result as any).postStats = { score: 1, numComments: comments.length };
+    return result;
   } catch (err) {
     console.error('Failed to parse Reddit comments Atom XML:', err);
     return [];
@@ -440,6 +484,54 @@ export const redditStorage = {
     }
   },
 
+  async batchEnrichPostsMetadata(posts: RedditPost[], signal?: AbortSignal): Promise<void> {
+    if (!posts || posts.length === 0) return;
+    const idsToFetch = posts
+      .map(p => p.originalId)
+      .filter((id): id is string => typeof id === 'string' && id.length > 0)
+      .slice(0, 50)
+      .map(id => id.startsWith('t3_') ? id : `t3_${id}`);
+    
+    if (idsToFetch.length === 0) return;
+
+    const urls = [
+      `https://www.reddit.com/api/info.json?id=${idsToFetch.join(',')}&raw_json=1`,
+      `https://api.reddit.com/api/info.json?id=${idsToFetch.join(',')}&raw_json=1`,
+      `https://old.reddit.com/api/info.json?id=${idsToFetch.join(',')}&raw_json=1`,
+    ];
+
+    for (const url of urls) {
+      try {
+        if (signal?.aborted) return;
+        const result = await this.fetchJsonWithProxy(url, signal);
+        if (result && result.data && result.data.data && Array.isArray(result.data.data.children) && result.data.data.children.length > 0) {
+          const statsMap = new Map<string, { score: number; numComments: number }>();
+          for (const child of result.data.data.children) {
+            if (child.data && child.data.id) {
+              const rawScore = typeof child.data.score === 'number' ? child.data.score : child.data.ups;
+              const score = typeof rawScore === 'number' ? rawScore : 1;
+              const numComments = typeof child.data.num_comments === 'number' ? child.data.num_comments : 0;
+              statsMap.set(child.data.id, { score, numComments });
+            }
+          }
+
+          for (const post of posts) {
+            if (post.originalId) {
+              const stats = statsMap.get(post.originalId);
+              if (stats) {
+                post.score = Math.max(post.score || 1, stats.score);
+                post.numComments = Math.max(post.numComments || 0, stats.numComments);
+              }
+            }
+          }
+          return;
+        }
+      } catch {
+        // Try next endpoint
+      }
+    }
+  },
+
   async fetchSubredditPosts(subredditName: string, sinceDate?: number, after?: string, sort: 'new' | 'hot' | 'top' = 'new'): Promise<RedditPost[]> {
     const res = await this.fetchRedditPosts(subredditName, sort, after);
     if (sinceDate) {
@@ -456,67 +548,74 @@ export const redditStorage = {
       const subreddit = subreddits.find(s => s.name.toLowerCase() === subredditName.toLowerCase());
 
       // 1. Primary Strategy: Reddit JSON API (provides real num_comments and scores)
-      try {
-        let url = `https://www.reddit.com/r/${subredditName}/${sort}.json?limit=25`;
-        if (after) {
-          const cursor = after.startsWith('t3_') ? after : `t3_${after}`;
-          url += `&after=${cursor}`;
-        }
-        const result = await this.fetchJsonWithProxy(url, signal, subreddit?.etag, subreddit?.lastModified);
-        if (result && result.data && result.data.data && result.data.data.children && result.data.data.children.length > 0) {
-          if (subreddit) {
-            subreddit.etag = result.etag;
-            subreddit.lastModified = result.lastModified;
-            subreddit.lastFetched = Date.now();
-            await this.saveSubreddits(subreddits);
-          }
-          const posts = result.data.data.children.map((child: any) => {
-            const post = child.data;
-            let imageUrl = undefined;
-            if (post.preview && post.preview.images && post.preview.images.length > 0) {
-              imageUrl = post.preview.images[0].source.url;
-            } else if (post.url && (post.url.match(/\.(jpg|jpeg|png|gif|webp)$/) || this.isImgurUrl(post.url))) {
-              imageUrl = post.url;
-            } else if (post.thumbnail && post.thumbnail.startsWith('http')) {
-              imageUrl = post.thumbnail;
-            }
+      const cursor = after ? (after.startsWith('t3_') ? after : `t3_${after}`) : undefined;
+      const jsonUrls = [
+        `https://www.reddit.com/r/${subredditName}/${sort}.json?limit=25&raw_json=1${cursor ? `&after=${cursor}` : ''}`,
+        `https://api.reddit.com/r/${subredditName}/${sort}.json?limit=25&raw_json=1${cursor ? `&after=${cursor}` : ''}`,
+        `https://old.reddit.com/r/${subredditName}/${sort}.json?limit=25&raw_json=1${cursor ? `&after=${cursor}` : ''}`,
+      ];
 
-            return {
-              id: `${post.subreddit}/${post.id}`,
-              originalId: post.id,
-              title: he.decode(post.title),
-              author: post.author,
-              subredditId: post.subreddit_id,
-              subredditName: post.subreddit,
-              permalink: post.permalink,
-              url: post.url,
-              imageUrl: imageUrl ? he.decode(imageUrl) : undefined,
-              createdUtc: post.created_utc * 1000,
-              score: typeof post.score === 'number' ? post.score : 1,
-              numComments: typeof post.num_comments === 'number' ? post.num_comments : 0,
-              selftextHtml: post.selftext_html ? he.decode(post.selftext_html) : undefined,
-              isRead: 0,
-              isFavorite: 0
-            };
-          });
-          return { posts, after: result.data.data.after };
+      for (const jsonUrl of jsonUrls) {
+        try {
+          if (signal?.aborted) return { posts: [] };
+          const result = await this.fetchJsonWithProxy(jsonUrl, signal, subreddit?.etag, subreddit?.lastModified);
+          if (result && result.data && result.data.data && result.data.data.children && result.data.data.children.length > 0) {
+            if (subreddit) {
+              subreddit.etag = result.etag;
+              subreddit.lastModified = result.lastModified;
+              subreddit.lastFetched = Date.now();
+              await this.saveSubreddits(subreddits);
+            }
+            const posts = result.data.data.children.map((child: any) => {
+              const post = child.data;
+              let imageUrl = undefined;
+              if (post.preview && post.preview.images && post.preview.images.length > 0) {
+                imageUrl = post.preview.images[0].source.url;
+              } else if (post.url && (post.url.match(/\.(jpg|jpeg|png|gif|webp)$/) || this.isImgurUrl(post.url))) {
+                imageUrl = post.url;
+              } else if (post.thumbnail && post.thumbnail.startsWith('http')) {
+                imageUrl = post.thumbnail;
+              }
+
+              return {
+                id: `${post.subreddit}/${post.id}`,
+                originalId: post.id,
+                title: he.decode(post.title),
+                author: post.author,
+                subredditId: post.subreddit_id,
+                subredditName: post.subreddit,
+                permalink: post.permalink,
+                url: post.url,
+                imageUrl: imageUrl ? he.decode(imageUrl) : undefined,
+                createdUtc: post.created_utc * 1000,
+                score: typeof post.score === 'number' ? post.score : (typeof post.ups === 'number' ? post.ups : 1),
+                numComments: typeof post.num_comments === 'number' ? post.num_comments : 0,
+                selftextHtml: post.selftext_html ? he.decode(post.selftext_html) : undefined,
+                isRead: 0,
+                isFavorite: 0
+              };
+            });
+            return { posts, after: result.data.data.after };
+          }
+        } catch (jsonErr: any) {
+          if (signal?.aborted || jsonErr?.name === 'AbortError' || jsonErr?.message?.includes('aborted') || jsonErr?.message?.includes('Aborted')) {
+            return { posts: [] };
+          }
+          // Try next JSON URL
         }
-      } catch (jsonErr: any) {
-        if (signal?.aborted || jsonErr?.name === 'AbortError' || jsonErr?.message?.includes('aborted') || jsonErr?.message?.includes('Aborted')) {
-          return { posts: [] };
-        }
-        // If JSON is blocked, gracefully fall back to Atom/RSS
       }
 
       // 2. Secondary Strategy: Reddit's Atom/RSS feed (Public, reliable, NOT blocked with 403)
       try {
-        const cursor = after ? (after.startsWith('t3_') ? after : `t3_${after}`) : undefined;
         const rssUrl = `https://www.reddit.com/r/${subredditName}/${sort}.rss?limit=25${cursor ? `&after=${cursor}` : ''}`;
         
         const rssRes = await fetchWithProxy(rssUrl, true, undefined, signal, subreddit?.etag, subreddit?.lastModified);
         if (rssRes.data && (rssRes.data.includes('<entry') || rssRes.data.includes('<feed'))) {
           const parsed = parseRedditAtom(rssRes.data, subredditName);
           if (parsed.posts.length > 0) {
+            // Batch enrich posts with real scores & comment counts from Reddit API info
+            await this.batchEnrichPostsMetadata(parsed.posts, signal);
+
             // Preserve known scores & comment counts from local database
             const existingLocalPosts = await this.getLocalPostsForSubreddit(subredditName);
             const existingMap = new Map(existingLocalPosts.map(p => [p.id, p]));
@@ -668,7 +767,190 @@ export const redditStorage = {
       const postIdMatch = cleanPath.match(/\/comments\/([a-zA-Z0-9_]+)/i) || permalink.match(/\/comments\/([a-zA-Z0-9_]+)/i);
       const postId = postIdMatch ? postIdMatch[1] : '';
 
-      // 1. Strategy A: Reddit comments Atom/RSS feed (Public, reliable, no API key required)
+      // 1. Strategy A: Reddit JSON endpoint FIRST (Provides full recursive reply tree, scores, and post metadata)
+      const jsonUrlsToTry: string[] = [];
+      if (postId) {
+        jsonUrlsToTry.push(`https://www.reddit.com/comments/${postId}.json?raw_json=1`);
+        jsonUrlsToTry.push(`https://api.reddit.com/comments/${postId}.json?raw_json=1`);
+        jsonUrlsToTry.push(`https://old.reddit.com/comments/${postId}.json?raw_json=1`);
+      }
+      jsonUrlsToTry.push(`https://www.reddit.com${cleanPath}.json?raw_json=1`);
+      jsonUrlsToTry.push(`https://api.reddit.com${cleanPath}.json?raw_json=1`);
+      jsonUrlsToTry.push(`https://old.reddit.com${cleanPath}.json?raw_json=1`);
+
+      for (const jsonUrl of jsonUrlsToTry) {
+        try {
+          const result = await this.fetchJsonWithProxy(jsonUrl);
+          if (result && result.data && Array.isArray(result.data) && result.data.length >= 2 && result.data[1].data && result.data[1].data.children && result.data[1].data.children.length > 0) {
+            const postData = result.data[0]?.data?.children?.[0]?.data;
+            const postStats = postData ? {
+              score: typeof postData.score === 'number' ? postData.score : (typeof postData.ups === 'number' ? postData.ups : 1),
+              numComments: typeof postData.num_comments === 'number' ? postData.num_comments : 0
+            } : undefined;
+
+            if (postStats && postId) {
+              try {
+                const subreddits = await this.getSubreddits();
+                for (const sub of subreddits) {
+                  const dbPostId = `${sub.name}/${postId}`;
+                  await this.updateRedditPostStats(dbPostId, postStats.score, postStats.numComments);
+                }
+              } catch {}
+            }
+
+            const children = result.data[1].data.children;
+            if (postStats) {
+              (children as any).postStats = postStats;
+            }
+            return children;
+          }
+        } catch {
+          // Try next JSON candidate
+        }
+      }
+
+      // 2. Strategy B: Modern HTML scraping SECOND (builds nested tree from shreddit-comment parentid & depth)
+      const htmlUrlsToTry: string[] = [];
+      if (postId) {
+        htmlUrlsToTry.push(`https://www.reddit.com/comments/${postId}`);
+        htmlUrlsToTry.push(`https://old.reddit.com/comments/${postId}`);
+      }
+      htmlUrlsToTry.push(`https://www.reddit.com${cleanPath}`);
+      htmlUrlsToTry.push(`https://old.reddit.com${cleanPath}`);
+
+      for (const htmlUrl of htmlUrlsToTry) {
+        try {
+          const response = await fetchWithProxy(htmlUrl, false);
+          if (response.data) {
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(response.data, 'text/html');
+            
+            // Extract post stats from modern shreddit-post component
+            const postEl = doc.querySelector('shreddit-post');
+            const postScore = postEl ? parseInt(postEl.getAttribute('score') || '1', 10) : 1;
+            const postComments = postEl ? parseInt(postEl.getAttribute('comment-count') || '0', 10) : 0;
+            const postStats = { 
+              score: isNaN(postScore) || postScore <= 0 ? 1 : postScore, 
+              numComments: isNaN(postComments) || postComments < 0 ? 0 : postComments 
+            };
+
+            const shredditComments = Array.from(doc.querySelectorAll('shreddit-comment'));
+            if (shredditComments.length > 0) {
+              const commentNodes: any[] = [];
+              const commentMap = new Map<string, any>();
+
+              shredditComments.forEach((el, idx) => {
+                const thingid = el.getAttribute('thingid') || `scraped_${idx}`;
+                const id = thingid.replace(/^t1_/, '');
+                const rawParentId = el.getAttribute('parentid') || '';
+                const isRoot = !rawParentId || rawParentId.startsWith('t3_');
+                const parent_id = isRoot ? undefined : rawParentId.replace(/^t1_/, '');
+                const depth = parseInt(el.getAttribute('depth') || '0', 10) || 0;
+                const author = (el.getAttribute('author') || 'unknown').replace(/^u\//, '');
+                const scoreVal = parseInt(el.getAttribute('score') || '1', 10);
+                const score = isNaN(scoreVal) ? 1 : scoreVal;
+
+                const bodyEl = el.querySelector('[slot="comment"]') || el.querySelector('.md');
+                const bodyHtml = bodyEl ? bodyEl.innerHTML : '';
+                const bodyText = bodyEl ? (bodyEl.textContent || '') : '';
+                if (bodyText.trim().length > 0) {
+                  const node = {
+                    kind: 't1',
+                    data: {
+                      id,
+                      parent_id,
+                      depth,
+                      author,
+                      score,
+                      created_utc: Math.floor(Date.now() / 1000),
+                      body: bodyText.trim(),
+                      body_html: bodyHtml || `<p>${bodyText.trim()}</p>`,
+                      replies: { data: { children: [] } }
+                    }
+                  };
+                  commentMap.set(id, node);
+                  commentNodes.push(node);
+                }
+              });
+
+              if (postStats.numComments === 0 && commentNodes.length > 0) {
+                postStats.numComments = commentNodes.length;
+              }
+
+              // Reconstruct full recursive tree using parent_id
+              const topLevel: any[] = [];
+              for (const c of commentNodes) {
+                const pid = c.data.parent_id;
+                if (pid && commentMap.has(pid)) {
+                  commentMap.get(pid).data.replies.data.children.push(c);
+                } else {
+                  topLevel.push(c);
+                }
+              }
+
+              if (postId) {
+                try {
+                  const subreddits = await this.getSubreddits();
+                  for (const sub of subreddits) {
+                    const dbPostId = `${sub.name}/${postId}`;
+                    await this.updateRedditPostStats(dbPostId, postStats.score, postStats.numComments);
+                  }
+                } catch {}
+              }
+
+              const resultList = topLevel.length > 0 ? topLevel : commentNodes;
+              (resultList as any).postStats = postStats;
+              return resultList;
+            }
+
+            // Classic Reddit HTML selectors
+            const commentSelectors = ['.comment', 'div[data-testid="comment"]'];
+            let commentElements: Element[] = [];
+            for (const selector of commentSelectors) {
+               const elements = doc.querySelectorAll(selector);
+               if (elements.length > 0) {
+                  commentElements = Array.from(elements);
+                  break;
+               }
+            }
+            
+            if (commentElements.length > 0) {
+              const comments: any[] = [];
+              commentElements.forEach((el, idx) => {
+                 const author = el.querySelector('.author')?.textContent 
+                             || el.getAttribute('author') 
+                             || 'unknown';
+                 const body = el.querySelector('.md')?.textContent 
+                            || (el as HTMLElement).innerText
+                            || '';
+                 const scoreEl = el.querySelector('.score.unvoted, .score');
+                 const scoreVal = scoreEl ? parseInt(scoreEl.textContent || '1', 10) : 1;
+                 if (body.trim().length > 0) {
+                   comments.push({
+                     kind: 't1',
+                     data: {
+                       id: `scraped_${idx}`,
+                       author: author.replace(/^u\//, ''),
+                       score: isNaN(scoreVal) ? 1 : scoreVal,
+                       created_utc: Math.floor(Date.now() / 1000),
+                       body: body.trim(),
+                       body_html: `<p>${body.trim()}</p>`,
+                       replies: { data: { children: [] } }
+                     }
+                   });
+                 }
+              });
+
+              if (comments.length > 0) {
+                (comments as any).postStats = { score: postStats.score, numComments: Math.max(postStats.numComments, comments.length) };
+                return comments;
+              }
+            }
+          }
+        } catch {}
+      }
+
+      // 3. Strategy C: Reddit comments Atom/RSS feed THIRD (fallback when API and HTML are unavailable)
       const rssUrlsToTry: string[] = [];
       if (postId) {
         rssUrlsToTry.push(`https://www.reddit.com/comments/${postId}/.rss`);
@@ -690,121 +972,23 @@ export const redditStorage = {
         }
       }
 
-      // 2. Strategy B: Reddit JSON endpoint
-      const jsonUrlsToTry: string[] = [];
-      if (postId) {
-        jsonUrlsToTry.push(`https://www.reddit.com/comments/${postId}.json`);
-      }
-      jsonUrlsToTry.push(`https://www.reddit.com${cleanPath}.json`);
-
-      for (const jsonUrl of jsonUrlsToTry) {
-        try {
-          const result = await this.fetchJsonWithProxy(jsonUrl);
-          if (result && result.data && Array.isArray(result.data) && result.data.length >= 2 && result.data[1].data && result.data[1].data.children && result.data[1].data.children.length > 0) {
-            // Also update post comments count from result.data[0] if available
-            try {
-              const postData = result.data[0]?.data?.children?.[0]?.data;
-              if (postData && typeof postData.num_comments === 'number' && postId) {
-                const subreddits = await this.getSubreddits();
-                for (const sub of subreddits) {
-                  const dbPostId = `${sub.name}/${postId}`;
-                  await this.updateRedditPostCommentsCount(dbPostId, postData.num_comments);
-                }
-              }
-            } catch {}
-            return result.data[1].data.children;
-          }
-        } catch {
-          // Try next JSON candidate
-        }
-      }
-
-      // 3. Strategy C: Scraping fallback (supports both modern shreddit-comment and classic markup)
-      const htmlUrlsToTry: string[] = [];
-      if (postId) {
-        htmlUrlsToTry.push(`https://www.reddit.com/comments/${postId}`);
-      }
-      htmlUrlsToTry.push(`https://www.reddit.com${cleanPath}`);
-
-      for (const htmlUrl of htmlUrlsToTry) {
-        try {
-          const response = await fetchWithProxy(htmlUrl, false);
-          if (response.data) {
-            const parser = new DOMParser();
-            const doc = parser.parseFromString(response.data, 'text/html');
-            
-            const comments: any[] = [];
-            
-            // Modern Reddit web components
-            const shredditComments = doc.querySelectorAll('shreddit-comment');
-            if (shredditComments.length > 0) {
-              shredditComments.forEach((el, idx) => {
-                const author = el.getAttribute('author') || 'unknown';
-                const score = parseInt(el.getAttribute('score') || '1', 10);
-                const bodyEl = el.querySelector('[slot="comment"]') || el.querySelector('.md');
-                const bodyHtml = bodyEl ? bodyEl.innerHTML : '';
-                const bodyText = bodyEl ? (bodyEl.textContent || '') : '';
-                if (bodyText.trim().length > 0) {
-                  comments.push({
-                    kind: 't1',
-                    data: {
-                      id: el.getAttribute('thingid') || `scraped_${idx}`,
-                      author: author.replace(/^u\//, ''),
-                      score: isNaN(score) ? 1 : score,
-                      created_utc: Math.floor(Date.now() / 1000),
-                      body: bodyText.trim(),
-                      body_html: bodyHtml || `<p>${bodyText.trim()}</p>`,
-                      replies: { data: { children: [] } }
-                    }
-                  });
-                }
-              });
-              if (comments.length > 0) return comments;
-            }
-
-            // Classic Reddit HTML selectors
-            const commentSelectors = ['.comment', 'div[data-testid="comment"]'];
-            let commentElements: Element[] = [];
-            for (const selector of commentSelectors) {
-               const elements = doc.querySelectorAll(selector);
-               if (elements.length > 0) {
-                  commentElements = Array.from(elements);
-                  break;
-               }
-            }
-            
-            commentElements.forEach((el, idx) => {
-               const author = el.querySelector('.author')?.textContent 
-                           || el.getAttribute('author') 
-                           || 'unknown';
-               const body = el.querySelector('.md')?.textContent 
-                          || (el as HTMLElement).innerText
-                          || '';
-               if (body.trim().length > 0) {
-                 comments.push({
-                   kind: 't1',
-                   data: {
-                     id: `scraped_${idx}`,
-                     author: author.replace(/^u\//, ''),
-                     score: 1,
-                     created_utc: Math.floor(Date.now() / 1000),
-                     body: body.trim(),
-                     body_html: `<p>${body.trim()}</p>`,
-                     replies: { data: { children: [] } }
-                   }
-                 });
-               }
-            });
-
-            if (comments.length > 0) return comments;
-          }
-        } catch {}
-      }
-
       return [];
     } catch (e: any) {
       console.warn(`[Reddit Comments] Unable to retrieve comments for: ${permalink}`);
       return [];
+    }
+  },
+
+  async updateRedditPostStats(postId: string, score?: number, numComments?: number): Promise<void> {
+    try {
+      const updates: Partial<RedditPost> = {};
+      if (typeof score === 'number' && score > 0) updates.score = score;
+      if (typeof numComments === 'number' && numComments >= 0) updates.numComments = numComments;
+      if (Object.keys(updates).length > 0) {
+        await db.redditPosts.update(postId, updates);
+      }
+    } catch (e) {
+      console.warn('Failed to update reddit post stats:', e);
     }
   },
 

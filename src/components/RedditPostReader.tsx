@@ -185,14 +185,90 @@ export const RedditPostReader = ({ post, onClose, onNext, onPrev, hasNext, hasPr
           return urls;
         };
 
+        const ensureCommentTree = (items: any[]): any[] => {
+          if (!Array.isArray(items) || items.length === 0) return [];
+
+          const hasExistingNested = items.some(
+            item => (item?.data?.replies?.data?.children?.length > 0) || (Array.isArray(item?.data?.replies) && item.data.replies.length > 0)
+          );
+          if (hasExistingNested) return items;
+
+          const idMap = new Map<string, any>();
+          for (const item of items) {
+            if (item?.data?.id) idMap.set(item.data.id, item);
+          }
+
+          const topLevel: any[] = [];
+          let attachedAny = false;
+
+          for (const item of items) {
+            const parentId = (item?.data?.parent_id || item?.data?.parentId || '').replace(/^t1_/, '');
+            if (parentId && idMap.has(parentId) && parentId !== item.data?.id) {
+              const parent = idMap.get(parentId);
+              if (!parent.data.replies || typeof parent.data.replies !== 'object') {
+                parent.data.replies = { data: { children: [] } };
+              }
+              if (!parent.data.replies.data) {
+                parent.data.replies.data = { children: [] };
+              }
+              if (!Array.isArray(parent.data.replies.data.children)) {
+                parent.data.replies.data.children = [];
+              }
+              parent.data.replies.data.children.push(item);
+              attachedAny = true;
+            } else {
+              topLevel.push(item);
+            }
+          }
+
+          if (attachedAny && topLevel.length > 0) {
+            if ((items as any).postStats) {
+              (topLevel as any).postStats = (items as any).postStats;
+            }
+            return topLevel;
+          }
+
+          // Fallback: check if items have explicit depth attribute
+          const hasExplicitDepth = items.some(item => typeof item?.data?.depth === 'number' && item.data.depth > 0);
+          if (hasExplicitDepth) {
+            const roots: any[] = [];
+            const stack: { depth: number; node: any }[] = [];
+
+            for (const item of items) {
+              const depth = typeof item?.data?.depth === 'number' ? item.data.depth : 0;
+              while (stack.length > 0 && stack[stack.length - 1].depth >= depth) {
+                stack.pop();
+              }
+              if (stack.length > 0) {
+                const parent = stack[stack.length - 1].node;
+                if (!parent.data.replies?.data?.children) {
+                  parent.data.replies = { data: { children: [] } };
+                }
+                parent.data.replies.data.children.push(item);
+              } else {
+                roots.push(item);
+              }
+              stack.push({ depth, node: item });
+            }
+            if ((items as any).postStats) {
+              (roots as any).postStats = (items as any).postStats;
+            }
+            return roots;
+          }
+
+          return items;
+        };
+
         const parseComments = (children: any[], depth: number): RedditComment[] => {
           if (!Array.isArray(children)) return [];
           return children.map(child => {
             if (child.kind !== 't1') return null;
             const data = child.data;
             let replies: RedditComment[] = [];
-            if (data.replies && data.replies.data && data.replies.data.children) {
+            if (data.replies && data.replies.data && Array.isArray(data.replies.data.children)) {
               replies = parseComments(data.replies.data.children, depth + 1);
+            } else if (Array.isArray(data.replies)) {
+              replies = parseComments(data.replies, depth + 1);
             }
             return {
               id: data.id,
@@ -201,8 +277,8 @@ export const RedditPostReader = ({ post, onClose, onNext, onPrev, hasNext, hasPr
                 data.body_html.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&'),
                 { FORBID_ATTR: ['id', 'name'] }
               ) : (data.body ? DOMPurify.sanitize(`<p>${data.body}</p>`, { FORBID_ATTR: ['id', 'name'] }) : ''),
-              score: data.score,
-              createdUtc: data.created_utc * 1000,
+              score: typeof data.score === 'number' ? data.score : 1,
+              createdUtc: (data.created_utc || Math.floor(Date.now() / 1000)) * 1000,
               depth,
               replies,
               mediaUrls: extractMediaUrls(data)
@@ -211,7 +287,8 @@ export const RedditPostReader = ({ post, onClose, onNext, onPrev, hasNext, hasPr
         };
 
         if (!isCancelled) {
-          const parsed = parseComments(rawComments, 0);
+          const structured = ensureCommentTree(rawComments);
+          const parsed = parseComments(structured, 0);
           setComments(parsed);
 
           const countAll = (list: RedditComment[]): number => {
@@ -226,12 +303,30 @@ export const RedditPostReader = ({ post, onClose, onNext, onPrev, hasNext, hasPr
           };
 
           const totalCount = countAll(parsed);
+          const stats = (rawComments as any)?.postStats;
+          
+          let nextScore = post.score;
+          let nextComments = post.numComments;
+
+          if (stats) {
+            if (typeof stats.score === 'number' && stats.score > 0) {
+              nextScore = Math.max(nextScore || 1, stats.score);
+            }
+            if (typeof stats.numComments === 'number' && stats.numComments >= 0) {
+              nextComments = Math.max(nextComments || 0, stats.numComments);
+            }
+          }
+
           if (totalCount > 0) {
-            const nextCount = Math.max(post.numComments || 0, totalCount);
-            post.numComments = nextCount;
-            updateRedditPost?.(post.id, { numComments: nextCount });
+            nextComments = Math.max(nextComments || 0, totalCount);
+          }
+
+          if (nextScore !== post.score || nextComments !== post.numComments) {
+            post.score = nextScore;
+            post.numComments = nextComments;
+            updateRedditPost?.(post.id, { score: nextScore, numComments: nextComments });
             import('../services/storage').then(({ storage }) => {
-              storage.updateRedditPostCommentsCount(post.id, nextCount);
+              storage.updateRedditPostStats(post.id, nextScore, nextComments);
             }).catch(() => {});
           }
         }
