@@ -224,7 +224,7 @@ export function parseRedditAtomComments(xmlString: string): any[] {
           temp.innerHTML = bodyHtml;
           body = temp.textContent || temp.innerText || '';
         } catch {
-          body = bodyHtml.replace(/<[^>]+>/g, '');
+          body = he.decode(bodyHtml).replace(/[<>]/g, '');
         }
       }
 
