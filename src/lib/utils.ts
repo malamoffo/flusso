@@ -70,12 +70,23 @@ export function getSafeUrl(url: string | null | undefined, fallback: any = ''): 
   if (!url) return fallback;
   if (!isSafeUrl(url)) return fallback;
   
+  let trimmed = url.trim();
+
+  // Fix accidental double protocol typos common in older CMS feeds (e.g. http://http://)
+  trimmed = trimmed.replace(/^(?:https?:\/\/)+/i, (m) => m.toLowerCase().includes('https') ? 'https://' : 'http://');
+
   // Ensure protocol-relative URLs are converted to https
-  if (url.startsWith('//')) {
-    return `https:${url}`;
+  if (trimmed.startsWith('//')) {
+    return `https:${trimmed}`;
   }
   
-  return url;
+  // Automatically upgrade insecure http:// to https:// to prevent Mixed Content
+  // in browsers and bypass Android cleartext traffic restrictions (android:usesCleartextTraffic="false")
+  if (trimmed.startsWith('http://')) {
+    return trimmed.replace(/^http:\/\//i, 'https://');
+  }
+
+  return trimmed;
 }
 
 /**
@@ -115,10 +126,13 @@ export function formatTime(seconds: number): string {
  */
 export function resolveUrl(url: string, baseUrl: string): string {
   if (!url) return url;
+  let cleanUrl = url.trim();
+  // Clean double scheme typos (e.g. http://http://domain.com/...)
+  cleanUrl = cleanUrl.replace(/^(?:https?:\/\/)+/i, (m) => m.toLowerCase().includes('https') ? 'https://' : 'http://');
   try {
-    return new URL(url, baseUrl).toString();
+    return new URL(cleanUrl, baseUrl).toString();
   } catch (e) {
-    return url; // Return original if resolution fails
+    return cleanUrl; // Return original if resolution fails
   }
 }
 

@@ -26,10 +26,12 @@ describe('resolveUrl', () => {
 });
 
 describe('isSafeUrl & getSafeUrl', () => {
-  it('allows safe http and https URLs', () => {
+  it('allows safe http and https URLs and upgrades http to https', () => {
     expect(isSafeUrl('https://example.com/test')).toBe(true);
     expect(isSafeUrl('http://example.com/test')).toBe(true);
     expect(getSafeUrl('https://example.com')).toBe('https://example.com');
+    expect(getSafeUrl('http://example.com')).toBe('https://example.com');
+    expect(getSafeUrl('http://http://example.com')).toBe('https://example.com');
   });
 
   it('blocks javascript: and dangerous execution schemes', () => {

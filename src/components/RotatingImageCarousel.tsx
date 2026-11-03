@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CachedImage } from './CachedImage';
 import { getSafeUrl } from '../lib/utils';
+import { extractYouTubeThumbnail } from '../services/rssParser';
 
 interface RotatingImageCarouselProps {
   urls: string[];
@@ -121,7 +122,11 @@ export function RotatingImageCarousel({
 /**
  * Utility helper to extract all unique images from an article (both metadata and html content)
  */
-export function extractArticleImages(article: { imageUrl?: string; postImageUrls?: string[]; content?: string }, fullContentHtml?: string): string[] {
+export function extractArticleImages(
+  article: { imageUrl?: string; postImageUrls?: string[]; content?: string }, 
+  fullContentHtml?: string,
+  fallbackImageUrl?: string
+): string[] {
   const urlsSet = new Set<string>();
 
   // 1. Add main image
@@ -144,6 +149,25 @@ export function extractArticleImages(article: { imageUrl?: string; postImageUrls
   // 4. Parse full content html if available
   if (fullContentHtml) {
     getImagesFromHtmlString(fullContentHtml).forEach(url => urlsSet.add(url));
+  }
+
+  // 5. Check for YouTube thumbnail in content/html if no images found yet
+  if (urlsSet.size === 0) {
+    const rawContent = (article.content || '') + ' ' + (fullContentHtml || '');
+    if (rawContent.trim()) {
+      const ytThumb = extractYouTubeThumbnail(rawContent);
+      if (ytThumb) {
+        urlsSet.add(ytThumb);
+      }
+    }
+  }
+
+  // 6. If still no image, use feed fallback image if provided and valid
+  if (urlsSet.size === 0 && fallbackImageUrl && fallbackImageUrl.trim()) {
+    const lower = fallbackImageUrl.toLowerCase();
+    if (!lower.includes('favicon') && !lower.endsWith('.ico') && !lower.includes('pixel.gif')) {
+      urlsSet.add(fallbackImageUrl.trim());
+    }
   }
 
   return Array.from(urlsSet);

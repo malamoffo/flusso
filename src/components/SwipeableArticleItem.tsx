@@ -234,8 +234,8 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
   };
 
   const articleImages = React.useMemo(() => {
-    return extractArticleImages(article);
-  }, [article]);
+    return extractArticleImages(article, undefined, feedImageUrl);
+  }, [article, feedImageUrl]);
 
   const firstImage = React.useMemo(() => {
     for (const url of articleImages) {
@@ -254,8 +254,11 @@ export const SwipeableArticleItem = React.memo(function SwipeableArticleItem({
         }
       }
     }
+    if (feedImageUrl && !feedImageUrl.toLowerCase().includes('favicon') && !feedImageUrl.endsWith('.ico')) {
+      return feedImageUrl;
+    }
     return null;
-  }, [articleImages]);
+  }, [articleImages, feedImageUrl]);
 
   const hasImage = !!firstImage;
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { cn, getHostname } from '../lib/utils';
+import { cn, getHostname, getSafeUrl } from '../lib/utils';
 import { imagePersistence } from '../utils/imagePersistence';
 import { Capacitor } from '@capacitor/core';
 import { FileText } from 'lucide-react';
@@ -23,11 +23,11 @@ export function CachedImage({ src, className, fallback, alt, priority, ...props 
 
   const [currentSrc, setCurrentSrc] = useState<string | null>(() => {
     if (!src) return null;
-    if (isGif) return src;
+    const safe = getSafeUrl(src);
+    if (isGif) return safe;
     if (imagePersistence.memoryCache.has(src)) return imagePersistence.memoryCache.get(src)!;
     if (imagePersistence.resolvedLocalUrls.has(src)) return imagePersistence.resolvedLocalUrls.get(src)!;
-    // On native, use remote src as initial value to avoid blank space while checking cache
-    return src;
+    return safe;
   });
   
   const [isLoaded, setIsLoaded] = useState(() => {
@@ -52,7 +52,7 @@ export function CachedImage({ src, className, fallback, alt, priority, ...props 
     }
 
     if (isGif) {
-      setCurrentSrc(src);
+      setCurrentSrc(getSafeUrl(src));
       setIsLoaded(false);
       setError(false);
     } else if (imagePersistence.memoryCache.has(src)) {
@@ -66,9 +66,10 @@ export function CachedImage({ src, className, fallback, alt, priority, ...props 
       setIsLoaded(imagePersistence.loadedUrls.has(local));
       setError(false);
     } else {
-      // Use remote src as initial value
-      setCurrentSrc(src);
-      setIsLoaded(imagePersistence.loadedUrls.has(src));
+      // Use remote safe src as initial value
+      const safe = getSafeUrl(src);
+      setCurrentSrc(safe);
+      setIsLoaded(imagePersistence.loadedUrls.has(safe));
       setError(false);
     }
   }, [src, isGif]);
@@ -127,27 +128,40 @@ export function CachedImage({ src, className, fallback, alt, priority, ...props 
   };
 
   const handleError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
-    // If local URL failed, try falling back to original src
-    let corsProxyUrl = null;
+    const safeSrc = getSafeUrl(src);
     const isNative = Capacitor.isNativePlatform();
-    
-    if (!isNative) {
-        const hostname = getHostname(src);
-        if (hostname && hostname !== 'corsproxy.io' && !hostname.endsWith('.corsproxy.io')) {
-          corsProxyUrl = `https://corsproxy.io/?${encodeURIComponent(src)}`;
-        }
+
+    // 1. If currently using a local cached file that failed, fall back to remote safe URL
+    if (currentSrc !== safeSrc && !currentSrc?.startsWith('https://images.weserv.nl/')) {
+      setCurrentSrc(safeSrc);
+      return;
     }
 
-    if (currentSrc !== src && currentSrc !== corsProxyUrl) {
-      setCurrentSrc(src);
-    } else if (corsProxyUrl && currentSrc !== corsProxyUrl) {
-      setCurrentSrc(corsProxyUrl);
-    } else {
-      console.warn(`[CachedImage] Failed to load image: ${src}`);
-      setError(true);
-      if (props.onError) {
-        props.onError(e);
+    // 2. If URL is insecure http, upgrade to https
+    if (currentSrc && currentSrc.startsWith('http://')) {
+      const upgraded = currentSrc.replace(/^http:\/\//i, 'https://');
+      if (upgraded !== currentSrc) {
+        setCurrentSrc(upgraded);
+        return;
       }
+    }
+
+    // 3. On web, if direct load failed (e.g. strict CORS), try open image proxy
+    if (!isNative) {
+      const targetUrl = safeSrc || currentSrc;
+      if (targetUrl && !targetUrl.startsWith('https://images.weserv.nl/')) {
+        const proxyUrl = `https://images.weserv.nl/?url=${encodeURIComponent(targetUrl)}`;
+        if (currentSrc !== proxyUrl) {
+          setCurrentSrc(proxyUrl);
+          return;
+        }
+      }
+    }
+
+    console.warn(`[CachedImage] Failed to load image: ${src}`);
+    setError(true);
+    if (props.onError) {
+      props.onError(e);
     }
   };
 

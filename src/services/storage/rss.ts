@@ -2,7 +2,7 @@ import { db } from '../db';
 import { Feed, Article, RefreshLog } from '../../types';
 import { Capacitor, CapacitorHttp } from '@capacitor/core';
 import { fetchWithProxy } from '../../utils/proxy';
-import { parseRssXml, escapeXml } from '../rssParser';
+import { parseRssXml, escapeXml, extractSiteBrandingImage } from '../rssParser';
 import { isNative } from '../../utils/platform';
 
 export const rssStorage = {
@@ -248,7 +248,46 @@ export const rssStorage = {
 
       const { feed: parsedFeed, articles } = parseRssXml(response.data, feedUrl, sinceDate);
       
-      const filteredArticles = articles.filter(a => {
+      // If feed has no cover/branding image, attempt to fetch site HTML to discover site logo / og:image
+      if (!parsedFeed.imageUrl) {
+        const siteUrl = parsedFeed.link || (() => {
+          try {
+            const u = new URL(feedUrl);
+            return u.origin;
+          } catch (e) {
+            return undefined;
+          }
+        })();
+
+        if (siteUrl) {
+          try {
+            const siteResp = await fetchWithProxy(siteUrl, false, undefined, signal);
+            if (siteResp?.data) {
+              const siteImg = extractSiteBrandingImage(siteResp.data, siteUrl);
+              if (siteImg) {
+                parsedFeed.imageUrl = siteImg;
+              }
+            }
+          } catch (err) {
+            // Non-critical, ignore site fetch errors
+          }
+        }
+      }
+
+      // Backfill articles that have no image with the feed's branding image
+      const feedFallbackImage = parsedFeed.imageUrl || feed?.imageUrl;
+      const articlesWithFallback = articles.map(art => {
+        if (!art.imageUrl && feedFallbackImage) {
+          return {
+            ...art,
+            imageUrl: feedFallbackImage,
+            postImageUrls: (art.postImageUrls && art.postImageUrls.length > 0) ? art.postImageUrls : [feedFallbackImage]
+          };
+        }
+        return art;
+      });
+
+      const filteredArticles = articlesWithFallback.filter(a => {
         const limit = 7 * 24 * 60 * 60 * 1000;
         return (Date.now() - a.pubDate) <= limit && 
                (!sinceDate || a.pubDate > sinceDate);
@@ -362,10 +401,18 @@ export const rssStorage = {
           articleByLinkMap.set(ea.link, ea);
         }
         
+        const effectiveFeedImage = feed.imageUrl || updatedFeeds[existingFeedIndex].imageUrl;
+
         for (const a of newArticles) {
           if (!existingLinks.has(a.link)) {
             existingLinks.add(a.link);
             const { content, ...lightArticle } = a;
+            if (!lightArticle.imageUrl && effectiveFeedImage) {
+              lightArticle.imageUrl = effectiveFeedImage;
+              if (!lightArticle.postImageUrls || lightArticle.postImageUrls.length === 0) {
+                lightArticle.postImageUrls = [effectiveFeedImage];
+              }
+            }
             if (content !== undefined) {
               contentItemsToSave.push({
                 id: a.id,
@@ -387,6 +434,13 @@ export const rssStorage = {
           } else {
             const existingMatch = articleByLinkMap.get(a.link);
             if (existingMatch) {
+              if (!existingMatch.imageUrl && (a.imageUrl || effectiveFeedImage)) {
+                existingMatch.imageUrl = a.imageUrl || effectiveFeedImage;
+                if (!existingMatch.postImageUrls || existingMatch.postImageUrls.length === 0) {
+                  existingMatch.postImageUrls = [existingMatch.imageUrl!];
+                }
+                articlesToUpdate.push(existingMatch);
+              }
               if (a.content) {
                 contentItemsToSave.push({
                   id: existingMatch.id,
@@ -465,6 +519,33 @@ export const rssStorage = {
             return new URL(href, url).href;
           } catch (e) {
             return href;
+          }
+        }
+      }
+
+      // Check <a> links in document (many sites, like lucasdelirium.it, link to feeds in footer/menu via <a title="RSS" href="...xml">)
+      const aLinks = doc.querySelectorAll('a[href]');
+      for (const a of Array.from(aLinks)) {
+        const href = a.getAttribute('href');
+        const title = (a.getAttribute('title') || '').toLowerCase();
+        const text = (a.textContent || '').toLowerCase();
+        if (href) {
+          const isFeedLink = 
+            title.includes('rss') || title.includes('feed') || title.includes('atom') ||
+            text.includes('rss') || text.includes('feed') || text.includes('atom') ||
+            /\.(xml|rss|atom)$/i.test(href.split('?')[0]) ||
+            href.includes('/rss') || href.includes('/feed');
+          if (isFeedLink) {
+            try {
+              const candidateUrl = new URL(href, url).href;
+              const candidateContent = await this.fetchUrlContent(candidateUrl);
+              const trimmed = candidateContent.trim();
+              if (trimmed.startsWith('<?xml') || trimmed.startsWith('<rss') || trimmed.startsWith('<feed')) {
+                return candidateUrl;
+              }
+            } catch (e) {
+              // continue search
+            }
           }
         }
       }

@@ -2,8 +2,86 @@ import { Feed, Article } from '../types';
 import DOMPurify from 'dompurify';
 import he from 'he';
 import { getSafeUrl, resolveUrl } from '../lib/utils';
-const IGNORED_IMAGE_PATTERN = /1x1|pixel|tracker|stats|gravatar|avatar|favicon|icon|logo|wp-includes\/images\/smilies|share|button|badge|advert|spinner|loading/i;
+const IGNORED_IMAGE_PATTERN = /1x1|pixel|tracker|stats|gravatar|avatar|wp-includes\/images\/smilies|share|button|badge|advert|spinner|loading|(?:facebook|twitter|instagram|linkedin|social)[-_]?logo/i;
 
+// Lazy DOMParser instance to prevent allocation overhead and survive non-browser environments
+let _sharedParser: DOMParser | null = null;
+function getSharedParser(): DOMParser {
+  if (!_sharedParser && typeof DOMParser !== 'undefined') {
+    _sharedParser = new DOMParser();
+  }
+  return _sharedParser!;
+}
+
+// Helper to extract YouTube video thumbnail from embed or watch URL
+export function extractYouTubeThumbnail(text: string): string | null {
+  if (!text) return null;
+  const match = text.match(/(?:youtube(?:-nocookie)?\.com\/(?:embed\/|watch\?v=|v\/|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/i);
+  return match ? `https://img.youtube.com/vi/${match[1]}/hqdefault.jpg` : null;
+}
+
+// Helper to discover site branding (logo, og:image, touch-icon) from HTML
+export function extractSiteBrandingImage(html: string, siteUrl: string): string | null {
+  if (!html) return null;
+  try {
+    const doc = getSharedParser().parseFromString(html, 'text/html');
+    
+    // 1. Try og:image or twitter:image
+    const ogImage = doc.querySelector('meta[property="og:image"]')?.getAttribute('content') ||
+                    doc.querySelector('meta[name="twitter:image"]')?.getAttribute('content');
+    if (ogImage) {
+      return resolveUrl(ogImage, siteUrl);
+    }
+
+    // 2. Try apple-touch-icon
+    const touchIcon = doc.querySelector('link[rel="apple-touch-icon"]')?.getAttribute('href') ||
+                      doc.querySelector('link[rel="apple-touch-icon-precomposed"]')?.getAttribute('href');
+    if (touchIcon) {
+      return resolveUrl(touchIcon, siteUrl);
+    }
+
+    // 3. Try high-res icon in link tag
+    const highResIcon = doc.querySelector('link[rel="icon"][sizes="192x192"]')?.getAttribute('href') ||
+                        doc.querySelector('link[rel="icon"][sizes="180x180"]')?.getAttribute('href') ||
+                        doc.querySelector('link[rel="icon"][sizes="128x128"]')?.getAttribute('href') ||
+                        doc.querySelector('link[rel="icon"][sizes="96x96"]')?.getAttribute('href') ||
+                        doc.querySelector('link[rel="icon"][type="image/png"]')?.getAttribute('href');
+    if (highResIcon) {
+      return resolveUrl(highResIcon, siteUrl);
+    }
+
+    // 4. Try prominent header logo or logo image in HTML (e.g. <img src="img/logo-lucasdelirium.png" alt="Lucasdelirium">)
+    const imgTags = Array.from(doc.getElementsByTagName('img'));
+    for (const img of imgTags) {
+      const src = img.getAttribute('src');
+      if (!src) continue;
+      const srcLower = src.toLowerCase();
+      const altLower = (img.getAttribute('alt') || '').toLowerCase();
+      const classLower = (img.getAttribute('class') || '').toLowerCase();
+      const idLower = (img.getAttribute('id') || '').toLowerCase();
+
+      // Skip tiny icons, pixels, or social logos
+      const isSocialOrTracking = /facebook|twitter|instagram|youtube|linkedin|share|email|pixel|tracker/i.test(srcLower) || 
+                                /facebook|twitter|instagram|youtube|linkedin|share|email/i.test(altLower);
+      if (isSocialOrTracking) continue;
+
+      if (
+        srcLower.includes('logo') || 
+        classLower.includes('logo') || 
+        idLower.includes('logo') ||
+        altLower.includes('logo') ||
+        (img.closest('header') && !isSocialOrTracking)
+      ) {
+        return resolveUrl(src, siteUrl);
+      }
+    }
+
+    return null;
+  } catch (e) {
+    console.warn('Failed to extract site branding image:', e);
+    return null;
+  }
+}
 
 // Helper to escape XML special characters
 export function escapeXml(unsafe: string): string {
@@ -41,9 +119,6 @@ function getFirstSrcsetUrl(srcset: string | null | undefined): string | null {
   return spaceIndex !== -1 ? firstPart.substring(0, spaceIndex) : firstPart;
 }
 
-// Reuse a single DOMParser instance to prevent allocation overhead
-const SHARED_PARSER = new DOMParser();
-
 // Pre-compiled regular expressions for high-performance string matching
 const IMG_TAG_REGEX = /<img/i;
 const IMG_OR_OG_REGEX = /<img|og:image/i;
@@ -53,68 +128,72 @@ const RDF_REGEX = /rdf/i;
 // Helper to extract all images from HTML content
 export function extractAllImages(content: string, baseUrl?: string): string[] {
   if (!content) return [];
-  // Early return: bypass expensive HTML parsing if there are obviously no image tags
-  if (!IMG_TAG_REGEX.test(content)) return [];
-  
-  const doc = SHARED_PARSER.parseFromString(content, 'text/html');
-  const imgTags = doc.getElementsByTagName('img');
   const images: string[] = [];
   
-  for (let i = 0; i < imgTags.length; i++) {
-    const url = imgTags[i].getAttribute('src');
-    if (url) {
-      images.push(resolveUrl(url, baseUrl || ''));
+  if (IMG_TAG_REGEX.test(content)) {
+    const doc = getSharedParser().parseFromString(content, 'text/html');
+    const imgTags = doc.getElementsByTagName('img');
+    for (let i = 0; i < imgTags.length; i++) {
+      const url = imgTags[i].getAttribute('src');
+      if (url && !IGNORED_IMAGE_PATTERN.test(url)) {
+        images.push(getSafeUrl(resolveUrl(url, baseUrl || '')));
+      }
     }
   }
+
+  const ytThumb = extractYouTubeThumbnail(content);
+  if (ytThumb && !images.includes(ytThumb)) {
+    images.push(ytThumb);
+  }
+
   return images;
 }
 
 // Helper to extract the best image from HTML content, avoiding tracking pixels and icons
 export function extractBestImage(content: string, baseUrl?: string): string | null {
   if (!content) return null;
-  // Early return: bypass expensive HTML parsing if there are no image tags or og:image tags
-  if (!IMG_OR_OG_REGEX.test(content)) return null;
   
-  const doc = SHARED_PARSER.parseFromString(content, 'text/html');
-  
-  const resolveUrlHelper = (url: string | null): string | null => {
-    if (!url) return null;
-    if (!baseUrl) return url;
-    try {
-      return new URL(url, baseUrl).href;
-    } catch (e) {
-      return url;
+  if (IMG_OR_OG_REGEX.test(content)) {
+    const doc = getSharedParser().parseFromString(content, 'text/html');
+    
+    const resolveUrlHelper = (url: string | null): string | null => {
+      if (!url) return null;
+      const resolved = resolveUrl(url, baseUrl || '');
+      return getSafeUrl(resolved);
+    };
+
+    // Try og:image
+    const ogImage = doc.querySelector('meta[property="og:image"]')?.getAttribute('content');
+    if (ogImage) return resolveUrlHelper(ogImage);
+
+    const imgTags = doc.getElementsByTagName('img');
+    
+    for (let i = 0; i < imgTags.length; i++) {
+      const imgTag = imgTags[i];
+      const url = imgTag.getAttribute('data-src') || 
+                  imgTag.getAttribute('data-lazy-src') ||
+                  imgTag.getAttribute('data-original') ||
+                    getFirstSrcsetUrl(imgTag.getAttribute('srcset')) ||
+                  imgTag.getAttribute('src');
+      if (!url) continue;
+      if (IGNORED_IMAGE_PATTERN.test(url)) {
+        continue;
+      }
+
+      // Check for width/height attributes that suggest a 1x1 pixel
+      const width = parseInt(imgTag.getAttribute('width') || '0', 10);
+      const height = parseInt(imgTag.getAttribute('height') || '0', 10);
+      if (width > 0 && width <= 10) continue;
+      if (height > 0 && height <= 10) continue;
+
+      // First valid image found
+      return resolveUrlHelper(url);
     }
-  };
-
-  // Try og:image
-  const ogImage = doc.querySelector('meta[property="og:image"]')?.getAttribute('content');
-  if (ogImage) return resolveUrlHelper(ogImage);
-
-  const imgTags = doc.getElementsByTagName('img');
-  
-  for (let i = 0; i < imgTags.length; i++) {
-    const imgTag = imgTags[i];
-    const url = imgTag.getAttribute('data-src') || 
-                imgTag.getAttribute('data-lazy-src') ||
-                imgTag.getAttribute('data-original') ||
-                  getFirstSrcsetUrl(imgTag.getAttribute('srcset')) ||
-                imgTag.getAttribute('src');
-    if (!url) continue;
-    // (Note: Feedburner tracking is caught by the 'pixel' or 'stats' pattern check)
-    if (IGNORED_IMAGE_PATTERN.test(url)) {
-      continue;
-    }
-
-    // Check for width/height attributes that suggest a 1x1 pixel
-    const width = parseInt(imgTag.getAttribute('width') || '0', 10);
-    const height = parseInt(imgTag.getAttribute('height') || '0', 10);
-    if (width > 0 && width <= 10) continue;
-    if (height > 0 && height <= 10) continue;
-
-    // First valid image found
-    return resolveUrlHelper(url);
   }
+
+  // Fallback: Check for YouTube video embeds or links in the content
+  const ytThumb = extractYouTubeThumbnail(content);
+  if (ytThumb) return ytThumb;
   
   return null;
 }
@@ -242,12 +321,12 @@ export function parseRssXml(xmlString: string, feedUrl: string, sinceDate?: numb
     }
   }
 
-  let xmlDoc = SHARED_PARSER.parseFromString(xmlString, 'text/xml');
+  let xmlDoc = getSharedParser().parseFromString(xmlString, 'text/xml');
   
   // Check for parsing errors
   let parserError = xmlDoc.getElementsByTagName('parsererror')[0];
   if (parserError) {
-    xmlDoc = SHARED_PARSER.parseFromString(xmlString, 'text/html');
+    xmlDoc = getSharedParser().parseFromString(xmlString, 'text/html');
   }
   
   // Check again for parsing errors
@@ -389,11 +468,11 @@ export function parseRssXml(xmlString: string, feedUrl: string, sinceDate?: numb
         id: crypto.randomUUID(),
         feedId,
         title: decodeHtmlEntities(entryTitle),
-        link: resolveUrl(entryLink, feedUrl),
+        link: getSafeUrl(resolveUrl(entryLink, feedUrl)),
         pubDate,
-        imageUrl: imageUrl ? resolveUrl(imageUrl, feedUrl) : undefined,
-        profileImageUrl: isBluesky ? (profileImageUrl ? resolveUrl(profileImageUrl, feedUrl) : undefined) : undefined,
-        postImageUrls: extractAllImages(content, resolveUrl(entryLink, feedUrl)),
+        imageUrl: imageUrl ? getSafeUrl(resolveUrl(imageUrl, feedUrl), undefined) : undefined,
+        profileImageUrl: isBluesky ? (profileImageUrl ? getSafeUrl(resolveUrl(profileImageUrl, feedUrl), undefined) : undefined) : undefined,
+        postImageUrls: extractAllImages(content, resolveUrl(entryLink, feedUrl)).map(u => getSafeUrl(u)),
         isRead: 0,
         isFavorite: 0,
         type: 'article',
@@ -644,11 +723,11 @@ export function parseRssXml(xmlString: string, feedUrl: string, sinceDate?: numb
         id: crypto.randomUUID(),
         feedId,
         title: decodeHtmlEntities(itemTitle),
-        link: resolveUrl(itemLink, feedUrl),
+        link: getSafeUrl(resolveUrl(itemLink, feedUrl)),
         pubDate,
-        imageUrl: imageUrl ? resolveUrl(imageUrl, feedUrl) : undefined,
-        profileImageUrl: isBluesky ? (profileImageUrl ? resolveUrl(profileImageUrl, feedUrl) : undefined) : undefined,
-        postImageUrls: extractAllImages(content, resolveUrl(itemLink, feedUrl)),
+        imageUrl: imageUrl ? getSafeUrl(resolveUrl(imageUrl, feedUrl), undefined) : undefined,
+        profileImageUrl: isBluesky ? (profileImageUrl ? getSafeUrl(resolveUrl(profileImageUrl, feedUrl), undefined) : undefined) : undefined,
+        postImageUrls: extractAllImages(content, resolveUrl(itemLink, feedUrl)).map(u => getSafeUrl(u)),
         isRead: 0,
         isFavorite: 0,
         type: 'article',

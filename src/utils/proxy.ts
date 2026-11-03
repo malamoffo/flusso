@@ -66,12 +66,27 @@ export async function fetchWithProxy(
         headers['If-Modified-Since'] = lastModified;
       }
 
-      const response = await CapacitorHttp.get({
-        url,
-        headers,
-        connectTimeout: 10000,
-        readTimeout: 10000
-      });
+      let response;
+      try {
+        response = await CapacitorHttp.get({
+          url,
+          headers,
+          connectTimeout: 10000,
+          readTimeout: 10000
+        });
+      } catch (nativeErr: any) {
+        if (url.startsWith('http://')) {
+          const httpsUrl = url.replace(/^http:\/\//i, 'https://');
+          response = await CapacitorHttp.get({
+            url: httpsUrl,
+            headers,
+            connectTimeout: 10000,
+            readTimeout: 10000
+          });
+        } else {
+          throw nativeErr;
+        }
+      }
 
       if (response.status === 304) {
         return { 

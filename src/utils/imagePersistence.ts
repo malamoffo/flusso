@@ -135,10 +135,23 @@ export const imagePersistence = {
 
       const downloadPromise = (async () => {
         try {
-          const downloadResult = await CapacitorHttp.get({
-            url,
-            responseType: 'arraybuffer'
-          });
+          const safeUrl = getSafeUrl(url);
+          let downloadResult;
+          try {
+            downloadResult = await CapacitorHttp.get({
+              url: safeUrl,
+              responseType: 'arraybuffer'
+            });
+          } catch (httpErr: any) {
+            if (safeUrl !== url) {
+              downloadResult = await CapacitorHttp.get({
+                url,
+                responseType: 'arraybuffer'
+              });
+            } else {
+              throw httpErr;
+            }
+          }
 
           if (downloadResult.status === 200) {
             // Convert arraybuffer to base64
@@ -174,6 +187,9 @@ export const imagePersistence = {
             });
             const localUrl = Capacitor.convertFileSrc(uriResult.uri);
             this.resolvedLocalUrls.set(url, localUrl);
+            if (safeUrl && safeUrl !== url) {
+              this.resolvedLocalUrls.set(safeUrl, localUrl);
+            }
             this.saveMap();
             return localUrl;
           }

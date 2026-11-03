@@ -96,6 +96,7 @@ export const RssArticleItem = React.memo(
     {
       article,
       feedName,
+      feedImageUrl,
       settings,
       onClick,
       onMarkAsRead,
@@ -241,7 +242,7 @@ export const RssArticleItem = React.memo(
     };
 
     // Images
-    const articleImages = useMemo(() => extractArticleImages(article), [article]);
+    const articleImages = useMemo(() => extractArticleImages(article, undefined, feedImageUrl), [article, feedImageUrl]);
     const firstImage = useMemo(() => {
       for (const url of articleImages) {
         if (url && url.trim()) {
@@ -259,8 +260,11 @@ export const RssArticleItem = React.memo(
           }
         }
       }
+      if (feedImageUrl && !feedImageUrl.toLowerCase().includes('favicon') && !feedImageUrl.endsWith('.ico')) {
+        return feedImageUrl;
+      }
       return null;
-    }, [articleImages]);
+    }, [articleImages, feedImageUrl]);
 
     const hasImage = !!firstImage;
 

@@ -16,7 +16,7 @@ import { imagePersistence } from '../utils/imagePersistence';
 import { Readability } from '@mozilla/readability';
 import { fetchWithProxy } from '../utils/proxy';
 import { contentFetcher } from '../utils/contentFetcher';
-import { extractBestImage } from '../services/rssParser';
+import { extractBestImage, extractYouTubeThumbnail } from '../services/rssParser';
 import { getArticleEvidenza } from '../utils/articleUtils';
 
 interface ArticleReaderProps {
@@ -199,6 +199,10 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
           // These are non-standard tags that Readability might strip
           html = html.replace(/<media:thumbnail[^>]+url=["']([^"']+)["'][^>]*\/?>/gi, '<img src="$1" />');
           html = html.replace(/<media:content[^>]+url=["']([^"']+)["'][^>]*\/?>/gi, '<img src="$1" />');
+          // Preserve YouTube embeds by converting to preview figures before Readability strips iframes
+          html = html.replace(/<iframe[^>]+src=["'](?:https?:)?\/\/(?:www\.)?(?:youtube(?:-nocookie)?\.com\/(?:embed\/|v\/|watch\?v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})[^"']*["'][^>]*><\/iframe>/gi, 
+            '<figure><img src="https://img.youtube.com/vi/$1/hqdefault.jpg" alt="Video" /></figure>'
+          );
 
           const doc = new DOMParser().parseFromString(html, 'text/html');
           
@@ -599,8 +603,10 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
     Array.from(imgs).forEach((img) => {
       img.setAttribute('referrerPolicy', 'no-referrer');
       let src = img.getAttribute('src');
+      const origSrc = src;
       if (src && src.startsWith('http') && !src.includes('_capacitor_file_')) {
         try {
+          src = getSafeUrl(src);
           const urlObj = new URL(src);
           urlObj.pathname = urlObj.pathname.replace(/\/\/+/g, '/');
           src = urlObj.toString();
@@ -609,8 +615,8 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
           // ignore
         }
 
-        if (Capacitor.isNativePlatform() && imagePersistence.resolvedLocalUrls.has(src)) {
-          img.setAttribute('src', imagePersistence.resolvedLocalUrls.get(src)!);
+        if (Capacitor.isNativePlatform() && (imagePersistence.resolvedLocalUrls.has(src) || (origSrc && imagePersistence.resolvedLocalUrls.has(origSrc)))) {
+          img.setAttribute('src', imagePersistence.resolvedLocalUrls.get(src) || imagePersistence.resolvedLocalUrls.get(origSrc!)!);
         }
       }
     });
@@ -620,9 +626,10 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
 
   const extractedImages = useMemo(() => {
     const urls: string[] = [];
+    const effectiveImage = readerImageUrl || article.imageUrl || (feed?.imageUrl && !feed.imageUrl.toLowerCase().includes('favicon') ? feed.imageUrl : null);
     
-    if (readerImageUrl) {
-      urls.push(readerImageUrl);
+    if (effectiveImage) {
+      urls.push(effectiveImage);
     }
     
     if (sanitizedContent) {
@@ -634,12 +641,11 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
         const src = img.getAttribute('src');
         if (src && !urls.includes(src)) {
           const s = src.toLowerCase();
-          const p = src.split('.').pop()?.split('?')[0]?.toLowerCase() || '';
           if (
             !s.includes('favicon') && 
             !s.includes('avatar') && 
-            !s.includes('icon') && 
-            !s.includes('logo') && 
+            !s.includes('pixel') && 
+            !/(?:facebook|twitter|instagram|linkedin|social)[-_]?logo/i.test(s) &&
             (s.startsWith('http') || s.includes('_capacitor_file_'))
           ) {
             urls.push(src);
@@ -647,9 +653,17 @@ export const ArticleReader = React.memo(function ArticleReader({ article, onClos
         }
       });
     }
+
+    if (urls.length === 0) {
+      const rawText = (article.content || '') + ' ' + (fullContent?.content || '');
+      const ytThumb = extractYouTubeThumbnail(rawText);
+      if (ytThumb) {
+        urls.push(ytThumb);
+      }
+    }
     
     return urls;
-  }, [sanitizedContent, readerImageUrl]);
+  }, [sanitizedContent, readerImageUrl, article.imageUrl, article.content, fullContent?.content, feed?.imageUrl]);
 
   useEffect(() => {
     if (!contentRef.current || !Capacitor.isNativePlatform()) return;
