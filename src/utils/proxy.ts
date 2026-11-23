@@ -42,73 +42,117 @@ export async function fetchWithProxy(
 
   // 1. Native platform (CapacitorHttp)
   if (isNative) {
+    let isReddit = false;
     try {
-      const isReddit = url.includes('reddit.com');
-      const isJson = url.includes('.json');
-      const headers: Record<string, string> = {
-        'User-Agent': isReddit
-          ? 'android:com.flusso.app:v1.1.0 (by /u/flusso_dev)'
-          : 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
-        'Accept': isJson
-          ? 'application/json, text/plain, */*'
-          : (isRss || url.includes('.rss'))
-            ? 'application/atom+xml, application/rss+xml, application/xml, text/xml, */*' 
-            : 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8'
-      };
+      const hostname = new URL(url).hostname.toLowerCase();
+      isReddit = hostname === 'reddit.com' || hostname.endsWith('.reddit.com');
+    } catch {
+      isReddit = false;
+    }
+    const isJson = url.includes('.json');
+    const isRssUrl = isRss || url.includes('.rss');
 
-      if (sinceDate) {
-        headers['If-Modified-Since'] = new Date(sinceDate).toUTCString();
-      }
-      if (etag) {
-        headers['If-None-Match'] = etag;
-      }
-      if (lastModified) {
-        headers['If-Modified-Since'] = lastModified;
-      }
+    const redditUserAgents = isRssUrl
+      ? [
+          'Googlebot/2.1 (+http://www.google.com/bot.html)',
+          'Feedly/1.0 (+http://www.feedly.com/fetcher.html; like FeedFetcher-Google)',
+          'FeedFetcher-Google; (+http://www.google.com/feedfetcher.html)'
+        ]
+      : [
+          'Feedly/1.0 (+http://www.feedly.com/fetcher.html; like FeedFetcher-Google)',
+          'FeedFetcher-Google; (+http://www.google.com/feedfetcher.html)',
+          'Googlebot/2.1 (+http://www.google.com/bot.html)'
+        ];
 
-      let response;
+    const userAgents = isReddit
+      ? redditUserAgents
+      : ['Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1'];
+
+    let lastError: Error | null = null;
+
+    for (let attempt = 0; attempt < userAgents.length; attempt++) {
+      if (signal?.aborted) throw new Error('Aborted');
+
       try {
-        response = await CapacitorHttp.get({
-          url,
-          headers,
-          connectTimeout: 10000,
-          readTimeout: 10000
-        });
-      } catch (nativeErr: any) {
-        if (url.startsWith('http://')) {
-          const httpsUrl = url.replace(/^http:\/\//i, 'https://');
+        const headers: Record<string, string> = {
+          'User-Agent': userAgents[attempt],
+          'Accept': isJson
+            ? 'application/json, text/plain, */*'
+            : isRssUrl
+              ? 'application/atom+xml, application/rss+xml, application/xml, text/xml, */*'
+              : 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8'
+        };
+
+        if (sinceDate) {
+          headers['If-Modified-Since'] = new Date(sinceDate).toUTCString();
+        }
+        if (etag) {
+          headers['If-None-Match'] = etag;
+        }
+        if (lastModified) {
+          headers['If-Modified-Since'] = lastModified;
+        }
+
+        let response;
+        try {
           response = await CapacitorHttp.get({
-            url: httpsUrl,
+            url,
             headers,
             connectTimeout: 10000,
             readTimeout: 10000
           });
-        } else {
-          throw nativeErr;
+        } catch (nativeErr: any) {
+          if (url.startsWith('http://')) {
+            const httpsUrl = url.replace(/^http:\/\//i, 'https://');
+            response = await CapacitorHttp.get({
+              url: httpsUrl,
+              headers,
+              connectTimeout: 10000,
+              readTimeout: 10000
+            });
+          } else {
+            throw nativeErr;
+          }
+        }
+
+        if (response.status === 304) {
+          return {
+            data: '',
+            etag: getHeader(response.headers, 'etag'),
+            lastModified: getHeader(response.headers, 'last-modified')
+          };
+        }
+        if (response.status >= 200 && response.status < 300) {
+          return {
+            data: typeof response.data === 'string' ? response.data : JSON.stringify(response.data),
+            etag: getHeader(response.headers, 'etag'),
+            lastModified: getHeader(response.headers, 'last-modified')
+          };
+        }
+
+        // If Reddit returns 403 (blocked UA/policy) or 429 (rate limit), try next UA candidate
+        if (isReddit && (response.status === 403 || response.status === 429) && attempt < userAgents.length - 1) {
+          if (response.status === 429) {
+            await new Promise(resolve => setTimeout(resolve, 300));
+          }
+          continue;
+        }
+
+        throw new Error(`Native fetch failed with status ${response.status}`);
+      } catch (e: any) {
+        if (signal?.aborted) throw new Error('Aborted');
+        lastError = e;
+        if (e?.code !== 'UNIMPLEMENTED') {
+          console.warn(`[DirectFetch] Native fetch failed for ${url} (Error: ${e.message})`);
+        }
+        // Only retry across UA candidates for HTTP status blocks/throttling handled above; rethrow transport/plugin errors
+        if (!e?.message?.includes('status 403') && !e?.message?.includes('status 429')) {
+          throw e;
         }
       }
-
-      if (response.status === 304) {
-        return { 
-          data: '',
-          etag: getHeader(response.headers, 'etag'),
-          lastModified: getHeader(response.headers, 'last-modified')
-        };
-      }
-      if (response.status >= 200 && response.status < 300) {
-        return {
-          data: typeof response.data === 'string' ? response.data : JSON.stringify(response.data),
-          etag: getHeader(response.headers, 'etag'),
-          lastModified: getHeader(response.headers, 'last-modified')
-        };
-      }
-      throw new Error(`Native fetch failed with status ${response.status}`);
-    } catch (e: any) {
-      if (e?.code !== 'UNIMPLEMENTED') {
-        console.warn(`[DirectFetch] Native fetch failed for ${url} (Error: ${e.message})`);
-      }
-      throw e;
     }
+
+    throw lastError || new Error('Native fetch failed');
   }
 
   // 2. Web / Dev Direct Fetch

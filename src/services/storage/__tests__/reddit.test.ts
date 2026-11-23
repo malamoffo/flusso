@@ -139,3 +139,77 @@ describe('parseRedditAtomComments', () => {
   });
 });
 
+describe('parseOldRedditHtmlListing', () => {
+  it('extracts organic posts, scores, comment counts, thumbnails, and next-page cursor while skipping promoted posts', async () => {
+    const { parseOldRedditHtmlListing } = await import('../reddit');
+    const html = `
+      <html><body>
+        <div id="siteTable" class="sitetable linklisting">
+          <div class="thing link promoted" data-fullname="t3_ad1" data-type="link" data-promoted="true" data-subreddit="technology">
+            <a class="title" href="https://ads.example.com">Promoted Ad</a>
+          </div>
+          <div class="thing link" data-fullname="t3_1y3jr4i" data-type="link" data-promoted="false"
+               data-author="alice_dev" data-subreddit="technology" data-subreddit-fullname="t5_2qh16"
+               data-timestamp="1795444302000" data-url="https://example.com/story"
+               data-permalink="/r/technology/comments/1y3jr4i/sample_story/"
+               data-comments-count="42" data-score="315">
+            <a class="thumbnail" href="https://example.com/story"><img src="//b.thumbs.redditmedia.com/sample.jpg" /></a>
+            <a class="title" href="https://example.com/story">Sample Story &amp; Benchmarks</a>
+            <a class="comments" href="https://old.reddit.com/r/technology/comments/1y3jr4i/sample_story/">42 comments</a>
+          </div>
+        </div>
+        <span class="next-button"><a href="https://old.reddit.com/r/technology/new/?count=25&amp;after=t3_1y3jr4i">next &rsaquo;</a></span>
+      </body></html>
+    `;
+
+    const { posts, after } = parseOldRedditHtmlListing(html, 'technology');
+    expect(posts).toHaveLength(1);
+    expect(after).toBe('t3_1y3jr4i');
+    expect(posts[0].id).toBe('technology/1y3jr4i');
+    expect(posts[0].originalId).toBe('1y3jr4i');
+    expect(posts[0].title).toBe('Sample Story & Benchmarks');
+    expect(posts[0].author).toBe('alice_dev');
+    expect(posts[0].score).toBe(315);
+    expect(posts[0].numComments).toBe(42);
+    expect(posts[0].imageUrl).toBe('https://b.thumbs.redditmedia.com/sample.jpg');
+    expect(posts[0].permalink).toBe('/r/technology/comments/1y3jr4i/sample_story/');
+  });
+});
+
+describe('parseOldRedditHtmlComments', () => {
+  it('reconstructs nested comment trees from classic old.reddit.com HTML', async () => {
+    const { parseOldRedditHtmlComments } = await import('../reddit');
+    const html = `
+      <div class="commentarea">
+        <div class="sitetable nestedlisting">
+          <div class="thing comment" data-fullname="t1_c1" data-type="comment" data-author="root_user">
+            <div class="entry">
+              <p class="tagline"><a class="author">root_user</a><span class="score unvoted" title="18">18 points</span><time datetime="2026-11-23T10:00:00+00:00">1 hour ago</time></p>
+              <div class="usertext-body"><div class="md"><p>Top level comment</p></div></div>
+            </div>
+            <div class="child">
+              <div class="sitetable listing">
+                <div class="thing comment" data-fullname="t1_c2" data-type="comment" data-author="child_user">
+                  <div class="entry">
+                    <p class="tagline"><a class="author">child_user</a><span class="score unvoted" title="7">7 points</span></p>
+                    <div class="usertext-body"><div class="md"><p>Nested reply</p></div></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const comments = parseOldRedditHtmlComments(doc);
+    expect(comments).toHaveLength(1);
+    expect(comments[0].data.id).toBe('c1');
+    expect(comments[0].data.score).toBe(18);
+    expect(comments[0].data.replies.data.children).toHaveLength(1);
+    expect(comments[0].data.replies.data.children[0].data.id).toBe('c2');
+    expect(comments[0].data.replies.data.children[0].data.author).toBe('child_user');
+    expect(comments[0].data.replies.data.children[0].data.score).toBe(7);
+  });
+});
+

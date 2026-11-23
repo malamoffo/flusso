@@ -307,6 +307,205 @@ export function parseRedditAtomComments(xmlString: string): any[] {
   }
 }
 
+export function parseOldRedditHtmlListing(htmlString: string, defaultSubreddit: string): { posts: RedditPost[], after?: string } {
+  if (!htmlString || typeof htmlString !== 'string') return { posts: [] };
+  try {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(htmlString, 'text/html');
+
+    let things = Array.from(doc.querySelectorAll('#siteTable .thing[data-type="link"]'));
+    if (things.length === 0) {
+      things = Array.from(doc.querySelectorAll('.thing.link[data-fullname^="t3_"]'));
+    }
+    if (things.length === 0) {
+      return { posts: [] };
+    }
+
+    const posts: RedditPost[] = [];
+    let lastFullname: string | undefined;
+
+    for (const el of things) {
+      if (
+        el.getAttribute('data-promoted') === 'true' ||
+        el.classList.contains('promoted') ||
+        el.classList.contains('promotedlink')
+      ) {
+        continue;
+      }
+
+      const rawFullname = el.getAttribute('data-fullname') || '';
+      const originalId = rawFullname.replace(/^t3_/, '').trim();
+      if (!originalId) continue;
+      lastFullname = rawFullname;
+
+      const subName = (el.getAttribute('data-subreddit') || defaultSubreddit).replace(/^r\//i, '').trim();
+      const author = (el.getAttribute('data-author') || el.querySelector('.author')?.textContent || 'reddit_user')
+        .replace(/^\/?u\//i, '')
+        .trim();
+
+      const titleEl = el.querySelector('a.title');
+      const rawTitle = titleEl?.textContent?.trim() || 'Senza titolo';
+      const title = he.decode(rawTitle);
+
+      let permalink = el.getAttribute('data-permalink') || el.querySelector('a.comments')?.getAttribute('href') || '';
+      if (permalink.startsWith('http')) {
+        try {
+          permalink = new URL(permalink).pathname;
+        } catch {}
+      }
+      if (!permalink) {
+        permalink = `/r/${subName}/comments/${originalId}/`;
+      }
+
+      const outboundUrl = he.decode(
+        el.getAttribute('data-url') ||
+        titleEl?.getAttribute('href') ||
+        `https://www.reddit.com${permalink}`
+      );
+
+      let createdUtc = parseInt(el.getAttribute('data-timestamp') || '', 10);
+      if (isNaN(createdUtc) || createdUtc <= 0) {
+        const dt = el.querySelector('time[datetime]')?.getAttribute('datetime');
+        createdUtc = dt ? new Date(dt).getTime() : Date.now();
+      } else if (createdUtc < 10000000000) {
+        createdUtc *= 1000;
+      }
+      if (isNaN(createdUtc)) createdUtc = Date.now();
+
+      let score = parseInt(el.getAttribute('data-score') || '', 10);
+      if (isNaN(score)) {
+        const scoreEl = el.querySelector('.score.unvoted');
+        const scoreAttr = scoreEl?.getAttribute('title') || scoreEl?.textContent || '';
+        const parsed = parseInt(scoreAttr, 10);
+        score = isNaN(parsed) ? 1 : parsed;
+      }
+
+      let numComments = parseInt(el.getAttribute('data-comments-count') || '', 10);
+      if (isNaN(numComments)) {
+        const commentsText = el.querySelector('a.comments')?.textContent || '';
+        const match = commentsText.match(/([0-9,]+)/);
+        numComments = match ? parseInt(match[1].replace(/,/g, ''), 10) : 0;
+      }
+      if (isNaN(numComments) || numComments < 0) numComments = 0;
+
+      let imageUrl: string | undefined;
+      const thumbImg = el.querySelector('a.thumbnail img');
+      const thumbSrc = thumbImg?.getAttribute('src') || '';
+      if (thumbSrc && !/^(self|default|nsfw|spoiler|image)$/i.test(thumbSrc)) {
+        imageUrl = thumbSrc.startsWith('//') ? `https:${thumbSrc}` : thumbSrc;
+      } else if (outboundUrl.match(/\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i)) {
+        imageUrl = outboundUrl;
+      }
+
+      posts.push({
+        id: `${subName}/${originalId}`,
+        originalId,
+        title,
+        author: author || 'reddit_user',
+        subredditId: el.getAttribute('data-subreddit-fullname') || `sub_${subName.toLowerCase()}`,
+        subredditName: subName,
+        permalink,
+        url: outboundUrl,
+        imageUrl: imageUrl ? he.decode(imageUrl) : undefined,
+        createdUtc,
+        score: score > 0 ? score : 1,
+        numComments,
+        isRead: 0,
+        isFavorite: 0
+      });
+    }
+
+    let after: string | undefined = lastFullname;
+    const nextHref = doc.querySelector('span.next-button a')?.getAttribute('href');
+    if (nextHref) {
+      try {
+        const parsedNext = new URL(nextHref, 'https://old.reddit.com');
+        const nextAfter = parsedNext.searchParams.get('after');
+        if (nextAfter) after = nextAfter;
+      } catch {}
+    }
+
+    return { posts, after };
+  } catch (err) {
+    console.error('Failed to parse old.reddit.com HTML listing:', err);
+    return { posts: [] };
+  }
+}
+
+export function parseOldRedditHtmlComments(doc: Document): any[] {
+  const extractCommentNode = (el: Element, idxPath: string): any | null => {
+    const fullname = el.getAttribute('data-fullname') || `scraped_${idxPath}`;
+    const id = fullname.replace(/^t1_/, '');
+
+    // Own entry is a direct child of the .thing element
+    const entryEl = Array.from(el.children).find(c => c.classList.contains('entry'));
+    const mdEl = entryEl?.querySelector('.usertext-body .md') || entryEl?.querySelector('.md');
+    const bodyHtml = mdEl?.innerHTML || '';
+    const bodyText = mdEl?.textContent || '';
+
+    const rawAuthor = el.getAttribute('data-author')
+      || entryEl?.querySelector('.tagline .author')?.textContent
+      || 'unknown';
+    const author = rawAuthor.replace(/^u\//, '').trim() || 'unknown';
+
+    const scoreEl = entryEl?.querySelector('.tagline .score.unvoted') || entryEl?.querySelector('.tagline .score');
+    const scoreRaw = scoreEl?.getAttribute('title') || scoreEl?.textContent || '1';
+    const parsedScore = parseInt(scoreRaw.replace(/[^0-9-]/g, ''), 10);
+    const score = isNaN(parsedScore) ? 1 : parsedScore;
+
+    const dt = entryEl?.querySelector('.tagline time[datetime]')?.getAttribute('datetime');
+    let createdUtc = dt ? Math.floor(new Date(dt).getTime() / 1000) : Math.floor(Date.now() / 1000);
+    if (isNaN(createdUtc)) createdUtc = Math.floor(Date.now() / 1000);
+
+    // Nested replies live in direct child .child > .sitetable > .thing.comment
+    const childContainer = Array.from(el.children).find(c => c.classList.contains('child'));
+    const childTable = childContainer
+      ? Array.from(childContainer.children).find(c => c.classList.contains('sitetable'))
+      : undefined;
+    const childThings = childTable
+      ? Array.from(childTable.children).filter(c => c.classList.contains('comment') || c.getAttribute('data-type') === 'comment')
+      : [];
+
+    const childNodes: any[] = [];
+    childThings.forEach((childEl, cIdx) => {
+      const parsedChild = extractCommentNode(childEl, `${idxPath}_${cIdx}`);
+      if (parsedChild) childNodes.push(parsedChild);
+    });
+
+    if (bodyText.trim().length === 0 && childNodes.length === 0) {
+      return null;
+    }
+
+    return {
+      kind: 't1',
+      data: {
+        id,
+        author,
+        score,
+        created_utc: createdUtc,
+        body: bodyText.trim() || '[deleted]',
+        body_html: bodyHtml || `<p>${he.encode(bodyText.trim() || '[deleted]')}</p>`,
+        replies: childNodes.length > 0 ? { data: { children: childNodes } } : { data: { children: [] } }
+      }
+    };
+  };
+
+  const nestedTable = doc.querySelector('.commentarea > .sitetable.nestedlisting') || doc.querySelector('.sitetable.nestedlisting');
+  if (nestedTable) {
+    const topThings = Array.from(nestedTable.children).filter(
+      c => c.classList.contains('comment') || c.getAttribute('data-type') === 'comment'
+    );
+    const results: any[] = [];
+    topThings.forEach((el, idx) => {
+      const node = extractCommentNode(el, `${idx}`);
+      if (node) results.push(node);
+    });
+    if (results.length > 0) return results;
+  }
+
+  return [];
+}
+
 export const redditStorage = {
    isImgurUrl(url: string): boolean {
     try {
@@ -418,33 +617,54 @@ export const redditStorage = {
       let displayName = cleanName;
       let iconUrl: string | undefined = undefined;
 
-      // 1. Try checking Reddit via RSS (works without API key/OAuth)
+      // 1. Try old.reddit.com/about.json first (provides display_name and community icon reliably)
+      let resolvedSub = false;
       try {
-        const rssUrl = `https://www.reddit.com/r/${cleanName}/.rss`;
-        const res = await fetchWithProxy(rssUrl, true);
-        if (res.data && (res.data.includes('<feed') || res.data.includes('<entry'))) {
-          const parser = new DOMParser();
-          const doc = parser.parseFromString(res.data, 'text/xml');
-          const title = doc.getElementsByTagName('title')[0]?.textContent;
-          if (title) displayName = title.replace(/^r\//i, '').trim() || cleanName;
-          const logo = doc.getElementsByTagName('logo')[0]?.textContent || doc.getElementsByTagName('icon')[0]?.textContent;
-          if (logo) iconUrl = logo;
+        const url = `https://old.reddit.com/r/${cleanName}/about.json`;
+        const result = await this.fetchJsonWithProxy(url);
+        if (result && result.data && result.data.data) {
+          const subData = result.data.data;
+          displayName = subData.display_name || cleanName;
+          const rawIcon = subData.icon_img || subData.community_icon || undefined;
+          if (rawIcon) {
+            iconUrl = he.decode(rawIcon.split('?')[0]);
+          }
+          resolvedSub = true;
         }
-      } catch (err) {
-        // Fallback to about.json if possible
+      } catch {
+        // Fallback to RSS or HTML below
+      }
+
+      // 2. Fallback to RSS if about.json failed
+      if (!resolvedSub) {
         try {
-          const url = `https://www.reddit.com/r/${cleanName}/about.json`;
-          const result = await this.fetchJsonWithProxy(url);
-          if (result && result.data && result.data.data) {
-            const subData = result.data.data;
-            displayName = subData.display_name || cleanName;
-            let rawIcon = subData.icon_img || subData.community_icon || undefined;
-            if (rawIcon) {
-              iconUrl = he.decode(rawIcon.split('?')[0]);
-            }
+          const rssUrl = `https://www.reddit.com/r/${cleanName}/.rss`;
+          const res = await fetchWithProxy(rssUrl, true);
+          if (res.data && (res.data.includes('<feed') || res.data.includes('<entry'))) {
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(res.data, 'text/xml');
+            const title = doc.getElementsByTagName('title')[0]?.textContent;
+            if (title) displayName = title.replace(/^r\//i, '').trim() || cleanName;
+            const logo = doc.getElementsByTagName('logo')[0]?.textContent || doc.getElementsByTagName('icon')[0]?.textContent;
+            if (logo) iconUrl = logo;
+            resolvedSub = true;
           }
         } catch {
-          // Keep default cleanName
+          // Fallback to www about.json if possible
+          try {
+            const url = `https://www.reddit.com/r/${cleanName}/about.json`;
+            const result = await this.fetchJsonWithProxy(url);
+            if (result && result.data && result.data.data) {
+              const subData = result.data.data;
+              displayName = subData.display_name || cleanName;
+              const rawIcon = subData.icon_img || subData.community_icon || undefined;
+              if (rawIcon) {
+                iconUrl = he.decode(rawIcon.split('?')[0]);
+              }
+            }
+          } catch {
+            // Keep default cleanName
+          }
         }
       }
 
@@ -495,9 +715,9 @@ export const redditStorage = {
     if (idsToFetch.length === 0) return;
 
     const urls = [
-      `https://www.reddit.com/api/info.json?id=${idsToFetch.join(',')}&raw_json=1`,
-      `https://api.reddit.com/api/info.json?id=${idsToFetch.join(',')}&raw_json=1`,
       `https://old.reddit.com/api/info.json?id=${idsToFetch.join(',')}&raw_json=1`,
+      `https://api.reddit.com/api/info.json?id=${idsToFetch.join(',')}&raw_json=1`,
+      `https://www.reddit.com/api/info.json?id=${idsToFetch.join(',')}&raw_json=1`,
     ];
 
     for (const url of urls) {
@@ -547,18 +767,18 @@ export const redditStorage = {
       const subreddits = await this.getSubreddits();
       const subreddit = subreddits.find(s => s.name.toLowerCase() === subredditName.toLowerCase());
 
-      // 1. Primary Strategy: Reddit JSON API (provides real num_comments and scores)
+      // 1. Primary Strategy: old.reddit.com JSON API first (www/api often return 403 without OAuth)
       const cursor = after ? (after.startsWith('t3_') ? after : `t3_${after}`) : undefined;
       const jsonUrls = [
-        `https://www.reddit.com/r/${subredditName}/${sort}.json?limit=25&raw_json=1${cursor ? `&after=${cursor}` : ''}`,
-        `https://api.reddit.com/r/${subredditName}/${sort}.json?limit=25&raw_json=1${cursor ? `&after=${cursor}` : ''}`,
         `https://old.reddit.com/r/${subredditName}/${sort}.json?limit=25&raw_json=1${cursor ? `&after=${cursor}` : ''}`,
+        `https://api.reddit.com/r/${subredditName}/${sort}.json?limit=25&raw_json=1${cursor ? `&after=${cursor}` : ''}`,
+        `https://www.reddit.com/r/${subredditName}/${sort}.json?limit=25&raw_json=1${cursor ? `&after=${cursor}` : ''}`,
       ];
 
       for (const jsonUrl of jsonUrls) {
         try {
           if (signal?.aborted) return { posts: [] };
-          const result = await this.fetchJsonWithProxy(jsonUrl, signal, subreddit?.etag, subreddit?.lastModified);
+          const result = await this.fetchJsonWithProxy(jsonUrl, signal);
           if (result && result.data && result.data.data && result.data.data.children && result.data.data.children.length > 0) {
             if (subreddit) {
               subreddit.etag = result.etag;
@@ -605,11 +825,45 @@ export const redditStorage = {
         }
       }
 
-      // 2. Secondary Strategy: Reddit's Atom/RSS feed (Public, reliable, NOT blocked with 403)
+      // 2. Secondary Strategy: old.reddit.com HTML listing (includes embedded scores & comment counts)
+      try {
+        if (signal?.aborted) return { posts: [] };
+        const htmlUrl = `https://old.reddit.com/r/${subredditName}/${sort}/${cursor ? `?after=${cursor}` : ''}`;
+        const htmlRes = await fetchWithProxy(htmlUrl, false, undefined, signal, undefined, undefined, true);
+        if (htmlRes.data && /data-fullname=["']t3_/i.test(htmlRes.data)) {
+          const parsedHtml = parseOldRedditHtmlListing(htmlRes.data, subredditName);
+          if (parsedHtml.posts.length > 0) {
+            if (subreddit) {
+              subreddit.lastFetched = Date.now();
+              await this.saveSubreddits(subreddits);
+            }
+            return parsedHtml;
+          }
+        }
+      } catch (htmlErr: any) {
+        if (signal?.aborted || htmlErr?.name === 'AbortError' || htmlErr?.message?.includes('aborted') || htmlErr?.message?.includes('Aborted')) {
+          return { posts: [] };
+        }
+      }
+
+      // 3. Tertiary Strategy: Reddit's Atom/RSS feed
       try {
         const rssUrl = `https://www.reddit.com/r/${subredditName}/${sort}.rss?limit=25${cursor ? `&after=${cursor}` : ''}`;
-        
-        const rssRes = await fetchWithProxy(rssUrl, true, undefined, signal, subreddit?.etag, subreddit?.lastModified);
+        const useConditional = !cursor && sort === 'new';
+        const rssRes = await fetchWithProxy(
+          rssUrl,
+          true,
+          undefined,
+          signal,
+          useConditional ? subreddit?.etag : undefined,
+          useConditional ? subreddit?.lastModified : undefined
+        );
+        if (useConditional && rssRes.data === '') {
+          const localPosts = await this.getLocalPostsForSubreddit(subredditName);
+          if (localPosts.length > 0) {
+            return { posts: localPosts };
+          }
+        }
         if (rssRes.data && (rssRes.data.includes('<entry') || rssRes.data.includes('<feed'))) {
           const parsed = parseRedditAtom(rssRes.data, subredditName);
           if (parsed.posts.length > 0) {
@@ -634,8 +888,8 @@ export const redditStorage = {
             });
 
             if (subreddit) {
-              subreddit.etag = rssRes.etag;
-              subreddit.lastModified = rssRes.lastModified;
+              subreddit.etag = useConditional ? rssRes.etag : subreddit.etag;
+              subreddit.lastModified = useConditional ? rssRes.lastModified : subreddit.lastModified;
               subreddit.lastFetched = Date.now();
               await this.saveSubreddits(subreddits);
             }
@@ -649,18 +903,23 @@ export const redditStorage = {
         console.warn(`RSS fetch for r/${subredditName} did not succeed`, rssErr?.message || rssErr);
       }
 
-      // 3. Fallback: Return locally stored/mock posts for this subreddit
-      const localPosts = await this.getLocalPostsForSubreddit(subredditName);
-      if (localPosts.length > 0) {
-        return { posts: localPosts };
+      // 4. Fallback: Return locally stored posts for this subreddit (only on initial fetch, not pagination)
+      if (!after) {
+        const localPosts = await this.getLocalPostsForSubreddit(subredditName);
+        if (localPosts.length > 0) {
+          return { posts: localPosts };
+        }
       }
       return { posts: [] };
     } catch (e: any) {
       if (signal?.aborted || e?.name === 'AbortError' || e?.message?.includes('aborted') || e?.message?.includes('Aborted')) {
         return { posts: [] };
       }
-      const localPosts = await this.getLocalPostsForSubreddit(subredditName);
-      return { posts: localPosts };
+      if (!after) {
+        const localPosts = await this.getLocalPostsForSubreddit(subredditName);
+        return { posts: localPosts };
+      }
+      return { posts: [] };
     }
   },
 
@@ -767,56 +1026,58 @@ export const redditStorage = {
       const postIdMatch = cleanPath.match(/\/comments\/([a-zA-Z0-9_]+)/i) || permalink.match(/\/comments\/([a-zA-Z0-9_]+)/i);
       const postId = postIdMatch ? postIdMatch[1] : '';
 
-      // 1. Strategy A: Reddit JSON endpoint FIRST (Provides full recursive reply tree, scores, and post metadata)
+      // 1. Strategy A: old.reddit.com JSON endpoint FIRST (Provides full recursive reply tree, scores, and post metadata)
       const jsonUrlsToTry: string[] = [];
       if (postId) {
-        jsonUrlsToTry.push(`https://www.reddit.com/comments/${postId}.json?raw_json=1`);
-        jsonUrlsToTry.push(`https://api.reddit.com/comments/${postId}.json?raw_json=1`);
         jsonUrlsToTry.push(`https://old.reddit.com/comments/${postId}.json?raw_json=1`);
+        jsonUrlsToTry.push(`https://api.reddit.com/comments/${postId}.json?raw_json=1`);
+        jsonUrlsToTry.push(`https://www.reddit.com/comments/${postId}.json?raw_json=1`);
       }
-      jsonUrlsToTry.push(`https://www.reddit.com${cleanPath}.json?raw_json=1`);
-      jsonUrlsToTry.push(`https://api.reddit.com${cleanPath}.json?raw_json=1`);
       jsonUrlsToTry.push(`https://old.reddit.com${cleanPath}.json?raw_json=1`);
+      jsonUrlsToTry.push(`https://api.reddit.com${cleanPath}.json?raw_json=1`);
+      jsonUrlsToTry.push(`https://www.reddit.com${cleanPath}.json?raw_json=1`);
 
       for (const jsonUrl of jsonUrlsToTry) {
         try {
           const result = await this.fetchJsonWithProxy(jsonUrl);
-          if (result && result.data && Array.isArray(result.data) && result.data.length >= 2 && result.data[1].data && result.data[1].data.children && result.data[1].data.children.length > 0) {
+          if (result && result.data && Array.isArray(result.data) && result.data.length >= 2 && result.data[1]?.data && Array.isArray(result.data[1].data.children)) {
             const postData = result.data[0]?.data?.children?.[0]?.data;
             const postStats = postData ? {
               score: typeof postData.score === 'number' ? postData.score : (typeof postData.ups === 'number' ? postData.ups : 1),
               numComments: typeof postData.num_comments === 'number' ? postData.num_comments : 0
             } : undefined;
 
-            if (postStats && postId) {
-              try {
-                const subreddits = await this.getSubreddits();
-                for (const sub of subreddits) {
-                  const dbPostId = `${sub.name}/${postId}`;
-                  await this.updateRedditPostStats(dbPostId, postStats.score, postStats.numComments);
-                }
-              } catch {}
-            }
-
             const children = result.data[1].data.children;
-            if (postStats) {
-              (children as any).postStats = postStats;
+            if (children.length > 0 || (postData && postData.num_comments === 0)) {
+              if (postStats && postId) {
+                try {
+                  const subreddits = await this.getSubreddits();
+                  for (const sub of subreddits) {
+                    const dbPostId = `${sub.name}/${postId}`;
+                    await this.updateRedditPostStats(dbPostId, postStats.score, postStats.numComments);
+                  }
+                } catch {}
+              }
+
+              if (postStats) {
+                (children as any).postStats = postStats;
+              }
+              return children;
             }
-            return children;
           }
         } catch {
           // Try next JSON candidate
         }
       }
 
-      // 2. Strategy B: Modern HTML scraping SECOND (builds nested tree from shreddit-comment parentid & depth)
+      // 2. Strategy B: HTML scraping SECOND (old.reddit.com first, then modern shreddit-comment)
       const htmlUrlsToTry: string[] = [];
       if (postId) {
-        htmlUrlsToTry.push(`https://www.reddit.com/comments/${postId}`);
         htmlUrlsToTry.push(`https://old.reddit.com/comments/${postId}`);
+        htmlUrlsToTry.push(`https://www.reddit.com/comments/${postId}`);
       }
-      htmlUrlsToTry.push(`https://www.reddit.com${cleanPath}`);
       htmlUrlsToTry.push(`https://old.reddit.com${cleanPath}`);
+      htmlUrlsToTry.push(`https://www.reddit.com${cleanPath}`);
 
       for (const htmlUrl of htmlUrlsToTry) {
         try {
@@ -825,10 +1086,19 @@ export const redditStorage = {
             const parser = new DOMParser();
             const doc = parser.parseFromString(response.data, 'text/html');
             
-            // Extract post stats from modern shreddit-post component
+            // Extract post stats from modern shreddit-post OR classic old.reddit.com link thing
             const postEl = doc.querySelector('shreddit-post');
-            const postScore = postEl ? parseInt(postEl.getAttribute('score') || '1', 10) : 1;
-            const postComments = postEl ? parseInt(postEl.getAttribute('comment-count') || '0', 10) : 0;
+            const classicLinkEl = doc.querySelector('#siteTable .thing[data-type="link"], .thing.link[data-fullname^="t3_"]');
+            const postScore = postEl
+              ? parseInt(postEl.getAttribute('score') || '1', 10)
+              : classicLinkEl
+                ? parseInt(classicLinkEl.getAttribute('data-score') || '1', 10)
+                : 1;
+            const postComments = postEl
+              ? parseInt(postEl.getAttribute('comment-count') || '0', 10)
+              : classicLinkEl
+                ? parseInt(classicLinkEl.getAttribute('data-comments-count') || '0', 10)
+                : 0;
             const postStats = { 
               score: isNaN(postScore) || postScore <= 0 ? 1 : postScore, 
               numComments: isNaN(postComments) || postComments < 0 ? 0 : postComments 
@@ -903,7 +1173,29 @@ export const redditStorage = {
               return resultList;
             }
 
-            // Classic Reddit HTML selectors
+            // Classic old.reddit.com nested comment tree
+            const classicNestedComments = parseOldRedditHtmlComments(doc);
+            if (classicNestedComments.length > 0) {
+              const countRecursive = (list: any[]): number =>
+                list.reduce((acc, item) => acc + 1 + countRecursive(item?.data?.replies?.data?.children || []), 0);
+              const totalExtracted = countRecursive(classicNestedComments);
+              const finalNumComments = Math.max(postStats.numComments, totalExtracted);
+
+              if (postId) {
+                try {
+                  const subreddits = await this.getSubreddits();
+                  for (const sub of subreddits) {
+                    const dbPostId = `${sub.name}/${postId}`;
+                    await this.updateRedditPostStats(dbPostId, postStats.score, finalNumComments);
+                  }
+                } catch {}
+              }
+
+              (classicNestedComments as any).postStats = { score: postStats.score, numComments: finalNumComments };
+              return classicNestedComments;
+            }
+
+            // Flat classic HTML fallback selectors
             const commentSelectors = ['.comment', 'div[data-testid="comment"]'];
             let commentElements: Element[] = [];
             for (const selector of commentSelectors) {
@@ -934,7 +1226,7 @@ export const redditStorage = {
                        score: isNaN(scoreVal) ? 1 : scoreVal,
                        created_utc: Math.floor(Date.now() / 1000),
                        body: body.trim(),
-                       body_html: `<p>${body.trim()}</p>`,
+                       body_html: `<p>${he.encode(body.trim())}</p>`,
                        replies: { data: { children: [] } }
                      }
                    });

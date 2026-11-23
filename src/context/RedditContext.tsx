@@ -131,7 +131,7 @@ export const RedditProvider: React.FC<{ children: ReactNode }> = ({ children }) 
           }
         }
         if (targetSubs.length > 1) {
-          await new Promise(resolve => setTimeout(resolve, 200));
+          await new Promise(resolve => setTimeout(resolve, 450));
         }
       }
       if (controller.signal.aborted) return;
@@ -265,7 +265,7 @@ export const RedditProvider: React.FC<{ children: ReactNode }> = ({ children }) 
             }
           }
           if (targetSubs.length > 1) {
-            await new Promise(resolve => setTimeout(resolve, 200));
+            await new Promise(resolve => setTimeout(resolve, 450));
           }
         }
         
