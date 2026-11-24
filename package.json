@@ -24,7 +24,7 @@
     "@capacitor/filesystem": "^8.1.5",
     "@capacitor/share": "^8.0.3",
     "@capgo/capacitor-media-session": "^8.1.10",
-    "@google/genai": "^2.30.0",
+    "@google/genai": "^3.6.1",
     "@mozilla/readability": "^0.6.0",
     "@tanstack/react-virtual": "^3.14.26",
     "clsx": "^2.1.1",
