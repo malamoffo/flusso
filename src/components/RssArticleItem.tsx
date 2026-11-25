@@ -40,6 +40,10 @@ const ScrollingFeedName = React.memo(function ScrollingFeedName({
     let active = true;
     const checkOverflow = () => {
       if (!active || !containerRef.current || !textRef.current) return;
+      if (feedName.length <= 18) {
+        setShouldScroll(prev => (prev ? false : prev));
+        return;
+      }
       const containerWidth = containerRef.current.clientWidth;
       const singleTextWidth = textRef.current.scrollWidth;
       const isOverflowing = containerWidth > 0 && singleTextWidth > containerWidth + 8;
@@ -294,9 +298,20 @@ export const RssArticleItem = React.memo(
 
     const domain = getDomain(article.link);
 
-    const sanitizedTitle = useMemo(() => ({ 
-      __html: DOMPurify.sanitize(article.title, { FORBID_ATTR: ['id', 'name'] }) 
-    }), [article.title]);
+    const titleContent = useMemo(() => {
+      if (!article.title.includes('<')) {
+        return { isHtml: false as const, text: article.title.includes('&') ? he.decode(article.title) : article.title };
+      }
+      return {
+        isHtml: true as const,
+        html: { __html: DOMPurify.sanitize(article.title, { FORBID_ATTR: ['id', 'name'] }) }
+      };
+    }, [article.title]);
+
+    const decodedSnippet = useMemo(
+      () => (article.contentSnippet ? he.decode(article.contentSnippet) : ''),
+      [article.contentSnippet]
+    );
 
     // Merge forwardedRef and intersection observer refs
     const setRefs = useCallback(
@@ -333,7 +348,7 @@ export const RssArticleItem = React.memo(
       >
         <div 
           className={cn(
-            "relative w-full rounded-3xl p-4 flex flex-col gap-3 cursor-pointer transition-all duration-300 border bg-slate-900/40 dark:bg-[#0f1b33]/45 backdrop-blur-2xl shadow-[0_8px_32px_0_rgba(0,0,0,0.37),inset_0_1px_1px_0_rgba(255,255,255,0.15)] overflow-hidden animate-in fade-in duration-200",
+            "relative w-full rounded-3xl p-4 flex flex-col gap-3 cursor-pointer transition-colors duration-200 border bg-slate-900/65 dark:bg-[#0f1b33]/75 backdrop-blur-md shadow-[0_6px_20px_0_rgba(0,0,0,0.32),inset_0_1px_1px_0_rgba(255,255,255,0.12)] overflow-hidden",
             !isReadForDisplay
               ? evidenza === 'alta'
                 ? "border-blue-400/70 z-[35]"
@@ -390,19 +405,18 @@ export const RssArticleItem = React.memo(
             )}
           </AnimatePresence>
 
-          {/* Unread Glowing Pulse & NEW Badge */}
+          {/* Unread Glowing Border & NEW Badge */}
           {!isReadForDisplay && (
             <>
-              <span className="absolute top-1 right-4 z-40 px-2.5 py-0.5 bg-blue-600 text-[9px] font-black text-white rounded-full shadow-[0_0_12px_rgba(59,130,246,0.8)] border border-blue-400 uppercase tracking-widest animate-pulse flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-cyan-300 animate-ping" />
+              <span className="absolute top-1 right-4 z-40 px-2.5 py-0.5 bg-blue-600 text-[9px] font-black text-white rounded-full shadow-[0_0_10px_rgba(59,130,246,0.7)] border border-blue-400 uppercase tracking-widest flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-cyan-300" />
                 NEW
               </span>
               <div 
                 className={cn(
-                  "absolute inset-0 z-20 pointer-events-none rounded-[inherit] border-2 shadow-[0_0_28px_rgba(59,130,246,0.95),inset_0_0_18px_rgba(59,130,246,0.6)] animate-pulse",
+                  "absolute inset-0 z-20 pointer-events-none rounded-[inherit] border-2 shadow-[0_0_16px_rgba(59,130,246,0.65),inset_0_0_10px_rgba(59,130,246,0.35)]",
                   evidenza === 'alta' ? "border-blue-400" : evidenza === 'media' ? "border-cyan-400" : "border-slate-400"
                 )} 
-                style={{ animationDuration: '3s' }} 
               />
             </>
           )}
@@ -429,6 +443,7 @@ export const RssArticleItem = React.memo(
                         alt="" 
                         className="w-3.5 h-3.5 rounded-sm"
                         referrerPolicy="no-referrer"
+                        disableLocalCache
                         onError={(e) => {
                           (e.target as HTMLImageElement).src = `https://icons.duckduckgo.com/ip3/${domain}.ico`;
                         }}
@@ -450,21 +465,33 @@ export const RssArticleItem = React.memo(
               </div>
 
               <div className="min-w-0">
-                <h3 
-                  className={cn(
-                    "font-bold leading-tight transition-colors text-gray-100",
-                    getTitleSize(),
-                    !isReadForDisplay && "group-hover:text-[var(--theme-color)]"
-                  )}
-                  dangerouslySetInnerHTML={sanitizedTitle}
-                />
+                {titleContent.isHtml ? (
+                  <h3 
+                    className={cn(
+                      "font-bold leading-tight transition-colors text-gray-100",
+                      getTitleSize(),
+                      !isReadForDisplay && "group-hover:text-[var(--theme-color)]"
+                    )}
+                    dangerouslySetInnerHTML={titleContent.html}
+                  />
+                ) : (
+                  <h3 
+                    className={cn(
+                      "font-bold leading-tight transition-colors text-gray-100",
+                      getTitleSize(),
+                      !isReadForDisplay && "group-hover:text-[var(--theme-color)]"
+                    )}
+                  >
+                    {titleContent.text}
+                  </h3>
+                )}
                 
-                {article.contentSnippet && (
+                {decodedSnippet && (
                   <p className={cn(
                     "text-gray-400 leading-snug mb-1",
                     getSnippetSize()
                   )}>
-                    {he.decode(article.contentSnippet)}
+                    {decodedSnippet}
                   </p>
                 )}
               </div>

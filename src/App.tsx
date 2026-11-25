@@ -69,7 +69,8 @@ export default function App() {
   const isVerticalScrolling = useRef(false);
   const isAtTop = useRef(true);
 
-  const [dragOffset, setDragOffset] = useState(0);
+  const dragOffsetRef = useRef(0);
+  const carouselRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const hasSwipedRef = useRef(false);
   const swipePhaseRef = useRef<'none' | 'undecided' | 'horizontal' | 'vertical'>('none');
@@ -199,6 +200,8 @@ export default function App() {
   const [filter, setFilter] = useState<'inbox' | 'saved' | 'reddit'>('inbox');
   
   const [inboxUnreadOnly, setInboxUnreadOnly] = useState(false);
+  const inboxUnreadOnlyRef = useRef(inboxUnreadOnly);
+  inboxUnreadOnlyRef.current = inboxUnreadOnly;
   const [savedUnreadOnly, setSavedUnreadOnly] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [sourceFilter, setSourceFilter] = useState<string>('all');
@@ -339,17 +342,10 @@ export default function App() {
       if (newType === 'unread') {
         const nextValue = !inboxUnreadOnly;
         setInboxUnreadOnly(nextValue);
-        
+        setTemporarilyVisibleUnreadIds(prev => (prev.size === 0 ? prev : new Set()));
+
         if (nextValue) {
           loadAllUnreadArticles();
-          setTemporarilyVisibleUnreadIds(new Set());
-        }
-        
-        // Clear temporary visibility when explicitly disabling the unread filter
-        if (!nextValue) {
-          setTemporarilyVisibleUnreadIds(new Set());
-          // Optional: we might want to reset pagination here if we were showing everything
-          resetPagination(); 
         }
       }
       if (inboxScrollRef.current) inboxScrollRef.current.scrollTop = 0;
@@ -403,37 +399,40 @@ export default function App() {
   });
 
   const markAsReadWithPersistence = useCallback((id: string) => {
-    if (filter === 'inbox' && inboxUnreadOnly) {
+    if (filter === 'inbox' && inboxUnreadOnlyRef.current) {
       setTemporarilyVisibleUnreadIds(prev => {
+        if (prev.has(id)) return prev;
         const next = new Set(prev);
         next.add(id);
         return next;
       });
     }
     markAsRead(id);
-  }, [markAsRead, filter, inboxUnreadOnly]);
+  }, [markAsRead, filter]);
 
   const toggleReadWithPersistence = useCallback((id: string) => {
-    if (filter === 'inbox' && inboxUnreadOnly) {
+    if (filter === 'inbox' && inboxUnreadOnlyRef.current) {
       setTemporarilyVisibleUnreadIds(prev => {
+        if (prev.has(id)) return prev;
         const next = new Set(prev);
         next.add(id);
         return next;
       });
     }
     toggleRead(id);
-  }, [toggleRead, filter, inboxUnreadOnly]);
+  }, [toggleRead, filter]);
 
   const markArticlesAsReadWithPersistence = useCallback((ids: string[]) => {
-    if (filter === 'inbox' && inboxUnreadOnly) {
+    if (filter === 'inbox' && inboxUnreadOnlyRef.current) {
       setTemporarilyVisibleUnreadIds(prev => {
+        if (ids.every(id => prev.has(id))) return prev;
         const next = new Set(prev);
         ids.forEach(id => next.add(id));
         return next;
       });
     }
     markArticlesAsRead(ids);
-  }, [markArticlesAsRead, filter, inboxUnreadOnly]);
+  }, [markArticlesAsRead, filter]);
 
   const { inboxArticles, savedArticles } = useFeedFiltering({
     articles,
@@ -778,7 +777,11 @@ export default function App() {
         calculatedOffset = deltaX * 0.28;
       }
 
-      setDragOffset(calculatedOffset);
+      dragOffsetRef.current = calculatedOffset;
+      if (carouselRef.current) {
+        carouselRef.current.style.transition = 'none';
+        carouselRef.current.style.transform = `translate3d(calc(${-currentIndex * 100}% + ${calculatedOffset}px), 0, 0)`;
+      }
     }
   };
 
@@ -789,14 +792,19 @@ export default function App() {
       isSectionSwipeValid.current = false;
       swipePhaseRef.current = 'none';
       if (isDragging) {
+        dragOffsetRef.current = 0;
+        if (carouselRef.current) {
+          const idx = Math.max(0, SECTIONS.indexOf(filter));
+          carouselRef.current.style.transition = 'transform 0.38s cubic-bezier(0.22, 1, 0.36, 1)';
+          carouselRef.current.style.transform = `translate3d(${-idx * 100}%, 0, 0)`;
+        }
         setIsDragging(false);
-        setDragOffset(0);
       }
       return;
     }
 
     const endTouch = e.changedTouches[0];
-    const finalDeltaX = endTouch ? endTouch.clientX - touchStartX.current : dragOffset;
+    const finalDeltaX = endTouch ? endTouch.clientX - touchStartX.current : dragOffsetRef.current;
     const deltaTime = Date.now() - touchStartTime.current;
     const velocity = Math.abs(finalDeltaX) / Math.max(deltaTime, 1);
     const screenWidth = typeof window !== 'undefined' ? window.innerWidth : 360;
@@ -818,9 +826,13 @@ export default function App() {
       }
     }
 
-    // Termina il drag istantaneo e azzera offset
+    // Ripristina animazione fluida verso il pannello target senza re-render intermedi
+    dragOffsetRef.current = 0;
+    if (carouselRef.current) {
+      carouselRef.current.style.transition = 'transform 0.38s cubic-bezier(0.22, 1, 0.36, 1)';
+      carouselRef.current.style.transform = `translate3d(${-targetIndex * 100}%, 0, 0)`;
+    }
     setIsDragging(false);
-    setDragOffset(0);
 
     if (targetIndex !== currentIndex) {
       handleFilterChange(SECTIONS[targetIndex], true);
@@ -1037,9 +1049,10 @@ export default function App() {
 
       <div className="flex-1 relative overflow-hidden w-full h-full">
         <div 
+          ref={carouselRef}
           className="w-full h-full flex flex-row flex-nowrap transform-gpu will-change-transform"
           style={{
-            transform: `translate3d(calc(${-Math.max(0, SECTIONS.indexOf(filter)) * 100}% + ${dragOffset}px), 0, 0)`,
+            transform: `translate3d(${-Math.max(0, SECTIONS.indexOf(filter)) * 100}%, 0, 0)`,
             transition: isDragging ? 'none' : 'transform 0.38s cubic-bezier(0.22, 1, 0.36, 1)',
           }}
         >
@@ -1049,8 +1062,7 @@ export default function App() {
             style={{
               opacity: filter === 'saved' ? 1 : isDragging ? 0.7 : 0.35,
               transform: filter === 'saved' ? 'scale(1)' : 'scale(0.985)',
-              filter: filter === 'saved' ? 'blur(0px)' : 'blur(0.8px)',
-              transition: isDragging ? 'none' : 'opacity 0.38s cubic-bezier(0.22, 1, 0.36, 1), transform 0.38s cubic-bezier(0.22, 1, 0.36, 1), filter 0.38s ease',
+              transition: isDragging ? 'none' : 'opacity 0.38s cubic-bezier(0.22, 1, 0.36, 1), transform 0.38s cubic-bezier(0.22, 1, 0.36, 1)',
               pointerEvents: filter === 'saved' ? 'auto' : 'none'
             }}
           >
@@ -1058,11 +1070,7 @@ export default function App() {
             <div 
               ref={savedScrollRef}
               onScroll={(e) => handleScroll(e, 'saved')}
-              style={{ 
-                overflowAnchor: 'none',
-                maskImage: 'linear-gradient(to bottom, transparent 0px, black 16px, black calc(100% - 24px), transparent 100%)',
-                WebkitMaskImage: 'linear-gradient(to bottom, transparent 0px, black 16px, black calc(100% - 24px), transparent 100%)'
-              }}
+              style={{ overflowAnchor: 'none' }}
               className="w-full h-full overflow-y-auto pb-24 pt-1 transform-gpu will-change-scroll scrollbar-hide relative z-10"
             >
               <div className="flex-1 max-w-4xl mx-auto px-1 sm:px-2 py-2 space-y-1.5">
@@ -1106,8 +1114,7 @@ export default function App() {
             style={{
               opacity: filter === 'inbox' ? 1 : isDragging ? 0.7 : 0.35,
               transform: filter === 'inbox' ? 'scale(1)' : 'scale(0.985)',
-              filter: filter === 'inbox' ? 'blur(0px)' : 'blur(0.8px)',
-              transition: isDragging ? 'none' : 'opacity 0.38s cubic-bezier(0.22, 1, 0.36, 1), transform 0.38s cubic-bezier(0.22, 1, 0.36, 1), filter 0.38s ease',
+              transition: isDragging ? 'none' : 'opacity 0.38s cubic-bezier(0.22, 1, 0.36, 1), transform 0.38s cubic-bezier(0.22, 1, 0.36, 1)',
               pointerEvents: filter === 'inbox' ? 'auto' : 'none'
             }}
           >
@@ -1115,11 +1122,7 @@ export default function App() {
             <div 
               ref={inboxScrollRef}
               onScroll={(e) => handleScroll(e, 'inbox')}
-              style={{ 
-                overflowAnchor: 'none',
-                maskImage: 'linear-gradient(to bottom, transparent 0px, black 16px, black calc(100% - 24px), transparent 100%)',
-                WebkitMaskImage: 'linear-gradient(to bottom, transparent 0px, black 16px, black calc(100% - 24px), transparent 100%)'
-              }}
+              style={{ overflowAnchor: 'none' }}
               className="w-full h-full overflow-y-auto pb-24 pt-1 transform-gpu will-change-scroll scrollbar-hide relative z-10"
             >
               <FeedList
@@ -1148,8 +1151,7 @@ export default function App() {
             style={{
               opacity: filter === 'reddit' ? 1 : isDragging ? 0.7 : 0.35,
               transform: filter === 'reddit' ? 'scale(1)' : 'scale(0.985)',
-              filter: filter === 'reddit' ? 'blur(0px)' : 'blur(0.8px)',
-              transition: isDragging ? 'none' : 'opacity 0.38s cubic-bezier(0.22, 1, 0.36, 1), transform 0.38s cubic-bezier(0.22, 1, 0.36, 1), filter 0.38s ease',
+              transition: isDragging ? 'none' : 'opacity 0.38s cubic-bezier(0.22, 1, 0.36, 1), transform 0.38s cubic-bezier(0.22, 1, 0.36, 1)',
               pointerEvents: filter === 'reddit' ? 'auto' : 'none'
             }}
           >

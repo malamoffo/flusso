@@ -29,6 +29,20 @@ export const compareArticlesDesc = (a: { id: string; pubDate: string | number },
   return b.id.localeCompare(a.id);
 };
 
+const sortArticlesDesc = (list: Article[]): Article[] => {
+  if (list.length <= 1) return list;
+  const times = new Map<string, number>();
+  for (let i = 0; i < list.length; i++) {
+    times.set(list[i].id, getPubDateTime(list[i]));
+  }
+  return [...list].sort((a, b) => {
+    const timeA = times.get(a.id) ?? 0;
+    const timeB = times.get(b.id) ?? 0;
+    if (timeB !== timeA) return timeB - timeA;
+    return b.id.localeCompare(a.id);
+  });
+};
+
 interface ProgressInfo {
   current: number;
   total: number;
@@ -134,12 +148,18 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const articlesRef = useRef<Article[]>([]);
   const feedsRef = useRef<Feed[]>([]);
   const redditPostsRef = useRef<RedditPost[]>([]);
+  const unreadCountRef = useRef<number>(0);
+  const allUnreadLoadedRef = useRef<boolean>(false);
 
   useEffect(() => {
     articlesRef.current = articles;
     feedsRef.current = feeds;
     redditPostsRef.current = redditPosts;
   }, [articles, feeds, redditPosts]);
+
+  useEffect(() => {
+    unreadCountRef.current = unreadCount;
+  }, [unreadCount]);
 
   const logError = useCallback((msg: string) => {
     setErrorLogs(prev => [...prev, `${new Date().toLocaleTimeString()}: ${msg}`]);
@@ -242,6 +262,7 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         }
       });
       
+      allUnreadLoadedRef.current = loadedArticles.length < PAGE_SIZE;
       setFeeds(loadedFeeds);
       setArticles(allArticles);
       articleOffset.current = loadedArticles.length;
@@ -271,6 +292,9 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           return [...prev, ...newArticles];
         });
         articleOffset.current += moreArticles.length;
+      }
+      if (moreArticles.length < PAGE_SIZE) {
+        allUnreadLoadedRef.current = true;
       }
       setHasMoreArticles(moreArticles.length === PAGE_SIZE);
     } catch (err) {
@@ -783,21 +807,40 @@ export const RssProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   }, []);
 
   const loadAllUnreadArticles = useCallback(async () => {
-      try {
-        setIsLoading(true);
-        // Assuming we need all unread ones
-        const unreadArticles = await storage.getAllUnreadArticles();
-        setArticles(prev => {
-            const existingIds = new Set(prev.map(a => a.id));
-            const newArticles = unreadArticles.filter(a => !existingIds.has(a.id));
-            return [...prev, ...newArticles].sort(compareArticlesDesc);
-        });
-        setHasMoreArticles(false); // Disable pagination as we loaded everything
-      } catch (err) {
-        console.error('Failed to load all unread articles:', err);
-      } finally {
-        setIsLoading(false);
+    if (allUnreadLoadedRef.current) return;
+
+    // Fast path: if every unread article is already present in RAM, skip IndexedDB query & sorting completely
+    if (articlesRef.current.length > 0 && feedsRef.current.length > 0) {
+      const validFeedIds = new Set(feedsRef.current.map(f => f.id));
+      let unreadInRam = 0;
+      for (let i = 0; i < articlesRef.current.length; i++) {
+        const a = articlesRef.current[i];
+        if (!a.isRead && validFeedIds.has(a.feedId) && (!!a.title || !!a.link)) {
+          unreadInRam++;
+        }
       }
+      if (unreadInRam >= unreadCountRef.current) {
+        allUnreadLoadedRef.current = true;
+        return;
+      }
+    }
+
+    try {
+      const unreadArticles = await storage.getAllUnreadArticles();
+      allUnreadLoadedRef.current = true;
+      if (unreadArticles.length === 0) return;
+
+      setArticles(prev => {
+        const existingIds = new Set(prev.map(a => a.id));
+        const newArticles = unreadArticles.filter(a => !existingIds.has(a.id));
+        if (newArticles.length === 0) {
+          return prev;
+        }
+        return sortArticlesDesc([...prev, ...newArticles]);
+      });
+    } catch (err) {
+      console.error('Failed to load all unread articles:', err);
+    }
   }, []);
 
   const value = useMemo(() => ({

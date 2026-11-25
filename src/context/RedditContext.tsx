@@ -43,11 +43,31 @@ export const RedditProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const subredditsRef = useRef<Subreddit[]>([]);
   const redditPostsRef = useRef<RedditPost[]>([]);
   const paginationCursors = useRef<Record<string, string>>({}); // Track 'after' cursors
+  const redditSortRef = useRef<'new' | 'hot' | 'top'>('new');
+  const sortCacheRef = useRef<Partial<Record<'new' | 'hot' | 'top', { posts: RedditPost[]; cursors: Record<string, string>; fetchedAt: number }>>>({});
+  const workerRequestId = useRef<number>(0);
   const worker = useRef<Worker | undefined>(undefined);
   const commentCache = useRef<Map<string, any[]>>(new Map());
   const prefetchQueue = useRef<Set<string>>(new Set());
   const refreshAbortHelper = useRef<AbortController | null>(null);
   const loadMoreAbortHelper = useRef<AbortController | null>(null);
+
+  const sortPostsList = useCallback((list: RedditPost[], sort: 'new' | 'hot' | 'top'): RedditPost[] => {
+    const seen = new Set<string>();
+    const unique: RedditPost[] = [];
+    for (const item of list) {
+      if (!seen.has(item.id)) {
+        seen.add(item.id);
+        unique.push(item);
+      }
+    }
+    unique.sort((a, b) => {
+      if (sort === 'new') return b.createdUtc - a.createdUtc;
+      const scoreDiff = (b.score || 0) - (a.score || 0);
+      return scoreDiff !== 0 ? scoreDiff : b.createdUtc - a.createdUtc;
+    });
+    return unique;
+  }, []);
 
   useEffect(() => {
     setRedditUnreadCount(redditPosts.filter(p => !p.isRead).length);
@@ -66,6 +86,10 @@ export const RedditProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     subredditsRef.current = subreddits;
     redditPostsRef.current = redditPosts;
   }, [subreddits, redditPosts]);
+
+  useEffect(() => {
+    redditSortRef.current = redditSort;
+  }, [redditSort]);
 
   useEffect(() => {
     const loadData = async () => {
@@ -98,11 +122,11 @@ export const RedditProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     refreshAbortHelper.current = controller;
 
     const targetSubs = subsToRefresh || subredditsRef.current;
-    const targetSort = sort || redditSort;
+    const targetSort = sort || redditSortRef.current;
     
     // Reset cursors on refresh
     if (!subsToRefresh) {
-        paginationCursors.current = {};
+      paginationCursors.current = {};
     }
 
     if (targetSubs.length === 0) {
@@ -115,31 +139,47 @@ export const RedditProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     setIsLoading(true);
     try {
       const results: RedditPost[][] = [];
-      for (const sub of targetSubs) {
+      const BATCH_SIZE = 3;
+
+      for (let i = 0; i < targetSubs.length; i += BATCH_SIZE) {
         if (controller.signal.aborted) break;
-        try {
-          const result = await storage.fetchRedditPosts(sub.name, targetSort, undefined, controller.signal);
-          if (result.after) {
-            paginationCursors.current[sub.name] = result.after;
-          }
-          if (result.posts && result.posts.length > 0) {
-            results.push(result.posts);
-          }
-        } catch (e: any) {
-          if (e.name !== 'AbortError') {
-            console.error(`Failed to refresh r/${sub.name}`, e);
+        const batch = targetSubs.slice(i, i + BATCH_SIZE);
+
+        const settled = await Promise.allSettled(
+          batch.map(async (sub) => {
+            const result = await storage.fetchRedditPosts(sub.name, targetSort, undefined, controller.signal);
+            return { subName: sub.name, result };
+          })
+        );
+
+        if (controller.signal.aborted) break;
+
+        for (const outcome of settled) {
+          if (outcome.status === 'fulfilled') {
+            const { subName, result } = outcome.value;
+            if (result.after) {
+              paginationCursors.current[subName] = result.after;
+            }
+            if (result.posts && result.posts.length > 0) {
+              results.push(result.posts);
+            }
+          } else if (outcome.reason?.name !== 'AbortError') {
+            console.error('Failed to refresh subreddit batch item', outcome.reason);
           }
         }
-        if (targetSubs.length > 1) {
-          await new Promise(resolve => setTimeout(resolve, 450));
+
+        if (i + BATCH_SIZE < targetSubs.length && !controller.signal.aborted) {
+          await new Promise(resolve => setTimeout(resolve, 150));
         }
       }
+
       if (controller.signal.aborted) return;
       const posts: RedditPost[] = results.flat();
 
       if (worker.current) {
+        const reqId = ++workerRequestId.current;
         const handler = (e: MessageEvent) => {
-          if (e.data.type === 'mergedRedditPosts') {
+          if (e.data.type === 'mergedRedditPosts' && e.data.requestId === reqId) {
             worker.current?.removeEventListener('message', handler);
             controller.signal.removeEventListener('abort', abortHandler);
             if (controller.signal.aborted) {
@@ -161,15 +201,20 @@ export const RedditProvider: React.FC<{ children: ReactNode }> = ({ children }) 
             });
 
             if (filtered.length < 5 && merged.length > 0) {
-              const sorted = [...merged].sort((a, b) => {
-                if (targetSort === 'new') return b.createdUtc - a.createdUtc;
-                if (targetSort === 'hot' || targetSort === 'top') return (b.score || 0) - (a.score || 0);
-                return b.createdUtc - a.createdUtc;
-              });
-              filtered = sorted.slice(0, 5);
+              filtered = sortPostsList(merged, targetSort).slice(0, 5);
+            } else {
+              filtered = sortPostsList(filtered, targetSort);
             }
 
-            setRedditPosts(filtered);
+            // Only commit to state if user is still on this sort (or it's a targeted sub refresh)
+            if (redditSortRef.current === targetSort || subsToRefresh) {
+              setRedditPosts(filtered);
+            }
+            sortCacheRef.current[targetSort] = {
+              posts: filtered,
+              cursors: { ...paginationCursors.current },
+              fetchedAt: Date.now()
+            };
             storage.saveRedditPosts(filtered);
           }
         };
@@ -178,7 +223,13 @@ export const RedditProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         };
         controller.signal.addEventListener('abort', abortHandler, { once: true });
         worker.current.addEventListener('message', handler);
-        worker.current.postMessage({ type: 'mergeRedditPosts', prev: redditPostsRef.current, incoming: posts, sort: targetSort });
+        worker.current.postMessage({
+          type: 'mergeRedditPosts',
+          prev: redditPostsRef.current,
+          incoming: posts,
+          sort: targetSort,
+          requestId: reqId
+        });
       }
     } catch (e: any) {
       if (e.name !== 'AbortError') {
@@ -187,34 +238,17 @@ export const RedditProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     } finally {
       if (refreshAbortHelper.current === controller) {
         refreshAbortHelper.current = null;
+        setIsLoading(false);
       }
-      setIsLoading(false);
     }
-  }, [settings.redditRetentionDays, redditSort]);
+  }, [settings.redditRetentionDays, sortPostsList]);
 
   const loadMoreReddit = useCallback(async () => {
     // 1. Try to load more from local storage first
     const moreLocalPosts = await storage.getRedditPosts(redditOffset.current, PAGE_SIZE);
     
     if (moreLocalPosts.length > 0) {
-      setRedditPosts(prev => {
-        const combined = [...prev, ...moreLocalPosts];
-        
-        // ⚡ Bolt: Replaced Array.from(new Map(...)) with a faster Set + filter deduplication
-        const seen = new Set();
-        const unique = combined.filter(item => {
-          if (seen.has(item.id)) return false;
-          seen.add(item.id);
-          return true;
-        });
-
-        unique.sort((a, b) => {
-          if (redditSort === 'new') return b.createdUtc - a.createdUtc;
-          if (redditSort === 'hot' || redditSort === 'top') return (b.score || 0) - (a.score || 0);
-          return b.createdUtc - a.createdUtc;
-        });
-        return unique;
-      });
+      setRedditPosts(prev => sortPostsList([...prev, ...moreLocalPosts], redditSortRef.current));
       redditOffset.current += moreLocalPosts.length;
       return;
     }
@@ -244,28 +278,37 @@ export const RedditProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         if (controller.signal.aborted) break;
         attempts++;
         const batch: RedditPost[] = [];
-        for (const sub of targetSubs) {
-          if (controller.signal.aborted) break;
-          const cursor = paginationCursors.current[sub.name];
-          if (cursor === 'end') continue;
+        const activeSubs = targetSubs.filter(sub => paginationCursors.current[sub.name] !== 'end');
+        const BATCH_SIZE = 3;
 
-          try {
-            const result = await storage.fetchRedditPosts(sub.name, redditSort, cursor, controller.signal);
-            if (!result.after) {
-              paginationCursors.current[sub.name] = 'end';
-            } else {
-              paginationCursors.current[sub.name] = result.after;
-            }
-            if (result.posts && result.posts.length > 0) {
-              batch.push(...result.posts);
-            }
-          } catch (e: any) {
-            if (e.name !== 'AbortError') {
-              console.error(`Failed to load more for r/${sub.name}`, e);
+        for (let i = 0; i < activeSubs.length; i += BATCH_SIZE) {
+          if (controller.signal.aborted) break;
+          const chunk = activeSubs.slice(i, i + BATCH_SIZE);
+
+          const settled = await Promise.allSettled(
+            chunk.map(async (sub) => {
+              const cursor = paginationCursors.current[sub.name];
+              const result = await storage.fetchRedditPosts(sub.name, redditSortRef.current, cursor, controller.signal);
+              return { subName: sub.name, result };
+            })
+          );
+
+          if (controller.signal.aborted) break;
+
+          for (const outcome of settled) {
+            if (outcome.status === 'fulfilled') {
+              const { subName, result } = outcome.value;
+              paginationCursors.current[subName] = result.after ? result.after : 'end';
+              if (result.posts && result.posts.length > 0) {
+                batch.push(...result.posts);
+              }
+            } else if (outcome.reason?.name !== 'AbortError') {
+              console.error('Failed to load more for subreddit batch item', outcome.reason);
             }
           }
-          if (targetSubs.length > 1) {
-            await new Promise(resolve => setTimeout(resolve, 450));
+
+          if (i + BATCH_SIZE < activeSubs.length && !controller.signal.aborted) {
+            await new Promise(resolve => setTimeout(resolve, 150));
           }
         }
         
@@ -289,23 +332,9 @@ export const RedditProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
       if (allNewPosts.length > 0) {
         setRedditPosts(prev => {
-            const combined = [...prev, ...allNewPosts];
-            
-            // ⚡ Bolt: Replaced Array.from(new Map(...)) with a faster Set + filter deduplication
-            const seen = new Set();
-            const unique = combined.filter(item => {
-              if (seen.has(item.id)) return false;
-              seen.add(item.id);
-              return true;
-            });
-
-            unique.sort((a, b) => {
-              if (redditSort === 'new') return b.createdUtc - a.createdUtc;
-              if (redditSort === 'hot' || redditSort === 'top') return (b.score || 0) - (a.score || 0);
-              return b.createdUtc - a.createdUtc;
-            });                
-            storage.saveRedditPosts(allNewPosts); 
-            return unique;
+          const unique = sortPostsList([...prev, ...allNewPosts], redditSortRef.current);
+          storage.saveRedditPosts(allNewPosts);
+          return unique;
         });
         redditOffset.current += allNewPosts.length;
       }
@@ -319,13 +348,46 @@ export const RedditProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       }
       setIsLoading(false);
     }
-  }, [redditSort]);
+  }, [settings.redditRetentionDays, sortPostsList]);
 
   const handleRedditSortChange = useCallback(async (sort: 'new' | 'hot' | 'top') => {
+    redditSortRef.current = sort;
     setRedditSort(sort);
-    // Explicitly pass the new sort to refreshReddit
+
+    const SORT_CACHE_TTL_MS = 60_000;
+    const cached = sortCacheRef.current[sort];
+    if (cached && (Date.now() - cached.fetchedAt) < SORT_CACHE_TTL_MS && cached.posts.length > 0) {
+      if (refreshAbortHelper.current) {
+        refreshAbortHelper.current.abort();
+        refreshAbortHelper.current = null;
+        setIsLoading(false);
+      }
+      // Sync latest read/favorite/score state from active posts
+      const currentMap = new Map<string, RedditPost>(redditPostsRef.current.map(p => [p.id, p]));
+      const synced = cached.posts.map(p => {
+        const live = currentMap.get(p.id);
+        return live
+          ? {
+              ...p,
+              isRead: live.isRead,
+              isFavorite: live.isFavorite,
+              score: Math.max(p.score || 0, live.score || 0),
+              numComments: Math.max(p.numComments || 0, live.numComments || 0)
+            }
+          : p;
+      });
+      paginationCursors.current = { ...cached.cursors };
+      setRedditPosts(sortPostsList(synced, sort));
+      return;
+    }
+
+    // Optimistic instant local re-sort so UI responds immediately before network completes
+    if (redditPostsRef.current.length > 0) {
+      setRedditPosts(sortPostsList(redditPostsRef.current, sort));
+    }
+
     await refreshReddit(undefined, undefined, sort);
-  }, [refreshReddit]);
+  }, [refreshReddit, sortPostsList]);
 
   const toggleRedditRead = useCallback(async (id: string) => {
     let nextVal: 0 | 1 = 1;
@@ -376,6 +438,7 @@ export const RedditProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     const sub = subreddits.find(s => s.id === id);
     if (!sub) return;
 
+    sortCacheRef.current = {};
     setSubreddits(prev => prev.filter(s => s.id !== id));
     setRedditPosts(prev => prev.filter(p => (p.subredditName || '').toLowerCase() !== sub.name.toLowerCase()));
     
@@ -385,6 +448,7 @@ export const RedditProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const addSubreddit = useCallback(async (url: string) => {
     const result = await storage.addSubreddit(url);
     if (result) {
+      sortCacheRef.current = {};
       setSubreddits(prev => [...prev, result]);
       await refreshReddit([result]);
     }
@@ -399,6 +463,7 @@ export const RedditProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   }, []);
 
   const enforceRetention = useCallback(async () => {
+    sortCacheRef.current = {};
     await storage.cleanupOldRedditPosts(settings.redditRetentionDays || 3);
     const limit = Math.max(PAGE_SIZE, redditPostsRef.current.length, redditOffset.current);
     const loadedRedditPosts = await storage.getRedditPosts(0, limit);

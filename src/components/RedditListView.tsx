@@ -91,9 +91,9 @@ export const RedditListView = memo(({
       ) : (
         <div className="flex-1 max-w-4xl mx-auto px-1 sm:px-2 pt-0 pb-2 space-y-0">
           <AnimatePresence initial={false} mode="sync">
-            {posts.map((post, idx) => (
+            {posts.map((post) => (
               <SwipeableRedditPost
-                key={`reddit-${post.subredditName}-${post.id}-${idx}`}
+                key={post.id}
                 post={post}
                 settings={settings}
                 onClick={onPostClick}

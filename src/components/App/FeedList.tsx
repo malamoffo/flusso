@@ -54,11 +54,13 @@ export const FeedList = memo(({
       }
       return 140;
     },
-    overscan: 12,
+    overscan: 5,
     getItemKey: (index) => articles[index]?.id ?? index,
   });
 
   const virtualItems = rowVirtualizer.getVirtualItems();
+
+  const lastPreloadKeyRef = useRef<string>('');
 
   // Preload images for current virtual items and upcoming items before scroll focus arrives
   useEffect(() => {
@@ -66,6 +68,9 @@ export const FeedList = memo(({
 
     const startIndex = virtualItems.length > 0 ? virtualItems[0].index : 0;
     const endIndex = virtualItems.length > 0 ? virtualItems[virtualItems.length - 1].index : Math.min(15, articles.length - 1);
+    const preloadKey = `${startIndex}:${endIndex}:${articles.length}:${articles[startIndex]?.id || ''}`;
+    if (lastPreloadKeyRef.current === preloadKey) return;
+    lastPreloadKeyRef.current = preloadKey;
 
     // Look ahead 20 items so images are already cached and decoded before scroll focus arrives
     const lookAheadEnd = Math.min(articles.length, endIndex + 20);

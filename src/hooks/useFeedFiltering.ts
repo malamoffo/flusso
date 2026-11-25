@@ -92,5 +92,5 @@ export const useFeedFiltering = ({
     }
 
     return { inboxArticles: inbox, savedArticles: saved };
-  }, [articles, inboxUnreadOnly, savedUnreadOnly, deferredSearchQuery, sourceFilter, timeFilter, isSearchOpen, temporarilyVisibleUnreadIds]);
+  }, [articles, inboxUnreadOnly, savedUnreadOnly, deferredSearchQuery, sourceFilter, timeFilter, evidenzaFilter, isSearchOpen, temporarilyVisibleUnreadIds]);
 };

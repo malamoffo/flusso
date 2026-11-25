@@ -12,9 +12,10 @@ type CachedImageProps = React.ImgHTMLAttributes<HTMLImageElement> & {
   src: string;
   fallback?: React.ReactNode;
   priority?: boolean;
+  disableLocalCache?: boolean;
 };
 
-export function CachedImage({ src, className, fallback, alt, priority, ...props }: CachedImageProps) {
+export function CachedImage({ src, className, fallback, alt, priority, disableLocalCache, ...props }: CachedImageProps) {
   const isGif = React.useMemo(() => {
     if (!src) return false;
     const s = src.toLowerCase();
@@ -78,7 +79,7 @@ export function CachedImage({ src, className, fallback, alt, priority, ...props 
     let isMounted = true;
     
     if (!src) return;
-    if (isGif) return;
+    if (isGif || disableLocalCache) return;
     if (imagePersistence.resolvedLocalUrls.has(src)) return;
 
     const initImage = async () => {
@@ -97,7 +98,7 @@ export function CachedImage({ src, className, fallback, alt, priority, ...props 
 
     initImage();
     return () => { isMounted = false; };
-  }, [src, isGif]);
+  }, [src, isGif, disableLocalCache]);
 
   // Check if image is already complete on mount or src change
   useEffect(() => {
@@ -197,7 +198,7 @@ export function CachedImage({ src, className, fallback, alt, priority, ...props 
         {...props}
       />
       {!isLoaded && (
-        <div className="absolute inset-0 bg-gray-800 animate-pulse" />
+        <div className="absolute inset-0 bg-gray-800/80" />
       )}
     </div>
   );
